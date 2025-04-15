@@ -1,51 +1,33 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-
-// Simple in-memory store for rate limiting
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+import { kv } from '@vercel/kv'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
 const RATE_LIMIT = {
-  WINDOW_MS: 60 * 1000, // 1 minute
-  MAX_REQUESTS: 100, // 100 requests per minute
-};
+  window: 60, // 1 minute
+  maxRequests: 60, // 60 requests per minute
+}
 
-export async function rateLimiter(
-  request: NextRequest
-): Promise<NextResponse | null> {
-  const ip = request.ip || 'unknown';
-  const now = Date.now();
+export async function rateLimiter(request: NextRequest) {
+  const ip = request.ip ?? '127.0.0.1'
+  const key = `rate-limit:${ip}`
+  
+  try {
+    const current = await kv.get<number>(key) ?? 0
+    
+    if (current >= RATE_LIMIT.maxRequests) {
+      return new NextResponse('Too Many Requests', { status: 429 })
+    }
 
-  // Get or initialize rate limit data for this IP
-  const rateLimitData = rateLimitStore.get(ip) || {
-    count: 0,
-    resetTime: now + RATE_LIMIT.WINDOW_MS,
-  };
+    await kv.set(key, current + 1, { ex: RATE_LIMIT.window })
 
-  // Reset if window has passed
-  if (now > rateLimitData.resetTime) {
-    rateLimitData.count = 0;
-    rateLimitData.resetTime = now + RATE_LIMIT.WINDOW_MS;
+    const response = NextResponse.next()
+    response.headers.set('X-RateLimit-Limit', RATE_LIMIT.maxRequests.toString())
+    response.headers.set('X-RateLimit-Remaining', (RATE_LIMIT.maxRequests - current - 1).toString())
+    response.headers.set('X-RateLimit-Reset', (Date.now() + RATE_LIMIT.window * 1000).toString())
+
+    return response
+  } catch (error) {
+    console.error('Rate limiter error:', error)
+    return NextResponse.next()
   }
-
-  // Check if rate limit exceeded
-  if (rateLimitData.count >= RATE_LIMIT.MAX_REQUESTS) {
-    return NextResponse.json(
-      {
-        error: 'Too many requests. Please try again later.',
-        retryAfter: Math.ceil((rateLimitData.resetTime - now) / 1000),
-      },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': Math.ceil((rateLimitData.resetTime - now) / 1000).toString(),
-        },
-      }
-    );
-  }
-
-  // Increment request count
-  rateLimitData.count++;
-  rateLimitStore.set(ip, rateLimitData);
-
-  return null;
 } 

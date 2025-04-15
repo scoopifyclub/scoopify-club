@@ -1,172 +1,136 @@
 'use client';
 
-import { useState } from 'react';
-import { Navbar } from '@/components/Navbar';
-import { Footer } from '@/components/Footer';
+import { useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { DashboardLayout } from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
-import { Calendar, Settings, History, CreditCard, MapPin, Clock } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Calendar, Clock, MapPin, Settings, History, CreditCard } from 'lucide-react';
+import Link from 'next/link';
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState('upcoming');
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
+
+  if (status === 'loading') {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!session) {
+    return null;
+  }
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="flex flex-col md:flex-row gap-8">
-          {/* Sidebar */}
-          <div className="w-full md:w-64 space-y-4">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h2 className="text-lg font-semibold mb-4">Account</h2>
-              <div className="space-y-2">
-                <button
-                  className={`flex items-center w-full p-2 rounded-lg ${
-                    activeTab === 'upcoming' ? 'bg-brand-primary/10 text-brand-primary' : 'hover:bg-neutral-50'
-                  }`}
-                  onClick={() => setActiveTab('upcoming')}
-                >
-                  <Calendar className="w-5 h-5 mr-2" />
-                  Upcoming Services
-                </button>
-                <button
-                  className={`flex items-center w-full p-2 rounded-lg ${
-                    activeTab === 'history' ? 'bg-brand-primary/10 text-brand-primary' : 'hover:bg-neutral-50'
-                  }`}
-                  onClick={() => setActiveTab('history')}
-                >
-                  <History className="w-5 h-5 mr-2" />
-                  Service History
-                </button>
-                <button
-                  className={`flex items-center w-full p-2 rounded-lg ${
-                    activeTab === 'billing' ? 'bg-brand-primary/10 text-brand-primary' : 'hover:bg-neutral-50'
-                  }`}
-                  onClick={() => setActiveTab('billing')}
-                >
-                  <CreditCard className="w-5 h-5 mr-2" />
-                  Billing
-                </button>
-                <button
-                  className={`flex items-center w-full p-2 rounded-lg ${
-                    activeTab === 'settings' ? 'bg-brand-primary/10 text-brand-primary' : 'hover:bg-neutral-50'
-                  }`}
-                  onClick={() => setActiveTab('settings')}
-                >
-                  <Settings className="w-5 h-5 mr-2" />
-                  Settings
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Content */}
-          <div className="flex-1">
-            {activeTab === 'upcoming' && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h2 className="text-xl font-semibold mb-6">Upcoming Services</h2>
-                <div className="space-y-4">
-                  <div className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Weekly Service</h3>
-                        <p className="text-sm text-neutral-600">Every Monday at 9:00 AM</p>
-                      </div>
-                      <Button variant="outline">Reschedule</Button>
-                    </div>
-                    <div className="mt-4 flex items-center text-sm text-neutral-600">
-                      <MapPin className="w-4 h-4 mr-2" />
-                      <span>123 Pet Care Way, Dogtown, CA 90210</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'history' && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h2 className="text-xl font-semibold mb-6">Service History</h2>
-                <div className="space-y-4">
-                  <div className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">Weekly Service</h3>
-                        <p className="text-sm text-neutral-600">Completed on Monday, March 18, 2024</p>
-                      </div>
-                      <div className="flex items-center text-sm text-neutral-600">
-                        <Clock className="w-4 h-4 mr-2" />
-                        <span>9:00 AM - 9:30 AM</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'billing' && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h2 className="text-xl font-semibold mb-6">Billing Information</h2>
-                <div className="space-y-4">
-                  <div className="border rounded-lg p-4">
-                    <h3 className="font-medium mb-2">Current Plan</h3>
-                    <p className="text-neutral-600">Two Dogs Plan - $70/month</p>
-                    <div className="mt-4">
-                      <Button>Update Payment Method</Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'settings' && (
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h2 className="text-xl font-semibold mb-6">Account Settings</h2>
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="font-medium mb-2">Contact Information</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700">Email</label>
-                        <input
-                          type="email"
-                          className="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary"
-                          defaultValue="customer@example.com"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700">Phone</label>
-                        <input
-                          type="tel"
-                          className="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary"
-                          defaultValue="(555) 123-4567"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-medium mb-2">Service Preferences</h3>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-neutral-700">Preferred Service Day</label>
-                        <select className="mt-1 block w-full rounded-md border-neutral-300 shadow-sm focus:border-brand-primary focus:ring-brand-primary">
-                          <option>Monday</option>
-                          <option>Tuesday</option>
-                          <option>Wednesday</option>
-                          <option>Thursday</option>
-                          <option>Friday</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <Button>Save Changes</Button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold">Welcome back, {session.user?.name}</h1>
+          <Button asChild>
+            <Link href="/dashboard/schedule">Schedule Service</Link>
+          </Button>
         </div>
-      </main>
-      <Footer />
-    </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Next Service</CardTitle>
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">Tomorrow</div>
+              <p className="text-xs text-muted-foreground">
+                <Clock className="inline-block h-3 w-3 mr-1" />
+                9:00 AM - 11:00 AM
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                <MapPin className="inline-block h-3 w-3 mr-1" />
+                123 Main St, Anytown
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Last Service</CardTitle>
+              <History className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">1 week ago</div>
+              <p className="text-xs text-muted-foreground">
+                <Clock className="inline-block h-3 w-3 mr-1" />
+                9:00 AM - 11:00 AM
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                <MapPin className="inline-block h-3 w-3 mr-1" />
+                123 Main St, Anytown
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Billing</CardTitle>
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">$29.99</div>
+              <p className="text-xs text-muted-foreground">
+                Next payment due in 2 weeks
+              </p>
+              <Button variant="outline" size="sm" className="mt-2" asChild>
+                <Link href="/dashboard/billing">View Billing History</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Quick Actions</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <Button variant="outline" className="h-24" asChild>
+                <Link href="/dashboard/schedule">
+                  <Calendar className="h-6 w-6 mr-2" />
+                  Schedule Service
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-24" asChild>
+                <Link href="/dashboard/history">
+                  <History className="h-6 w-6 mr-2" />
+                  View History
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-24" asChild>
+                <Link href="/dashboard/billing">
+                  <CreditCard className="h-6 w-6 mr-2" />
+                  Manage Billing
+                </Link>
+              </Button>
+              <Button variant="outline" className="h-24" asChild>
+                <Link href="/dashboard/settings">
+                  <Settings className="h-6 w-6 mr-2" />
+                  Account Settings
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
   );
 } 

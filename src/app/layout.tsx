@@ -1,19 +1,11 @@
 import type { Metadata } from "next";
-import { Inter, Poppins } from "next/font/google";
 import "./globals.css";
 import { Logo } from "@/components/Logo";
 import { Toaster } from "sonner";
 
-const inter = Inter({ subsets: ["latin"] });
-const poppins = Poppins({
-  weight: ["400", "600"],
-  subsets: ["latin"],
-  variable: "--font-poppins",
-});
-
 export const metadata: Metadata = {
-  title: "Scoopify Club",
-  description: "Your premier ice cream service management platform",
+  title: "Scoopify - Professional Dog Waste Removal Service",
+  description: "Keep your yard clean and safe with our reliable weekly dog waste removal service.",
 };
 
 export default function RootLayout({
@@ -23,7 +15,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="light">
-      <body className={`${inter.className} ${poppins.variable} antialiased`}>
+      <body className="font-sans">
         <div className="min-h-screen bg-gradient-to-b from-background-start to-background-end">
           <header className="container mx-auto px-4 py-4">
             <Logo />

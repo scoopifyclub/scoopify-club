@@ -1,126 +1,106 @@
 'use client'
 
 import { useState } from 'react'
+import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Navbar } from '@/components/Navbar'
-import { Footer } from '@/components/Footer'
+import Link from 'next/link'
 
 export default function LoginPage() {
-  const [isEmployee, setIsEmployee] = useState(false)
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const router = useRouter()
+  const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setLoading(true)
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          password,
-          isEmployee,
-        }),
+      const result = await signIn('credentials', {
+        email,
+        password,
+        redirect: false,
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        // Store the token in localStorage or cookies
-        localStorage.setItem('token', data.token)
-        localStorage.setItem('userType', isEmployee ? 'employee' : 'customer')
-        
-        // Redirect based on user type
-        if (isEmployee) {
-          router.push('/employee/dashboard')
-        } else {
-          router.push('/dashboard')
-        }
-      } else {
-        const data = await response.json()
-        setError(data.message || 'Login failed')
+      if (result?.error) {
+        setError('Invalid email or password')
+        return
       }
-    } catch (err) {
-      setError('An error occurred during login')
+
+      router.push('/dashboard')
+    } catch (error) {
+      setError('An error occurred. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      <main className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold">Welcome to Scoopify</h1>
-            <p className="text-neutral-600 mt-2">Please sign in to continue</p>
-          </div>
-
-          <div className="flex justify-center gap-4 mb-6">
-            <Button
-              variant={!isEmployee ? 'default' : 'outline'}
-              onClick={() => setIsEmployee(false)}
-            >
-              Customer Login
-            </Button>
-            <Button
-              variant={isEmployee ? 'default' : 'outline'}
-              onClick={() => setIsEmployee(true)}
-            >
-              Employee Login
-            </Button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 py-12 sm:px-6 lg:px-8">
+      <div className="w-full max-w-md space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-neutral-900">
+            Sign in to your account
+          </h2>
+          <p className="mt-2 text-center text-sm text-neutral-600">
+            Or{' '}
+            <Link href="/signup" className="font-medium text-brand-primary hover:text-brand-primary-dark">
+              create a new account
+            </Link>
+          </p>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="space-y-4 rounded-md shadow-sm">
             <div>
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Email address</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
+                className="mt-1"
               />
             </div>
-
             <div>
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                name="password"
                 type="password"
+                autoComplete="current-password"
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
+                className="mt-1"
               />
             </div>
-
-            {error && (
-              <div className="text-red-500 text-sm">{error}</div>
-            )}
-
-            <Button type="submit" className="w-full">
-              Sign In
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-neutral-600">
-              Don't have an account?{' '}
-              <a href="/signup" className="text-brand-primary hover:underline">
-                Sign up
-              </a>
-            </p>
           </div>
-        </div>
-      </main>
-      <Footer />
+
+          {error && (
+            <div className="rounded-md bg-red-50 p-4">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          )}
+
+          <div>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+            >
+              {loading ? 'Signing in...' : 'Sign in'}
+            </Button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 } 

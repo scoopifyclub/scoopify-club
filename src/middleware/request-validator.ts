@@ -1,56 +1,53 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { z } from 'zod';
 
-export class ValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ValidationError';
+// Request validation schemas
+const schemas = {
+  '/api/services/schedule': z.object({
+    date: z.string().datetime(),
+    serviceType: z.enum(['regular', 'one-time', 'extra']),
+    timeSlot: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9] (AM|PM)$/)
+  }),
+  '/api/billing': z.object({
+    paymentMethodId: z.string().min(1),
+    planId: z.string().min(1)
+  }),
+  '/api/settings': z.object({
+    name: z.string().min(1).max(100),
+    phone: z.string().regex(/^\+?[1-9]\d{1,14}$/),
+    address: z.string().min(1).max(200),
+    notificationPreferences: z.object({
+      email: z.boolean(),
+      sms: z.boolean(),
+      serviceReminders: z.boolean(),
+      billingAlerts: z.boolean()
+    })
+  })
+};
+
+export async function requestValidator(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  const schema = schemas[path as keyof typeof schemas];
+
+  if (!schema) {
+    return NextResponse.next();
   }
-}
 
-export async function requestValidator(
-  request: NextRequest
-): Promise<NextResponse | null> {
-  // Validate Content-Type for POST/PUT requests
-  if (['POST', 'PUT'].includes(request.method)) {
-    const contentType = request.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
+  try {
+    const body = await request.json();
+    await schema.parseAsync(body);
+    return NextResponse.next();
+  } catch (error) {
+    if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: 'Content-Type must be application/json' },
-        { status: 415 }
-      );
-    }
-
-    try {
-      // Validate JSON body
-      const body = await request.json();
-      if (!body || typeof body !== 'object') {
-        throw new ValidationError('Request body must be a valid JSON object');
-      }
-    } catch (error) {
-      if (error instanceof ValidationError) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 400 }
-        );
-      }
-      return NextResponse.json(
-        { error: 'Invalid JSON in request body' },
+        { error: 'Invalid request data', details: error.errors },
         { status: 400 }
       );
     }
+    return NextResponse.json(
+      { error: 'Invalid request format' },
+      { status: 400 }
+    );
   }
-
-  // Validate required headers
-  const requiredHeaders = ['x-request-id'];
-  for (const header of requiredHeaders) {
-    if (!request.headers.get(header)) {
-      return NextResponse.json(
-        { error: `Missing required header: ${header}` },
-        { status: 400 }
-      );
-    }
-  }
-
-  return null;
 } 

@@ -1,67 +1,67 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 import { verify } from 'jsonwebtoken'
 import { rateLimiter } from './middleware/rate-limiter'
+import { securityHeaders } from './middleware/security-headers'
 import { requestValidator } from './middleware/request-validator'
 import { errorHandler } from './middleware/error-handler'
+import { dbErrorHandler } from './middleware/db-error-handler'
 
 export async function middleware(request: NextRequest) {
-  const token = request.cookies.get('token')?.value
-  const path = request.nextUrl.pathname
+  const token = await getToken({ req: request })
+  const { pathname } = request.nextUrl
 
-  // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/signup', '/']
-  if (publicRoutes.includes(path)) {
-    return NextResponse.next()
+  // Public paths that don't require authentication
+  const publicPaths = ['/', '/login', '/signup', '/about', '/contact', '/privacy', '/terms']
+  const isPublicPath = publicPaths.includes(pathname)
+
+  // Protected paths
+  const isProtectedPath = pathname.startsWith('/dashboard') || 
+                         pathname.startsWith('/employee') || 
+                         pathname.startsWith('/admin')
+
+  // Redirect authenticated users away from auth pages
+  if (token && (pathname === '/login' || pathname === '/signup')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // If no token is present, redirect to login
-  if (!token) {
-    const loginUrl = new URL('/login', request.url)
-    return NextResponse.redirect(loginUrl)
+  // Redirect unauthenticated users to login
+  if (!token && isProtectedPath) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  try {
-    // Verify the token
-    const decoded = verify(token, process.env.JWT_SECRET!) as {
-      id: string
-      email: string
-      type: 'employee' | 'customer'
-    }
+  // Apply rate limiting
+  const rateLimitResponse = await rateLimiter(request)
+  if (rateLimitResponse) return rateLimitResponse
 
-    // Check if the user is trying to access employee routes
-    if (path.startsWith('/employee') && decoded.type !== 'employee') {
-      const dashboardUrl = new URL('/dashboard', request.url)
-      return NextResponse.redirect(dashboardUrl)
-    }
+  // Apply security headers
+  const securityResponse = securityHeaders(request)
+  if (securityResponse) return securityResponse
 
-    // Check if the user is trying to access customer routes
-    if (path.startsWith('/dashboard') && decoded.type !== 'customer') {
-      const employeeDashboardUrl = new URL('/employee/dashboard', request.url)
-      return NextResponse.redirect(employeeDashboardUrl)
-    }
-
-    // Apply rate limiting
-    const rateLimitResponse = await rateLimiter(request)
-    if (rateLimitResponse) return rateLimitResponse
-
-    // Apply request validation
+  // Apply request validation for API routes
+  if (request.nextUrl.pathname.startsWith('/api')) {
     const validationResponse = await requestValidator(request)
     if (validationResponse) return validationResponse
 
-    return NextResponse.next()
-  } catch (error) {
-    // If token is invalid, redirect to login
-    const loginUrl = new URL('/login', request.url)
-    return NextResponse.redirect(loginUrl)
+    // Wrap API routes with database error handler
+    return dbErrorHandler(request, async () => {
+      return NextResponse.next()
+    })
   }
+
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: [
-    '/dashboard/:path*',
-    '/employee/:path*',
-    '/api/:path*',
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    '/((?!_next/static|_next/image|favicon.ico|public).*)',
   ],
 } 

@@ -1,53 +1,95 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Logo } from '@/components/Logo';
+import { Menu, X } from 'lucide-react';
+import { useState } from 'react';
 
 const navigation = [
   { name: 'Home', href: '/' },
   { name: 'Services', href: '/services' },
   { name: 'Pricing', href: '/pricing' },
   { name: 'About', href: '/about' },
+  { name: 'Contact', href: '/contact' },
 ];
 
 export function Navbar() {
-  const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-neutral-200 bg-white">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="flex items-center gap-2">
-            <Logo className="h-8 w-8" />
-            <span className="text-xl font-bold text-neutral-900">Scoopify<span className="text-brand-primary">.club</span></span>
-          </Link>
+    <header className="bg-white shadow-sm">
+      <nav className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Top">
+        <div className="flex h-16 items-center justify-between">
+          <div className="flex items-center">
+            <Link href="/" className="flex items-center">
+              <span className="text-2xl font-bold text-brand-primary">Scoopify</span>
+            </Link>
+          </div>
           
-          <nav className="hidden md:flex md:gap-6">
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex md:items-center md:space-x-8">
             {navigation.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
-                className={`text-sm font-medium transition-colors hover:text-brand-primary ${
-                  pathname === item.href ? 'text-brand-primary' : 'text-neutral-600'
-                }`}
+                className="text-sm font-medium text-neutral-600 hover:text-brand-primary"
               >
                 {item.name}
               </Link>
             ))}
-          </nav>
+            <div className="flex items-center space-x-4">
+              <Button asChild variant="outline" size="sm">
+                <Link href="/login">Login</Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link href="/signup">Sign Up</Link>
+              </Button>
+            </div>
+          </div>
+
+          {/* Mobile menu button */}
+          <div className="flex md:hidden">
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-md p-2 text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              <span className="sr-only">Open main menu</span>
+              {mobileMenuOpen ? (
+                <X className="block h-6 w-6" aria-hidden="true" />
+              ) : (
+                <Menu className="block h-6 w-6" aria-hidden="true" />
+              )}
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" asChild>
-            <Link href="/login">Log in</Link>
-          </Button>
-          <Button size="sm" asChild>
-            <Link href="/signup">Sign up</Link>
-          </Button>
-        </div>
-      </div>
+        {/* Mobile menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden">
+            <div className="space-y-1 px-2 pb-3 pt-2">
+              {navigation.map((item) => (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className="block rounded-md px-3 py-2 text-base font-medium text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {item.name}
+                </Link>
+              ))}
+              <div className="mt-4 space-y-2">
+                <Button asChild variant="outline" className="w-full">
+                  <Link href="/login" onClick={() => setMobileMenuOpen(false)}>Login</Link>
+                </Button>
+                <Button asChild className="w-full">
+                  <Link href="/signup" onClick={() => setMobileMenuOpen(false)}>Sign Up</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </nav>
     </header>
   );
 } 
