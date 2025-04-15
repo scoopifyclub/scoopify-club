@@ -1,0 +1,297 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  customer      Customer?
+  employee      Employee?
+  serviceDelays ServiceDelay[]
+}
+
+model Customer {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  phone         String?
+  address       Address?
+  services      Service[]
+  user          User?     @relation(fields: [userId], references: [id])
+  userId        String?   @unique
+  subscriptions Subscription[]
+  status        CustomerStatus @default(ACTIVE)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  street      String
+  city        String
+  state       String
+  zipCode     String
+  customerId  String   @unique
+  customer    Customer @relation(fields: [customerId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Subscription {
+  id          String    @id @default(cuid())
+  customerId  String
+  customer    Customer  @relation(fields: [customerId], references: [id])
+  plan        Plan      @default(WEEKLY)
+  status      SubscriptionStatus @default(ACTIVE)
+  startDate   DateTime
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  services    Service[]
+  payments    Payment[]
+}
+
+model TimeExtension {
+  id          String   @id @default(cuid())
+  serviceId   String
+  service     Service  @relation(fields: [serviceId], references: [id])
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  minutes     Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Employee {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  phone         String?
+  services      Service[]
+  user          User?     @relation(fields: [userId], references: [id])
+  userId        String?   @unique
+  status        EmployeeStatus @default(ACTIVE)
+  timeExtensions TimeExtension[]
+  serviceMessages ServiceMessage[]
+  serviceAreas   ServiceArea[]
+  payments       Payment[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Payment {
+  id            String    @id @default(cuid())
+  amount        Float
+  status        PaymentStatus @default(PENDING)
+  method        PaymentMethod
+  date          DateTime?
+  subscription  Subscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId String?
+  service       Service? @relation(fields: [serviceId], references: [id])
+  serviceId     String?
+  employee      Employee? @relation(fields: [employeeId], references: [id])
+  employeeId    String?
+  retries       PaymentRetry[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ServicePhoto {
+  id          String   @id @default(cuid())
+  url         String
+  type        PhotoType
+  createdAt   DateTime @default(now())
+  deleteAt    DateTime?
+  serviceId   String
+  service     Service  @relation(fields: [serviceId], references: [id])
+}
+
+model Service {
+  id            String    @id @default(cuid())
+  customerId    String
+  customer      Customer  @relation(fields: [customerId], references: [id])
+  employeeId    String?
+  employee      Employee? @relation(fields: [employeeId], references: [id])
+  subscriptionId String?
+  subscription  Subscription? @relation(fields: [subscriptionId], references: [id])
+  preferredDay  DateTime
+  scheduledDate DateTime
+  arrivalDeadline DateTime?
+  status        ServiceStatus @default(PENDING)
+  notes         String?
+  gateCode      String?
+  specialInstructions String?
+  numberOfDogs  Int
+  paymentAmount Float
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  photos        ServicePhoto[]
+  checklist     ServiceChecklist?
+  delays        ServiceDelay[]
+  timeExtensions TimeExtension[]
+  payments      Payment[]
+  messages      ServiceMessage[]
+}
+
+model ServiceChecklist {
+  id          String   @id @default(cuid())
+  serviceId   String   @unique
+  service     Service  @relation(fields: [serviceId], references: [id])
+  cornersCleaned Boolean @default(false)
+  wasteDisposed Boolean @default(false)
+  areaRaked    Boolean @default(false)
+  gateClosed   Boolean @default(false)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ServiceMessage {
+  id          String   @id @default(cuid())
+  serviceId   String
+  service     Service  @relation(fields: [serviceId], references: [id])
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  message     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ServiceArea {
+  id          String   @id @default(cuid())
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  zipCode     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PaymentRetry {
+  id            String    @id @default(cuid())
+  paymentId     String
+  payment       Payment   @relation(fields: [paymentId], references: [id])
+  scheduledDate DateTime
+  attemptNumber Int       @default(1)
+  status        PaymentRetryStatus @default(SCHEDULED)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model ServiceDelay {
+  id          String   @id @default(cuid())
+  serviceId   String
+  reason      String
+  type        DelayType
+  reportedAt  DateTime @default(now())
+  reportedById String
+  service     Service  @relation(fields: [serviceId], references: [id])
+  reportedBy  User     @relation(fields: [reportedById], references: [id])
+
+  @@index([serviceId])
+  @@index([reportedById])
+}
+
+enum Role {
+  ADMIN
+  CUSTOMER
+  EMPLOYEE
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  PAST_DUE
+  DO_NOT_SERVICE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  ON_LEAVE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
+}
+
+enum Plan {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum ServiceStatus {
+  PENDING
+  CLAIMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  DELAYED
+  LATE
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum PhotoType {
+  BEFORE_CORNER1
+  BEFORE_CORNER2
+  BEFORE_CORNER3
+  BEFORE_CORNER4
+  AFTER_CORNER1
+  AFTER_CORNER2
+  AFTER_CORNER3
+  AFTER_CORNER4
+}
+
+enum PaymentMethod {
+  CASH
+  CASH_APP
+  CHECK
+  CREDIT_CARD
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum PaymentRetryStatus {
+  SCHEDULED
+  COMPLETED
+  FAILED
+}
+
+enum DelayType {
+  WEATHER
+  EQUIPMENT
+  PERSONAL
+  OTHER
+} 
