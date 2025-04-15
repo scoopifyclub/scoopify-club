@@ -4,17 +4,16 @@ import Link from 'next/link'
 import { Facebook, Twitter, Instagram, Mail, Phone, MapPin } from 'lucide-react'
 
 const navigation = {
-  company: [
-    { name: 'About', href: '/about' },
+  main: [
+    { name: 'Home', href: '/' },
     { name: 'Services', href: '/services' },
     { name: 'Pricing', href: '/pricing' },
+    { name: 'About', href: '/about' },
     { name: 'Contact', href: '/contact' },
   ],
-  support: [
-    { name: 'Help Center', href: '/help' },
-    { name: 'FAQ', href: '/faq' },
-    { name: 'Terms', href: '/terms' },
+  legal: [
     { name: 'Privacy', href: '/privacy' },
+    { name: 'Terms', href: '/terms' },
   ],
 }
 
@@ -42,93 +41,29 @@ const socialLinks = [
   { name: 'Instagram', icon: Instagram, href: '#' },
 ]
 
-export function Footer() {
+export default function Footer() {
   return (
-    <footer className="bg-neutral-50">
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
-          {/* Company Info */}
-          <div className="space-y-4">
-            <Link href="/" className="flex items-center">
-              <span className="text-2xl font-bold text-brand-primary">Scoopify</span>
-            </Link>
-            <p className="text-sm text-neutral-600">
-              Professional dog waste removal service. Keeping your yard clean and safe.
-            </p>
-          </div>
-
-          {/* Quick Links */}
-          <div>
-            <h3 className="text-sm font-semibold text-neutral-900">Company</h3>
-            <ul className="mt-4 space-y-2">
-              {navigation.company.map((item) => (
-                <li key={item.name}>
-                  <Link
-                    href={item.href}
-                    className="text-sm text-neutral-600 hover:text-brand-primary"
-                  >
-                    {item.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Support Links */}
-          <div>
-            <h3 className="text-sm font-semibold text-neutral-900">Support</h3>
-            <ul className="mt-4 space-y-2">
-              {navigation.support.map((item) => (
-                <li key={item.name}>
-                  <Link
-                    href={item.href}
-                    className="text-sm text-neutral-600 hover:text-brand-primary"
-                  >
-                    {item.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Contact Info */}
-          <div>
-            <h3 className="text-sm font-semibold text-neutral-900">Contact Us</h3>
-            <ul className="mt-4 space-y-2">
-              {contactInfo.map((item) => (
-                <li key={item.text} className="flex items-center space-x-2">
-                  <item.icon className="h-4 w-4 text-neutral-600" />
-                  <Link
-                    href={item.href}
-                    className="text-sm text-neutral-600 hover:text-brand-primary"
-                  >
-                    {item.text}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <div className="mt-12 border-t border-neutral-200 pt-8">
-          <div className="flex flex-col items-center justify-between space-y-4 sm:flex-row sm:space-y-0">
-            <p className="text-sm text-neutral-600">
-              © {new Date().getFullYear()} Scoopify. All rights reserved.
-            </p>
-            <div className="flex space-x-6">
-              {socialLinks.map((item) => (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className="text-neutral-600 hover:text-brand-primary"
-                >
-                  <span className="sr-only">{item.name}</span>
-                  <item.icon className="h-5 w-5" />
-                </Link>
-              ))}
+    <footer className="bg-white border-t">
+      <div className="mx-auto max-w-7xl overflow-hidden px-6 py-20 sm:py-24 lg:px-8">
+        <nav className="-mb-6 columns-2 sm:flex sm:justify-center sm:space-x-12" aria-label="Footer">
+          {navigation.main.map((item) => (
+            <div key={item.name} className="pb-6">
+              <Link href={item.href} className="text-sm leading-6 text-gray-600 hover:text-gray-900" data-testid={`footer-${item.name.toLowerCase()}`}>
+                {item.name}
+              </Link>
             </div>
-          </div>
+          ))}
+        </nav>
+        <div className="mt-10 flex justify-center space-x-10">
+          {navigation.legal.map((item) => (
+            <Link key={item.name} href={item.href} className="text-sm leading-6 text-gray-600 hover:text-gray-900" data-testid={`footer-${item.name.toLowerCase()}`}>
+              {item.name}
+            </Link>
+          ))}
         </div>
+        <p className="mt-10 text-center text-xs leading-5 text-gray-500">
+          &copy; {new Date().getFullYear()} ScoopifyClub. All rights reserved.
+        </p>
       </div>
     </footer>
   )

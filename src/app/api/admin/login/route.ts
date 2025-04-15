@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import { compare } from 'bcryptjs'
-import { sign } from 'jsonwebtoken'
-import prisma from '@/lib/prisma'
+import { prisma } from '@/lib/prisma'
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
 
 export async function POST(request: Request) {
   try {
@@ -9,30 +9,52 @@ export async function POST(request: Request) {
 
     const user = await prisma.user.findUnique({
       where: { email },
+      include: {
+        employee: true,
+        customer: true,
+      },
     })
 
-    if (!user || user.role !== 'ADMIN') {
+    if (!user || !user.password) {
       return new NextResponse('Invalid credentials', { status: 401 })
     }
 
-    const isValid = await compare(password, user.password || '')
+    const isValid = await bcrypt.compare(password, user.password)
 
     if (!isValid) {
       return new NextResponse('Invalid credentials', { status: 401 })
     }
 
-    const token = sign(
-      { userId: user.id, role: user.role },
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        employeeId: user.employee?.id,
+        customerId: user.customer?.id,
+      },
       process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '1d' }
+      { expiresIn: '7d' }
     )
 
-    const response = NextResponse.json({ token })
+    const response = NextResponse.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        employeeId: user.employee?.id,
+        customerId: user.customer?.id,
+      },
+      token,
+    })
+
     response.cookies.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 60 * 60 * 24, // 1 day
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+      path: '/',
     })
 
     return response

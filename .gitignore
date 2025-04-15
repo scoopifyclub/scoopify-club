@@ -33,11 +33,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# database
+*.db
+*.db-journal
+
 # IDE
-.idea/
 .vscode/
-*.swp
-*.swo
+.idea/
 
 # Prisma
 /prisma/migrations/

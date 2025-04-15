@@ -30,6 +30,20 @@ export default function AdminLogin() {
       }
 
       const data = await response.json()
+      
+      // Set secure cookies with proper attributes
+      const cookieOptions = [
+        `token=${data.token}`,
+        'path=/',
+        'max-age=604800', // 7 days
+        'SameSite=Lax',
+        'Secure',
+        'HttpOnly'
+      ].join('; ')
+      
+      document.cookie = cookieOptions
+      document.cookie = `userType=admin; path=/; max-age=604800; SameSite=Lax; Secure`
+      
       toast.success('Login successful!')
       router.push('/admin/dashboard')
     } catch (error) {

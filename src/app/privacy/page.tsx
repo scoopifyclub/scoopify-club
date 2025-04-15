@@ -1,106 +1,98 @@
 'use client'
 
-import { Navbar } from '@/components/Navbar'
-import { Footer } from '@/components/Footer'
+import Navbar from '@/components/Navbar'
+import Footer from '@/components/Footer'
 
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
-      <main>
-        {/* Hero Section */}
-        <section className="relative py-24 bg-gradient-to-br from-neutral-50 to-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-neutral-900 sm:text-5xl md:text-6xl">
-                Privacy Policy
-              </h1>
-              <p className="mt-6 text-xl text-neutral-600 max-w-3xl mx-auto">
-                Last updated: {new Date().toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-        </section>
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="prose prose-lg max-w-none">
+          <h1 className="text-4xl font-bold text-gray-900 mb-8">Privacy Policy</h1>
+          
+          <p className="text-gray-600 mb-6">
+            Last updated: {new Date().toLocaleDateString()}
+          </p>
 
-        {/* Content Section */}
-        <section className="py-24 bg-white">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="prose prose-lg prose-neutral">
-              <h2>Introduction</h2>
-              <p>
-                At Scoopify, we take your privacy seriously. This Privacy Policy describes how we collect, use, and protect your personal information when you use our services.
-              </p>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Introduction</h2>
+            <p className="text-gray-600 mb-4">
+              At ScoopifyClub, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our service.
+            </p>
+          </section>
 
-              <h2>Information We Collect</h2>
-              <p>We collect information that you provide directly to us, including:</p>
-              <ul>
-                <li>Contact information (name, email, phone number, address)</li>
-                <li>Payment information (processed securely through Stripe)</li>
-                <li>Service preferences and scheduling information</li>
-                <li>Communication preferences</li>
-              </ul>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Information We Collect</h2>
+            <p className="text-gray-600 mb-4">
+              We collect information that you provide directly to us, including:
+            </p>
+            <ul className="list-disc pl-6 text-gray-600 mb-4">
+              <li>Name and contact information</li>
+              <li>Service address and preferences</li>
+              <li>Payment information</li>
+              <li>Communication preferences</li>
+            </ul>
+          </section>
 
-              <h2>How We Use Your Information</h2>
-              <p>We use the information we collect to:</p>
-              <ul>
-                <li>Provide and maintain our services</li>
-                <li>Process your payments</li>
-                <li>Communicate with you about your service</li>
-                <li>Send you important updates and notifications</li>
-                <li>Improve our services</li>
-              </ul>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">3. How We Use Your Information</h2>
+            <p className="text-gray-600 mb-4">
+              We use the information we collect to:
+            </p>
+            <ul className="list-disc pl-6 text-gray-600 mb-4">
+              <li>Provide and maintain our services</li>
+              <li>Process your payments</li>
+              <li>Communicate with you about your service</li>
+              <li>Improve our services</li>
+              <li>Comply with legal obligations</li>
+            </ul>
+          </section>
 
-              <h2>Information Sharing</h2>
-              <p>
-                We do not sell or rent your personal information to third parties. We may share your information with:
-              </p>
-              <ul>
-                <li>Service providers who assist in our operations</li>
-                <li>Payment processors (Stripe)</li>
-                <li>Legal authorities when required by law</li>
-              </ul>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">4. Information Sharing</h2>
+            <p className="text-gray-600 mb-4">
+              We do not sell or rent your personal information to third parties. We may share your information with:
+            </p>
+            <ul className="list-disc pl-6 text-gray-600 mb-4">
+              <li>Service providers who assist in our operations</li>
+              <li>Law enforcement when required by law</li>
+              <li>Other parties with your consent</li>
+            </ul>
+          </section>
 
-              <h2>Data Security</h2>
-              <p>
-                We implement appropriate security measures to protect your personal information. However, no method of transmission over the internet is 100% secure.
-              </p>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">5. Data Security</h2>
+            <p className="text-gray-600 mb-4">
+              We implement appropriate security measures to protect your personal information. However, no method of transmission over the Internet is 100% secure.
+            </p>
+          </section>
 
-              <h2>Your Rights</h2>
-              <p>You have the right to:</p>
-              <ul>
-                <li>Access your personal information</li>
-                <li>Correct inaccurate information</li>
-                <li>Request deletion of your information</li>
-                <li>Opt-out of marketing communications</li>
-              </ul>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">6. Your Rights</h2>
+            <p className="text-gray-600 mb-4">
+              You have the right to:
+            </p>
+            <ul className="list-disc pl-6 text-gray-600 mb-4">
+              <li>Access your personal information</li>
+              <li>Correct inaccurate information</li>
+              <li>Request deletion of your information</li>
+              <li>Opt-out of marketing communications</li>
+            </ul>
+          </section>
 
-              <h2>Cookies and Tracking</h2>
-              <p>
-                We use cookies and similar tracking technologies to improve your experience on our website. You can control cookie settings through your browser.
-              </p>
-
-              <h2>Children's Privacy</h2>
-              <p>
-                Our services are not intended for children under 13. We do not knowingly collect personal information from children under 13.
-              </p>
-
-              <h2>Changes to This Policy</h2>
-              <p>
-                We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page.
-              </p>
-
-              <h2>Contact Us</h2>
-              <p>
-                If you have any questions about this Privacy Policy, please contact us at:
-              </p>
-              <ul>
-                <li>Email: privacy@scoopify.club</li>
-                <li>Phone: (555) 123-4567</li>
-                <li>Address: 123 Pet Care Way, Dogtown, CA 90210</li>
-              </ul>
-            </div>
-          </div>
-        </section>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">7. Contact Us</h2>
+            <p className="text-gray-600 mb-4">
+              If you have any questions about this Privacy Policy, please contact us at:
+            </p>
+            <p className="text-gray-600">
+              Email: privacy@scoopify.com<br />
+              Phone: (555) 123-4567<br />
+              Address: 123 Pet Care Ave, City, State 12345
+            </p>
+          </section>
+        </div>
       </main>
       <Footer />
     </div>

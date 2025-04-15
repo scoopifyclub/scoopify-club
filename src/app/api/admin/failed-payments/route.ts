@@ -1,62 +1,56 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
+    // First, get all failed payments with their related data
     const failedPayments = await prisma.payment.findMany({
       where: {
-        status: 'FAILED',
-        subscription: {
-          customer: {
-            status: 'PAST_DUE'
-          }
-        }
+        status: 'FAILED'
       },
       include: {
-        subscription: {
-          include: {
-            customer: {
-              include: {
-                user: true
-              }
-            }
-          }
-        },
+        customer: true,
+        subscription: true,
         retries: {
-          where: {
-            status: 'SCHEDULED'
-          },
           orderBy: {
             scheduledDate: 'asc'
           },
           take: 1
         }
-      },
-      orderBy: {
-        date: 'desc'
       }
     });
 
-    const formattedPayments = failedPayments.map(payment => ({
-      payment: {
-        id: payment.id,
-        amount: payment.amount,
-        date: payment.date,
-        status: payment.status,
-        type: payment.type
+    // Then, get retry counts for all payments in a single query
+    const retryCounts = await prisma.paymentRetry.groupBy({
+      by: ['paymentId'],
+      where: {
+        paymentId: {
+          in: failedPayments.map(p => p.id)
+        },
+        status: {
+          in: ['COMPLETED', 'FAILED']
+        }
       },
+      _count: {
+        paymentId: true
+      }
+    });
+
+    // Create a map of payment ID to retry count for easy lookup
+    const retryCountMap = new Map(
+      retryCounts.map(rc => [rc.paymentId, rc._count.paymentId])
+    );
+
+    // Format the response
+    const formattedPayments = failedPayments.map(payment => ({
+      id: payment.id,
+      amount: payment.amount,
+      date: payment.date,
+      status: payment.status,
       customer: {
-        id: payment.subscription.customer.id,
-        name: payment.subscription.customer.name,
-        email: payment.subscription.customer.user.email,
-        phone: payment.subscription.customer.phone
+        id: payment.customer.id,
+        name: payment.customer.name,
+        email: payment.customer.email
       },
       subscription: {
         id: payment.subscription.id,
@@ -64,14 +58,7 @@ export async function GET(request: Request) {
         startDate: payment.subscription.startDate,
         endDate: payment.subscription.endDate
       },
-      retryAttempts: await prisma.paymentRetry.count({
-        where: {
-          paymentId: payment.id,
-          status: {
-            in: ['COMPLETED', 'FAILED']
-          }
-        }
-      }),
+      retryAttempts: retryCountMap.get(payment.id) || 0,
       nextRetryDate: payment.retries[0]?.scheduledDate || null
     }));
 

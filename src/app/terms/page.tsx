@@ -1,100 +1,109 @@
 'use client'
 
-import { Navbar } from '@/components/Navbar'
-import { Footer } from '@/components/Footer'
+import Navbar from '@/components/Navbar'
+import Footer from '@/components/Footer'
 
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
-      <main>
-        {/* Hero Section */}
-        <section className="relative py-24 bg-gradient-to-br from-neutral-50 to-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-neutral-900 sm:text-5xl md:text-6xl">
-                Terms of Service
-              </h1>
-              <p className="mt-6 text-xl text-neutral-600 max-w-3xl mx-auto">
-                Last updated: {new Date().toLocaleDateString()}
-              </p>
-            </div>
-          </div>
-        </section>
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="prose prose-lg max-w-none">
+          <h1 className="text-4xl font-bold text-gray-900 mb-8">Terms of Service</h1>
+          
+          <p className="text-gray-600 mb-6">
+            Last updated: {new Date().toLocaleDateString()}
+          </p>
 
-        {/* Content Section */}
-        <section className="py-24 bg-white">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="prose prose-lg prose-neutral">
-              <h2>1. Agreement to Terms</h2>
-              <p>
-                By accessing or using Scoopify's services, you agree to be bound by these Terms of Service. If you disagree with any part of the terms, you may not access the service.
-              </p>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Acceptance of Terms</h2>
+            <p className="text-gray-600 mb-4">
+              By accessing and using ScoopifyClub's services, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our services.
+            </p>
+          </section>
 
-              <h2>2. Service Description</h2>
-              <p>
-                Scoopify provides professional pet waste removal services. Our services include:
-              </p>
-              <ul>
-                <li>Weekly yard cleaning</li>
-                <li>Proper waste disposal</li>
-                <li>Service reports</li>
-                <li>Flexible scheduling</li>
-              </ul>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Service Description</h2>
+            <p className="text-gray-600 mb-4">
+              ScoopifyClub provides professional dog waste removal services. Our services include:
+            </p>
+            <ul className="list-disc pl-6 text-gray-600 mb-4">
+              <li>Regular yard cleaning</li>
+              <li>One-time cleanups</li>
+              <li>Special event cleanup</li>
+              <li>Related pet waste management services</li>
+            </ul>
+          </section>
 
-              <h2>3. Subscription and Payment</h2>
-              <p>
-                Our services are provided on a subscription basis. By subscribing, you agree to:
-              </p>
-              <ul>
-                <li>Pay the agreed-upon monthly fee</li>
-                <li>Provide accurate billing information</li>
-                <li>Authorize automatic monthly payments</li>
-                <li>Give 48 hours notice for service changes</li>
-              </ul>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">3. User Responsibilities</h2>
+            <p className="text-gray-600 mb-4">
+              As a user of our services, you agree to:
+            </p>
+            <ul className="list-disc pl-6 text-gray-600 mb-4">
+              <li>Provide accurate and complete information</li>
+              <li>Maintain the security of your account</li>
+              <li>Pay for services as agreed</li>
+              <li>Provide access to the service area</li>
+              <li>Notify us of any changes to your service needs</li>
+            </ul>
+          </section>
 
-              <h2>4. Cancellation Policy</h2>
-              <p>
-                You may cancel your subscription at any time with 48 hours notice. No refunds will be provided for partial months of service.
-              </p>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">4. Payment Terms</h2>
+            <p className="text-gray-600 mb-4">
+              Payment for services is required as follows:
+            </p>
+            <ul className="list-disc pl-6 text-gray-600 mb-4">
+              <li>Regular service: Monthly billing</li>
+              <li>One-time service: Payment due at time of service</li>
+              <li>Late payments may incur additional fees</li>
+            </ul>
+          </section>
 
-              <h2>5. Service Area and Access</h2>
-              <p>
-                You agree to provide safe and unobstructed access to your property for our service team. We reserve the right to refuse service if access is unsafe or obstructed.
-              </p>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">5. Cancellation Policy</h2>
+            <p className="text-gray-600 mb-4">
+              You may cancel your service at any time with the following conditions:
+            </p>
+            <ul className="list-disc pl-6 text-gray-600 mb-4">
+              <li>Regular service: 30 days notice required</li>
+              <li>One-time service: 24 hours notice required</li>
+              <li>Refunds for prepaid services will be prorated</li>
+            </ul>
+          </section>
 
-              <h2>6. Weather and Service Interruptions</h2>
-              <p>
-                We may reschedule service due to inclement weather or other safety concerns. We will make reasonable efforts to notify you of any service interruptions.
-              </p>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">6. Limitation of Liability</h2>
+            <p className="text-gray-600 mb-4">
+              ScoopifyClub is not liable for:
+            </p>
+            <ul className="list-disc pl-6 text-gray-600 mb-4">
+              <li>Indirect or consequential damages</li>
+              <li>Loss of profits or business interruption</li>
+              <li>Events beyond our reasonable control</li>
+            </ul>
+          </section>
 
-              <h2>7. Liability</h2>
-              <p>
-                Scoopify is not liable for any damages to property or injury to persons or pets that occur during or after our service, except in cases of gross negligence.
-              </p>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">7. Changes to Terms</h2>
+            <p className="text-gray-600 mb-4">
+              We reserve the right to modify these terms at any time. We will notify you of any changes by posting the new terms on this page.
+            </p>
+          </section>
 
-              <h2>8. Privacy</h2>
-              <p>
-                Your use of our services is also governed by our Privacy Policy. Please review our Privacy Policy to understand how we collect and use your information.
-              </p>
-
-              <h2>9. Changes to Terms</h2>
-              <p>
-                We reserve the right to modify these terms at any time. We will notify you of any changes by posting the new terms on this page.
-              </p>
-
-              <h2>10. Contact Information</h2>
-              <p>
-                For any questions about these Terms of Service, please contact us at:
-              </p>
-              <ul>
-                <li>Email: legal@scoopify.club</li>
-                <li>Phone: (555) 123-4567</li>
-                <li>Address: 123 Pet Care Way, Dogtown, CA 90210</li>
-              </ul>
-            </div>
-          </div>
-        </section>
+          <section className="mb-8">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">8. Contact Information</h2>
+            <p className="text-gray-600">
+              For questions about these Terms of Service, please contact us at:
+            </p>
+            <p className="text-gray-600">
+              Email: legal@scoopify.com<br />
+              Phone: (555) 123-4567<br />
+              Address: 123 Pet Care Ave, City, State 12345
+            </p>
+          </section>
+        </div>
       </main>
       <Footer />
     </div>

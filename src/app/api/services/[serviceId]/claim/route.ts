@@ -1,15 +1,15 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { authOptions } from '@/lib/auth'
+import { requireRole } from '@/lib/auth'
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { serviceId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
+    // Require employee role for claiming services
+    const user = await requireRole(request, 'EMPLOYEE')
+    if (!user) {
       return new NextResponse('Unauthorized', { status: 401 })
     }
 
@@ -42,7 +42,7 @@ export async function POST(
         status: 'CLAIMED',
         employee: {
           connect: {
-            id: session.user.id,
+            id: user.id,
           },
         },
       },

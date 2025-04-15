@@ -1,106 +1,133 @@
 'use client'
 
 import { useState } from 'react'
-import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import Link from 'next/link'
+import { AlertCircle } from 'lucide-react'
+import Navbar from '@/components/Navbar'
+import Footer from '@/components/Footer'
 
 export default function LoginPage() {
-  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
-    setLoading(true)
 
     try {
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
+      const response = await fetch('/api/auth/customer-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
       })
 
-      if (result?.error) {
-        setError('Invalid email or password')
-        return
-      }
+      const data = await response.json()
 
-      router.push('/dashboard')
-    } catch (error) {
-      setError('An error occurred. Please try again.')
-    } finally {
-      setLoading(false)
+      if (response.ok) {
+        // Set secure cookies with proper attributes
+        const cookieOptions = [
+          `token=${data.token}`,
+          'path=/',
+          'max-age=604800', // 7 days
+          'SameSite=Lax',
+          'Secure',
+          'HttpOnly'
+        ].join('; ')
+        
+        document.cookie = cookieOptions
+        document.cookie = `userType=customer; path=/; max-age=604800; SameSite=Lax; Secure`
+        router.push('/dashboard')
+      } else {
+        // Handle specific error messages
+        switch (response.status) {
+          case 401:
+            setError('Invalid email or password')
+            break
+          case 403:
+            setError('This account is not authorized for customer access')
+            break
+          case 404:
+            setError('Customer record not found')
+            break
+          default:
+            setError(data.message || 'Login failed')
+        }
+      }
+    } catch (err) {
+      setError('An error occurred during login')
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-50 px-4 py-12 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md space-y-8">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-neutral-900">
-            Sign in to your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-neutral-600">
-            Or{' '}
-            <Link href="/signup" className="font-medium text-brand-primary hover:text-brand-primary-dark">
-              create a new account
-            </Link>
-          </p>
-        </div>
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="space-y-4 rounded-md shadow-sm">
+    <div className="min-h-screen bg-white">
+      <Navbar />
+      <main className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold">Customer Login</h1>
+            <p className="text-neutral-600 mt-2">Access your customer dashboard</p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 p-4 rounded-lg text-red-700 mb-4 flex items-center">
+              <AlertCircle className="h-5 w-5 mr-2" />
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="email">Email address</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                name="email"
                 type="email"
-                autoComplete="email"
-                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1"
+                required
+                aria-invalid={error ? 'true' : 'false'}
+                aria-describedby={error ? 'email-error' : undefined}
               />
             </div>
+
             <div>
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
-                name="password"
                 type="password"
-                autoComplete="current-password"
-                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1"
+                required
+                aria-invalid={error ? 'true' : 'false'}
+                aria-describedby={error ? 'password-error' : undefined}
               />
             </div>
-          </div>
 
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <p className="text-sm text-red-700">{error}</p>
-            </div>
-          )}
-
-          <div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
+            <Button type="submit" className="w-full">
+              Sign In
             </Button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-neutral-600">
+              Not a customer?{' '}
+              <a href="/employee/login" className="text-brand-primary hover:underline">
+                Employee Login
+              </a>
+            </p>
           </div>
-        </form>
-      </div>
+        </div>
+      </main>
+      <Footer />
     </div>
   )
 } 

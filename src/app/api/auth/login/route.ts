@@ -1,54 +1,62 @@
 import { NextResponse } from 'next/server'
+import { PrismaClient } from '@prisma/client'
 import { compare } from 'bcryptjs'
-import { sign } from 'jsonwebtoken'
-import { prisma } from '@/lib/prisma'
+import { createSession } from '@/lib/session'
+
+const prisma = new PrismaClient()
 
 export async function POST(request: Request) {
   try {
-    const { email, password, isEmployee } = await request.json()
+    const { email, password, role } = await request.json()
 
-    // Find user in the appropriate table based on isEmployee flag
-    const user = await prisma[isEmployee ? 'employee' : 'customer'].findUnique({
+    if (!email || !password || !role) {
+      return NextResponse.json(
+        { error: 'Email, password, and role are required' },
+        { status: 400 }
+      )
+    }
+
+    const user = await prisma.user.findUnique({
       where: { email },
+      include: {
+        customer: role === 'CUSTOMER',
+        employee: role === 'EMPLOYEE',
+      },
     })
 
-    if (!user) {
+    if (!user || user.role !== role) {
       return NextResponse.json(
-        { message: 'Invalid email or password' },
+        { error: 'Invalid credentials' },
         { status: 401 }
       )
     }
 
-    // Verify password
     const isValid = await compare(password, user.password)
     if (!isValid) {
       return NextResponse.json(
-        { message: 'Invalid email or password' },
+        { error: 'Invalid credentials' },
         { status: 401 }
       )
     }
 
-    // Generate JWT token
-    const token = sign(
-      { 
-        id: user.id, 
-        email: user.email,
-        type: isEmployee ? 'employee' : 'customer'
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
-    )
+    const { accessToken, refreshToken } = await createSession(user.id, user.role)
 
-    // Return user data and token
-    const { password: _, ...userWithoutPassword } = user
     return NextResponse.json({
-      user: userWithoutPassword,
-      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        ...(user.customer && { customerId: user.customer.id }),
+        ...(user.employee && { employeeId: user.employee.id }),
+      },
+      accessToken,
+      refreshToken,
     })
   } catch (error) {
     console.error('Login error:', error)
     return NextResponse.json(
-      { message: 'An error occurred during login' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
