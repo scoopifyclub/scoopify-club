@@ -11,7 +11,17 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Public paths that don't require authentication
-  const publicPaths = ['/', '/login', '/signup', '/about', '/contact', '/privacy', '/terms', '/employee/login']
+  const publicPaths = [
+    '/', 
+    '/login', 
+    '/signup', 
+    '/about', 
+    '/contact', 
+    '/privacy', 
+    '/terms', 
+    '/employee/login',
+    '/admin/login'
+  ]
   const isPublicPath = publicPaths.includes(pathname)
 
   // Protected paths
@@ -46,10 +56,15 @@ export async function middleware(request: NextRequest) {
       }
       
       // Redirect authenticated users away from auth pages
-      if (pathname === '/login' || pathname === '/signup' || pathname === '/employee/login') {
-        const redirectUrl = new URL(decoded.role === 'EMPLOYEE' ? '/employee/dashboard' : '/dashboard', request.url)
+      if (isPublicPath && pathname !== '/') {
+        let redirectPath = '/dashboard'
+        if (decoded.role === 'EMPLOYEE') {
+          redirectPath = '/employee/dashboard'
+        } else if (decoded.role === 'ADMIN') {
+          redirectPath = '/admin/dashboard'
+        }
+        const redirectUrl = new URL(redirectPath, request.url)
         const redirectResponse = NextResponse.redirect(redirectUrl)
-        // Copy security headers to redirect response
         Object.entries(response.headers).forEach(([key, value]) => {
           redirectResponse.headers.set(key, value)
         })
@@ -58,7 +73,8 @@ export async function middleware(request: NextRequest) {
 
       // Check role-based access
       if (pathname.startsWith('/employee') && decoded.role !== 'EMPLOYEE') {
-        const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
+        const redirectPath = decoded.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard'
+        const redirectResponse = NextResponse.redirect(new URL(redirectPath, request.url))
         Object.entries(response.headers).forEach(([key, value]) => {
           redirectResponse.headers.set(key, value)
         })
@@ -66,7 +82,8 @@ export async function middleware(request: NextRequest) {
       }
 
       if (pathname.startsWith('/admin') && decoded.role !== 'ADMIN') {
-        const redirectResponse = NextResponse.redirect(new URL('/dashboard', request.url))
+        const redirectPath = decoded.role === 'EMPLOYEE' ? '/employee/dashboard' : '/dashboard'
+        const redirectResponse = NextResponse.redirect(new URL(redirectPath, request.url))
         Object.entries(response.headers).forEach(([key, value]) => {
           redirectResponse.headers.set(key, value)
         })
@@ -74,7 +91,8 @@ export async function middleware(request: NextRequest) {
       }
 
       if (pathname.startsWith('/dashboard') && decoded.role !== 'CUSTOMER') {
-        const redirectResponse = NextResponse.redirect(new URL('/employee/dashboard', request.url))
+        const redirectPath = decoded.role === 'ADMIN' ? '/admin/dashboard' : '/employee/dashboard'
+        const redirectResponse = NextResponse.redirect(new URL(redirectPath, request.url))
         Object.entries(response.headers).forEach(([key, value]) => {
           redirectResponse.headers.set(key, value)
         })
@@ -82,9 +100,14 @@ export async function middleware(request: NextRequest) {
       }
     } catch (error) {
       // Invalid token, clear it and redirect to appropriate login page
-      const redirectResponse = NextResponse.redirect(
-        new URL(pathname.startsWith('/employee') ? '/employee/login' : '/login', request.url)
-      )
+      let loginPath = '/login'
+      if (pathname.startsWith('/employee')) {
+        loginPath = '/employee/login'
+      } else if (pathname.startsWith('/admin')) {
+        loginPath = '/admin/login'
+      }
+      
+      const redirectResponse = NextResponse.redirect(new URL(loginPath, request.url))
       redirectResponse.cookies.delete('token')
       redirectResponse.cookies.delete('userType')
       Object.entries(response.headers).forEach(([key, value]) => {
@@ -94,9 +117,14 @@ export async function middleware(request: NextRequest) {
     }
   } else if (isProtectedPath) {
     // No token and trying to access protected path
-    const redirectResponse = NextResponse.redirect(
-      new URL(pathname.startsWith('/employee') ? '/employee/login' : '/login', request.url)
-    )
+    let loginPath = '/login'
+    if (pathname.startsWith('/employee')) {
+      loginPath = '/employee/login'
+    } else if (pathname.startsWith('/admin')) {
+      loginPath = '/admin/login'
+    }
+    
+    const redirectResponse = NextResponse.redirect(new URL(loginPath, request.url))
     Object.entries(response.headers).forEach(([key, value]) => {
       redirectResponse.headers.set(key, value)
     })
@@ -131,5 +159,6 @@ export const config = {
     '/login',
     '/signup',
     '/employee/login',
+    '/admin/login',
   ],
 }

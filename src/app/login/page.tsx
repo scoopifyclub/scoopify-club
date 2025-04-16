@@ -46,6 +46,7 @@ export default function LoginPage() {
         
         document.cookie = cookieOptions
         document.cookie = `userType=customer; path=/; max-age=604800; SameSite=Lax; Secure`
+        
         router.push('/dashboard')
       } else {
         // Handle specific error messages
@@ -64,7 +65,7 @@ export default function LoginPage() {
         }
       }
     } catch (err) {
-      setError('An error occurred during login')
+      setError('An error occurred during login. Please try again.')
     }
   }
 

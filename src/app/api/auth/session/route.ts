@@ -1,23 +1,31 @@
 import { NextResponse } from 'next/server'
 import { verify } from 'jsonwebtoken'
 import { prisma } from '@/lib/prisma'
+import { cookies } from 'next/headers'
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) {
-      return NextResponse.json(
-        { message: 'No token provided' },
-        { status: 401 }
-      )
-    }
+    // First check for token in cookies
+    const cookieStore = cookies()
+    const token = cookieStore.get('token')?.value
 
-    const token = authHeader.split(' ')[1]
+    // If no token in cookies, check Authorization header
     if (!token) {
-      return NextResponse.json(
-        { message: 'Invalid token format' },
-        { status: 401 }
-      )
+      const authHeader = request.headers.get('authorization')
+      if (!authHeader) {
+        return NextResponse.json(
+          { message: 'No token provided' },
+          { status: 401 }
+        )
+      }
+      const headerToken = authHeader.split(' ')[1]
+      if (!headerToken) {
+        return NextResponse.json(
+          { message: 'Invalid token format' },
+          { status: 401 }
+        )
+      }
+      token = headerToken
     }
 
     // Verify token

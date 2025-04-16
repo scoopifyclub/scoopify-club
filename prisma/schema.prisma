@@ -8,19 +8,23 @@ datasource db {
 }
 
 model User {
-  id            String         @id @default(cuid())
-  name          String?
-  email         String         @unique
-  emailVerified DateTime?
-  image         String?
-  role          Role           @default(CUSTOMER)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  password      String
-  customer      Customer?
-  employee      Employee?
-  refreshTokens RefreshToken[]
-  serviceDelays ServiceDelay[]
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String?
+  password          String?
+  role              UserRole  @default(CUSTOMER)
+  emailVerified     Boolean   @default(false)
+  verificationToken String?   @unique
+  verificationTokenExpiry DateTime?
+  resetToken        String?   @unique
+  resetTokenExpiry  DateTime?
+  image             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  customer          Customer?
+  employee          Employee?
+  refreshTokens     RefreshToken[]
+  serviceDelays     ServiceDelay[]
 }
 
 model Customer {
@@ -126,31 +130,37 @@ model ServicePhoto {
 }
 
 model Service {
-  id                  String            @id @default(cuid())
-  customerId          String
-  employeeId          String?
-  subscriptionId      String?
-  preferredDay        DateTime
-  scheduledDate       DateTime
-  arrivalDeadline     DateTime?
-  status              ServiceStatus     @default(PENDING)
-  notes               String?
-  gateCode            String?
+  id                String            @id @default(cuid())
+  name              String
+  description       String?
+  price             Float
+  duration          Int               // Duration in minutes
+  status            ServiceStatus     @default(AVAILABLE)
+  scheduledDate     DateTime?
+  scheduledEndDate  DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  customer          Customer?         @relation(fields: [customerId], references: [id])
+  customerId        String?
+  employee          Employee?         @relation(fields: [employeeId], references: [id])
+  employeeId        String?
+  photos            ServicePhoto[]
+  checklist         ServiceChecklist?
+  messages          ServiceMessage[]
+  area              ServiceArea?
+  delays            ServiceDelay[]
+  payments          Payment[]
+  subscriptionId    String?
+  preferredDay      DateTime
+  arrivalDeadline   DateTime?
+  notes             String?
+  gateCode          String?
   specialInstructions String?
-  numberOfDogs        Int
-  paymentAmount       Float
-  completedAt         DateTime?
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
-  payments            Payment[]
-  customer            Customer          @relation(fields: [customerId], references: [id])
-  employee            Employee?         @relation(fields: [employeeId], references: [id])
-  subscription        Subscription?     @relation(fields: [subscriptionId], references: [id])
-  checklist           ServiceChecklist?
-  delays              ServiceDelay[]
-  messages            ServiceMessage[]
-  photos              ServicePhoto[]
-  timeExtensions      TimeExtension[]
+  numberOfDogs      Int
+  paymentAmount     Float
+  completedAt       DateTime?
+  subscription      Subscription?     @relation(fields: [subscriptionId], references: [id])
+  timeExtensions    TimeExtension[]
 
   @@index([customerId])
   @@index([employeeId])

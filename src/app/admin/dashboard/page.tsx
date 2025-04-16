@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { redirect, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import ServiceHistory from '@/components/ServiceHistory';
 import { 
   Mail, Phone, Clock, CheckCircle, XCircle, Calendar, Users, DollarSign, 
@@ -86,6 +84,7 @@ export default function AdminDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailSubject, setEmailSubject] = useState('');
   const [emailMessage, setEmailMessage] = useState('');
@@ -102,13 +101,48 @@ export default function AdminDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    fetchEmployees();
-    fetchMetrics();
-    fetchServiceOverview();
-    fetchAnalytics();
-    fetchFailedPayments();
-    fetchStats();
-  }, [selectedEmployeeId, dateRange]);
+    const checkAuth = async () => {
+      try {
+        const response = await fetch('/api/auth/session');
+        
+        if (!response.ok) {
+          if (response.status === 401) {
+            router.push('/admin/login');
+            return;
+          }
+          throw new Error('Failed to fetch session data');
+        }
+
+        const data = await response.json();
+        
+        // Check if user is an admin
+        if (data.user.role !== 'ADMIN') {
+          // Redirect based on role
+          if (data.user.role === 'CUSTOMER') {
+            router.push('/dashboard');
+          } else if (data.user.role === 'EMPLOYEE') {
+            router.push('/employee/dashboard');
+          }
+          return;
+        }
+
+        // If authenticated as admin, fetch dashboard data
+        fetchEmployees();
+        fetchMetrics();
+        fetchServiceOverview();
+        fetchAnalytics();
+        fetchFailedPayments();
+        fetchStats();
+      } catch (err) {
+        setError('Failed to load dashboard data');
+        console.error('Error checking auth:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [router]);
 
   const fetchEmployees = async () => {
     try {
@@ -120,8 +154,6 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('Error fetching employees:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -179,8 +211,6 @@ export default function AdminDashboard() {
     } catch (error) {
       console.error('Error fetching stats:', error);
       toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -221,11 +251,32 @@ export default function AdminDashboard() {
 
   const handleLogout = () => {
     document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+    document.cookie = 'userType=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
     router.push('/admin/login')
   }
 
   if (loading) {
-    return <div className="text-center py-8">Loading...</div>;
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen text-center">
+        <div className="bg-red-50 p-4 rounded-lg text-red-700">
+          <p className="font-medium">{error}</p>
+          <button 
+            onClick={() => router.push('/admin/login')}
+            className="mt-4 text-sm text-red-600 hover:text-red-800"
+          >
+            Return to Login
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

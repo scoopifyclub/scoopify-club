@@ -25,21 +25,7 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     const fetchEmployeeData = async () => {
       try {
-        const token = document.cookie
-          .split('; ')
-          .find(row => row.startsWith('token='))
-          ?.split('=')[1];
-
-        if (!token) {
-          router.push('/employee/login');
-          return;
-        }
-
-        const response = await fetch('/api/auth/session', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        const response = await fetch('/api/auth/session');
 
         if (!response.ok) {
           if (response.status === 401) {
@@ -50,6 +36,18 @@ export default function EmployeeDashboard() {
         }
 
         const data = await response.json();
+        
+        // Check if user is an employee
+        if (data.user.role !== 'EMPLOYEE') {
+          // Redirect based on role
+          if (data.user.role === 'CUSTOMER') {
+            router.push('/dashboard');
+          } else if (data.user.role === 'ADMIN') {
+            router.push('/admin/dashboard');
+          }
+          return;
+        }
+
         setEmployeeData(data.user.employee);
       } catch (err) {
         setError('Failed to load employee data');
@@ -65,8 +63,8 @@ export default function EmployeeDashboard() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-gray-900"></div>
+        <div className="flex items-center justify-center min-h-[calc(100vh-4rem)]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-brand-primary"></div>
         </div>
       </DashboardLayout>
     );
@@ -75,8 +73,16 @@ export default function EmployeeDashboard() {
   if (error) {
     return (
       <DashboardLayout>
-        <div className="text-center text-red-600">
-          <p>{error}</p>
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center">
+          <div className="bg-red-50 p-4 rounded-lg text-red-700">
+            <p className="font-medium">{error}</p>
+            <button 
+              onClick={() => router.push('/employee/login')}
+              className="mt-4 text-sm text-red-600 hover:text-red-800"
+            >
+              Return to Login
+            </button>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -85,8 +91,16 @@ export default function EmployeeDashboard() {
   if (!employeeData) {
     return (
       <DashboardLayout>
-        <div className="text-center">
-          <p>No employee data found</p>
+        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] text-center">
+          <div className="bg-yellow-50 p-4 rounded-lg text-yellow-700">
+            <p className="font-medium">No employee data found</p>
+            <button 
+              onClick={() => router.push('/employee/login')}
+              className="mt-4 text-sm text-yellow-600 hover:text-yellow-800"
+            >
+              Return to Login
+            </button>
+          </div>
         </div>
       </DashboardLayout>
     );
