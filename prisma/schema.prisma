@@ -7,6 +7,94 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  ADMIN
+  CUSTOMER
+  EMPLOYEE
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum Plan {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum ServiceStatus {
+  SCHEDULED
+  CLAIMED
+  ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  EXPIRED
+}
+
+enum PhotoType {
+  PRE_CLEAN
+  POST_CLEAN
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  CHECK
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentRetryStatus {
+  SCHEDULED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum DelayType {
+  WEATHER
+  TRAFFIC
+  EQUIPMENT
+  OTHER
+}
+
+enum NotificationType {
+  JOB_AVAILABLE
+  JOB_CLAIMED
+  SERVICE_COMPLETED
+  PAYMENT_RECEIVED
+  SUBSCRIPTION_RENEWED
+  TIME_EXTENSION_NEEDED
+  CHAT_MESSAGE
+}
+
+enum ReferralStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+}
+
 model User {
   id                String    @id @default(cuid())
   email             String    @unique
@@ -25,21 +113,31 @@ model User {
   employee          Employee?
   refreshTokens     RefreshToken[]
   serviceDelays     ServiceDelay[]
+  sentMessages      ChatMessage[] @relation("SentMessages")
+  receivedMessages  ChatMessage[] @relation("ReceivedMessages")
+  notifications     Notification[]
 }
 
 model Customer {
-  id            String         @id @default(cuid())
-  name          String
-  email         String         @unique
-  phone         String?
-  userId        String?        @unique
-  status        CustomerStatus @default(ACTIVE)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  address       Address?
-  user          User?          @relation(fields: [userId], references: [id])
-  services      Service[]
-  subscriptions Subscription[]
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email       String   @unique
+  phone       String
+  status      CustomerStatus @default(ACTIVE)
+  gateCode    String?
+  address     Address?
+  subscription Subscription?
+  services    Service[]
+  serviceDay  ServiceDay?
+  pauseStart  DateTime?
+  pauseEnd    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  referralsGiven   Referral[] @relation("Referrer")
+  referralsReceived Referral[] @relation("Referred")
+
+  @@index([userId])
 }
 
 model Address {
@@ -55,17 +153,19 @@ model Address {
 }
 
 model Subscription {
-  id         String             @id @default(cuid())
-  customerId String
-  plan       Plan               @default(WEEKLY)
-  status     SubscriptionStatus @default(ACTIVE)
-  startDate  DateTime
-  endDate    DateTime?
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  payments   Payment[]
-  services   Service[]
-  customer   Customer           @relation(fields: [customerId], references: [id])
+  id          String   @id @default(cuid())
+  customerId  String   @unique
+  customer    Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  plan        Plan
+  startDate   DateTime
+  nextBilling DateTime
+  status      SubscriptionStatus @default(ACTIVE)
+  stripeSubscriptionId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  payments    Payment[]
+
+  @@index([customerId])
 }
 
 model TimeExtension {
@@ -120,66 +220,64 @@ model Payment {
 }
 
 model ServicePhoto {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
+  serviceId String
   url       String
   type      PhotoType
-  createdAt DateTime  @default(now())
-  deleteAt  DateTime?
-  serviceId String
-  service   Service   @relation(fields: [serviceId], references: [id])
+  createdAt DateTime @default(now())
+  service   Service  @relation(fields: [serviceId], references: [id])
+
+  @@index([serviceId])
 }
 
 model Service {
-  id                String            @id @default(cuid())
-  name              String
-  description       String?
-  price             Float
-  duration          Int               // Duration in minutes
-  status            ServiceStatus     @default(AVAILABLE)
-  scheduledDate     DateTime?
-  scheduledEndDate  DateTime?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  customer          Customer?         @relation(fields: [customerId], references: [id])
-  customerId        String?
-  employee          Employee?         @relation(fields: [employeeId], references: [id])
-  employeeId        String?
-  photos            ServicePhoto[]
-  checklist         ServiceChecklist?
-  messages          ServiceMessage[]
-  area              ServiceArea?
-  delays            ServiceDelay[]
-  payments          Payment[]
-  subscriptionId    String?
-  preferredDay      DateTime
-  arrivalDeadline   DateTime?
-  notes             String?
-  gateCode          String?
-  specialInstructions String?
-  numberOfDogs      Int
-  paymentAmount     Float
-  completedAt       DateTime?
-  subscription      Subscription?     @relation(fields: [subscriptionId], references: [id])
-  timeExtensions    TimeExtension[]
+  id          String      @id @default(cuid())
+  customerId  String
+  employeeId  String?
+  type        ServiceType
+  status      ServiceStatus
+  scheduledFor DateTime
+  completedAt DateTime?
+  amount      Decimal
+  description String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  employee    Employee?   @relation(fields: [employeeId], references: [id])
+  photos      ServicePhoto[]
+  claimedAt   DateTime?
+  expiresAt   DateTime?
+  checklist   ServiceChecklist?
 
   @@index([customerId])
   @@index([employeeId])
-  @@index([subscriptionId])
-  @@index([scheduledDate])
-  @@index([status])
 }
 
 model ServiceChecklist {
-  id             String   @id @default(cuid())
-  serviceId      String   @unique
-  cornersCleaned Boolean  @default(false)
-  wasteDisposed  Boolean  @default(false)
-  areaRaked      Boolean  @default(false)
-  gateClosed     Boolean  @default(false)
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  service        Service  @relation(fields: [serviceId], references: [id])
+  id              String   @id @default(cuid())
+  serviceId       String   @unique
+  gatesClosed     Boolean
+  gatesLocked     Boolean
+  gatesSecured    Boolean
+  gatesChecked    Boolean
+  gatesVerified   Boolean
+  gatesConfirmed  Boolean
+  gatesInspected  Boolean
+  gatesValidated  Boolean
+  gatesApproved   Boolean
+  gatesCompleted  Boolean
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  service         Service  @relation(fields: [serviceId], references: [id])
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  serviceId   String   @unique
+  service     Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  latitude    Float
+  longitude   Float
+  createdAt   DateTime @default(now())
 }
 
 model ServiceMessage {
@@ -194,12 +292,15 @@ model ServiceMessage {
 }
 
 model ServiceArea {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
+  name       String
   employeeId String
-  zipCode    String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  employee   Employee @relation(fields: [employeeId], references: [id])
+  employee   Employee  @relation(fields: [employeeId], references: [id])
+  services   Service[]
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([employeeId])
 }
 
 model PaymentRetry {
@@ -227,17 +328,6 @@ model ServiceDelay {
   @@index([reportedById])
 }
 
-model RateLimit {
-  id        String   @id @default(cuid())
-  ip        String   @unique
-  count     Int      @default(0)
-  resetTime DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([ip])
-}
-
 model RefreshToken {
   id        String   @id @default(cuid())
   token     String   @unique
@@ -245,51 +335,52 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
 }
 
-enum Role {
-  ADMIN
-  CUSTOMER
-  EMPLOYEE
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        NotificationType
+  title       String
+  message     String
+  read        Boolean  @default(false)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
 }
 
-enum CustomerStatus {
-  ACTIVE
-  INACTIVE
-  PAST_DUE
-  DO_NOT_SERVICE
+model ChatMessage {
+  id          String   @id @default(cuid())
+  senderId    String
+  sender      User     @relation("SentMessages", fields: [senderId], references: [id])
+  receiverId  String
+  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  content     String
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([senderId])
+  @@index([receiverId])
 }
 
-enum EmployeeStatus {
-  ACTIVE
-  INACTIVE
-  ON_LEAVE
-}
+model Referral {
+  id          String   @id @default(cuid())
+  referrerId  String
+  referrer    Customer @relation("Referrer", fields: [referrerId], references: [id])
+  referredId  String?
+  referred    Customer? @relation("Referred", fields: [referredId], references: [id])
+  code        String   @unique
+  status      ReferralStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-enum SubscriptionStatus {
-  ACTIVE
-  PAST_DUE
-  CANCELLED
-  PAUSED
-}
-
-enum Plan {
-  WEEKLY
-  BIWEEKLY
-  MONTHLY
-}
-
-enum ServiceStatus {
-  PENDING
-  CLAIMED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-  DELAYED
-  LATE
+  @@index([referrerId])
+  @@index([referredId])
 }
 
 enum DayOfWeek {
@@ -302,40 +393,16 @@ enum DayOfWeek {
   SUNDAY
 }
 
-enum PhotoType {
-  BEFORE_CORNER1
-  BEFORE_CORNER2
-  BEFORE_CORNER3
-  BEFORE_CORNER4
-  AFTER_CORNER1
-  AFTER_CORNER2
-  AFTER_CORNER3
-  AFTER_CORNER4
+enum ServiceDay {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
 }
 
-enum PaymentMethod {
-  CASH
-  CASH_APP
-  CHECK
-  CREDIT_CARD
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  FAILED
-  REFUNDED
-}
-
-enum PaymentRetryStatus {
-  SCHEDULED
-  COMPLETED
-  FAILED
-}
-
-enum DelayType {
-  WEATHER
-  EQUIPMENT
-  PERSONAL
-  OTHER
+enum ServiceType {
+  REGULAR
+  ONE_TIME
 }

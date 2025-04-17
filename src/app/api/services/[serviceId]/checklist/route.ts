@@ -1,59 +1,86 @@
 import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
-import { authOptions } from '@/lib/auth'
+import { verifyToken } from '@/lib/auth'
 
 export async function POST(
   request: Request,
   { params }: { params: { serviceId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const token = request.headers.get('authorization')?.split(' ')[1]
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { serviceId } = params
-    const { checklist, notes } = await request.json()
+    const decoded = verifyToken(token)
+    if (!decoded || decoded.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-    // Check if service exists and is in progress
     const service = await prisma.service.findUnique({
-      where: { id: serviceId },
-      include: {
-        employee: true,
-        checklist: true,
-      },
+      where: { id: params.serviceId },
+      include: { employee: true }
     })
 
     if (!service) {
-      return new NextResponse('Service not found', { status: 404 })
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 })
     }
 
-    if (service.status !== 'IN_PROGRESS') {
-      return new NextResponse('Service is not in progress', { status: 400 })
+    if (service.employeeId !== decoded.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    if (service.employee?.id !== session.user.id) {
-      return new NextResponse('You are not assigned to this service', { status: 403 })
-    }
-
-    // Update or create checklist
-    const updatedChecklist = await prisma.serviceChecklist.upsert({
-      where: { serviceId },
-      update: {
-        ...checklist,
-        notes,
-      },
-      create: {
-        serviceId,
-        ...checklist,
-        notes,
-      },
+    const checklist = await request.json()
+    const serviceChecklist = await prisma.serviceChecklist.create({
+      data: {
+        serviceId: params.serviceId,
+        ...checklist
+      }
     })
 
-    return NextResponse.json(updatedChecklist)
+    return NextResponse.json(serviceChecklist)
   } catch (error) {
-    console.error('Error updating checklist:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error('Error creating checklist:', error)
+    return NextResponse.json({ error: 'Failed to create checklist' }, { status: 500 })
+  }
+}
+
+export async function GET(
+  request: Request,
+  { params }: { params: { serviceId: string } }
+) {
+  try {
+    const token = request.headers.get('authorization')?.split(' ')[1]
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const decoded = verifyToken(token)
+    if (!decoded) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const service = await prisma.service.findUnique({
+      where: { id: params.serviceId },
+      include: { checklist: true }
+    })
+
+    if (!service) {
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 })
+    }
+
+    // Only allow access to checklist if user is the customer or employee
+    if (decoded.role === 'CUSTOMER' && service.customerId !== decoded.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    if (decoded.role === 'EMPLOYEE' && service.employeeId !== decoded.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    return NextResponse.json(service.checklist)
+  } catch (error) {
+    console.error('Error fetching checklist:', error)
+    return NextResponse.json({ error: 'Failed to fetch checklist' }, { status: 500 })
   }
 } 

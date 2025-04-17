@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,125 +11,130 @@ import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  })
+
+  useEffect(() => {
+    if (searchParams.get('signup') === 'success') {
+      setError('Account created successfully! Please log in.')
+    }
+  }, [searchParams])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError('')
+    setLoading(true)
+    setError(null)
 
     try {
-      const response = await fetch('/api/auth/customer-login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
+        body: JSON.stringify(formData),
       })
 
       const data = await response.json()
 
-      if (response.ok) {
-        // Set secure cookies with proper attributes
-        const cookieOptions = [
-          `token=${data.token}`,
-          'path=/',
-          'max-age=604800', // 7 days
-          'SameSite=Lax',
-          'Secure',
-          'HttpOnly'
-        ].join('; ')
-        
-        document.cookie = cookieOptions
-        document.cookie = `userType=customer; path=/; max-age=604800; SameSite=Lax; Secure`
-        
-        router.push('/dashboard')
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to login')
+      }
+
+      // Store token in localStorage
+      localStorage.setItem('token', data.token)
+      localStorage.setItem('user', JSON.stringify(data.user))
+
+      // Redirect based on role
+      if (data.user.role === 'CUSTOMER') {
+        router.push('/customer/dashboard')
+      } else if (data.user.role === 'EMPLOYEE') {
+        router.push('/employee/dashboard')
       } else {
-        // Handle specific error messages
-        switch (response.status) {
-          case 401:
-            setError('Invalid email or password')
-            break
-          case 403:
-            setError('This account is not authorized for customer access')
-            break
-          case 404:
-            setError('Customer record not found')
-            break
-          default:
-            setError(data.message || 'Login failed')
-        }
+        router.push('/admin/dashboard')
       }
     } catch (err) {
-      setError('An error occurred during login. Please try again.')
+      setError(err instanceof Error ? err.message : 'An error occurred')
+    } finally {
+      setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      <main className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold">Customer Login</h1>
-            <p className="text-neutral-600 mt-2">Access your customer dashboard</p>
-          </div>
+    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Sign in to your account
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-600">
+          Or{' '}
+          <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
+            create a new account
+          </Link>
+        </p>
+      </div>
 
-          {error && (
-            <div className="bg-red-50 p-4 rounded-lg text-red-700 mb-4 flex items-center">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              {error}
-            </div>
-          )}
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            {error && (
+              <div className={`bg-${error.includes('successfully') ? 'green' : 'red'}-50 border border-${error.includes('successfully') ? 'green' : 'red'}-200 text-${error.includes('successfully') ? 'green' : 'red'}-700 px-4 py-3 rounded`}>
+                {error}
+              </div>
+            )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Email address
+              </label>
+              <input
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                name="email"
+                id="email"
                 required
-                aria-invalid={error ? 'true' : 'false'}
-                aria-describedby={error ? 'email-error' : undefined}
+                value={formData.email}
+                onChange={handleChange}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
             <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                Password
+              </label>
+              <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                name="password"
+                id="password"
                 required
-                aria-invalid={error ? 'true' : 'false'}
-                aria-describedby={error ? 'password-error' : undefined}
+                value={formData.password}
+                onChange={handleChange}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
-            <Button type="submit" className="w-full">
-              Sign In
-            </Button>
+            <div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              >
+                {loading ? 'Signing in...' : 'Sign in'}
+              </button>
+            </div>
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-neutral-600">
-              Not a customer?{' '}
-              <a href="/employee/login" className="text-brand-primary hover:underline">
-                Employee Login
-              </a>
-            </p>
-          </div>
         </div>
-      </main>
-      <Footer />
+      </div>
     </div>
   )
 } 

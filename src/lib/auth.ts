@@ -15,6 +15,11 @@ export interface AuthUser {
   role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN';
 }
 
+export interface TokenPayload {
+  userId: string;
+  role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN';
+}
+
 export async function verifyAuth(request: NextRequest): Promise<{ user: AuthUser | null; error: string | null }> {
   try {
     const token = request.cookies.get('token')?.value;
@@ -99,8 +104,36 @@ export function requireRole(roles: AuthUser['role'][]) {
   };
 }
 
-export async function createAuthToken(payload: AuthUser) {
+export function generateToken(payload: TokenPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+}
+
+export function verifyToken(token: string): TokenPayload {
+  try {
+    return jwt.verify(token, JWT_SECRET) as TokenPayload;
+  } catch (error) {
+    throw new Error('Invalid token');
+  }
+}
+
+export async function validateUser(token: string, requiredRole?: TokenPayload['role']): Promise<{ userId: string; role: string }> {
+  const payload = verifyToken(token);
+  
+  if (requiredRole && payload.role !== requiredRole) {
+    throw new Error('Unauthorized: Invalid role');
+  }
+
+  // Verify user exists in database
+  const user = await prisma.user.findUnique({
+    where: { id: payload.userId },
+    select: { id: true, role: true }
+  });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  return { userId: user.id, role: user.role };
 }
 
 export async function setAuthCookie(token: string) {

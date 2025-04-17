@@ -188,4 +188,75 @@ The application provides various loading states:
 2. Login tests failing due to authentication flow
 3. Rate limiting needs Redis in production
 4. Email verification flow needs implementation
-5. Password strength validation needed 
+5. Password strength validation needed
+
+## Database Setup with Vercel PostgreSQL
+
+### Local Development
+1. Create a local PostgreSQL database:
+   ```bash
+   createdb scoopifyclub
+   ```
+
+2. Update your `.env.local` file with the local database URL:
+   ```
+   DATABASE_URL="postgres://default:your-password@localhost:5432/scoopifyclub"
+   ```
+
+3. Run database migrations:
+   ```bash
+   npx prisma migrate dev
+   ```
+
+### Vercel Deployment
+1. In your Vercel project dashboard:
+   - Go to "Storage" tab
+   - Click "Create Database"
+   - Select "PostgreSQL Database"
+   - Choose your preferred region
+   - Click "Create"
+
+2. After creation, Vercel will automatically:
+   - Add the `DATABASE_URL` to your project's environment variables
+   - Configure the connection pooling
+   - Set up automatic backups
+
+3. Deploy your project:
+   ```bash
+   vercel deploy
+   ```
+
+4. Run production migrations:
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+### Environment Variables
+Make sure these variables are set in your Vercel project settings:
+
+```env
+# Database
+DATABASE_URL="postgres://..."  # Added automatically by Vercel
+
+# Auth
+NEXTAUTH_URL="https://your-domain.com"
+NEXTAUTH_SECRET="your-secret-key"
+
+# Stripe
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_..."
+STRIPE_SECRET_KEY="sk_..."
+STRIPE_WEBHOOK_SECRET="whsec_..."
+
+# Email
+SMTP_HOST="smtp.example.com"
+SMTP_PORT=587
+SMTP_USER="your-email@example.com"
+SMTP_PASSWORD="your-email-password"
+SMTP_FROM="noreply@scoopify.com"
+```
+
+### Security Notes
+- Never commit `.env.local` or any files containing sensitive credentials
+- Use strong, unique passwords for database access
+- Regularly rotate security keys and credentials
+- Enable SSL/TLS for database connections in production 

@@ -1,135 +1,167 @@
 import { NextResponse } from 'next/server'
 import { hash } from 'bcryptjs'
-import { sign } from 'jsonwebtoken'
 import { prisma } from '@/lib/prisma'
-import { validatePassword } from '@/lib/auth'
+import { stripe } from '@/lib/stripe'
+import { addDays } from 'date-fns'
+import { getSubscriptionPlans, getOneTimeServices } from '@/lib/constants'
 
 export async function POST(request: Request) {
   try {
-    const { name, email, password, isEmployee, phone, address } = await request.json()
+    const {
+      firstName,
+      lastName,
+      email,
+      phone,
+      password,
+      street,
+      city,
+      state,
+      zipCode,
+      gateCode,
+      serviceType,
+      serviceDay,
+      startDate,
+      isOneTimeService,
+    } = await request.json()
 
-    // Validate input
-    if (!name || !email || !password) {
+    // Validate required fields
+    if (!firstName || !lastName || !email || !phone || !password || !street || 
+        !city || !state || !zipCode || !serviceType || !startDate) {
       return NextResponse.json(
-        { message: 'Name, email, and password are required' },
+        { error: 'All required fields must be provided' },
         { status: 400 }
       )
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { message: 'Invalid email format' },
-        { status: 400 }
-      )
-    }
+    // Get prices from Stripe
+    const [subscriptionPlans, oneTimeServices] = await Promise.all([
+      getSubscriptionPlans(),
+      getOneTimeServices()
+    ]);
 
-    // Validate password
-    const passwordValidation = validatePassword(password)
-    if (!passwordValidation.isValid) {
-      return NextResponse.json(
-        { message: passwordValidation.message },
-        { status: 400 }
-      )
-    }
+    // Find the selected plan
+    const selectedPlan = isOneTimeService 
+      ? oneTimeServices.find(plan => plan.id === serviceType)
+      : subscriptionPlans.find(plan => plan.id === serviceType);
 
-    // Validate phone for customers
-    if (!isEmployee) {
-      if (!phone) {
-        return NextResponse.json(
-          { message: 'Phone number is required for customers' },
-          { status: 400 }
-        )
-      }
-      const phoneRegex = /^\+?[1-9]\d{1,14}$/
-      if (!phoneRegex.test(phone)) {
-        return NextResponse.json(
-          { message: 'Invalid phone number format' },
-          { status: 400 }
-        )
-      }
-      if (!address) {
-        return NextResponse.json(
-          { message: 'Address is required for customers' },
-          { status: 400 }
-        )
-      }
+    if (!selectedPlan) {
+      return NextResponse.json(
+        { error: 'Invalid service type selected' },
+        { status: 400 }
+      );
     }
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email }
     })
 
     if (existingUser) {
       return NextResponse.json(
-        { message: 'Email already registered' },
-        { status: 409 }
+        { error: 'User with this email already exists' },
+        { status: 400 }
       )
     }
+
+    // Create Stripe customer
+    const customer = await stripe.customers.create({
+      email,
+      name: `${firstName} ${lastName}`,
+      phone,
+      metadata: {
+        serviceType,
+        isOneTimeService: isOneTimeService ? 'true' : 'false',
+        serviceDay: serviceDay || 'none'
+      }
+    })
 
     // Hash password
     const hashedPassword = await hash(password, 12)
 
-    // Create user in the User table
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role: isEmployee ? 'EMPLOYEE' : 'CUSTOMER',
-      },
+    // Create user, customer, address, and subscription in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create user
+      const user = await tx.user.create({
+        data: {
+          email,
+          password: hashedPassword,
+          role: 'CUSTOMER',
+          name: `${firstName} ${lastName}`,
+          customer: {
+            create: {
+              stripeCustomerId: customer.id,
+              phone,
+              gateCode: gateCode || null,
+              preferredDay: serviceDay || null,
+              address: {
+                create: {
+                  street,
+                  city,
+                  state,
+                  zipCode,
+                }
+              },
+              subscription: {
+                create: {
+                  stripeSubscriptionId: 'pending',
+                  status: 'PENDING',
+                  frequency: isOneTimeService ? 'ONE_TIME' : 'MONTHLY',
+                  pricePerVisit: selectedPlan.price,
+                  startDate: new Date(startDate),
+                  nextBillingDate: isOneTimeService ? null : addDays(new Date(startDate), 30),
+                }
+              }
+            }
+          }
+        },
+        include: {
+          customer: {
+            include: {
+              subscription: true,
+              address: true
+            }
+          }
+        }
+      })
+
+      // Create service record
+      await tx.service.create({
+        data: {
+          customerId: user.customer!.id,
+          scheduledFor: new Date(startDate),
+          status: 'SCHEDULED',
+          type: isOneTimeService ? 'ONE_TIME' : 'REGULAR',
+          amount: selectedPlan.price
+        }
+      })
+
+      return user
     })
 
-    // Create the corresponding Customer or Employee record
-    if (isEmployee) {
-      await prisma.employee.create({
-        data: {
-          name,
-          email,
-          userId: user.id,
-          status: 'ACTIVE',
-        },
-      })
-    } else {
-      await prisma.customer.create({
-        data: {
-          name,
-          email,
-          phone,
-          address,
-          userId: user.id,
-          status: 'ACTIVE',
-        },
-      })
-    }
+    // Create a setup intent for adding payment method
+    const setupIntent = await stripe.setupIntents.create({
+      customer: customer.id,
+      payment_method_types: ['card'],
+      metadata: {
+        userId: result.id
+      }
+    })
 
-    // Generate JWT token with additional security claims
-    const token = sign(
-      { 
-        id: user.id, 
-        email: user.email,
-        role: user.role,
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days
-        iss: 'scoopify',
-        aud: isEmployee ? 'employee' : 'customer'
-      },
-      process.env.JWT_SECRET!,
-      { algorithm: 'HS256' }
-    )
-
-    // Return user data and token
-    const { password: _, ...userWithoutPassword } = user
     return NextResponse.json({
-      user: userWithoutPassword,
-      token,
+      user: {
+        id: result.id,
+        email: result.email,
+        name: result.name,
+        customer: result.customer
+      },
+      setupIntent: {
+        clientSecret: setupIntent.client_secret
+      }
     })
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json(
-      { message: 'An error occurred during signup' },
+      { error: 'Failed to create account' },
       { status: 500 }
     )
   }

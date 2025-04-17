@@ -2,10 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { 
+  MapIcon, 
+  CalendarIcon, 
+  UserGroupIcon, 
+  PhotoIcon, 
+  ClipboardDocumentCheckIcon,
+  UserIcon,
+  ChartBarIcon
+} from '@heroicons/react/24/outline';
 import ServiceHistory from '@/components/ServiceHistory';
 import { 
   Mail, Phone, Clock, CheckCircle, XCircle, Calendar, Users, DollarSign, 
-  BarChart2, TrendingUp, Star, AlertCircle, ArrowRight 
+  BarChart2, TrendingUp, Star, AlertCircle, ArrowRight, MapPin 
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
@@ -16,6 +26,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { GoogleMap, LoadScript, Marker, InfoWindow } from '@react-google-maps/api';
+import { format } from 'date-fns';
+
+// Dynamically import the Map component to avoid SSR issues
+const Map = dynamic(() => import('@/components/Map'), { ssr: false });
 
 interface Employee {
   id: string;
@@ -80,6 +95,61 @@ interface DashboardStats {
   pendingServices: number;
 }
 
+interface Service {
+  id: string;
+  status: string;
+  scheduledFor: string;
+  claimedAt: string | null;
+  arrivedAt: string | null;
+  completedAt: string | null;
+  customer: {
+    address: {
+      street: string;
+      city: string;
+      state: string;
+      zipCode: string;
+    };
+    gateCode: string | null;
+  };
+  location: {
+    latitude: number;
+    longitude: number;
+  } | null;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  address: string;
+  coordinates: [number, number];
+  serviceDay: string;
+}
+
+const mapContainerStyle = {
+  width: '100%',
+  height: '600px',
+};
+
+const center = {
+  lat: 37.7749,
+  lng: -122.4194,
+};
+
+const getMarkerColor = (status: string) => {
+  switch (status) {
+    case 'SCHEDULED':
+      return 'blue';
+    case 'CLAIMED':
+      return 'yellow';
+    case 'COMPLETED':
+      return 'green';
+    case 'EXPIRED':
+      return 'red';
+    default:
+      return 'gray';
+  }
+};
+
 export default function AdminDashboard() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
@@ -98,6 +168,10 @@ export default function AdminDashboard() {
   });
   const [failedPayments, setFailedPayments] = useState<FailedPaymentSummary | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [services, setServices] = useState<Service[]>([]);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -133,6 +207,8 @@ export default function AdminDashboard() {
         fetchAnalytics();
         fetchFailedPayments();
         fetchStats();
+        fetchServices();
+        fetchCustomers();
       } catch (err) {
         setError('Failed to load dashboard data');
         console.error('Error checking auth:', err);
@@ -214,6 +290,38 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchServices = async () => {
+    try {
+      const response = await fetch('/api/admin/services');
+      if (response.ok) {
+        const data = await response.json();
+        setServices(data);
+      } else {
+        throw new Error('Failed to fetch services');
+      }
+    } catch (err) {
+      setError('Failed to load services');
+    }
+  };
+
+  const fetchCustomers = async () => {
+    try {
+      const response = await fetch('/api/admin/customers', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch customers');
+      
+      const data = await response.json();
+      setCustomers(data.customers);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load customers');
+    }
+  };
+
   const handleSendEmail = async () => {
     if (!emailSubject || !emailMessage) return;
 
@@ -255,6 +363,39 @@ export default function AdminDashboard() {
     router.push('/admin/login')
   }
 
+  const getDayColor = (day: string) => {
+    const colors: { [key: string]: string } = {
+      'Monday': 'blue',
+      'Tuesday': 'green',
+      'Wednesday': 'yellow',
+      'Thursday': 'orange',
+      'Friday': 'red',
+      'Saturday': 'purple',
+      'Sunday': 'pink'
+    };
+    return colors[day] || 'gray';
+  };
+
+  const filteredCustomers = selectedDay 
+    ? customers.filter(c => c.serviceDay === selectedDay)
+    : customers;
+
+  const markers = filteredCustomers.map(customer => ({
+    position: customer.coordinates,
+    title: customer.name,
+    description: `${customer.address} - Service Day: ${customer.serviceDay}`,
+    color: getDayColor(customer.serviceDay)
+  }));
+
+  const navigationItems = [
+    { name: 'Map Overview', icon: MapIcon, href: '/admin/dashboard' },
+    { name: 'Jobs & Scheduling', icon: CalendarIcon, href: '/admin/jobs' },
+    { name: 'Employee Activity', icon: UserGroupIcon, href: '/admin/employees' },
+    { name: 'Photos & Checklists', icon: PhotoIcon, href: '/admin/photos' },
+    { name: 'Customer Management', icon: UserIcon, href: '/admin/customers' },
+    { name: 'Analytics & Reporting', icon: ChartBarIcon, href: '/admin/analytics' }
+  ];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -281,104 +422,97 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
+      {/* Sidebar */}
+      <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg">
+        <div className="flex flex-col h-full">
+          <div className="p-4 border-b">
+            <h1 className="text-xl font-bold text-gray-800">Admin Dashboard</h1>
+          </div>
+          <nav className="flex-1 p-4 space-y-2">
+            {navigationItems.map((item) => (
+              <button
+                key={item.name}
+                onClick={() => router.push(item.href)}
+                className="flex items-center w-full p-2 text-gray-700 rounded-lg hover:bg-gray-100"
+              >
+                <item.icon className="w-5 h-5 mr-3" />
+                {item.name}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </div>
 
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-neutral-900">Admin Dashboard</h1>
-          <Button variant="outline" onClick={handleLogout}>
-            Logout
-          </Button>
+      {/* Main Content */}
+      <div className="ml-64 p-8">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-800">Map Overview</h2>
+          <p className="text-gray-600">View all subscribers by service day</p>
         </div>
 
-        {/* Date Range Selector */}
-        <div className="mb-8 flex gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Start Date</label>
-            <input
-              type="date"
-              value={dateRange.start}
-              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">End Date</label>
-            <input
-              type="date"
-              value={dateRange.end}
-              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-            />
-          </div>
+        {/* Day Filter */}
+        <div className="mb-6 flex space-x-4">
+          <button
+            onClick={() => setSelectedDay(null)}
+            className={`px-4 py-2 rounded-lg ${
+              !selectedDay ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+            }`}
+          >
+            All Days
+          </button>
+          {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+            <button
+              key={day}
+              onClick={() => setSelectedDay(day)}
+              className={`px-4 py-2 rounded-lg ${
+                selectedDay === day ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700'
+              }`}
+            >
+              {day}
+            </button>
+          ))}
         </div>
-        
-        {/* Service Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-500" />
-              <h3 className="font-semibold">Today's Services</h3>
+
+        {/* Map */}
+        <div className="bg-white rounded-lg shadow-lg p-4">
+          {loading ? (
+            <div className="flex items-center justify-center h-[600px]">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
             </div>
-            <p className="text-2xl font-bold mt-2">{serviceOverview?.today || 0}</p>
+          ) : error ? (
+            <div className="flex items-center justify-center h-[600px] text-red-500">
+              {error}
+            </div>
+          ) : (
+            <div className="h-[600px]">
+              <Map
+                center={[37.7749, -122.4194]} // Default to SF
+                zoom={12}
+                markers={markers}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Stats */}
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-800">Total Subscribers</h3>
+            <p className="text-3xl font-bold text-blue-500">{customers.length}</p>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-yellow-500" />
-              <h3 className="font-semibold">Upcoming</h3>
-            </div>
-            <p className="text-2xl font-bold mt-2">{serviceOverview?.upcoming || 0}</p>
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-800">Active Jobs Today</h3>
+            <p className="text-3xl font-bold text-green-500">
+              {customers.filter(c => c.serviceDay === new Date().toLocaleDateString('en-US', { weekday: 'long' })).length}
+            </p>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-              <h3 className="font-semibold">Completed</h3>
-            </div>
-            <p className="text-2xl font-bold mt-2">{serviceOverview?.completed || 0}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-red-500" />
-              <h3 className="font-semibold">Pending</h3>
-            </div>
-            <p className="text-2xl font-bold mt-2">{serviceOverview?.pending || 0}</p>
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h3 className="text-lg font-semibold text-gray-800">Employees Active</h3>
+            <p className="text-3xl font-bold text-purple-500">0</p>
           </div>
         </div>
 
-        {/* Analytics Charts */}
-        {analytics && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold mb-4">Service Trends</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={analytics.dailyTrends}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="completed" stroke="#22c55e" name="Completed" />
-                  <Line type="monotone" dataKey="cancelled" stroke="#ef4444" name="Cancelled" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="bg-white rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold mb-4">Revenue Trends</h3>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={analytics.dailyTrends}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="revenue" fill="#3b82f6" name="Revenue ($)" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Employee Performance Section */}
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex justify-between items-center mb-4">
@@ -668,6 +802,105 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
+            <Card className="p-4">
+              <LoadScript googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!}>
+                <GoogleMap
+                  mapContainerStyle={mapContainerStyle}
+                  center={center}
+                  zoom={12}
+                >
+                  {services.map((service) => {
+                    if (!service.location) return null;
+                    
+                    return (
+                      <Marker
+                        key={service.id}
+                        position={{
+                          lat: service.location.latitude,
+                          lng: service.location.longitude,
+                        }}
+                        icon={{
+                          path: 'M10 0C4.48 0 0 4.48 0 10s10 22 10 22 10-17.52 10-22S15.52 0 10 0zm0 14c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z',
+                          fillColor: getMarkerColor(service.status),
+                          fillOpacity: 1,
+                          strokeWeight: 0,
+                          scale: 1,
+                        }}
+                        onClick={() => setSelectedService(service)}
+                      />
+                    );
+                  })}
+
+                  {selectedService && selectedService.location && (
+                    <InfoWindow
+                      position={{
+                        lat: selectedService.location.latitude,
+                        lng: selectedService.location.longitude,
+                      }}
+                      onCloseClick={() => setSelectedService(null)}
+                    >
+                      <div className="p-2">
+                        <h3 className="font-semibold">
+                          {format(new Date(selectedService.scheduledFor), 'MMMM d, yyyy')}
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {selectedService.customer.address.street}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          Status: {selectedService.status}
+                        </p>
+                        {selectedService.customer.gateCode && (
+                          <p className="text-sm text-gray-600">
+                            Gate Code: {selectedService.customer.gateCode}
+                          </p>
+                        )}
+                      </div>
+                    </InfoWindow>
+                  )}
+                </GoogleMap>
+              </LoadScript>
+            </Card>
+          </div>
+
+          <div>
+            <Card className="p-4">
+              <h2 className="text-xl font-semibold mb-4">Service Summary</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Total Services</span>
+                  <span className="font-semibold">{services.length}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Scheduled</span>
+                  <span className="font-semibold">
+                    {services.filter(s => s.status === 'SCHEDULED').length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Claimed</span>
+                  <span className="font-semibold">
+                    {services.filter(s => s.status === 'CLAIMED').length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Completed</span>
+                  <span className="font-semibold">
+                    {services.filter(s => s.status === 'COMPLETED').length}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-600">Expired</span>
+                  <span className="font-semibold">
+                    {services.filter(s => s.status === 'EXPIRED').length}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );
