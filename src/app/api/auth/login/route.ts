@@ -13,7 +13,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const { accessToken, refreshToken, user } = await login(email, password);
+    // Get existing fingerprint if it exists
+    const existingFingerprint = cookies().get('fingerprint')?.value;
+
+    const { accessToken, refreshToken, user, deviceFingerprint } = await login(email, password, existingFingerprint);
 
     // Set cookies
     cookies().set('accessToken', accessToken, {
@@ -25,6 +28,15 @@ export async function POST(request: Request) {
     });
 
     cookies().set('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+    });
+
+    // Set device fingerprint cookie
+    cookies().set('fingerprint', deviceFingerprint, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',

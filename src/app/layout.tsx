@@ -3,8 +3,14 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Logo } from "@/components/Logo";
+import { scheduleTokenCleanup } from '@/lib/cleanup'
 
 const inter = Inter({ subsets: ["latin"] });
+
+// Initialize token cleanup in development and production
+if (process.env.NODE_ENV !== 'test') {
+  scheduleTokenCleanup(60); // Run every hour
+}
 
 export const metadata: Metadata = {
   title: "Scoopify Club",

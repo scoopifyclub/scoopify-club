@@ -4,6 +4,7 @@ import { prisma } from './prisma';
 import { cookies } from 'next/headers';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
+import { randomBytes } from 'crypto';
 
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
@@ -27,7 +28,12 @@ const ratelimit = new Ratelimit({
   limiter: Ratelimit.slidingWindow(5, '1 m'), // 5 requests per minute
 });
 
-export async function login(email: string, password: string) {
+// Generate a device fingerprint
+function generateFingerprint() {
+  return randomBytes(32).toString('hex');
+}
+
+export async function login(email: string, password: string, fingerprint?: string) {
   // Check rate limit
   const { success } = await ratelimit.limit(email);
   if (!success) {
@@ -51,6 +57,9 @@ export async function login(email: string, password: string) {
     throw new Error('Invalid email or password');
   }
 
+  // Generate device fingerprint if not provided
+  const deviceFingerprint = fingerprint || generateFingerprint();
+
   // Generate access token
   const accessToken = sign(
     {
@@ -59,27 +68,41 @@ export async function login(email: string, password: string) {
       role: user.role,
       customerId: user.customer?.id,
       employeeId: user.employee?.id,
+      fingerprint: deviceFingerprint,
     },
     JWT_SECRET,
-    { expiresIn: '15m' } // Short-lived access token
+    { expiresIn: '15m' }
   );
 
   // Generate refresh token
   const refreshToken = sign(
     {
       id: user.id,
+      fingerprint: deviceFingerprint,
     },
     REFRESH_TOKEN_SECRET,
     { expiresIn: '7d' }
   );
 
-  // Store refresh token in database
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { refreshToken },
-  });
+  // Store refresh token and fingerprint
+  await prisma.$transaction([
+    // Update user's device fingerprint
+    prisma.user.update({
+      where: { id: user.id },
+      data: { deviceFingerprint },
+    }),
+    // Create new refresh token
+    prisma.refreshToken.create({
+      data: {
+        token: refreshToken,
+        userId: user.id,
+        deviceFingerprint,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    }),
+  ]);
 
-  return { accessToken, refreshToken, user };
+  return { accessToken, refreshToken, user, deviceFingerprint };
 }
 
 export async function verifyToken(token: string, isRefreshToken = false) {
@@ -90,72 +113,108 @@ export async function verifyToken(token: string, isRefreshToken = false) {
       role?: string;
       customerId?: string;
       employeeId?: string;
+      fingerprint?: string;
     };
   } catch (error) {
     return null;
   }
 }
 
-export async function getCurrentUser(token?: string) {
-  if (!token) {
-    return null;
-  }
-
-  const payload = await verifyToken(token);
-  if (!payload) {
-    return null;
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: payload.id },
-    include: {
-      customer: true,
-      employee: true,
-    },
-  });
-
-  return user;
-}
-
-export async function refreshToken(refreshToken: string) {
-  const payload = await verifyToken(refreshToken, true);
+export async function refreshToken(oldRefreshToken: string, fingerprint?: string) {
+  const payload = await verifyToken(oldRefreshToken, true);
   if (!payload) {
     throw new Error('Invalid refresh token');
   }
 
-  const user = await prisma.user.findUnique({
-    where: { id: payload.id },
+  // Find the refresh token in the database
+  const storedToken = await prisma.refreshToken.findFirst({
+    where: {
+      token: oldRefreshToken,
+      userId: payload.id,
+      isRevoked: false,
+      expiresAt: {
+        gt: new Date(),
+      },
+    },
     include: {
-      customer: true,
-      employee: true,
+      user: {
+        include: {
+          customer: true,
+          employee: true,
+        },
+      },
     },
   });
 
-  if (!user || user.refreshToken !== refreshToken) {
+  if (!storedToken) {
     throw new Error('Invalid refresh token');
+  }
+
+  // Validate device fingerprint
+  if (fingerprint && storedToken.deviceFingerprint !== fingerprint) {
+    // Revoke all refresh tokens for this user as a security measure
+    await prisma.refreshToken.updateMany({
+      where: { userId: payload.id },
+      data: { isRevoked: true },
+    });
+    throw new Error('Device fingerprint mismatch');
   }
 
   // Generate new access token
   const accessToken = sign(
     {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      customerId: user.customer?.id,
-      employeeId: user.employee?.id,
+      id: storedToken.user.id,
+      email: storedToken.user.email,
+      role: storedToken.user.role,
+      customerId: storedToken.user.customer?.id,
+      employeeId: storedToken.user.employee?.id,
+      fingerprint: storedToken.deviceFingerprint,
     },
     JWT_SECRET,
     { expiresIn: '15m' }
   );
 
-  return { accessToken, user };
+  // Generate new refresh token
+  const newRefreshToken = sign(
+    {
+      id: storedToken.user.id,
+      fingerprint: storedToken.deviceFingerprint,
+    },
+    REFRESH_TOKEN_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  // Revoke old token and create new one in a transaction
+  await prisma.$transaction([
+    prisma.refreshToken.update({
+      where: { id: storedToken.id },
+      data: { isRevoked: true },
+    }),
+    prisma.refreshToken.create({
+      data: {
+        token: newRefreshToken,
+        userId: storedToken.user.id,
+        deviceFingerprint: storedToken.deviceFingerprint,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      },
+    }),
+  ]);
+
+  return { accessToken, refreshToken: newRefreshToken, user: storedToken.user };
 }
 
 export async function logout(userId: string) {
-  // Invalidate refresh token
+  // Revoke all refresh tokens for the user
+  await prisma.refreshToken.updateMany({
+    where: { userId },
+    data: { isRevoked: true },
+  });
+
+  // Clear user's device fingerprint
   await prisma.user.update({
     where: { id: userId },
-    data: { refreshToken: null },
+    data: { deviceFingerprint: null },
   });
+
   return true;
 } 
