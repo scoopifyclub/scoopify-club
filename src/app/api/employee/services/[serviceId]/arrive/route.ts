@@ -7,62 +7,52 @@ export async function POST(
   { params }: { params: { serviceId: string } }
 ) {
   try {
-    const token = request.headers.get('authorization')?.split(' ')[1];
+    // Verify employee authorization
+    const token = request.headers.get('Authorization')?.split(' ')[1];
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
     if (!decoded || decoded.role !== 'EMPLOYEE') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { latitude, longitude } = await request.json();
-
-    const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
-      include: { employee: true }
+    // Update service status to IN_PROGRESS
+    const service = await prisma.service.update({
+      where: {
+        id: params.serviceId,
+        employeeId: decoded.id,
+        status: 'ASSIGNED'
+      },
+      data: {
+        status: 'IN_PROGRESS',
+        startedAt: new Date()
+      },
+      include: {
+        customer: {
+          include: {
+            address: true,
+            user: true
+          }
+        },
+        servicePlan: true
+      }
     });
 
     if (!service) {
-      return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Service not found or not assigned to you' },
+        { status: 404 }
+      );
     }
 
-    if (service.employeeId !== decoded.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (service.status !== 'CLAIMED') {
-      return NextResponse.json({ error: 'Service must be claimed first' }, { status: 400 });
-    }
-
-    // Create location record
-    await prisma.location.create({
-      data: {
-        serviceId: params.serviceId,
-        latitude,
-        longitude
-      }
-    });
-
-    // Update service status
-    const updatedService = await prisma.service.update({
-      where: { id: params.serviceId },
-      data: { status: 'ARRIVED' },
-      include: {
-        customer: {
-          select: {
-            name: true,
-            address: true,
-            gateCode: true
-          }
-        }
-      }
-    });
-
-    return NextResponse.json(updatedService);
+    return NextResponse.json(service);
   } catch (error) {
-    console.error('Error checking in:', error);
-    return NextResponse.json({ error: 'Failed to check in' }, { status: 500 });
+    console.error('Error marking service as in progress:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 

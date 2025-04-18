@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import { Providers } from "@/components/providers";
 import { Logo } from "@/components/Logo";
-import { Toaster } from "sonner";
+
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Scoopify - Professional Dog Waste Removal Service",
-  description: "Keep your yard clean and safe with our reliable weekly dog waste removal service.",
+  title: "Scoopify Club",
+  description: "Professional pet waste removal service",
 };
 
 export default function RootLayout({
@@ -14,15 +17,16 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="light">
-      <body className="font-sans">
-        <div className="min-h-screen bg-gradient-to-b from-background-start to-background-end">
-          <header className="container mx-auto px-4 py-4">
-            <Logo />
-          </header>
-          {children}
-          <Toaster richColors position="top-right" />
-        </div>
+    <html lang="en" suppressHydrationWarning>
+      <body className={inter.className}>
+        <Providers>
+          <div className="min-h-screen bg-gradient-to-b from-background-start to-background-end">
+            <header className="container mx-auto px-4 py-4">
+              <Logo />
+            </header>
+            {children}
+          </div>
+        </Providers>
       </body>
     </html>
   );

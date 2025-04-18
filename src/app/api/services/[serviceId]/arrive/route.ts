@@ -1,63 +1,80 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { prisma } from '@/lib/prisma'
-import { authOptions } from '@/lib/auth'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { withDatabase } from '@/middleware/db';
+import { requireAuth } from '@/lib/api-auth';
 
-export async function POST(
-  request: Request,
-  { params }: { params: { serviceId: string } }
-) {
+const handler = async (req: Request, { params }: { params: { serviceId: string } }) => {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const user = await requireAuth(req as any);
+    const { serviceId } = params;
+
+    // Only employees can mark arrival
+    if (user.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { serviceId } = params
-
-    // Check if service exists and is claimed by the current employee
     const service = await prisma.service.findUnique({
       where: { id: serviceId },
       include: {
-        employee: true,
+        customer: {
+          include: {
+            user: true,
+          },
+        },
+        employee: {
+          include: {
+            user: true,
+          },
+        },
       },
-    })
+    });
 
     if (!service) {
-      return new NextResponse('Service not found', { status: 404 })
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+    }
+
+    if (service.employeeId !== user.employeeId) {
+      return NextResponse.json(
+        { error: 'You are not assigned to this service' },
+        { status: 401 }
+      );
     }
 
     if (service.status !== 'CLAIMED') {
-      return new NextResponse('Service is not claimed', { status: 400 })
+      return NextResponse.json(
+        { error: 'Service must be claimed before marking arrival' },
+        { status: 400 }
+      );
     }
 
-    if (service.employee?.id !== session.user.id) {
-      return new NextResponse('You are not assigned to this service', { status: 403 })
-    }
-
-    // Check if employee is within 45 minutes of arrival deadline
-    const now = new Date()
-    const arrivalDeadline = new Date(service.arrivalDeadline || '')
-    const timeUntilDeadline = arrivalDeadline.getTime() - now.getTime()
-    const minutesUntilDeadline = timeUntilDeadline / (1000 * 60)
-
-    if (minutesUntilDeadline < -45) {
-      return new NextResponse('Service is too late to start', { status: 400 })
-    }
-
-    // Update service status to in progress
     const updatedService = await prisma.service.update({
       where: { id: serviceId },
       data: {
         status: 'IN_PROGRESS',
+        startedAt: new Date(),
       },
-    })
+      include: {
+        customer: {
+          include: {
+            user: true,
+          },
+        },
+        employee: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
 
-    // TODO: Send notification to customer about service starting
-
-    return NextResponse.json(updatedService)
+    return NextResponse.json(updatedService);
   } catch (error) {
-    console.error('Error confirming arrival:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error('Error marking service arrival:', error);
+    return NextResponse.json(
+      { error: 'Failed to mark service arrival' },
+      { status: 500 }
+    );
   }
-} 
+};
+
+export const POST = withDatabase(handler); 

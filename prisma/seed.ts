@@ -7,90 +7,145 @@ async function main() {
   try {
     console.log('Starting seed...')
     
-    // Create test customer user
-    const customerPassword = await hash('Customer123!', 12)
-    console.log('Customer password hashed')
+    // Create or update admin user
+    const hashedAdminPassword = await hash('admin123', 12)
+    const adminUser = await prisma.user.upsert({
+      where: { email: 'admin@scoopify.com' },
+      update: {
+        password: hashedAdminPassword,
+        role: 'ADMIN',
+        emailVerified: true,
+      },
+      create: {
+        email: 'admin@scoopify.com',
+        name: 'Admin User',
+        password: hashedAdminPassword,
+        role: 'ADMIN',
+        emailVerified: true,
+      },
+    })
+    console.log('Admin user created/updated:', adminUser)
 
-    const customerUser = await prisma.user.create({
-      data: {
-        email: 'customer@scoopify.com',
-        name: 'Demo Customer',
-        password: customerPassword,
+    // Create or update demo customer user
+    const hashedCustomerPassword = await hash('demo123', 12)
+    const demoCustomerUser = await prisma.user.upsert({
+      where: { email: 'demo@example.com' },
+      update: {
+        password: hashedCustomerPassword,
         role: 'CUSTOMER',
+        emailVerified: true,
       },
-    })
-    console.log('Customer user created:', customerUser)
-
-    const customer = await prisma.customer.create({
-      data: {
-        userId: customerUser.id,
+      create: {
+        email: 'demo@example.com',
         name: 'Demo Customer',
-        email: 'customer@scoopify.com',
-        phone: '555-987-6543',
-        status: 'ACTIVE',
+        password: hashedCustomerPassword,
+        role: 'CUSTOMER',
+        emailVerified: true,
       },
     })
-    console.log('Customer created:', customer)
+    console.log('Customer user created/updated:', demoCustomerUser)
 
-    // Create customer address
-    const customerAddress = await prisma.address.create({
-      data: {
-        street: '123 Main St',
-        city: 'Anytown',
+    // Create or update demo customer
+    const demoCustomer = await prisma.customer.upsert({
+      where: { userId: demoCustomerUser.id },
+      update: {},
+      create: {
+        userId: demoCustomerUser.id,
+      },
+    })
+    console.log('Customer created/updated:', demoCustomer)
+
+    // Create or update demo customer address
+    await prisma.address.upsert({
+      where: { customerId: demoCustomer.id },
+      update: {
+        street: '123 Demo St',
+        city: 'Demo City',
         state: 'CA',
-        zipCode: '12345',
-        customerId: customer.id,
+        zipCode: '90210',
+      },
+      create: {
+        customerId: demoCustomer.id,
+        street: '123 Demo St',
+        city: 'Demo City',
+        state: 'CA',
+        zipCode: '90210',
       },
     })
-    console.log('Customer address created:', customerAddress)
+    console.log('Customer address created/updated')
 
-    // Create test employee user
-    const employeePassword = await hash('Employee123!', 12)
-    console.log('Employee password hashed')
-
-    const employeeUser = await prisma.user.create({
-      data: {
-        email: 'employee@scoopify.com',
-        name: 'Demo Employee',
-        password: employeePassword,
+    // Create or update demo employee user
+    const hashedEmployeePassword = await hash('demo123', 12)
+    const demoEmployeeUser = await prisma.user.upsert({
+      where: { email: 'employee@scoopify.com' },
+      update: {
+        password: hashedEmployeePassword,
         role: 'EMPLOYEE',
+        emailVerified: true,
       },
-    })
-    console.log('Employee user created:', employeeUser)
-
-    const employee = await prisma.employee.create({
-      data: {
-        userId: employeeUser.id,
-        name: 'Demo Employee',
+      create: {
         email: 'employee@scoopify.com',
-        phone: '555-123-4567',
-        status: 'ACTIVE',
+        name: 'Demo Employee',
+        password: hashedEmployeePassword,
+        role: 'EMPLOYEE',
+        emailVerified: true,
       },
     })
-    console.log('Employee created:', employee)
+    console.log('Employee user created/updated:', demoEmployeeUser)
 
-    // Create service area for employee
-    const serviceArea = await prisma.serviceArea.create({
+    // Create or update demo employee
+    const demoEmployee = await prisma.employee.upsert({
+      where: { userId: demoEmployeeUser.id },
+      update: {},
+      create: {
+        userId: demoEmployeeUser.id,
+      },
+    })
+    console.log('Employee created/updated:', demoEmployee)
+
+    // Create demo service area
+    await prisma.serviceArea.create({
       data: {
-        employeeId: employee.id,
-        zipCode: '12345',
+        employeeId: demoEmployee.id,
+        zipCode: '90210',
       },
     })
-    console.log('Service area created:', serviceArea)
+    console.log('Service area created')
 
-    console.log('Seed completed successfully')
+    // Create demo service plan
+    const demoServicePlan = await prisma.servicePlan.create({
+      data: {
+        name: 'Weekly Service',
+        description: 'Weekly poop scooping service',
+        price: 50.00,
+        duration: 30,
+        type: 'REGULAR',
+      },
+    })
+    console.log('Service plan created:', demoServicePlan)
+
+    // Create demo subscription
+    await prisma.subscription.create({
+      data: {
+        customerId: demoCustomer.id,
+        planId: demoServicePlan.id,
+        status: 'ACTIVE',
+        startDate: new Date(),
+      },
+    })
+    console.log('Subscription created')
+
+    console.log('Seed completed successfully!')
   } catch (error) {
-    console.error('Error during seed:', error)
+    console.error('Error seeding database:', error)
     throw error
+  } finally {
+    await prisma.$disconnect()
   }
 }
 
 main()
   .catch((e) => {
-    console.error('Failed to seed:', e)
+    console.error(e)
     process.exit(1)
-  })
-  .finally(async () => {
-    console.log('Disconnecting from database...')
-    await prisma.$disconnect()
   }) 

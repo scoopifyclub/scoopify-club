@@ -70,16 +70,29 @@ export async function cleanupTestUser(email: string) {
 }
 
 export async function createTestService(customerId: string) {
+  // First create a service plan if it doesn't exist
+  const servicePlan = await prisma.servicePlan.upsert({
+    where: { id: 'test_plan' },
+    create: {
+      id: 'test_plan',
+      name: 'Test Service Plan',
+      price: 25.00,
+      duration: 30,
+      type: 'REGULAR',
+      isActive: true
+    },
+    update: {}
+  });
+
   return prisma.service.create({
     data: {
       customerId,
-      preferredDay: new Date(),
+      servicePlanId: servicePlan.id,
       scheduledDate: new Date(),
-      numberOfDogs: 1,
-      paymentAmount: 25.00,
-      status: 'PENDING',
+      status: 'SCHEDULED',
+      specialInstructions: 'Test service'
     },
-  })
+  });
 }
 
 export async function cleanupTestService(serviceId: string) {

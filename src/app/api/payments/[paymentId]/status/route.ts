@@ -1,105 +1,105 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import prisma from '@/lib/prisma';
-import { sendPaymentFailedEmail, sendPaymentRetryEmail } from '@/lib/email';
+import { prisma } from '@/lib/prisma';
+import { withDatabase } from '@/middleware/db';
+import { requireAuth } from '@/lib/api-auth';
+import { stripe } from '@/lib/stripe';
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { paymentId: string } }
-) {
+const handler = async (req: Request, { params }: { params: { paymentId: string } }) => {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return new NextResponse('Unauthorized', { status: 401 });
-    }
-
+    const user = await requireAuth(req as any);
     const { paymentId } = params;
-    const { status } = await request.json();
 
-    if (!['SUCCEEDED', 'FAILED', 'PENDING', 'REFUNDED'].includes(status)) {
-      return new NextResponse('Invalid status', { status: 400 });
-    }
-
-    // Update payment status
-    const payment = await prisma.payment.update({
+    const payment = await prisma.payment.findUnique({
       where: { id: paymentId },
-      data: { status },
       include: {
-        subscription: {
+        customer: {
+          include: {
+            user: true,
+          },
+        },
+        service: {
           include: {
             customer: {
               include: {
-                user: true
-              }
-            }
-          }
-        }
-      }
+                user: true,
+              },
+            },
+            employee: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    // If payment failed, update customer status and schedule retry
-    if (status === 'FAILED') {
-      const retryDate = new Date();
-      retryDate.setDate(retryDate.getDate() + 3); // 3 days from now
+    if (!payment) {
+      return NextResponse.json(
+        { error: 'Payment not found' },
+        { status: 404 }
+      );
+    }
 
-      // Update customer status
-      await prisma.customer.update({
-        where: { id: payment.subscription.customerId },
-        data: {
-          status: 'PAST_DUE',
-          nextBillingDate: retryDate // Set retry date
-        }
-      });
+    // Check if user has access to this payment
+    if (
+      user.role === 'CUSTOMER' && payment.customerId !== user.customerId ||
+      user.role === 'EMPLOYEE' && payment.service?.employeeId !== user.employeeId
+    ) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
 
-      // Update subscription status
-      await prisma.subscription.update({
-        where: { id: payment.subscriptionId },
-        data: {
-          status: 'PAST_DUE'
-        }
-      });
-
-      // Send notification emails
-      await sendPaymentFailedEmail(
-        payment.subscription.customer.user.email,
-        payment.subscription.customer.name,
-        retryDate
+    // Get payment status from Stripe
+    if (payment.stripePaymentIntentId) {
+      const paymentIntent = await stripe.paymentIntents.retrieve(
+        payment.stripePaymentIntentId
       );
 
-      // Schedule retry
-      await prisma.paymentRetry.create({
-        data: {
-          paymentId: payment.id,
-          scheduledDate: retryDate,
-          status: 'SCHEDULED'
-        }
-      });
+      // Update payment status if it has changed
+      if (payment.status !== paymentIntent.status.toUpperCase()) {
+        const updatedPayment = await prisma.payment.update({
+          where: { id: paymentId },
+          data: {
+            status: paymentIntent.status.toUpperCase(),
+          },
+          include: {
+            customer: {
+              include: {
+                user: true,
+              },
+            },
+            service: {
+              include: {
+                customer: {
+                  include: {
+                    user: true,
+                  },
+                },
+                employee: {
+                  include: {
+                    user: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        return NextResponse.json(updatedPayment);
+      }
     }
 
-    // If payment succeeded, update customer status
-    if (status === 'SUCCEEDED') {
-      await prisma.customer.update({
-        where: { id: payment.subscription.customerId },
-        data: {
-          status: 'ACTIVE',
-          lastBillingDate: new Date(),
-          nextBillingDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days from now
-        }
-      });
-
-      await prisma.subscription.update({
-        where: { id: payment.subscriptionId },
-        data: {
-          status: 'ACTIVE',
-          lastPaymentDate: new Date()
-        }
-      });
-    }
-
-    return NextResponse.json({ payment });
+    return NextResponse.json(payment);
   } catch (error) {
-    console.error('Error updating payment status:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error('Error checking payment status:', error);
+    return NextResponse.json(
+      { error: 'Failed to check payment status' },
+      { status: 500 }
+    );
   }
-} 
+};
+
+export const GET = withDatabase(handler); 

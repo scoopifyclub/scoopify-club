@@ -33,38 +33,84 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('Form submitted with data:', formData)
     setLoading(true)
     setError(null)
 
     try {
-      const response = await fetch('/api/auth/login', {
+      console.log('Attempting customer login...')
+      // Try customer login first
+      let response = await fetch('/api/auth/customer-login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
+        credentials: 'include', // Important for cookies
+      }).catch(err => {
+        console.error('Fetch error:', err)
+        throw new Error('Network error occurred')
       })
 
-      const data = await response.json()
+      if (!response) {
+        throw new Error('No response from server')
+      }
+
+      let data = await response.json().catch(err => {
+        console.error('JSON parse error:', err)
+        throw new Error('Failed to parse server response')
+      })
+      
+      console.log('Customer login response:', { status: response.status, data })
+
+      // If customer login fails with 403, try employee login
+      if (response.status === 403) {
+        console.log('Not a customer, trying employee login...')
+        response = await fetch('/api/auth/employee-login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+          credentials: 'include', // Important for cookies
+        }).catch(err => {
+          console.error('Employee login fetch error:', err)
+          throw new Error('Network error occurred during employee login')
+        })
+
+        if (!response) {
+          throw new Error('No response from server during employee login')
+        }
+
+        data = await response.json().catch(err => {
+          console.error('Employee login JSON parse error:', err)
+          throw new Error('Failed to parse server response during employee login')
+        })
+        console.log('Employee login response:', { status: response.status, data })
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to login')
+        console.error('Login failed:', data)
+        throw new Error(data.message || data.error || 'Failed to login')
       }
 
-      // Store token in localStorage
-      localStorage.setItem('token', data.token)
+      console.log('Login successful, storing data...')
+      // Store user data and token in localStorage
       localStorage.setItem('user', JSON.stringify(data.user))
+      localStorage.setItem('token', data.token)
 
       // Redirect based on role
-      if (data.user.role === 'CUSTOMER') {
-        router.push('/customer/dashboard')
-      } else if (data.user.role === 'EMPLOYEE') {
-        router.push('/employee/dashboard')
-      } else {
-        router.push('/admin/dashboard')
-      }
+      const redirectPath = data.user.role === 'CUSTOMER' 
+        ? '/customer/dashboard'
+        : data.user.role === 'EMPLOYEE'
+          ? '/employee/dashboard'
+          : '/admin/dashboard'
+
+      console.log('Redirecting to:', redirectPath)
+      router.push(redirectPath)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      console.error('Login error:', err)
+      setError(err instanceof Error ? err.message : 'An error occurred during login')
     } finally {
       setLoading(false)
     }
@@ -88,49 +134,60 @@ export default function LoginPage() {
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
-              <div className={`bg-${error.includes('successfully') ? 'green' : 'red'}-50 border border-${error.includes('successfully') ? 'green' : 'red'}-200 text-${error.includes('successfully') ? 'green' : 'red'}-700 px-4 py-3 rounded`}>
-                {error}
+              <div 
+                className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative"
+                role="alert"
+              >
+                <span className="block sm:inline">{error}</span>
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <input
-                type="email"
-                name="email"
-                id="email"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
+              <Label htmlFor="email">Email address</Label>
+              <div className="mt-1">
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <input
-                type="password"
-                name="password"
-                id="password"
-                required
-                value={formData.password}
-                onChange={handleChange}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              />
+              <Label htmlFor="password">Password</Label>
+              <div className="mt-1">
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+              </div>
             </div>
 
             <div>
-              <button
+              <Button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
-              </button>
+              </Button>
+            </div>
+
+            <div className="text-sm text-center mt-4">
+              <p>Test Accounts:</p>
+              <p>Customer: demo@example.com / demo123</p>
+              <p>Employee: employee@scoopify.com / demo123</p>
             </div>
           </form>
         </div>

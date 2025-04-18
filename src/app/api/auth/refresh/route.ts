@@ -1,71 +1,52 @@
 import { NextResponse } from 'next/server'
-import { verify, sign } from 'jsonwebtoken'
-import { prisma } from '@/lib/prisma'
+import { refreshToken } from '@/lib/auth'
+import { cookies } from 'next/headers'
 
 export async function POST(request: Request) {
   try {
-    const token = request.headers.get('Authorization')?.split(' ')[1]
-    if (!token) {
+    const refreshTokenCookie = cookies().get('refreshToken')?.value
+    if (!refreshTokenCookie) {
       return NextResponse.json(
-        { message: 'No token provided' },
+        { error: 'No refresh token found' },
         { status: 401 }
       )
     }
 
-    // Verify current token
-    const decoded = verify(token, process.env.JWT_SECRET!) as {
-      id: string
-      email: string
-      role: string
-      aud: string
-    }
+    const { accessToken, user } = await refreshToken(refreshTokenCookie)
 
-    // Verify user still exists
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      select: { id: true, email: true, role: true }
-    })
-
-    if (!user) {
-      return NextResponse.json(
-        { message: 'User not found' },
-        { status: 404 }
-      )
-    }
-
-    // Generate new token
-    const newToken = sign(
-      { 
-        id: user.id, 
-        email: user.email,
-        role: user.role,
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days
-        iss: 'scoopify',
-        aud: decoded.aud
-      },
-      process.env.JWT_SECRET!,
-      { algorithm: 'HS256' }
-    )
-
-    // Create response with new token
-    const response = NextResponse.json({ token: newToken })
-    
-    // Set secure cookie
-    response.cookies.set('token', newToken, {
+    // Set new access token cookie
+    cookies().set('accessToken', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
+      sameSite: 'strict',
       path: '/',
+      maxAge: 15 * 60, // 15 minutes
     })
 
-    return response
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        customerId: user.customer?.id,
+        employeeId: user.employee?.id,
+      },
+    })
   } catch (error) {
-    console.error('Token refresh error:', error)
+    if (error instanceof Error) {
+      if (error.message.includes('Invalid refresh token')) {
+        // Clear cookies if refresh token is invalid
+        cookies().delete('accessToken')
+        cookies().delete('refreshToken')
+        return NextResponse.json(
+          { error: 'Session expired. Please login again.' },
+          { status: 401 }
+        )
+      }
+    }
     return NextResponse.json(
-      { message: 'Invalid or expired token' },
-      { status: 401 }
+      { error: 'An unexpected error occurred' },
+      { status: 500 }
     )
   }
 } 

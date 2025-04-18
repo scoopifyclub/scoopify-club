@@ -1,56 +1,79 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import prisma from '@/lib/prisma'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { withDatabase } from '@/middleware/db';
+import { requireAuth } from '@/lib/api-auth';
 
-export async function POST(
-  request: Request,
-  { params }: { params: { serviceId: string } }
-) {
+const handler = async (req: Request, { params }: { params: { serviceId: string } }) => {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
+    const user = await requireAuth(req as any);
+    const { serviceId } = params;
 
-    const { serviceId } = params
-    const { reason, type } = await request.json()
-
-    // Verify the service exists and belongs to the employee
-    const service = await prisma.service.findFirst({
-      where: {
-        id: serviceId,
-        employeeId: session.user.id,
+    const service = await prisma.service.findUnique({
+      where: { id: serviceId },
+      include: {
+        customer: {
+          include: {
+            user: true,
+          },
+        },
+        employee: {
+          include: {
+            user: true,
+          },
+        },
       },
-    })
+    });
 
     if (!service) {
-      return new NextResponse('Service not found', { status: 404 })
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 });
     }
 
-    // Create the delay record
-    const delay = await prisma.serviceDelay.create({
-      data: {
-        serviceId,
-        reason,
-        type,
-        reportedById: session.user.id,
-      },
-    })
+    // Check if user has access to this service
+    if (
+      user.role === 'CUSTOMER' && service.customerId !== user.customerId ||
+      user.role === 'EMPLOYEE' && service.employeeId !== user.employeeId
+    ) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-    // Update the service status
-    await prisma.service.update({
+    const { delayMinutes, reason } = await req.json();
+
+    if (!delayMinutes || !reason) {
+      return NextResponse.json(
+        { error: 'Delay minutes and reason are required' },
+        { status: 400 }
+      );
+    }
+
+    const updatedService = await prisma.service.update({
       where: { id: serviceId },
       data: {
         status: 'DELAYED',
+        delayMinutes: parseInt(delayMinutes),
+        delayReason: reason,
       },
-    })
+      include: {
+        customer: {
+          include: {
+            user: true,
+          },
+        },
+        employee: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    });
 
-    // TODO: Send notification to customer about the delay
-
-    return NextResponse.json(delay)
+    return NextResponse.json(updatedService);
   } catch (error) {
-    console.error('Error creating service delay:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error('Error delaying service:', error);
+    return NextResponse.json(
+      { error: 'Failed to delay service' },
+      { status: 500 }
+    );
   }
-} 
+};
+
+export const POST = withDatabase(handler); 

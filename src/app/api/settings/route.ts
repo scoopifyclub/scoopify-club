@@ -1,65 +1,130 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import prisma from '@/lib/prisma'
+import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/api-auth';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+    const user = await requireAuth(request as any);
+    
+    const settings = await prisma.user.findUnique({
+      where: { id: user.id },
       select: {
         name: true,
         email: true,
         phone: true,
-        address: true,
-        notificationPreferences: true
-      }
-    })
+        notificationPreferences: true,
+        customer: {
+          select: {
+            address: true,
+            servicePreferences: true,
+          },
+        },
+        employee: {
+          select: {
+            serviceAreas: true,
+            availability: true,
+          },
+        },
+      },
+    });
 
-    return NextResponse.json(user)
+    if (!settings) {
+      return NextResponse.json(
+        { error: 'Settings not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(settings);
   } catch (error) {
-    console.error('[SETTINGS_GET]', error)
-    return new NextResponse('Internal error', { status: 500 })
+    if (error instanceof Error) {
+      if (error.message === 'Unauthorized') {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+      if (error.message === 'Forbidden') {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403 }
+        );
+      }
+    }
+    return NextResponse.json(
+      { error: 'An unexpected error occurred' },
+      { status: 500 }
+    );
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
-    }
+    const user = await requireAuth(request as any);
+    const data = await request.json();
 
-    const body = await req.json()
-    const { name, phone, address, notificationPreferences } = body
-
-    const updatedUser = await prisma.user.update({
-      where: { id: session.user.id },
+    const updatedSettings = await prisma.user.update({
+      where: { id: user.id },
       data: {
-        name,
-        phone,
-        address,
-        notificationPreferences: {
-          update: notificationPreferences
-        }
+        name: data.name,
+        phone: data.phone,
+        notificationPreferences: data.notificationPreferences,
+        ...(user.role === 'CUSTOMER' && {
+          customer: {
+            update: {
+              address: data.address,
+              servicePreferences: data.servicePreferences,
+            },
+          },
+        }),
+        ...(user.role === 'EMPLOYEE' && {
+          employee: {
+            update: {
+              serviceAreas: data.serviceAreas,
+              availability: data.availability,
+            },
+          },
+        }),
       },
       select: {
         name: true,
         email: true,
         phone: true,
-        address: true,
-        notificationPreferences: true
-      }
-    })
+        notificationPreferences: true,
+        customer: {
+          select: {
+            address: true,
+            servicePreferences: true,
+          },
+        },
+        employee: {
+          select: {
+            serviceAreas: true,
+            availability: true,
+          },
+        },
+      },
+    });
 
-    return NextResponse.json(updatedUser)
+    return NextResponse.json(updatedSettings);
   } catch (error) {
-    console.error('[SETTINGS_PATCH]', error)
-    return new NextResponse('Internal error', { status: 500 })
+    if (error instanceof Error) {
+      if (error.message === 'Unauthorized') {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        );
+      }
+      if (error.message === 'Forbidden') {
+        return NextResponse.json(
+          { error: 'Forbidden' },
+          { status: 403 }
+        );
+      }
+    }
+    return NextResponse.json(
+      { error: 'An unexpected error occurred' },
+      { status: 500 }
+    );
   }
 } 

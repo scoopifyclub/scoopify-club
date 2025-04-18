@@ -1,39 +1,26 @@
-import { NextResponse } from 'next/server'
-import { verify } from 'jsonwebtoken'
-import { prisma } from '@/lib/prisma'
-import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verify } from 'jsonwebtoken';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     // First check for token in cookies
-    const cookieStore = cookies()
-    const token = cookieStore.get('token')?.value
+    const cookieStore = cookies();
+    const tokenCookie = await cookieStore.get('token');
+    const token = tokenCookie?.value;
 
-    // If no token in cookies, check Authorization header
     if (!token) {
-      const authHeader = request.headers.get('authorization')
-      if (!authHeader) {
-        return NextResponse.json(
-          { message: 'No token provided' },
-          { status: 401 }
-        )
-      }
-      const headerToken = authHeader.split(' ')[1]
-      if (!headerToken) {
-        return NextResponse.json(
-          { message: 'Invalid token format' },
-          { status: 401 }
-        )
-      }
-      token = headerToken
+      return NextResponse.json({ error: 'No session found' }, { status: 401 });
     }
 
-    // Verify token
-    const decoded = verify(token, process.env.JWT_SECRET!) as { 
-      id: string
-      email: string
-      role: string
-    }
+    // Verify the token
+    const decoded = verify(token, process.env.JWT_SECRET!) as {
+      id: string;
+      email: string;
+      role: string;
+      name: string;
+    };
 
     // Get user with role-specific data
     const user = await prisma.user.findUnique({
@@ -42,23 +29,20 @@ export async function GET(request: Request) {
         customer: true,
         employee: true
       }
-    })
+    });
 
     if (!user) {
-      return NextResponse.json(
-        { message: 'User not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     // Return user data without password
-    const { password: _, ...userWithoutPassword } = user
-    return NextResponse.json({ user: userWithoutPassword })
+    const { password: _, ...userWithoutPassword } = user;
+    return NextResponse.json({ user: userWithoutPassword });
   } catch (error) {
-    console.error('Session error:', error)
+    console.error('Session error:', error);
     return NextResponse.json(
-      { message: 'Invalid or expired token' },
-      { status: 401 }
-    )
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 

@@ -1,48 +1,47 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withDatabase } from '@/middleware/db';
 import { verifyToken } from '@/lib/auth';
 import { isAfter } from 'date-fns';
 
-export async function POST(
-  request: Request,
+const handler = async (
+  req: Request,
   { params }: { params: { jobId: string } }
-) {
+) => {
   try {
-    // Verify employee authorization
-    const token = request.headers.get('Authorization')?.split(' ')[1];
+    const token = req.headers.get('authorization')?.split(' ')[1];
     if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
     const decoded = await verifyToken(token);
     if (!decoded || decoded.role !== 'EMPLOYEE') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    // Get the service
     const service = await prisma.service.findUnique({
       where: { id: params.jobId },
-      include: {
-        customer: {
-          select: {
-            gateCode: true,
-            user: {
-              select: {
-                id: true
-              }
-            }
-          }
-        }
-      }
+      include: { employee: true }
     });
 
     if (!service) {
-      return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+      return NextResponse.json(
+        { error: 'Service not found' },
+        { status: 404 }
+      );
     }
 
-    // Verify employee owns this job
-    if (service.employeeId !== decoded.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (service.employeeId !== decoded.userId) {
+      return NextResponse.json(
+        { error: 'Not assigned to this service' },
+        { status: 403 }
+      );
     }
 
     // Check if already checked in
@@ -75,7 +74,7 @@ export async function POST(
     }
 
     // Verify location (if coordinates provided)
-    const { latitude, longitude } = await request.json();
+    const { latitude, longitude } = await req.json();
     if (latitude && longitude) {
       const MAX_DISTANCE = 0.1; // Maximum allowed distance in miles
       const distance = calculateDistance(
@@ -113,20 +112,17 @@ export async function POST(
       }
     });
 
-    // Return service details with gate code
-    return NextResponse.json({
-      message: 'Check-in successful',
-      service: updatedService,
-      gateCode: service.customer.gateCode
-    });
+    return NextResponse.json(updatedService);
   } catch (error) {
-    console.error('Error checking in:', error);
+    console.error('Check-in error:', error);
     return NextResponse.json(
-      { error: 'Failed to check in' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
-}
+};
+
+export const POST = withDatabase(handler);
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3963; // Earth's radius in miles

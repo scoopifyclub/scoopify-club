@@ -1,62 +1,135 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { withDatabase } from '@/middleware/db';
+import { requireAuth } from '@/lib/api-auth';
+import { sendServiceNotificationEmail } from '@/lib/email';
 
-export async function GET(request: Request) {
+const handler = async (req: Request) => {
   try {
-    const { searchParams } = new URL(request.url);
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
+    const user = await requireAuth(req as any);
+    
+    if (req.method === 'POST') {
+      // Only customers can create services
+      if (user.role !== 'CUSTOMER') {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
 
-    if (!startDate || !endDate) {
-      return NextResponse.json(
-        { error: 'Start and end dates are required' },
-        { status: 400 }
-      );
-    }
+      const { scheduledFor, servicePlanId, specialInstructions } = await req.json();
 
-    // Fetch services for the specified date range
-    const services = await prisma.service.findMany({
-      where: {
-        date: {
+      if (!servicePlanId) {
+        return NextResponse.json(
+          { error: 'Service plan ID is required' },
+          { status: 400 }
+        );
+      }
+
+      const customer = await prisma.customer.findUnique({
+        where: { userId: user.id },
+        include: {
+          user: true,
+          address: true,
+        },
+      });
+
+      if (!customer) {
+        return NextResponse.json(
+          { error: 'Customer not found' },
+          { status: 404 }
+        );
+      }
+
+      // Verify service plan exists and is active
+      const servicePlan = await prisma.servicePlan.findUnique({
+        where: { id: servicePlanId },
+      });
+
+      if (!servicePlan || !servicePlan.isActive) {
+        return NextResponse.json(
+          { error: 'Invalid service plan' },
+          { status: 400 }
+        );
+      }
+
+      const service = await prisma.service.create({
+        data: {
+          customerId: customer.id,
+          servicePlanId,
+          scheduledDate: new Date(scheduledFor),
+          status: 'SCHEDULED',
+          specialInstructions,
+        },
+        include: {
+          customer: {
+            include: {
+              user: true,
+              address: true,
+            },
+          },
+          servicePlan: true,
+        },
+      });
+
+      // Send notification email
+      await sendServiceNotificationEmail(service);
+
+      return NextResponse.json(service);
+    } else if (req.method === 'GET') {
+      const { searchParams } = new URL(req.url);
+      const startDate = searchParams.get('startDate');
+      const endDate = searchParams.get('endDate');
+
+      if (!startDate || !endDate) {
+        return NextResponse.json(
+          { error: 'Start and end dates are required' },
+          { status: 400 }
+        );
+      }
+
+      const where = {
+        scheduledDate: {
           gte: new Date(startDate),
           lte: new Date(endDate),
         },
-      },
-      include: {
-        customer: {
-          include: {
-            user: true,
-            address: true,
+        ...(user.role === 'CUSTOMER' && { customerId: user.customerId }),
+        ...(user.role === 'EMPLOYEE' && { employeeId: user.employeeId }),
+      };
+
+      const services = await prisma.service.findMany({
+        where,
+        include: {
+          customer: {
+            include: {
+              user: true,
+              address: true,
+            },
           },
+          employee: {
+            include: {
+              user: true,
+            },
+          },
+          servicePlan: true,
         },
-      },
-      orderBy: {
-        date: 'asc',
-      },
-    });
+        orderBy: {
+          scheduledDate: 'asc',
+        },
+      });
+
+      return NextResponse.json(services);
+    }
 
     return NextResponse.json(
-      services.map((service) => ({
-        id: service.id,
-        customerName: service.customer.user.name,
-        address: service.customer.address
-          ? `${service.customer.address.street}, ${service.customer.address.city}, ${service.customer.address.state} ${service.customer.address.zipCode}`
-          : 'No address provided',
-        customerEmail: service.customer.user.email,
-        customerPhone: service.customer.user.phone,
-        numberOfDogs: service.numberOfDogs,
-        date: service.date,
-        status: service.status,
-        notes: service.notes,
-        latitude: service.customer.address?.latitude,
-        longitude: service.customer.address?.longitude,
-      }))
+      { error: 'Method not allowed' },
+      { status: 405 }
     );
   } catch (error) {
-    console.error('Error fetching services:', error);
+    console.error('Error in services route:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch services' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
-} 
+};
+
+export const POST = withDatabase(handler);
+export const GET = withDatabase(handler); 

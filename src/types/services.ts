@@ -6,20 +6,22 @@ export interface Service {
   id: string
   customerId: string
   employeeId?: string
-  subscriptionId?: string
-  preferredDay: Date
-  scheduledDate: Date
-  arrivalDeadline?: Date
+  servicePlanId: string
   status: ServiceStatus
-  type: ServiceType
-  notes?: string
-  gateCode?: string
-  specialInstructions?: string
-  numberOfDogs: number
-  paymentAmount: number
+  scheduledDate: Date
   completedAt?: Date
+  claimedAt?: Date
+  notes?: string
+  specialInstructions?: string
   createdAt: Date
   updatedAt: Date
+  servicePlan?: {
+    name: string
+    description?: string
+    price: number
+    duration: number
+    type: ServiceType
+  }
 }
 
 export interface ServiceChecklist {

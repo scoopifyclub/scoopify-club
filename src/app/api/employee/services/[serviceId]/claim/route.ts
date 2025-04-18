@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
 import { addMinutes } from 'date-fns'
+import { sendServiceNotificationEmail } from '@/lib/email'
+import { checkTimeConflict } from '@/lib/validations'
 
 export async function POST(
   request: Request,
@@ -13,64 +15,68 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { userId, role } = await verifyToken(token)
-    if (role !== 'EMPLOYEE') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const decoded = verifyToken(token)
+    if (!decoded || !decoded.userId) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
     }
 
-    const employee = await prisma.employee.findUnique({
-      where: { userId }
-    })
-
-    if (!employee) {
-      return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
-    }
-
-    // Check if service is already claimed
-    const existingService = await prisma.service.findUnique({
+    const service = await prisma.service.findUnique({
       where: { id: params.serviceId },
-      select: { status: true, employeeId: true }
-    })
-
-    if (existingService?.status === 'CLAIMED' && existingService.employeeId !== employee.id) {
-      return NextResponse.json({ error: 'Service already claimed by another employee' }, { status: 409 })
-    }
-
-    // Calculate expiration time (45 minutes from now)
-    const expiresAt = addMinutes(new Date(), 45)
-
-    const service = await prisma.service.update({
-      where: {
-        id: params.serviceId,
-        status: 'SCHEDULED',
-        employeeId: null
-      },
-      data: {
-        status: 'CLAIMED',
-        employeeId: employee.id,
-        claimedAt: new Date(),
-        expiresAt
-      },
       include: {
-        customer: {
-          select: {
-            name: true,
-            phone: true,
-            address: true,
-            gateCode: true
-          }
-        }
+        employee: true,
+        customer: true,
+        servicePlan: true
       }
     })
 
     if (!service) {
-      return NextResponse.json({ error: 'Service not available' }, { status: 404 })
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 })
     }
 
-    return NextResponse.json(service)
+    if (service.status !== 'SCHEDULED') {
+      return NextResponse.json(
+        { error: 'Service is not available for claiming' },
+        { status: 400 }
+      )
+    }
+
+    // Check for time conflicts
+    const userServices = await prisma.service.findMany({
+      where: {
+        employeeId: decoded.userId,
+        status: {
+          in: ['CLAIMED', 'ARRIVED', 'IN_PROGRESS']
+        }
+      }
+    })
+
+    if (checkTimeConflict(userServices, service, decoded.userId)) {
+      return NextResponse.json(
+        { error: 'You already have a service in progress' },
+        { status: 400 }
+      )
+    }
+
+    const updatedService = await prisma.service.update({
+      where: { id: params.serviceId },
+      data: {
+        status: 'CLAIMED',
+        employeeId: decoded.userId
+      },
+      include: {
+        employee: true,
+        customer: true,
+        servicePlan: true
+      }
+    })
+
+    return NextResponse.json(updatedService)
   } catch (error) {
-    console.error('Claim service error:', error)
-    return NextResponse.json({ error: 'Failed to claim service' }, { status: 500 })
+    console.error('Error claiming service:', error)
+    return NextResponse.json(
+      { error: 'Failed to claim service' },
+      { status: 500 }
+    )
   }
 }
 

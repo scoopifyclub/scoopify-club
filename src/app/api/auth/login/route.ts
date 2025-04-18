@@ -1,74 +1,64 @@
-import { NextResponse } from 'next/server'
-import { compare } from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
-import jwt from 'jsonwebtoken'
+import { NextResponse } from 'next/server';
+import { login } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json()
+    const { email, password } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
-      )
+      );
     }
 
-    // Get user with password
-    const user = await prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        email: true,
-        password: true,
-        role: true,
-        name: true,
-        customer: {
-          include: {
-            address: true
-          }
-        }
-      }
-    })
+    const { accessToken, refreshToken, user } = await login(email, password);
 
-    if (!user) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
-      )
-    }
+    // Set cookies
+    cookies().set('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60, // 15 minutes
+    });
 
-    // Verify password
-    const isValid = await compare(password, user.password)
-    if (!isValid) {
-      return NextResponse.json(
-        { error: 'Invalid credentials' },
-        { status: 401 }
-      )
-    }
-
-    // Generate JWT token
-    const token = jwt.sign(
-      { userId: user.id, role: user.role },
-      process.env.JWT_SECRET!,
-      { expiresIn: '7d' }
-    )
+    cookies().set('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+    });
 
     return NextResponse.json({
-      token,
       user: {
         id: user.id,
         email: user.email,
-        name: user.name,
         role: user.role,
-        customer: user.customer
-      }
-    })
+        customerId: user.customer?.id,
+        employeeId: user.employee?.id,
+      },
+    });
   } catch (error) {
-    console.error('Login error:', error)
+    if (error instanceof Error) {
+      if (error.message.includes('Too many login attempts')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 429 }
+        );
+      }
+      if (error.message.includes('Invalid email or password')) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 401 }
+        );
+      }
+    }
     return NextResponse.json(
-      { error: 'Failed to login' },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
-    )
+    );
   }
 } 

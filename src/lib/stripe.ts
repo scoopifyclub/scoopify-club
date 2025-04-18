@@ -2,13 +2,20 @@ import { loadStripe } from '@stripe/stripe-js';
 import Stripe from 'stripe';
 
 // Initialize Stripe with your publishable key
-export const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
-if (!process.env.STRIPE_SECRET_KEY) {
+if (!stripePublishableKey) {
+  throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not defined');
+}
+
+if (!stripeSecretKey) {
   throw new Error('STRIPE_SECRET_KEY is not defined');
 }
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+export const stripePromise = loadStripe(stripePublishableKey);
+
+export const stripe = new Stripe(stripeSecretKey, {
   apiVersion: '2023-10-16',
   typescript: true,
 });

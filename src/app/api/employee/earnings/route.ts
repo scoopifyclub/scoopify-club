@@ -1,62 +1,89 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
+import { getEmployeeEarnings } from '@/lib/payment'
+import { prisma } from '@/lib/prisma'
 
-export async function GET(request: Request) {
+export async function GET(req: Request) {
   try {
-    const token = request.headers.get('Authorization')?.split(' ')[1]
+    const token = req.headers.get('Authorization')?.split(' ')[1]
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { userId, role } = await verifyToken(token)
-    if (role !== 'EMPLOYEE') {
+    const decoded = verifyToken(token)
+    if (!decoded || decoded.role !== 'EMPLOYEE') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const employee = await prisma.employee.findUnique({
-      where: { userId },
-      include: {
-        services: {
-          where: {
-            status: 'COMPLETED',
-            completedAt: {
-              gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-            }
-          },
-          select: {
-            amount: true,
-            completedAt: true
-          }
-        },
-        payments: {
-          where: {
-            status: 'PENDING'
-          },
-          select: {
-            amount: true,
-            createdAt: true
-          }
-        }
-      }
-    })
+    const { searchParams } = new URL(req.url)
+    const from = searchParams.get('from')
+    const to = searchParams.get('to')
 
-    if (!employee) {
-      return NextResponse.json({ error: 'Employee not found' }, { status: 404 })
+    const where = {
+      employeeId: decoded.id,
+      ...(from && to ? {
+        createdAt: {
+          gte: new Date(from),
+          lte: new Date(to),
+        },
+      } : {}),
     }
 
-    const monthlyEarnings = employee.services.reduce((sum, service) => sum + service.amount, 0)
-    const pendingPayments = employee.payments.reduce((sum, payment) => sum + payment.amount, 0)
+    const earnings = await prisma.earning.findMany({
+      where,
+      include: {
+        paymentDistribution: {
+          include: {
+            payment: {
+              include: {
+                subscription: {
+                  include: {
+                    customer: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
+
+    const stats = {
+      totalEarned: earnings
+        .filter(e => e.status === 'PAID')
+        .reduce((sum, e) => sum + e.amount, 0),
+      pendingAmount: earnings
+        .filter(e => e.status === 'PENDING')
+        .reduce((sum, e) => sum + e.amount, 0),
+      totalJobs: earnings.length,
+    }
 
     return NextResponse.json({
-      monthlyEarnings,
-      pendingPayments,
-      completedServices: employee.services.length,
-      services: employee.services,
-      pendingPaymentsList: employee.payments
+      earnings: earnings.map(earning => ({
+        id: earning.id,
+        amount: earning.amount,
+        status: earning.status,
+        createdAt: earning.createdAt,
+        payment: {
+          subscription: {
+            plan: earning.paymentDistribution.payment.subscription.plan,
+            customer: {
+              name: earning.paymentDistribution.payment.subscription.customer.name,
+            },
+          },
+          date: earning.paymentDistribution.payment.createdAt,
+        },
+      })),
+      stats,
     })
   } catch (error) {
-    console.error('Earnings error:', error)
-    return NextResponse.json({ error: 'Failed to fetch earnings' }, { status: 500 })
+    console.error('Error fetching employee earnings:', error)
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 } 

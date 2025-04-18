@@ -38,50 +38,52 @@ export async function POST(
     // Check if service can be cancelled (only scheduled services)
     if (service.status !== 'SCHEDULED') {
       return NextResponse.json(
-        { error: 'Only scheduled services can be cancelled' },
+        { error: 'Only scheduled services can be skipped' },
         { status: 400 }
       );
     }
 
     // Check cancellation time limit (e.g., 24 hours before service)
-    const serviceDatetime = new Date(service.scheduledFor);
+    const serviceDatetime = new Date(service.scheduledDate);
     const now = new Date();
     const hoursUntilService = (serviceDatetime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
     if (hoursUntilService < 24) {
       return NextResponse.json(
-        { error: 'Services must be cancelled at least 24 hours in advance' },
+        { error: 'Services must be skipped at least 24 hours in advance' },
         { status: 400 }
       );
     }
 
-    // Cancel the service
-    const updatedService = await prisma.service.update({
-      where: { id: params.serviceId },
-      data: { status: 'CANCELLED' }
-    });
-
-    // Create notification for employee
-    if (service.employee) {
-      await prisma.notification.create({
-        data: {
-          userId: service.employee.userId,
-          type: 'SERVICE_CANCELLED',
-          title: 'Service Cancelled',
-          message: `Service scheduled for ${serviceDatetime.toLocaleDateString()} has been cancelled by the customer.`,
-          data: { serviceId: service.id }
+    // Start a transaction to update service and create delay record
+    const result = await prisma.$transaction(async (tx) => {
+      // Update service status to cancelled
+      const updatedService = await tx.service.update({
+        where: { id: params.serviceId },
+        data: { 
+          status: 'CANCELLED',
+          notes: 'Skipped by customer'
         }
       });
-    }
 
-    return NextResponse.json({
-      service: updatedService,
-      message: 'Service cancelled successfully'
+      // Create a service delay record
+      await tx.serviceDelay.create({
+        data: {
+          serviceId: service.id,
+          reason: 'Customer requested to skip service',
+          type: 'OTHER',
+          reportedById: decoded.id
+        }
+      });
+
+      return updatedService;
     });
+
+    return NextResponse.json(result);
   } catch (error) {
-    console.error('Error cancelling service:', error);
+    console.error('Error skipping service:', error);
     return NextResponse.json(
-      { error: 'Failed to cancel service' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

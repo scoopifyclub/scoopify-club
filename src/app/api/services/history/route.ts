@@ -1,52 +1,70 @@
-import { NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
-import prisma from '@/lib/prisma'
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { withDatabase } from '@/middleware/db';
+import { requireAuth } from '@/lib/api-auth';
 
-export async function GET(req: Request) {
+const handler = async (req: Request) => {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+    const user = await requireAuth(req as any);
+    const { searchParams } = new URL(req.url);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+
+    if (!startDate || !endDate) {
+      return NextResponse.json(
+        { error: 'Start date and end date are required' },
+        { status: 400 }
+      );
     }
 
-    const { searchParams } = new URL(req.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
-
-    const services = await prisma.service.findMany({
-      where: {
-        customerId: session.user.id
+    const where = {
+      scheduledDate: {
+        gte: new Date(startDate),
+        lte: new Date(endDate),
       },
-      orderBy: {
-        date: 'desc'
-      },
-      skip: (page - 1) * limit,
-      take: limit,
-      include: {
-        customer: {
-          select: {
-            name: true,
-            email: true
-          }
-        }
-      }
-    })
+      ...(user.role === 'CUSTOMER' && { customerId: user.customerId }),
+      ...(user.role === 'EMPLOYEE' && { employeeId: user.employeeId }),
+    };
 
-    const total = await prisma.service.count({
-      where: {
-        customerId: session.user.id
-      }
-    })
+    const [services, total] = await Promise.all([
+      prisma.service.findMany({
+        where,
+        include: {
+          customer: {
+            include: {
+              user: true,
+            },
+          },
+          employee: {
+            include: {
+              user: true,
+            },
+          },
+        },
+        orderBy: {
+          scheduledDate: 'desc',
+        },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      prisma.service.count({ where }),
+    ]);
 
     return NextResponse.json({
       services,
       total,
       page,
-      totalPages: Math.ceil(total / limit)
-    })
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (error) {
-    console.error('[SERVICE_HISTORY]', error)
-    return new NextResponse('Internal error', { status: 500 })
+    console.error('Error fetching service history:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch service history' },
+      { status: 500 }
+    );
   }
-} 
+};
+
+export const GET = withDatabase(handler); 

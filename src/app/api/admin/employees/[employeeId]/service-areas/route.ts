@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { geocodeZipCode } from '@/lib/geocoding';
 
 export async function POST(
   request: Request,
@@ -26,6 +27,12 @@ export async function POST(
       return new NextResponse('Radius must be between 0 and 100 miles', { status: 400 });
     }
 
+    // Geocode the zip code to get coordinates
+    const coordinates = await geocodeZipCode(zipCode);
+    if (!coordinates) {
+      return new NextResponse('Could not geocode zip code', { status: 400 });
+    }
+
     // If this is being set as primary, unset any other primary areas
     if (isPrimary) {
       await prisma.serviceArea.updateMany({
@@ -45,6 +52,8 @@ export async function POST(
         zipCode,
         radius,
         isPrimary,
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
       },
     });
 

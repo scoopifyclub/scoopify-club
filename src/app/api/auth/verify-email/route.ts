@@ -5,55 +5,50 @@ import { sendEmail } from '@/lib/email'
 
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json()
+    const { token } = await request.json()
 
-    if (!email) {
-      return new NextResponse('Email is required', { status: 400 })
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Verification token is required' },
+        { status: 400 }
+      )
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-    })
-
-    if (!user) {
-      return new NextResponse('User not found', { status: 404 })
-    }
-
-    if (user.emailVerified) {
-      return new NextResponse('Email already verified', { status: 400 })
-    }
-
-    // Generate verification token
-    const verificationToken = randomBytes(32).toString('hex')
-    const verificationTokenExpiry = new Date(Date.now() + 24 * 3600000) // 24 hours
-
-    // Store verification token
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        verificationToken,
-        verificationTokenExpiry,
+    const user = await prisma.user.findFirst({
+      where: {
+        verificationToken: token,
+        verificationTokenExpiry: {
+          gt: new Date(),
+        },
       },
     })
 
-    // Send verification email
-    const verificationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${verificationToken}`
-    await sendEmail({
-      to: email,
-      subject: 'Verify Your Email',
-      html: `
-        <h1>Email Verification</h1>
-        <p>Please verify your email address by clicking the link below:</p>
-        <a href="${verificationUrl}">Verify Email</a>
-        <p>This link will expire in 24 hours.</p>
-        <p>If you didn't create an account, please ignore this email.</p>
-      `,
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Invalid or expired verification token' },
+        { status: 400 }
+      )
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        verificationToken: null,
+        verificationTokenExpiry: null,
+      },
     })
 
-    return new NextResponse('Verification email sent', { status: 200 })
+    return NextResponse.json({
+      success: true,
+      message: 'Email verified successfully',
+    })
   } catch (error) {
     console.error('Email verification error:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
 }
 

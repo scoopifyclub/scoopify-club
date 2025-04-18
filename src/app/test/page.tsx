@@ -1,97 +1,92 @@
 'use client';
 
 import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
 
 export default function TestPage() {
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-  async function handleTestConnection() {
-    setError(null);
-    setResult(null);
-    setLoading(true);
-
+  const setupTestData = async () => {
     try {
-      const response = await fetch('/api/test-db');
-      const data = await response.json();
-      
-      if (response.ok) {
-        setResult(data);
-      } else {
-        setError(data.error);
-      }
-    } catch (err) {
-      setError('Failed to connect to database');
-      console.error('Error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleSetupDatabase() {
-    setError(null);
-    setResult(null);
-    setLoading(true);
-
-    try {
-      const response = await fetch('/api/setup-db', {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/test/setup', {
         method: 'POST',
       });
       const data = await response.json();
-      
-      if (response.ok) {
-        setResult(data);
-      } else {
-        setError(data.error);
-      }
+      if (!response.ok) throw new Error(data.error);
+      alert('Test data created successfully!');
     } catch (err) {
-      setError('Failed to set up database');
-      console.error('Error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create test data');
     } finally {
       setLoading(false);
     }
-  }
+  };
+
+  const cleanupTestData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/test/cleanup', {
+        method: 'POST',
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      alert('Test data cleaned up successfully!');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to clean up test data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen p-8">
-      <h1 className="text-2xl font-bold mb-4">Database Test Page</h1>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Test Workflow</h1>
       
-      <div className="space-y-4 mb-8">
-        <button 
-          onClick={handleTestConnection}
-          disabled={loading}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
-        >
-          Test Database Connection
-        </button>
+      <div className="space-y-4">
+        <div className="p-4 border rounded-lg">
+          <h2 className="text-xl font-semibold mb-2">Step 1: Setup Test Data</h2>
+          <p className="mb-4">Create a test customer with subscription and scheduled service.</p>
+          <div className="space-x-2">
+            <Button onClick={setupTestData} disabled={loading}>
+              {loading ? 'Creating...' : 'Create Test Data'}
+            </Button>
+            <Button onClick={cleanupTestData} disabled={loading} variant="destructive">
+              {loading ? 'Cleaning...' : 'Cleanup Test Data'}
+            </Button>
+          </div>
+          {error && <p className="text-red-500 mt-2">{error}</p>}
+        </div>
 
-        <button 
-          onClick={handleSetupDatabase}
-          disabled={loading}
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50 ml-4"
-        >
-          Setup Database Tables
-        </button>
+        <div className="p-4 border rounded-lg">
+          <h2 className="text-xl font-semibold mb-2">Step 2: Test Employee Workflow</h2>
+          <p className="mb-4">Use these test accounts:</p>
+          <div className="space-y-2">
+            <p><strong>Employee:</strong> employee@scoopify.com / test123</p>
+            <p><strong>Customer:</strong> testcustomer@scoopify.com / test123</p>
+          </div>
+          <div className="mt-4 space-x-2">
+            <Button onClick={() => router.push('/login')}>Go to Login</Button>
+            <Button onClick={() => router.push('/employee')}>Go to Employee Dashboard</Button>
+          </div>
+        </div>
+
+        <div className="p-4 border rounded-lg">
+          <h2 className="text-xl font-semibold mb-2">Testing Steps</h2>
+          <ol className="list-decimal pl-4 space-y-2">
+            <li>Log in as employee (employee@scoopify.com)</li>
+            <li>Check available jobs in employee dashboard</li>
+            <li>Claim the test job</li>
+            <li>Upload photos and complete the job</li>
+            <li>Log in as customer (testcustomer@scoopify.com)</li>
+            <li>Verify job completion and photos</li>
+          </ol>
+        </div>
       </div>
-
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
-
-      {result && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
-          <p>Operation successful!</p>
-          {result.timestamp && (
-            <p>Current timestamp: {new Date(result.timestamp).toLocaleString()}</p>
-          )}
-          {result.message && (
-            <p>{result.message}</p>
-          )}
-        </div>
-      )}
     </div>
   );
 } 

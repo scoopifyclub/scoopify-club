@@ -7,7 +7,7 @@ A web application for managing pet waste removal services.
 - Next.js 14 (App Router)
 - TypeScript
 - Prisma (ORM)
-- SQLite (Development) / PostgreSQL (Production)
+- PostgreSQL (Neon)
 - TailwindCSS
 - NextAuth.js
 - Stripe Integration
@@ -54,43 +54,51 @@ cd ScoopifyClub
 npm install
 ```
 
-3. Create a `.env` file in the root directory with the following content:
-```env
-# App URL (development)
-NEXT_PUBLIC_APP_URL=http://localhost:3001
+3. Set up your environment:
+   - Copy `.env.example` to `.env.local`
+   - Update the following variables in `.env.local`:
+     - `DATABASE_URL`: Your Neon PostgreSQL connection string
+     - `NEXTAUTH_SECRET`: Generate a secure secret (e.g., using `openssl rand -base64 32`)
+     - `NEXTAUTH_URL`: Your application URL (http://localhost:3000 for development)
+     - Other required environment variables as listed in `.env.example`
 
-# Database
-DATABASE_URL="file:./dev.db"
-
-# NextAuth
-NEXTAUTH_URL="http://localhost:3001"
-NEXTAUTH_SECRET="your-secret-key"
-
-# JWT
-JWT_SECRET="your-jwt-secret"
-
-# Email (Resend)
-RESEND_API_KEY="your-resend-api-key"
-
-# Stripe
-STRIPE_SECRET_KEY="your-stripe-secret-key"
-STRIPE_WEBHOOK_SECRET="your-stripe-webhook-secret"
-
-# Google Maps
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="your-google-maps-api-key"
-```
-
-4. Initialize the database:
-```bash
-npx prisma generate
-npx prisma db push
-npx prisma db seed
-```
+4. Set up your database:
+   - Sign up for a free Neon PostgreSQL database at https://neon.tech
+   - Create a new project and database
+   - Copy the connection string from your Neon dashboard
+   - Update `DATABASE_URL` in your `.env.local` file with the connection string
+   - Run database migrations:
+     ```bash
+     npx prisma migrate dev
+     ```
 
 5. Start the development server:
 ```bash
 npm run dev
 ```
+
+## Database Configuration
+
+The application uses Neon PostgreSQL for all environments. Key points:
+
+- Development: Use your Neon PostgreSQL database
+- Production: Use your Neon PostgreSQL database
+- Testing: Use a separate Neon PostgreSQL database or local PostgreSQL instance
+
+### Connection Pooling
+
+The application uses Neon's built-in connection pooling. Your connection string should include:
+- `pgbouncer=true` for connection pooling
+- `connect_timeout=10` for connection timeout settings
+
+### Environment Variables
+
+See `.env.example` for all required environment variables. Key database-related variables:
+
+- `DATABASE_URL`: Your Neon PostgreSQL connection string
+- `NEON_POOL_SIZE`: Connection pool size (default: 20)
+- `NEON_IDLE_TIMEOUT`: Connection idle timeout in milliseconds (default: 30000)
+- `NEON_CONNECTION_TIMEOUT`: Connection timeout in milliseconds (default: 2000)
 
 ## Project Structure
 

@@ -1,297 +1,516 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, CheckCircle2, XCircle, LogOut, MapPin, Phone, Mail, MessageSquare } from 'lucide-react';
-import dynamic from 'next/dynamic';
-
-// Dynamically import the Map component to avoid SSR issues
-const Map = dynamic(() => import('@/components/Map'), { ssr: false });
+import { Calendar, Clock, MapPin, User, Map, History, Download } from 'lucide-react';
+import { ServiceStatus } from '@prisma/client';
+import { ServiceMap } from '@/components/ServiceMap';
+import { ServiceDetails } from '@/components/ServiceDetails';
 
 interface Service {
   id: string;
-  customerName: string;
-  address: string;
-  numberOfDogs: number;
-  date: string;
-  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
-  notes?: string;
-  customerEmail?: string;
-  customerPhone?: string;
+  status: ServiceStatus;
+  scheduledDate: string;
+  completedDate?: string;
+  customer: {
+    email: string;
+    address: {
+      street: string;
+      city: string;
+      state: string;
+      zipCode: string;
+    } | null;
+  };
+  servicePlan: {
+    name: string;
+    duration: number;
+  } | null;
+  notes: string | null;
   latitude?: number;
   longitude?: number;
 }
 
+interface PerformanceMetrics {
+  totalJobs: number;
+  averageDuration: string;
+  onTimeRate: number;
+  totalHours: number;
+}
+
 export default function EmployeeDashboard() {
-  const router = useRouter();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<'daily' | 'weekly'>('daily');
+  const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
-  const [completionNotes, setCompletionNotes] = useState('');
-
-  useEffect(() => {
-    fetchServices();
-  }, [selectedDate, viewMode]);
+  const [viewMode, setViewMode] = useState<'list' | 'map'>('list');
+  const [metrics, setMetrics] = useState<PerformanceMetrics>({
+    totalJobs: 0,
+    averageDuration: '0h 0m',
+    onTimeRate: 0,
+    totalHours: 0
+  });
 
   const fetchServices = async () => {
     try {
       setLoading(true);
-      const startDate = new Date(selectedDate);
-      const endDate = new Date(selectedDate);
+      setError(null);
       
-      if (viewMode === 'weekly') {
-        // Set to start of week (Sunday)
-        startDate.setDate(startDate.getDate() - startDate.getDay());
-        // Set to end of week (Saturday)
-        endDate.setDate(startDate.getDate() + 6);
-      } else {
-        // Set to start and end of day
-        startDate.setHours(0, 0, 0, 0);
-        endDate.setHours(23, 59, 59, 999);
+      const response = await fetch(`/api/employee/services?date=${selectedDate}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch services');
       }
 
-      const response = await fetch(
-        `/api/services?startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`
-      );
-      if (!response.ok) throw new Error('Failed to fetch services');
       const data = await response.json();
-      setServices(data);
-    } catch (error) {
-      console.error('Error fetching services:', error);
+      setServices(data.services);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch services');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleMarkComplete = async (serviceId: string) => {
+  useEffect(() => {
+    fetchServices();
+  }, [selectedDate]);
+
+  const handleClaimJob = async (serviceId: string) => {
     try {
-      const response = await fetch(`/api/services/${serviceId}`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/employee/services/${serviceId}/claim`, {
+        method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          status: 'COMPLETED',
-          notes: completionNotes 
-        }),
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to update service');
+      if (!response.ok) {
+        throw new Error('Failed to claim service');
+      }
 
-      const updatedService = await response.json();
-      setServices(services.map(service => 
-        service.id === serviceId ? updatedService : service
-      ));
+      fetchServices();
       setSelectedService(null);
-      setCompletionNotes('');
-    } catch (error) {
-      console.error('Error updating service:', error);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to claim service');
     }
   };
 
-  const handleMarkCancelled = async (serviceId: string) => {
+  const handleArrive = async (serviceId: string) => {
     try {
-      const response = await fetch(`/api/services/${serviceId}`, {
-        method: 'PATCH',
+      const response = await fetch(`/api/employee/services/${serviceId}/arrive`, {
+        method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'CANCELLED' }),
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
       });
 
-      if (!response.ok) throw new Error('Failed to update service');
+      if (!response.ok) {
+        throw new Error('Failed to mark as arrived');
+      }
 
-      const updatedService = await response.json();
-      setServices(services.map(service => 
-        service.id === serviceId ? updatedService : service
-      ));
-    } catch (error) {
-      console.error('Error updating service:', error);
+      fetchServices();
+      setSelectedService(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to mark as arrived');
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="mb-4 text-2xl font-semibold">Loading...</div>
-          <div className="text-gray-600">Please wait while we load the schedule</div>
+  const handleComplete = async (serviceId: string) => {
+    try {
+      const response = await fetch(`/api/employee/services/${serviceId}/complete`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to complete service');
+      }
+
+      fetchServices();
+      setSelectedService(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to complete service');
+    }
+  };
+
+  const availableServices = services.filter(s => s.status === 'SCHEDULED');
+  const inProgressServices = services.filter(s => 
+    ['CLAIMED', 'ARRIVED', 'IN_PROGRESS'].includes(s.status)
+  );
+  const completedServices = services.filter(s => s.status === 'COMPLETED');
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString([], {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const formatDuration = (startDate: string, endDate: string) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diff = end.getTime() - start.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return `${hours}h ${remainingMinutes}m`;
+  };
+
+  const hasInProgressJob = inProgressServices.length > 0;
+
+  const renderServiceCard = (service: Service) => (
+    <Card key={service.id}>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>{service.servicePlan?.name || 'Service'}</span>
+          <span className="text-sm font-normal">
+            {formatDateTime(service.scheduledDate)}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <User className="w-4 h-4" />
+            <span>{service.customer.email}</span>
+          </div>
+          {service.customer.address && (
+            <div className="flex items-center space-x-2">
+              <MapPin className="w-4 h-4" />
+              <span className="text-sm">
+                {service.customer.address.street}
+              </span>
+            </div>
+          )}
+          {service.servicePlan && (
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4" />
+              <span className="text-sm">
+                {formatDuration(service.scheduledDate, service.completedDate || '')}
+              </span>
+            </div>
+          )}
+          {service.completedDate && (
+            <div className="flex items-center space-x-2 text-green-600">
+              <History className="w-4 h-4" />
+              <span className="text-sm">
+                Completed: {formatDateTime(service.completedDate)}
+              </span>
+            </div>
+          )}
+          {service.notes && (
+            <p className="text-sm text-gray-500">{service.notes}</p>
+          )}
+          <Button
+            onClick={() => setSelectedService(service)}
+            variant="outline"
+            className="w-full"
+            disabled={service.status === 'SCHEDULED' && hasInProgressJob}
+          >
+            {service.status === 'SCHEDULED' && hasInProgressJob
+              ? 'Complete Current Job First'
+              : 'View Details'}
+          </Button>
         </div>
-      </div>
-    );
-  }
+      </CardContent>
+    </Card>
+  );
+
+  const renderHistoryCard = (service: Service) => (
+    <Card key={service.id} className="hover:bg-gray-50">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>{service.servicePlan?.name || 'Service'}</span>
+          <span className="text-sm font-normal">
+            {formatDateTime(service.scheduledDate)}
+          </span>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <User className="w-4 h-4" />
+            <span>{service.customer.email}</span>
+          </div>
+          {service.customer.address && (
+            <div className="flex items-center space-x-2">
+              <MapPin className="w-4 h-4" />
+              <span className="text-sm">
+                {service.customer.address.street}
+              </span>
+            </div>
+          )}
+          {service.servicePlan && (
+            <div className="flex items-center space-x-2">
+              <Clock className="w-4 h-4" />
+              <span className="text-sm">
+                {formatDuration(service.scheduledDate, service.completedDate || '')}
+              </span>
+            </div>
+          )}
+          {service.completedDate && (
+            <div className="flex items-center space-x-2 text-green-600">
+              <History className="w-4 h-4" />
+              <span className="text-sm">
+                Completed: {formatDateTime(service.completedDate)}
+              </span>
+            </div>
+          )}
+          {service.notes && (
+            <p className="text-sm text-gray-500">{service.notes}</p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const calculateMetrics = (services: Service[]) => {
+    const completedServices = services.filter(s => s.status === 'COMPLETED' && s.completedDate);
+    const totalJobs = completedServices.length;
+    
+    if (totalJobs === 0) {
+      return {
+        totalJobs: 0,
+        averageDuration: '0h 0m',
+        onTimeRate: 0,
+        totalHours: 0
+      };
+    }
+
+    let totalDuration = 0;
+    let onTimeJobs = 0;
+
+    completedServices.forEach(service => {
+      if (service.completedDate && service.servicePlan) {
+        const start = new Date(service.scheduledDate);
+        const end = new Date(service.completedDate);
+        const duration = end.getTime() - start.getTime();
+        totalDuration += duration;
+
+        // Check if completed within planned duration
+        const plannedDuration = service.servicePlan.duration * 60 * 1000; // Convert minutes to milliseconds
+        if (duration <= plannedDuration) {
+          onTimeJobs++;
+        }
+      }
+    });
+
+    const averageDurationMs = totalDuration / totalJobs;
+    const hours = Math.floor(averageDurationMs / (60 * 60 * 1000));
+    const minutes = Math.floor((averageDurationMs % (60 * 60 * 1000)) / (60 * 1000));
+
+    return {
+      totalJobs,
+      averageDuration: `${hours}h ${minutes}m`,
+      onTimeRate: (onTimeJobs / totalJobs) * 100,
+      totalHours: Math.floor(totalDuration / (60 * 60 * 1000))
+    };
+  };
+
+  const exportJobHistory = () => {
+    const csvContent = [
+      ['Service ID', 'Service Type', 'Customer', 'Address', 'Scheduled Date', 'Completed Date', 'Duration', 'Notes'],
+      ...completedServices.map(service => [
+        service.id,
+        service.servicePlan?.name || 'N/A',
+        service.customer.email,
+        service.customer.address?.street || 'N/A',
+        formatDateTime(service.scheduledDate),
+        service.completedDate ? formatDateTime(service.completedDate) : 'N/A',
+        formatDuration(service.scheduledDate, service.completedDate || ''),
+        service.notes || 'N/A'
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `job_history_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  useEffect(() => {
+    if (completedServices.length > 0) {
+      setMetrics(calculateMetrics(completedServices));
+    }
+  }, [completedServices]);
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Employee Dashboard</h1>
-          <Button variant="outline" onClick={() => router.push('/')}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sign Out
-          </Button>
+    <div className="container mx-auto py-8">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold">My Jobs</h1>
+          {hasInProgressJob && (
+            <p className="text-sm text-yellow-600 mt-1">
+              You have a job in progress. Complete it before claiming a new one.
+            </p>
+          )}
         </div>
-
-        {/* View Mode Toggle */}
-        <div className="mb-4 flex space-x-2">
-          <Button
-            variant={viewMode === 'daily' ? 'default' : 'outline'}
-            onClick={() => setViewMode('daily')}
-          >
-            Daily View
-          </Button>
-          <Button
-            variant={viewMode === 'weekly' ? 'default' : 'outline'}
-            onClick={() => setViewMode('weekly')}
-          >
-            Weekly View
-          </Button>
-        </div>
-
-        {/* Date Selector */}
-        <div className="mb-6">
-          <h2 className="mb-2 text-xl font-semibold">
-            {viewMode === 'daily' ? 'Select Date' : 'Select Week'}
-          </h2>
+        <div className="flex items-center space-x-4">
           <input
             type="date"
-            value={selectedDate.toISOString().split('T')[0]}
-            onChange={(e) => setSelectedDate(new Date(e.target.value))}
-            className="rounded-lg border border-gray-300 p-2"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="px-3 py-2 border rounded-md"
           />
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Service List */}
-          <div className="space-y-4">
-            {services.length === 0 ? (
-              <div className="rounded-lg bg-white p-6 text-center">
-                <p className="text-gray-600">No services scheduled for this {viewMode}</p>
-              </div>
-            ) : (
-              services.map((service) => (
-                <div
-                  key={service.id}
-                  className="rounded-lg bg-white p-6 shadow"
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold">{service.customerName}</h3>
-                      <div className="mt-2 space-y-1">
-                        <p className="flex items-center text-gray-600">
-                          <MapPin className="mr-2 h-4 w-4" />
-                          {service.address}
-                        </p>
-                        <p className="flex items-center text-gray-600">
-                          <Phone className="mr-2 h-4 w-4" />
-                          {service.customerPhone || 'No phone provided'}
-                        </p>
-                        <p className="flex items-center text-gray-600">
-                          <Mail className="mr-2 h-4 w-4" />
-                          {service.customerEmail || 'No email provided'}
-                        </p>
-                      </div>
-                      <p className="mt-2 text-gray-600">
-                        {service.numberOfDogs} dog{service.numberOfDogs !== 1 ? 's' : ''}
-                      </p>
-                      <p className="text-gray-600">
-                        {new Date(service.date).toLocaleDateString()} at{' '}
-                        {new Date(service.date).toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </p>
-                      {service.notes && (
-                        <p className="mt-2 flex items-start text-sm text-gray-600">
-                          <MessageSquare className="mr-2 mt-1 h-4 w-4 flex-shrink-0" />
-                          {service.notes}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex space-x-2">
-                      {service.status === 'SCHEDULED' && (
-                        <>
-                          <Button
-                            variant="outline"
-                            className="text-green-600"
-                            onClick={() => setSelectedService(service)}
-                          >
-                            <CheckCircle2 className="mr-2 h-4 w-4" />
-                            Mark Complete
-                          </Button>
-                          <Button
-                            variant="outline"
-                            className="text-red-600"
-                            onClick={() => handleMarkCancelled(service.id)}
-                          >
-                            <XCircle className="mr-2 h-4 w-4" />
-                            Mark Cancelled
-                          </Button>
-                        </>
-                      )}
-                      {service.status === 'COMPLETED' && (
-                        <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-800">
-                          Completed
-                        </span>
-                      )}
-                      {service.status === 'CANCELLED' && (
-                        <span className="rounded-full bg-red-100 px-3 py-1 text-sm font-medium text-red-800">
-                          Cancelled
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* Map View */}
-          <div className="h-[600px] rounded-lg bg-white p-4 shadow">
-            <h2 className="mb-4 text-xl font-semibold">Service Locations</h2>
-            <Map services={services} />
-          </div>
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            onClick={() => setViewMode('list')}
+          >
+            List View
+          </Button>
+          <Button
+            variant={viewMode === 'map' ? 'default' : 'outline'}
+            onClick={() => setViewMode('map')}
+          >
+            Map View
+          </Button>
         </div>
       </div>
 
-      {/* Completion Notes Modal */}
-      {selectedService && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="w-full max-w-md rounded-lg bg-white p-6">
-            <h2 className="mb-4 text-xl font-semibold">Complete Service</h2>
-            <p className="mb-4 text-gray-600">
-              Add any notes about the service completion for {selectedService.customerName}
-            </p>
-            <textarea
-              className="mb-4 w-full rounded-lg border border-gray-300 p-2"
-              rows={4}
-              placeholder="Enter completion notes..."
-              value={completionNotes}
-              onChange={(e) => setCompletionNotes(e.target.value)}
-            />
-            <div className="flex justify-end space-x-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSelectedService(null);
-                  setCompletionNotes('');
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => handleMarkComplete(selectedService.id)}
-                className="bg-green-600 text-white hover:bg-green-700"
-              >
-                Mark Complete
-              </Button>
-            </div>
-          </div>
+      {error && (
+        <div className="p-4 mb-6 text-red-500 bg-red-50 rounded-lg">
+          {error}
         </div>
       )}
-    </main>
+
+      {viewMode === 'map' ? (
+        <div className="mb-6">
+          <ServiceMap
+            services={[...availableServices, ...inProgressServices]}
+            onServiceClick={setSelectedService}
+          />
+        </div>
+      ) : (
+        <Tabs defaultValue="available" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="available">
+              Available ({availableServices.length})
+            </TabsTrigger>
+            <TabsTrigger value="in-progress">
+              In Progress ({inProgressServices.length})
+            </TabsTrigger>
+            <TabsTrigger value="completed">
+              Completed ({completedServices.length})
+            </TabsTrigger>
+            <TabsTrigger value="history">
+              History
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="available">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {availableServices.map(renderServiceCard)}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="in-progress">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {inProgressServices.map(renderServiceCard)}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="completed">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {completedServices.map(renderServiceCard)}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="history">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Job History</h2>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="px-3 py-2 border rounded-md"
+                  />
+                  <Button
+                    onClick={exportJobHistory}
+                    variant="outline"
+                    className="flex items-center space-x-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Export</span>
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-gray-500">Total Jobs</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{metrics.totalJobs}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-gray-500">Average Duration</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{metrics.averageDuration}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-gray-500">On-Time Rate</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{metrics.onTimeRate.toFixed(1)}%</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm font-medium text-gray-500">Total Hours</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-2xl font-bold">{metrics.totalHours}h</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {completedServices
+                  .sort((a, b) => 
+                    new Date(b.completedDate || '').getTime() - 
+                    new Date(a.completedDate || '').getTime()
+                  )
+                  .map(renderHistoryCard)}
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
+
+      <ServiceDetails
+        service={selectedService}
+        onClose={() => setSelectedService(null)}
+        onClaim={selectedService?.status === 'SCHEDULED' && !hasInProgressJob ? 
+          () => handleClaimJob(selectedService.id) : undefined}
+        onArrive={selectedService?.status === 'CLAIMED' ? 
+          () => handleArrive(selectedService.id) : undefined}
+        onComplete={selectedService?.status === 'ARRIVED' ? 
+          () => handleComplete(selectedService.id) : undefined}
+        hasInProgressJob={hasInProgressJob}
+      />
+    </div>
   );
 } 

@@ -1,128 +1,155 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyToken } from '@/lib/auth'
+import { addDays, startOfWeek, endOfWeek, isSameDay, startOfDay, endOfDay, setHours } from 'date-fns'
 
 export async function POST(request: Request) {
   try {
-    // Verify customer authorization
-    const token = request.headers.get('Authorization')?.split(' ')[1]
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const { startDate, endDate } = await request.json()
 
-    const decoded = await verifyToken(token)
-    if (!decoded || decoded.role !== 'CUSTOMER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { scheduledFor, serviceType, notes, numberOfDogs } = await request.json()
-
-    // Validate required fields
-    if (!scheduledFor || !serviceType) {
+    // Validate dates
+    if (!startDate || !endDate) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Start and end dates are required' },
         { status: 400 }
       )
     }
 
-    // Get customer details
-    const customer = await prisma.customer.findFirst({
-      where: { userId: decoded.id },
-      include: {
-        address: true,
-        subscription: {
-          include: {
-            plan: true
-          }
+    // First, handle unclaimed services from previous day
+    const yesterday = addDays(new Date(), -1)
+    const unclaimedServices = await prisma.service.findMany({
+      where: {
+        status: 'SCHEDULED',
+        scheduledDate: {
+          lt: endOfDay(yesterday)
         }
       }
     })
 
-    if (!customer) {
-      return NextResponse.json(
-        { error: 'Customer not found' },
-        { status: 404 }
+    // Reschedule unclaimed services to next available day
+    if (unclaimedServices.length > 0) {
+      const today = new Date()
+      await prisma.$transaction(
+        unclaimedServices.map(service => 
+          prisma.service.update({
+            where: { id: service.id },
+            data: {
+              scheduledDate: addDays(today, 1),
+              status: 'SCHEDULED',
+              notes: `Rescheduled from ${service.scheduledDate.toLocaleDateString()} (unclaimed)`
+            }
+          })
+        )
       )
     }
 
-    // Validate service type against subscription
-    if (serviceType === 'regular' && !customer.subscription) {
-      return NextResponse.json(
-        { error: 'Regular service requires an active subscription' },
-        { status: 400 }
-      )
-    }
-
-    // Find available employee in the service area
-    const availableEmployee = await prisma.employee.findFirst({
+    // Get all active subscriptions with service day
+    const subscriptions = await prisma.subscription.findMany({
       where: {
-        serviceAreas: {
-          some: {
-            zipCode: customer.address.zipCode
-          }
-        },
-        status: 'ACTIVE'
-      }
-    })
-
-    if (!availableEmployee) {
-      return NextResponse.json(
-        { error: 'No available employee in your area' },
-        { status: 400 }
-      )
-    }
-
-    // Create the service
-    const service = await prisma.service.create({
-      data: {
-        customerId: customer.id,
-        employeeId: availableEmployee.id,
-        scheduledFor: new Date(scheduledFor),
-        status: 'SCHEDULED',
-        type: serviceType,
-        notes,
-        numberOfDogs,
-        address: {
-          create: {
-            street: customer.address.street,
-            city: customer.address.city,
-            state: customer.address.state,
-            zipCode: customer.address.zipCode,
-            latitude: customer.address.latitude,
-            longitude: customer.address.longitude
-          }
+        status: 'ACTIVE',
+        customer: {
+          serviceDay: { not: null }
         }
       },
       include: {
-        employee: {
-          select: {
-            name: true,
-            phone: true
+        customer: {
+          include: {
+            address: true
           }
         }
       }
     })
 
-    // Create notification for employee
-    await prisma.notification.create({
-      data: {
-        userId: availableEmployee.userId,
-        type: 'NEW_SERVICE',
-        title: 'New Service Assigned',
-        message: `You have been assigned a new service on ${new Date(scheduledFor).toLocaleDateString()}`,
-        data: { serviceId: service.id }
+    // Get the default service plan for regular services
+    const defaultServicePlan = await prisma.servicePlan.findFirst({
+      where: {
+        type: 'REGULAR',
+        isActive: true
       }
-    })
+    });
+
+    if (!defaultServicePlan) {
+      return NextResponse.json(
+        { error: 'No active regular service plan found' },
+        { status: 404 }
+      );
+    }
+
+    // Generate services for each subscription
+    const services = []
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+
+    for (const subscription of subscriptions) {
+      if (!subscription.customer.serviceDay) continue
+
+      // Get all dates for this service day between start and end
+      let currentDate = start
+      while (currentDate <= end) {
+        // Check if this is the customer's service day
+        if (currentDate.getDay() === getDayNumber(subscription.customer.serviceDay)) {
+          // Set service time to 7 AM by default
+          const serviceDate = setHours(currentDate, 7)
+          
+          // Check if service already exists
+          const existingService = await prisma.service.findFirst({
+            where: {
+              customerId: subscription.customer.id,
+              scheduledDate: {
+                gte: startOfDay(serviceDate),
+                lte: endOfDay(serviceDate)
+              }
+            }
+          })
+
+          if (!existingService) {
+            services.push({
+              customerId: subscription.customer.id,
+              servicePlanId: defaultServicePlan.id,
+              status: 'SCHEDULED',
+              scheduledDate: serviceDate,
+            })
+          }
+        }
+        currentDate = addDays(currentDate, 1)
+      }
+    }
+
+    // Create services in a transaction
+    if (services.length > 0) {
+      await prisma.$transaction(
+        services.map(service => 
+          prisma.service.create({
+            data: service
+          })
+        )
+      )
+    }
 
     return NextResponse.json({
-      service,
-      message: 'Service scheduled successfully'
+      message: `Created ${services.length} services, rescheduled ${unclaimedServices.length} unclaimed services`,
+      services,
+      rescheduledServices: unclaimedServices
     })
   } catch (error) {
-    console.error('Error scheduling service:', error)
+    console.error('Service scheduling error:', error)
     return NextResponse.json(
-      { error: 'Failed to schedule service' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }
+}
+
+// Helper function to convert ServiceDay enum to day number
+function getDayNumber(day: string): number {
+  const days = {
+    SUNDAY: 0,
+    MONDAY: 1,
+    TUESDAY: 2,
+    WEDNESDAY: 3,
+    THURSDAY: 4,
+    FRIDAY: 5,
+    SATURDAY: 6
+  }
+  return days[day as keyof typeof days]
 } 

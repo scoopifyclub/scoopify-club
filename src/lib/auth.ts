@@ -1,290 +1,161 @@
-import { NextRequest, NextResponse } from 'next/server';
-import jwt, { verify } from 'jsonwebtoken';
-import { cookies } from 'next/headers';
-import { NextAuthOptions } from 'next-auth';
-import { PrismaAdapter } from '@auth/prisma-adapter';
+import { sign, verify } from 'jsonwebtoken';
+import { compare } from 'bcryptjs';
 import { prisma } from './prisma';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import { hash, compare } from 'bcryptjs';
+import { cookies } from 'next/headers';
+import { Ratelimit } from '@upstash/ratelimit';
+import { Redis } from '@upstash/redis';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-
-export interface AuthUser {
-  id: string;
-  email: string;
-  role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN';
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
 }
 
-export interface TokenPayload {
-  userId: string;
-  role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN';
+if (!process.env.REDIS_URL || !process.env.REDIS_TOKEN) {
+  throw new Error('REDIS_URL and REDIS_TOKEN environment variables are required for rate limiting');
 }
 
-export async function verifyAuth(request: NextRequest): Promise<{ user: AuthUser | null; error: string | null }> {
-  try {
-    const token = request.cookies.get('token')?.value;
-    if (!token) {
-      return { user: null, error: 'No authentication token found' };
-    }
+const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_TOKEN_SECRET = process.env.JWT_SECRET + '_refresh';
 
-    try {
-      const decoded = verify(token, process.env.JWT_SECRET!) as AuthUser;
-      
-      // Verify user still exists in database
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: { id: true, email: true, role: true }
-      });
+// Initialize rate limiter
+const redis = new Redis({
+  url: process.env.REDIS_URL,
+  token: process.env.REDIS_TOKEN,
+});
 
-      if (!user) {
-        return { user: null, error: 'User account not found' };
-      }
+const ratelimit = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '1 m'), // 5 requests per minute
+});
 
-      return { user, error: null };
-    } catch (error) {
-      if (error instanceof jwt.TokenExpiredError) {
-        return { user: null, error: 'Session expired. Please log in again.' };
-      }
-      return { user: null, error: 'Invalid authentication token' };
-    }
-  } catch (error) {
-    console.error('Auth verification error:', error);
-    return { user: null, error: 'Authentication failed' };
-  }
-}
-
-export function handleAuthError(error: string): NextResponse {
-  const response = NextResponse.json(
-    { message: error },
-    { status: 401 }
-  );
-  
-  // Clear auth cookies
-  response.cookies.delete('token');
-  response.cookies.delete('userType');
-  
-  // Add headers to prevent caching of auth errors
-  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  response.headers.set('Pragma', 'no-cache');
-  response.headers.set('Expires', '0');
-  
-  return response;
-}
-
-export function requireAuth(handler: (request: NextRequest, user: AuthUser) => Promise<NextResponse>) {
-  return async (request: NextRequest) => {
-    const { user, error } = await verifyAuth(request);
-    
-    if (error || !user) {
-      return handleAuthError(error || 'Authentication required');
-    }
-    
-    return handler(request, user);
-  };
-}
-
-export function requireRole(roles: AuthUser['role'][]) {
-  return (handler: (request: NextRequest, user: AuthUser) => Promise<NextResponse>) => {
-    return async (request: NextRequest) => {
-      const { user, error } = await verifyAuth(request);
-      
-      if (error || !user) {
-        return handleAuthError(error || 'Authentication required');
-      }
-      
-      if (!roles.includes(user.role)) {
-        return NextResponse.json(
-          { message: 'Insufficient permissions' },
-          { status: 403 }
-        );
-      }
-      
-      return handler(request, user);
-    };
-  };
-}
-
-export function generateToken(payload: TokenPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
-}
-
-export function verifyToken(token: string): TokenPayload {
-  try {
-    return jwt.verify(token, JWT_SECRET) as TokenPayload;
-  } catch (error) {
-    throw new Error('Invalid token');
-  }
-}
-
-export async function validateUser(token: string, requiredRole?: TokenPayload['role']): Promise<{ userId: string; role: string }> {
-  const payload = verifyToken(token);
-  
-  if (requiredRole && payload.role !== requiredRole) {
-    throw new Error('Unauthorized: Invalid role');
+export async function login(email: string, password: string) {
+  // Check rate limit
+  const { success } = await ratelimit.limit(email);
+  if (!success) {
+    throw new Error('Too many login attempts. Please try again later.');
   }
 
-  // Verify user exists in database
   const user = await prisma.user.findUnique({
-    where: { id: payload.userId },
-    select: { id: true, role: true }
+    where: { email },
+    include: {
+      customer: true,
+      employee: true,
+    },
   });
 
   if (!user) {
-    throw new Error('User not found');
+    throw new Error('Invalid email or password');
   }
 
-  return { userId: user.id, role: user.role };
-}
+  const isValid = await compare(password, user.password);
+  if (!isValid) {
+    throw new Error('Invalid email or password');
+  }
 
-export async function setAuthCookie(token: string) {
-  cookies().set('token', token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: 7 * 24 * 60 * 60, // 7 days
-    path: '/',
+  // Generate access token
+  const accessToken = sign(
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      customerId: user.customer?.id,
+      employeeId: user.employee?.id,
+    },
+    JWT_SECRET,
+    { expiresIn: '15m' } // Short-lived access token
+  );
+
+  // Generate refresh token
+  const refreshToken = sign(
+    {
+      id: user.id,
+    },
+    REFRESH_TOKEN_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  // Store refresh token in database
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { refreshToken },
   });
+
+  return { accessToken, refreshToken, user };
 }
 
-export async function clearAuthCookie() {
-  cookies().delete('token');
+export async function verifyToken(token: string, isRefreshToken = false) {
+  try {
+    return verify(token, isRefreshToken ? REFRESH_TOKEN_SECRET : JWT_SECRET) as {
+      id: string;
+      email?: string;
+      role?: string;
+      customerId?: string;
+      employeeId?: string;
+    };
+  } catch (error) {
+    return null;
+  }
 }
 
-export function isAdmin(payload: AuthUser) {
-  return payload.role === 'ADMIN';
-}
+export async function getCurrentUser(token?: string) {
+  if (!token) {
+    return null;
+  }
 
-export function isEmployee(payload: AuthUser) {
-  return payload.role === 'EMPLOYEE';
-}
+  const payload = await verifyToken(token);
+  if (!payload) {
+    return null;
+  }
 
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
-  providers: [
-    CredentialsProvider({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error('Invalid credentials');
-        }
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
-          include: {
-            employee: true,
-            customer: true,
-          },
-        });
-
-        if (!user || !user.password) {
-          throw new Error('Invalid credentials');
-        }
-
-        const isValid = await compare(credentials.password, user.password);
-
-        if (!isValid) {
-          throw new Error('Invalid credentials');
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          employeeId: user.employee?.id,
-          customerId: user.customer?.id,
-        };
-      }
-    })
-  ],
-  session: {
-    strategy: 'jwt',
-  },
-  pages: {
-    signIn: '/login',
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        return {
-          ...token,
-          role: user.role,
-          employeeId: user.employeeId,
-          customerId: user.customerId,
-        };
-      }
-      return token;
+  const user = await prisma.user.findUnique({
+    where: { id: payload.id },
+    include: {
+      customer: true,
+      employee: true,
     },
-    async session({ session, token }) {
-      return {
-        ...session,
-        user: {
-          ...session.user,
-          id: token.sub,
-          role: token.role,
-          employeeId: token.employeeId,
-          customerId: token.customerId,
-        },
-      };
+  });
+
+  return user;
+}
+
+export async function refreshToken(refreshToken: string) {
+  const payload = await verifyToken(refreshToken, true);
+  if (!payload) {
+    throw new Error('Invalid refresh token');
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: payload.id },
+    include: {
+      customer: true,
+      employee: true,
     },
-  },
-};
+  });
 
-export const passwordRequirements = {
-  minLength: 8,
-  requireUppercase: true,
-  requireLowercase: true,
-  requireNumbers: true,
-  requireSpecialChars: true,
+  if (!user || user.refreshToken !== refreshToken) {
+    throw new Error('Invalid refresh token');
+  }
+
+  // Generate new access token
+  const accessToken = sign(
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      customerId: user.customer?.id,
+      employeeId: user.employee?.id,
+    },
+    JWT_SECRET,
+    { expiresIn: '15m' }
+  );
+
+  return { accessToken, user };
 }
 
-export function validatePassword(password: string): { isValid: boolean; message?: string } {
-  if (password.length < passwordRequirements.minLength) {
-    return {
-      isValid: false,
-      message: `Password must be at least ${passwordRequirements.minLength} characters long`,
-    }
-  }
-
-  if (passwordRequirements.requireUppercase && !/[A-Z]/.test(password)) {
-    return {
-      isValid: false,
-      message: 'Password must contain at least one uppercase letter',
-    }
-  }
-
-  if (passwordRequirements.requireLowercase && !/[a-z]/.test(password)) {
-    return {
-      isValid: false,
-      message: 'Password must contain at least one lowercase letter',
-    }
-  }
-
-  if (passwordRequirements.requireNumbers && !/[0-9]/.test(password)) {
-    return {
-      isValid: false,
-      message: 'Password must contain at least one number',
-    }
-  }
-
-  if (passwordRequirements.requireSpecialChars && !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-    return {
-      isValid: false,
-      message: 'Password must contain at least one special character',
-    }
-  }
-
-  return { isValid: true }
-}
-
-export async function hashPassword(password: string): Promise<string> {
-  return hash(password, 12)
-}
-
-export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
-  return compare(password, hashedPassword)
+export async function logout(userId: string) {
+  // Invalidate refresh token
+  await prisma.user.update({
+    where: { id: userId },
+    data: { refreshToken: null },
+  });
+  return true;
 } 

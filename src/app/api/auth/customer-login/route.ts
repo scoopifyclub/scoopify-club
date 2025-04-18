@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(request: Request) {
   try {
-    console.log('Starting login process...')
+    console.log('Starting customer login process...')
     const { email, password } = await request.json()
     console.log('Received login request for email:', email)
 
@@ -37,7 +37,7 @@ export async function POST(request: Request) {
 
     // Verify this is a customer account
     if (user.role !== 'CUSTOMER') {
-      console.log('User is not a customer')
+      console.log('User is not a customer, role:', user.role)
       return NextResponse.json(
         { message: 'This account is not authorized for customer access' },
         { status: 403 }

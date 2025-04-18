@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { stripe } from '@/lib/stripe'
 import { addDays } from 'date-fns'
 import { getSubscriptionPlans, getOneTimeServices } from '@/lib/constants'
+import { validatePassword } from '@/lib/password'
 
 export async function POST(request: Request) {
   try {
@@ -22,13 +23,28 @@ export async function POST(request: Request) {
       serviceDay,
       startDate,
       isOneTimeService,
+      paymentMethodId,
+      referralCode
     } = await request.json()
 
     // Validate required fields
     if (!firstName || !lastName || !email || !phone || !password || !street || 
-        !city || !state || !zipCode || !serviceType || !startDate) {
+        !city || !state || !zipCode || !serviceType || !startDate || !paymentMethodId) {
       return NextResponse.json(
         { error: 'All required fields must be provided' },
+        { status: 400 }
+      )
+    }
+
+    // Validate password strength
+    const passwordValidation = validatePassword(password)
+    if (!passwordValidation.isValid) {
+      return NextResponse.json(
+        { 
+          error: 'Invalid password',
+          details: passwordValidation.errors,
+          strength: passwordValidation.strength
+        },
         { status: 400 }
       )
     }
@@ -75,6 +91,49 @@ export async function POST(request: Request) {
       }
     })
 
+    // Attach payment method to customer
+    await stripe.paymentMethods.attach(paymentMethodId, {
+      customer: customer.id
+    })
+
+    // Set as default payment method
+    await stripe.customers.update(customer.id, {
+      invoice_settings: {
+        default_payment_method: paymentMethodId
+      }
+    })
+
+    // Create subscription or one-time payment
+    let stripeSubscription;
+    let paymentIntent;
+    
+    if (!isOneTimeService) {
+      // Create subscription
+      stripeSubscription = await stripe.subscriptions.create({
+        customer: customer.id,
+        items: [{ price: selectedPlan.id }],
+        payment_behavior: 'default_incomplete',
+        payment_settings: { 
+          save_default_payment_method: 'on_subscription',
+          payment_method_types: ['card']
+        },
+        expand: ['latest_invoice.payment_intent']
+      })
+    } else {
+      // Create one-time payment intent
+      paymentIntent = await stripe.paymentIntents.create({
+        amount: selectedPlan.amount,
+        currency: 'usd',
+        customer: customer.id,
+        payment_method: paymentMethodId,
+        confirm: true,
+        metadata: {
+          serviceType,
+          isOneTimeService: 'true'
+        }
+      })
+    }
+
     // Hash password
     const hashedPassword = await hash(password, 12)
 
@@ -90,61 +149,42 @@ export async function POST(request: Request) {
           customer: {
             create: {
               stripeCustomerId: customer.id,
+              email,
               phone,
               gateCode: gateCode || null,
-              preferredDay: serviceDay || null,
+              serviceDay: serviceDay || null,
+              referralCode: referralCode || null,
               address: {
                 create: {
                   street,
                   city,
                   state,
-                  zipCode,
+                  zipCode
                 }
               },
-              subscription: {
+              subscription: !isOneTimeService ? {
                 create: {
-                  stripeSubscriptionId: 'pending',
-                  status: 'PENDING',
-                  frequency: isOneTimeService ? 'ONE_TIME' : 'MONTHLY',
-                  pricePerVisit: selectedPlan.price,
+                  plan: selectedPlan.plan,
                   startDate: new Date(startDate),
-                  nextBillingDate: isOneTimeService ? null : addDays(new Date(startDate), 30),
+                  nextBilling: addDays(new Date(startDate), selectedPlan.interval === 'week' ? 7 : 14),
+                  status: 'PENDING',
+                  stripeSubscriptionId: stripeSubscription?.id
                 }
-              }
+              } : undefined
             }
           }
         },
         include: {
           customer: {
             include: {
-              subscription: true,
-              address: true
+              address: true,
+              subscription: true
             }
           }
         }
       })
 
-      // Create service record
-      await tx.service.create({
-        data: {
-          customerId: user.customer!.id,
-          scheduledFor: new Date(startDate),
-          status: 'SCHEDULED',
-          type: isOneTimeService ? 'ONE_TIME' : 'REGULAR',
-          amount: selectedPlan.price
-        }
-      })
-
       return user
-    })
-
-    // Create a setup intent for adding payment method
-    const setupIntent = await stripe.setupIntents.create({
-      customer: customer.id,
-      payment_method_types: ['card'],
-      metadata: {
-        userId: result.id
-      }
     })
 
     return NextResponse.json({
@@ -152,16 +192,23 @@ export async function POST(request: Request) {
         id: result.id,
         email: result.email,
         name: result.name,
+        role: result.role,
         customer: result.customer
       },
-      setupIntent: {
-        clientSecret: setupIntent.client_secret
+      subscription: !isOneTimeService ? {
+        id: stripeSubscription?.id,
+        status: stripeSubscription?.status,
+        clientSecret: (stripeSubscription?.latest_invoice as any)?.payment_intent?.client_secret
+      } : {
+        id: paymentIntent?.id,
+        status: paymentIntent?.status,
+        clientSecret: paymentIntent?.client_secret
       }
     })
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json(
-      { error: 'Failed to create account' },
+      { error: 'Internal server error' },
       { status: 500 }
     )
   }

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import Image from 'next/image';
+import { toast } from 'sonner';
 
 interface Service {
   id: string;
@@ -205,6 +206,32 @@ export default function CustomerDashboard() {
       setServices([newService, ...services]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to schedule service');
+    }
+  };
+
+  const handleCancelSubscription = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch('/api/subscriptions', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) throw new Error('Failed to cancel subscription');
+      
+      const updatedSubscription = await response.json();
+      setSubscription(updatedSubscription);
+      toast.success('Subscription cancelled successfully');
+    } catch (err) {
+      console.error('Error cancelling subscription:', err);
+      toast.error('Failed to cancel subscription');
     }
   };
 
@@ -457,7 +484,16 @@ export default function CustomerDashboard() {
         {/* Subscription Information */}
         {subscription && (
           <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Subscription</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-900">Subscription</h2>
+              <button
+                onClick={handleCancelSubscription}
+                disabled={subscription.status === 'CANCELLED'}
+                className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel Subscription
+              </button>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Plan</p>
@@ -465,7 +501,7 @@ export default function CustomerDashboard() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Status</p>
-                <p className="font-medium">{subscription.status}</p>
+                <p className="font-medium capitalize">{subscription.status.toLowerCase()}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Next Billing Date</p>

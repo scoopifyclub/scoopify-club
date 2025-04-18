@@ -1,25 +1,28 @@
 import { NextResponse } from 'next/server'
+import { logout } from '@/lib/auth'
 import { cookies } from 'next/headers'
+import { verifyToken } from '@/lib/auth'
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    // Create response
-    const response = NextResponse.json({ message: 'Logged out successfully' })
-    
-    // Clear auth cookies
-    response.cookies.delete('token')
-    response.cookies.delete('userType')
-    
-    // Add cache control headers
-    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
-    response.headers.set('Pragma', 'no-cache')
-    response.headers.set('Expires', '0')
-    
-    return response
+    const accessToken = cookies().get('accessToken')?.value
+    if (!accessToken) {
+      return NextResponse.json({ success: true })
+    }
+
+    const payload = await verifyToken(accessToken)
+    if (payload) {
+      await logout(payload.id)
+    }
+
+    // Clear cookies
+    cookies().delete('accessToken')
+    cookies().delete('refreshToken')
+
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Logout error:', error)
     return NextResponse.json(
-      { message: 'An error occurred during logout' },
+      { error: 'An unexpected error occurred' },
       { status: 500 }
     )
   }

@@ -1,126 +1,92 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
-import { verify } from 'jsonwebtoken'
+import { verifyToken } from '@/lib/auth'
 import { rateLimit } from './middleware/rate-limit'
 import { securityHeaders } from './middleware/security-headers'
 import { dbErrorHandler } from './middleware/db-error-handler'
+import { Role } from '@prisma/client'
 
-// Helper function to create a redirect response with security headers
-function createRedirectResponse(request: NextRequest, path: string, response: NextResponse) {
-  const redirectResponse = NextResponse.redirect(new URL(path, request.url))
-  Object.entries(response.headers).forEach(([key, value]) => {
-    redirectResponse.headers.set(key, value)
-  })
-  return redirectResponse
+// Helper function to create redirect response with logging
+function createRedirectResponse(request: NextRequest, destination: string, reason: string) {
+  console.log('Redirecting request', {
+    from: request.nextUrl.pathname,
+    to: destination,
+    reason,
+    timestamp: new Date().toISOString()
+  });
+  
+  const response = NextResponse.redirect(new URL(destination, request.url));
+  response.headers.set('x-redirect-reason', reason);
+  return response;
 }
 
-// Helper function to get appropriate login path
-function getLoginPath(pathname: string) {
-  if (pathname.startsWith('/employee')) {
-    return '/employee/login'
-  } else if (pathname.startsWith('/admin')) {
-    return '/admin/login'
+// Helper function to determine login path based on URL
+function getLoginPath(url: string): string {
+  if (url.includes('/admin')) {
+    return '/admin/login';
+  } else if (url.includes('/employee')) {
+    return '/employee/login';
   }
-  return '/login'
+  return '/login';
 }
 
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const pathname = request.nextUrl.pathname;
+  console.log('Processing middleware request', {
+    path: pathname,
+    method: request.method,
+    timestamp: new Date().toISOString()
+  });
 
-  // Public paths that don't require authentication
-  const publicPaths = [
-    '/', 
-    '/login', 
-    '/signup', 
-    '/about', 
-    '/contact', 
-    '/privacy', 
-    '/terms', 
-    '/employee/login',
-    '/admin/login'
-  ]
-  const isPublicPath = publicPaths.includes(pathname)
+  // Add security headers
+  const response = NextResponse.next();
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
 
-  // Protected paths
-  const isProtectedPath = pathname.startsWith('/dashboard') || 
-                         pathname.startsWith('/employee') || 
-                         pathname.startsWith('/admin')
-
-  // Apply rate limiting for all routes
-  const rateLimitResponse = await rateLimit(request)
-  if (rateLimitResponse) {
-    return rateLimitResponse
-  }
-
-  // Get token from cookie
-  const token = request.cookies.get('token')?.value
-
-  // Create base response with security headers
-  const response = securityHeaders(request)
-
-  if (token) {
-    try {
-      const decoded = verify(token, process.env.JWT_SECRET!) as { 
-        id: string
-        email: string
-        role: string
-      }
-      
-      // Redirect authenticated users away from auth pages
-      if (isPublicPath && pathname !== '/') {
-        const redirectPath = decoded.role === 'EMPLOYEE' ? '/employee/dashboard' :
-                           decoded.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard'
-        return createRedirectResponse(request, redirectPath, response)
-      }
-
-      // Check role-based access
-      if (pathname.startsWith('/employee') && decoded.role !== 'EMPLOYEE') {
-        const redirectPath = decoded.role === 'ADMIN' ? '/admin/dashboard' : '/dashboard'
-        return createRedirectResponse(request, redirectPath, response)
-      }
-
-      if (pathname.startsWith('/admin') && decoded.role !== 'ADMIN') {
-        const redirectPath = decoded.role === 'EMPLOYEE' ? '/employee/dashboard' : '/dashboard'
-        return createRedirectResponse(request, redirectPath, response)
-      }
-
-      if (pathname.startsWith('/dashboard') && decoded.role !== 'CUSTOMER') {
-        const redirectPath = decoded.role === 'ADMIN' ? '/admin/dashboard' : '/employee/dashboard'
-        return createRedirectResponse(request, redirectPath, response)
-      }
-    } catch (error) {
-      // Invalid token, clear it and redirect to appropriate login page
-      const loginPath = getLoginPath(pathname)
-      const redirectResponse = createRedirectResponse(request, loginPath, response)
-      redirectResponse.cookies.delete('token')
-      redirectResponse.cookies.delete('userType')
-      return redirectResponse
+  // Check if the path requires authentication
+  if (pathname.startsWith('/admin') || 
+      pathname.startsWith('/employee') || 
+      pathname.startsWith('/customer') ||
+      pathname.startsWith('/api/admin') ||
+      pathname.startsWith('/api/employee') ||
+      pathname.startsWith('/api/customer')) {
+    
+    const token = request.cookies.get('token')?.value;
+    if (!token) {
+      return createRedirectResponse(request, getLoginPath(pathname), 'No authentication token');
     }
-  } else if (isProtectedPath) {
-    // No token and trying to access protected path
-    const loginPath = getLoginPath(pathname)
-    return createRedirectResponse(request, loginPath, response)
+
+    const payload = await verifyToken(token);
+    if (!payload) {
+      return createRedirectResponse(request, getLoginPath(pathname), 'Invalid authentication token');
+    }
+
+    // Check role-based access
+    if (pathname.startsWith('/admin') && payload.role !== Role.ADMIN) {
+      return createRedirectResponse(request, '/', 'Insufficient permissions');
+    }
+
+    if (pathname.startsWith('/employee') && payload.role !== Role.EMPLOYEE) {
+      return createRedirectResponse(request, '/', 'Insufficient permissions');
+    }
+
+    if (pathname.startsWith('/customer') && payload.role !== Role.CUSTOMER) {
+      return createRedirectResponse(request, '/', 'Insufficient permissions');
+    }
   }
 
-  // Wrap API routes with database error handler
-  if (request.nextUrl.pathname.startsWith('/api')) {
-    return dbErrorHandler(request, async () => {
-      return response
-    })
-  }
-
-  return response
+  return response;
 }
 
 export const config = {
   matcher: [
-    '/api/:path*',
-    '/dashboard/:path*',
     '/admin/:path*',
     '/employee/:path*',
-    '/login',
-    '/signup',
-    '/employee/login',
-    '/admin/login',
+    '/customer/:path*',
+    '/api/admin/:path*',
+    '/api/employee/:path*',
+    '/api/customer/:path*',
   ],
 }

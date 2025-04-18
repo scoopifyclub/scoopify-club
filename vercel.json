@@ -11,5 +11,11 @@
       "src": "/(.*)",
       "dest": "/"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/schedule-services",
+      "schedule": "0 0 * * 0" // Run at midnight every Sunday
+    }
   ]
 } 
