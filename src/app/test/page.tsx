@@ -1,92 +1,49 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function TestPage() {
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-
-  const setupTestData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch('/api/test/setup', {
-        method: 'POST',
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      alert('Test data created successfully!');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create test data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const cleanupTestData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await fetch('/api/test/cleanup', {
-        method: 'POST',
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
-      alert('Test data cleaned up successfully!');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to clean up test data');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [count, setCount] = useState(0);
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Test Workflow</h1>
+    <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-6">
+      <h1 className="text-2xl font-bold">Interactivity Test Page</h1>
       
-      <div className="space-y-4">
-        <div className="p-4 border rounded-lg">
-          <h2 className="text-xl font-semibold mb-2">Step 1: Setup Test Data</h2>
-          <p className="mb-4">Create a test customer with subscription and scheduled service.</p>
-          <div className="space-x-2">
-            <Button onClick={setupTestData} disabled={loading}>
-              {loading ? 'Creating...' : 'Create Test Data'}
-            </Button>
-            <Button onClick={cleanupTestData} disabled={loading} variant="destructive">
-              {loading ? 'Cleaning...' : 'Cleanup Test Data'}
-            </Button>
-          </div>
-          {error && <p className="text-red-500 mt-2">{error}</p>}
-        </div>
-
-        <div className="p-4 border rounded-lg">
-          <h2 className="text-xl font-semibold mb-2">Step 2: Test Employee Workflow</h2>
-          <p className="mb-4">Use these test accounts:</p>
-          <div className="space-y-2">
-            <p><strong>Employee:</strong> employee@scoopify.com / test123</p>
-            <p><strong>Customer:</strong> testcustomer@scoopify.com / test123</p>
-          </div>
-          <div className="mt-4 space-x-2">
-            <Button onClick={() => router.push('/login')}>Go to Login</Button>
-            <Button onClick={() => router.push('/employee')}>Go to Employee Dashboard</Button>
-          </div>
-        </div>
-
-        <div className="p-4 border rounded-lg">
-          <h2 className="text-xl font-semibold mb-2">Testing Steps</h2>
-          <ol className="list-decimal pl-4 space-y-2">
-            <li>Log in as employee (employee@scoopify.com)</li>
-            <li>Check available jobs in employee dashboard</li>
-            <li>Claim the test job</li>
-            <li>Upload photos and complete the job</li>
-            <li>Log in as customer (testcustomer@scoopify.com)</li>
-            <li>Verify job completion and photos</li>
-          </ol>
+      <div className="p-4 border rounded-lg bg-white">
+        <p className="text-lg mb-4">Count: {count}</p>
+        <button 
+          className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600"
+          onClick={() => setCount(count + 1)}
+        >
+          Increment Count
+        </button>
+      </div>
+      
+      <div className="p-4 border rounded-lg bg-white">
+        <p className="text-lg mb-2">Navigation Test:</p>
+        <div className="flex gap-4">
+          <Link 
+            href="/"
+            className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600"
+          >
+            Go Home
+          </Link>
+          <a 
+            href="https://google.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600"
+          >
+            Open Google
+          </a>
         </div>
       </div>
+
+      <p className="text-sm text-gray-500">
+        If you can click the buttons and links on this page, then interactivity works,
+        and the issue is elsewhere in the application.
+      </p>
     </div>
   );
 } 

@@ -2,19 +2,15 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
-import { Logo } from "@/components/Logo";
-import { scheduleTokenCleanup } from '@/lib/cleanup'
+import { Navbar } from "@/components/Navbar";
+import Footer from "@/components/Footer";
+import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// Initialize token cleanup in development and production
-if (process.env.NODE_ENV !== 'test') {
-  scheduleTokenCleanup(60); // Run every hour
-}
-
 export const metadata: Metadata = {
-  title: "Scoopify Club",
-  description: "Professional pet waste removal service",
+  title: "Scoopify Club - Professional Dog Waste Removal",
+  description: "Professional dog waste removal service. Keep your yard clean and enjoy more time with your pets.",
 };
 
 export default function RootLayout({
@@ -26,11 +22,12 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
-          <div className="min-h-screen bg-gradient-to-b from-background-start to-background-end">
-            <header className="container mx-auto px-4 py-4">
-              <Logo />
-            </header>
-            {children}
+          <div className="relative min-h-screen flex flex-col">
+            <Navbar />
+            <main className="flex-grow">
+              {children}
+            </main>
+            <Footer />
           </div>
         </Providers>
       </body>

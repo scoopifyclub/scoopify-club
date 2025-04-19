@@ -1,25 +1,22 @@
 'use client'
 
-import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
 import { Button } from '@/components/ui/button'
 import { Check } from 'lucide-react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function ServicesPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-neutral-50 to-white">
-      <Navbar />
+    <div className="min-h-screen bg-neutral-50">
       <main>
         {/* Hero Section */}
-        <section className="relative py-20 sm:py-32">
-          <div className="absolute inset-0 bg-[url('/images/pattern.svg')] opacity-5" />
-          <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold tracking-tight text-neutral-900 sm:text-5xl">
+        <section className="relative py-16 sm:py-24">
+          <div className="container mx-auto px-4">
+            <div className="text-center max-w-3xl mx-auto">
+              <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
                 Our Services
               </h1>
-              <p className="mt-6 text-lg text-neutral-600">
+              <p className="mt-6 text-xl text-neutral-600">
                 Professional dog waste removal services tailored to your needs
               </p>
             </div>
@@ -27,18 +24,18 @@ export default function ServicesPage() {
         </section>
 
         {/* Service Details */}
-        <section className="py-16 sm:py-24">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
-              <div>
-                <h2 className="text-3xl font-bold tracking-tight text-neutral-900">
+        <section className="py-16">
+          <div className="container mx-auto px-4">
+            <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 items-center">
+              <div className="space-y-8">
+                <h2 className="text-3xl font-bold tracking-tight">
                   Weekly Yard Cleaning
                 </h2>
-                <p className="mt-4 text-lg text-neutral-600">
+                <p className="text-lg text-neutral-600">
                   Our professional team will visit your property weekly to remove all dog waste,
                   ensuring a clean and safe environment for your family and pets.
                 </p>
-                <ul className="mt-8 space-y-4">
+                <ul className="space-y-4">
                   {[
                     'Regular weekly service',
                     'Thorough yard inspection',
@@ -46,38 +43,46 @@ export default function ServicesPage() {
                     'Disposal in eco-friendly bags',
                     'Email notifications after service',
                   ].map((feature) => (
-                    <li key={feature} className="flex items-start">
-                      <Check className="h-6 w-6 flex-shrink-0 text-brand-primary" />
-                      <span className="ml-3 text-base text-neutral-600">{feature}</span>
+                    <li key={feature} className="flex items-start gap-3">
+                      <div className="flex-shrink-0 w-6 h-6 bg-brand-primary/10 rounded-full flex items-center justify-center">
+                        <Check className="h-4 w-4 text-brand-primary" />
+                      </div>
+                      <span className="text-base text-neutral-600">{feature}</span>
                     </li>
                   ))}
                 </ul>
-              </div>
-              <div className="relative">
-                <div className="aspect-w-16 aspect-h-9 overflow-hidden rounded-2xl bg-neutral-100">
-                  <img
-                    src="/images/service-demo.jpg"
-                    alt="Professional dog waste removal service"
-                    className="object-cover"
-                  />
+                <div className="pt-4">
+                  <Link href="/pricing">
+                    <Button className="btn btn-primary">
+                      View Pricing
+                    </Button>
+                  </Link>
                 </div>
+              </div>
+              <div className="relative h-[400px] rounded-2xl overflow-hidden shadow-xl">
+                <Image
+                  src="/images/service-demo.jpg"
+                  alt="Professional dog waste removal service"
+                  fill
+                  className="object-cover"
+                />
               </div>
             </div>
           </div>
         </section>
 
         {/* Service Benefits */}
-        <section className="bg-neutral-50 py-16 sm:py-24">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center">
-              <h2 className="text-3xl font-bold tracking-tight text-neutral-900">
+        <section className="py-16 bg-white">
+          <div className="container mx-auto px-4">
+            <div className="text-center max-w-3xl mx-auto mb-16">
+              <h2 className="text-3xl font-bold tracking-tight mb-4">
                 Why Choose Our Service?
               </h2>
-              <p className="mt-4 text-lg text-neutral-600">
+              <p className="text-xl text-neutral-600">
                 We provide more than just waste removal - we offer peace of mind
               </p>
             </div>
-            <div className="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 {
                   title: 'Professional Team',
@@ -112,10 +117,10 @@ export default function ServicesPage() {
               ].map((benefit) => (
                 <div
                   key={benefit.title}
-                  className="rounded-2xl bg-white p-8 shadow-sm ring-1 ring-neutral-200"
+                  className="card group"
                 >
-                  <h3 className="text-lg font-semibold text-neutral-900">{benefit.title}</h3>
-                  <p className="mt-4 text-neutral-600">{benefit.description}</p>
+                  <h3 className="text-lg font-semibold mb-3">{benefit.title}</h3>
+                  <p className="text-neutral-600">{benefit.description}</p>
                 </div>
               ))}
             </div>
@@ -123,21 +128,20 @@ export default function ServicesPage() {
         </section>
 
         {/* CTA Section */}
-        <section className="py-16 sm:py-24">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="rounded-2xl bg-brand-primary px-6 py-16 sm:p-16">
-              <div className="mx-auto max-w-2xl text-center">
-                <h2 className="text-3xl font-bold tracking-tight text-white">
+        <section className="py-16">
+          <div className="container mx-auto px-4">
+            <div className="rounded-2xl bg-gradient-to-br from-brand-primary to-brand-primary-dark px-6 py-16 sm:p-16">
+              <div className="max-w-2xl mx-auto text-center text-white">
+                <h2 className="text-3xl font-bold tracking-tight mb-4">
                   Ready to Get Started?
                 </h2>
-                <p className="mt-4 text-lg text-white/90">
+                <p className="text-xl text-white/90 mb-8">
                   Join hundreds of satisfied customers who trust us with their pet waste removal needs.
                 </p>
-                <div className="mt-8">
+                <div>
                   <Link href="/pricing">
                     <Button
-                      size="lg"
-                      className="bg-white text-brand-primary hover:bg-white/90"
+                      className="bg-white text-brand-primary hover:bg-white/90 text-lg"
                     >
                       View Pricing Plans
                     </Button>
@@ -148,7 +152,6 @@ export default function ServicesPage() {
           </div>
         </section>
       </main>
-      <Footer />
     </div>
   )
 } 

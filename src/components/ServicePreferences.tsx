@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { Check, Calendar, Key, AlertCircle } from 'lucide-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 
 interface ServicePreferencesProps {
   customerId: string
@@ -52,7 +52,10 @@ export function ServicePreferences({ customerId, initialPreferences }: ServicePr
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold">Service Preferences</h3>
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          <FontAwesomeIcon icon={['fas', 'cog']} className="text-brand-primary" />
+          Service Preferences
+        </h3>
         <p className="text-sm text-neutral-600">
           Set your preferred service day and provide any special instructions
         </p>
@@ -60,7 +63,8 @@ export function ServicePreferences({ customerId, initialPreferences }: ServicePr
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-neutral-700">
+          <label className="block text-sm font-medium text-neutral-700 flex items-center gap-2">
+            <FontAwesomeIcon icon={['fas', 'calendar-alt']} className="text-neutral-400" />
             Preferred Service Day
           </label>
           <select
@@ -77,12 +81,13 @@ export function ServicePreferences({ customerId, initialPreferences }: ServicePr
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-700">
+          <label className="block text-sm font-medium text-neutral-700 flex items-center gap-2">
+            <FontAwesomeIcon icon={['fas', 'key']} className="text-neutral-400" />
             Gate Code (if applicable)
           </label>
           <div className="mt-1 relative rounded-md shadow-sm">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Key className="h-5 w-5 text-neutral-400" />
+              <FontAwesomeIcon icon={['fas', 'key']} className="h-5 w-5 text-neutral-400" />
             </div>
             <input
               type="text"
@@ -95,12 +100,13 @@ export function ServicePreferences({ customerId, initialPreferences }: ServicePr
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-700">
+          <label className="block text-sm font-medium text-neutral-700 flex items-center gap-2">
+            <FontAwesomeIcon icon={['fas', 'exclamation-circle']} className="text-neutral-400" />
             Special Instructions
           </label>
           <div className="mt-1 relative rounded-md shadow-sm">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <AlertCircle className="h-5 w-5 text-neutral-400" />
+              <FontAwesomeIcon icon={['fas', 'exclamation-circle']} className="h-5 w-5 text-neutral-400" />
             </div>
             <textarea
               value={preferences.specialInstructions}
@@ -113,12 +119,13 @@ export function ServicePreferences({ customerId, initialPreferences }: ServicePr
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-neutral-700">
+          <label className="block text-sm font-medium text-neutral-700 flex items-center gap-2">
+            <FontAwesomeIcon icon={['fas', 'door-open']} className="text-neutral-400" />
             Access Notes
           </label>
           <div className="mt-1 relative rounded-md shadow-sm">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Key className="h-5 w-5 text-neutral-400" />
+              <FontAwesomeIcon icon={['fas', 'door-open']} className="h-5 w-5 text-neutral-400" />
             </div>
             <textarea
               value={preferences.accessNotes}
@@ -135,8 +142,9 @@ export function ServicePreferences({ customerId, initialPreferences }: ServicePr
         <Button
           onClick={handleSave}
           disabled={isSaving}
-          className="bg-brand-primary text-white hover:bg-brand-primary-dark"
+          className="bg-brand-primary text-white hover:bg-brand-primary-dark flex items-center gap-2"
         >
+          <FontAwesomeIcon icon={['fas', 'save']} />
           {isSaving ? 'Saving...' : 'Save Preferences'}
         </Button>
       </div>

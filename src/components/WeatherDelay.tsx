@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { CloudRain } from 'lucide-react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 
@@ -45,15 +45,16 @@ export function WeatherDelay({ serviceId }: { serviceId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <CloudRain className="h-5 w-5 text-neutral-500" />
+        <FontAwesomeIcon icon={['fas', 'cloud-rain']} className="h-5 w-5 text-neutral-500" />
         <h3 className="text-lg font-medium">Report Weather Delay</h3>
       </div>
 
       <div className="space-y-2">
         <label
           htmlFor="reason"
-          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center gap-2"
         >
+          <FontAwesomeIcon icon={['fas', 'comment-alt']} className="text-neutral-400" />
           Reason for Delay
         </label>
         <Textarea
@@ -65,16 +66,18 @@ export function WeatherDelay({ serviceId }: { serviceId: string }) {
           minLength={10}
           maxLength={500}
         />
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-neutral-500 flex items-center gap-2">
+          <FontAwesomeIcon icon={['fas', 'info-circle']} className="text-neutral-400" />
           Please provide detailed information about the weather conditions
         </p>
       </div>
 
       <Button
-        className="w-full"
+        className="w-full flex items-center gap-2"
         onClick={handleSubmit}
         disabled={loading || !reason.trim()}
       >
+        <FontAwesomeIcon icon={['fas', 'exclamation-triangle']} />
         {loading ? 'Submitting...' : 'Report Delay'}
       </Button>
     </div>
