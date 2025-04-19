@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
   output   = "./generated/client"
@@ -11,165 +8,56 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  ADMIN
-  CUSTOMER
-  EMPLOYEE
-}
-
-enum ServiceDay {
-  MONDAY
-  TUESDAY
-  WEDNESDAY
-  THURSDAY
-  FRIDAY
-  SATURDAY
-  SUNDAY
-}
-
-enum CustomerStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-}
-
-enum EmployeeStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  PAUSED
-  CANCELLED
-}
-
-enum Plan {
-  WEEKLY
-  BIWEEKLY
-  MONTHLY
-}
-
-enum ServiceStatus {
-  PENDING
-  SCHEDULED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-  DELAYED
-}
-
-enum PhotoType {
-  PRE_CLEAN
-  POST_CLEAN
-}
-
-enum PaymentMethod {
-  CARD
-  CASH
-  CHECK
-}
-
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  REFUNDED
-}
-
-enum PaymentRetryStatus {
-  SCHEDULED
-  PENDING
-  SUCCESS
-  FAILED
-}
-
-enum DelayType {
-  WEATHER
-  TRAFFIC
-  EQUIPMENT
-  OTHER
-}
-
-enum NotificationType {
-  JOB_AVAILABLE
-  JOB_CLAIMED
-  SERVICE_COMPLETED
-  PAYMENT_RECEIVED
-  SUBSCRIPTION_RENEWED
-  TIME_EXTENSION_NEEDED
-  CHAT_MESSAGE
-}
-
-enum ReferralStatus {
-  PENDING
-  COMPLETED
-  EXPIRED
-}
-
-enum ServiceType {
-  REGULAR
-  ONE_TIME
-  SPECIAL
-}
-
-enum PaymentType {
-  SERVICE
-  REFERRAL
-  BONUS
-  OTHER
-}
-
 model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  name              String?
-  password          String
-  role              UserRole  @default(CUSTOMER)
-  emailVerified     Boolean   @default(false)
-  verificationToken String?   @unique
+  id                      String         @id @default(cuid())
+  email                   String         @unique
+  name                    String?
+  password                String
+  role                    String         @default("CUSTOMER")
+  emailVerified           Boolean        @default(false)
+  verificationToken       String?        @unique
   verificationTokenExpiry DateTime?
-  resetToken        String?   @unique
-  resetTokenExpiry  DateTime?
-  image             String?
-  deviceFingerprint String?   // Device fingerprint for token security
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-  customer          Customer?
-  employee          Employee?
-  refreshTokens     RefreshToken[]
-  serviceDelays     ServiceDelay[]
-  sentMessages      ChatMessage[] @relation("SentMessages")
-  receivedMessages  ChatMessage[] @relation("ReceivedMessages")
-  notifications     Notification[]
-  referredPayments  Payment[] @relation("ReferredPayments")
+  resetToken              String?        @unique
+  resetTokenExpiry        DateTime?
+  image                   String?
+  deviceFingerprint       String?
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
+  receivedMessages        ChatMessage[]  @relation("ReceivedMessages")
+  sentMessages            ChatMessage[]  @relation("SentMessages")
+  customer                Customer?
+  employee                Employee?
+  notifications           Notification[]
+  referredPayments        Payment[]      @relation("ReferredPayments")
+  refreshTokens           RefreshToken[]
+  serviceDelays           ServiceDelay[]
 }
 
 model Customer {
-  id             String        @id @default(cuid())
-  userId         String        @unique
-  user           User         @relation(fields: [userId], references: [id])
-  services       Service[]
-  payments       Payment[]
-  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
-  subscriptionId String?      @unique
-  address        Address?
-  referralsGiven   Referral[] @relation("Referrer")
-  referralsReceived Referral[] @relation("Referred")
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                String        @id @default(cuid())
+  userId            String        @unique
+  subscriptionId    String?       @unique
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  stripeCustomerId  String?       @unique
+  address           Address?
+  subscription      Subscription? @relation(fields: [subscriptionId], references: [id])
+  user              User          @relation(fields: [userId], references: [id])
+  payments          Payment[]
+  referralsReceived Referral[]    @relation("Referred")
+  referralsGiven    Referral[]    @relation("Referrer")
+  services          Service[]
 
   @@index([subscriptionId])
 }
 
 model Address {
   id         String   @id @default(cuid())
-  customerId String   @unique
   street     String
   city       String
   state      String
   zipCode    String
+  customerId String   @unique
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   customer   Customer @relation(fields: [customerId], references: [id])
@@ -178,16 +66,16 @@ model Address {
 }
 
 model Subscription {
-  id          String    @id @default(cuid())
-  customerId  String
-  planId      String
-  status      SubscriptionStatus @default(ACTIVE)
-  startDate   DateTime
-  endDate     DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  payments    Payment[]
-  customer    Customer?
+  id         String    @id @default(cuid())
+  customerId String
+  planId     String
+  status     String    @default("ACTIVE")
+  startDate  DateTime
+  endDate    DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  customer   Customer?
+  payments   Payment[]
 }
 
 model TimeExtension {
@@ -198,44 +86,44 @@ model TimeExtension {
   reason     String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  employee   Employee @relation(fields: [employeeId], references: [id])
   service    Service  @relation(fields: [serviceId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id])
 
   @@index([serviceId])
   @@index([employeeId])
 }
 
 model Employee {
-  id              String           @id @default(cuid())
-  userId          String           @unique
-  user            User            @relation(fields: [userId], references: [id])
-  services        Service[]
-  serviceAreas    ServiceArea[]
-  messages        ServiceMessage[]
-  timeExtensions  TimeExtension[]
-  payments        Payment[]
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id             String           @id @default(cuid())
+  userId         String           @unique
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  user           User             @relation(fields: [userId], references: [id])
+  payments       Payment[]
+  services       Service[]
+  serviceAreas   ServiceArea[]
+  messages       ServiceMessage[]
+  timeExtensions TimeExtension[]
 }
 
 model Payment {
   id             String         @id @default(cuid())
   amount         Float
-  status         PaymentStatus  @default(PENDING)
-  type           PaymentType
+  status         String         @default("PENDING")
+  type           String
   serviceId      String?
   employeeId     String?
   customerId     String?
   referredId     String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
-  employee       Employee?      @relation(fields: [employeeId], references: [id])
-  service        Service?       @relation(fields: [serviceId], references: [id])
-  customer       Customer?      @relation(fields: [customerId], references: [id])
-  referredBy     User?         @relation("ReferredPayments", fields: [referredId], references: [id])
-  retries        PaymentRetry[]
-  subscription   Subscription?  @relation(fields: [subscriptionId], references: [id])
   subscriptionId String?
+  subscription   Subscription?  @relation(fields: [subscriptionId], references: [id])
+  referredBy     User?          @relation("ReferredPayments", fields: [referredId], references: [id])
+  customer       Customer?      @relation(fields: [customerId], references: [id])
+  service        Service?       @relation(fields: [serviceId], references: [id])
+  employee       Employee?      @relation(fields: [employeeId], references: [id])
+  retries        PaymentRetry[]
 
   @@index([serviceId])
   @@index([employeeId])
@@ -245,16 +133,16 @@ model Payment {
 }
 
 model ServicePhoto {
-  id          String    @id @default(cuid())
-  serviceId   String
-  service     Service   @relation(fields: [serviceId], references: [id])
-  url         String
-  type        String    // e.g., "BEFORE", "AFTER"
-  latitude    Float?
-  longitude   Float?
-  timestamp   DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String    @id @default(cuid())
+  serviceId String
+  url       String
+  type      String
+  latitude  Float?
+  longitude Float?
+  timestamp DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  service   Service   @relation(fields: [serviceId], references: [id])
 }
 
 model ServicePlan {
@@ -262,8 +150,8 @@ model ServicePlan {
   name        String
   description String?
   price       Float
-  duration    Int       // Duration in minutes
-  type        String    // e.g., "REGULAR", "ONE_TIME"
+  duration    Int
+  type        String
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -271,71 +159,71 @@ model ServicePlan {
 }
 
 model Service {
-  id              String        @id @default(cuid())
-  customerId      String
-  customer        Customer      @relation(fields: [customerId], references: [id])
-  status          ServiceStatus @default(SCHEDULED)
-  scheduledDate   DateTime
-  completedDate   DateTime?
-  servicePlanId   String
-  servicePlan     ServicePlan   @relation(fields: [servicePlanId], references: [id])
-  employeeId      String?
-  employee        Employee?     @relation(fields: [employeeId], references: [id])
-  location        Location?
-  serviceAreaId   String?
-  serviceArea     ServiceArea?  @relation(fields: [serviceAreaId], references: [id])
-  checklist       ServiceChecklist?
-  photos          ServicePhoto[]
-  payments        Payment[]
-  delays          ServiceDelay[]
-  timeExtensions  TimeExtension[]
-  messages        ServiceMessage[]
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id             String            @id @default(cuid())
+  customerId     String
+  status         String            @default("SCHEDULED")
+  scheduledDate  DateTime
+  completedDate  DateTime?
+  servicePlanId  String
+  employeeId     String?
+  serviceAreaId  String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  location       Location?
+  payments       Payment[]
+  serviceArea    ServiceArea?      @relation(fields: [serviceAreaId], references: [id])
+  employee       Employee?         @relation(fields: [employeeId], references: [id])
+  servicePlan    ServicePlan       @relation(fields: [servicePlanId], references: [id])
+  customer       Customer          @relation(fields: [customerId], references: [id])
+  checklist      ServiceChecklist?
+  delays         ServiceDelay[]
+  messages       ServiceMessage[]
+  photos         ServicePhoto[]
+  timeExtensions TimeExtension[]
 }
 
 model ServiceChecklist {
-  id              String    @id @default(cuid())
-  serviceId       String    @unique
-  service         Service   @relation(fields: [serviceId], references: [id])
-  items           Json      // Array of checklist items with status
-  notes           String?
-  completedAt     DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  serviceId   String    @unique
+  items       Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+  notes       String?
+  service     Service   @relation(fields: [serviceId], references: [id])
 }
 
 model Location {
-  id          String    @id @default(cuid())
-  serviceId   String    @unique
-  service     Service   @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-  latitude    Float
-  longitude   Float
-  address     String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  serviceId String   @unique
+  latitude  Float
+  longitude Float
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
 }
 
 model ServiceArea {
   id         String    @id @default(cuid())
   employeeId String
-  employee   Employee  @relation(fields: [employeeId], references: [id])
-  services   Service[]
   zipCode    String
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
+  services   Service[]
+  employee   Employee  @relation(fields: [employeeId], references: [id])
 }
 
 model PaymentRetry {
-  id            String             @id @default(cuid())
+  id            String    @id @default(cuid())
   paymentId     String
-  status        PaymentRetryStatus @default(SCHEDULED)
+  status        String    @default("SCHEDULED")
   errorMessage  String?
-  retryCount    Int               @default(0)
+  retryCount    Int       @default(0)
   nextRetryDate DateTime?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-  payment       Payment            @relation(fields: [paymentId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  payment       Payment   @relation(fields: [paymentId], references: [id])
 
   @@index([paymentId])
   @@index([status])
@@ -343,14 +231,14 @@ model PaymentRetry {
 }
 
 model ServiceDelay {
-  id           String    @id @default(cuid())
+  id           String   @id @default(cuid())
   serviceId    String
   reason       String
-  type         DelayType
-  reportedAt   DateTime  @default(now())
+  type         String
+  reportedAt   DateTime @default(now())
   reportedById String
-  reportedBy   User      @relation(fields: [reportedById], references: [id])
-  service      Service   @relation(fields: [serviceId], references: [id])
+  service      Service  @relation(fields: [serviceId], references: [id])
+  reportedBy   User     @relation(fields: [reportedById], references: [id])
 
   @@index([serviceId])
   @@index([reportedById])
@@ -358,14 +246,14 @@ model ServiceDelay {
 
 model RefreshToken {
   id                String   @id @default(cuid())
-  token            String   @unique
-  userId           String
-  deviceFingerprint String  // Store fingerprint with refresh token
-  isRevoked        Boolean  @default(false)
-  expiresAt        DateTime
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  user             User     @relation(fields: [userId], references: [id])
+  token             String   @unique
+  userId            String
+  deviceFingerprint String
+  isRevoked         Boolean  @default(false)
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id])
 
   @@index([userId])
   @@index([token])
@@ -373,43 +261,43 @@ model RefreshToken {
 }
 
 model Notification {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type        NotificationType
-  title       String
-  message     String
-  read        Boolean  @default(false)
-  metadata    Json?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
 
 model ChatMessage {
-  id          String   @id @default(cuid())
-  senderId    String
-  sender      User     @relation("SentMessages", fields: [senderId], references: [id])
-  receiverId  String
-  receiver    User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
-  content     String
-  read        Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
 
   @@index([senderId])
   @@index([receiverId])
 }
 
 model Referral {
-  id          String    @id @default(cuid())
-  referrerId  String
-  referrer    Customer  @relation("Referrer", fields: [referrerId], references: [id])
-  referredId  String?
-  referred    Customer? @relation("Referred", fields: [referredId], references: [id])
-  code        String    @unique
-  status      ReferralStatus @default(PENDING)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id         String    @id @default(cuid())
+  referrerId String
+  referredId String?
+  code       String    @unique
+  status     String    @default("PENDING")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  referred   Customer? @relation("Referred", fields: [referredId], references: [id])
+  referrer   Customer  @relation("Referrer", fields: [referrerId], references: [id])
 
   @@index([referrerId])
   @@index([referredId])
@@ -424,19 +312,9 @@ model ServiceMessage {
   message    String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  employee   Employee @relation(fields: [employeeId], references: [id])
   service    Service  @relation(fields: [serviceId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id])
 
   @@index([serviceId])
   @@index([employeeId])
-}
-
-enum DayOfWeek {
-  MONDAY
-  TUESDAY
-  WEDNESDAY
-  THURSDAY
-  FRIDAY
-  SATURDAY
-  SUNDAY
 }
