@@ -85,35 +85,23 @@ export default function CustomerDashboard() {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
     const fetchData = async () => {
       try {
         // Fetch services
-        const servicesRes = await fetch('/api/customer/services', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const servicesRes = await fetch('/api/customer/services');
         if (!servicesRes.ok) throw new Error('Failed to fetch services');
         const servicesData = await servicesRes.json();
         setServices(servicesData);
 
         // Fetch subscription
-        const subscriptionRes = await fetch('/api/customer/subscription', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const subscriptionRes = await fetch('/api/customer/subscription');
         if (subscriptionRes.ok) {
           const subscriptionData = await subscriptionRes.json();
           setSubscription(subscriptionData);
         }
 
         // Fetch customer profile
-        const customerRes = await fetch('/api/customer/profile', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const customerRes = await fetch('/api/customer/profile');
         if (customerRes.ok) {
           const customerData = await customerRes.json();
           setCustomer(customerData);
@@ -137,14 +125,15 @@ export default function CustomerDashboard() {
         }
 
         // Fetch payments
-        const paymentsRes = await fetch('/api/customer/payments', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const paymentsRes = await fetch('/api/customer/payments');
         if (!paymentsRes.ok) throw new Error('Failed to fetch payments');
         const paymentsData = await paymentsRes.json();
         setPayments(paymentsData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load data');
+        if (err instanceof Error && err.message.includes('401')) {
+          router.push('/login');
+        }
       } finally {
         setLoading(false);
       }
@@ -155,16 +144,9 @@ export default function CustomerDashboard() {
 
   const handleUpdateProfile = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
       const response = await fetch('/api/customer/profile', {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(formData),
@@ -177,21 +159,17 @@ export default function CustomerDashboard() {
       setIsEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update profile');
+      if (err instanceof Error && err.message.includes('401')) {
+        router.push('/login');
+      }
     }
   };
 
   const handleScheduleService = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
       const response = await fetch('/api/customer/services', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -203,24 +181,21 @@ export default function CustomerDashboard() {
       if (!response.ok) throw new Error('Failed to schedule service');
       
       const newService = await response.json();
-      setServices([newService, ...services]);
+      setServices([...services, newService]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to schedule service');
+      if (err instanceof Error && err.message.includes('401')) {
+        router.push('/login');
+      }
     }
   };
 
   const handleCancelSubscription = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
       const response = await fetch('/api/subscriptions', {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
         },
       });
 

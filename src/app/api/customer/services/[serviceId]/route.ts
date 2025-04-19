@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function GET(
   request: Request,
@@ -8,15 +9,13 @@ export async function GET(
 ) {
   try {
     // Verify customer authorization
-    const token = request.headers.get('Authorization')?.split(' ')[1];
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(token);
-    if (!decoded || decoded.role !== 'CUSTOMER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { userId } = await validateUser(token, 'CUSTOMER');
 
     // Get the service with all related data
     const service = await prisma.service.findUnique({
@@ -28,26 +27,37 @@ export async function GET(
           }
         },
         employee: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+                image: true
+              }
+            }
+          }
+        },
+        servicePlan: {
           select: {
             name: true,
-            phone: true
+            price: true,
+            duration: true
           }
         },
-        address: true,
-        checklist: {
-          orderBy: {
-            createdAt: 'asc'
-          }
-        },
+        location: true,
+        serviceArea: true,
+        checklist: true,
+        delays: true,
+        timeExtensions: true,
         photos: {
           orderBy: {
             createdAt: 'asc'
           }
         },
-        feedback: {
+        payments: {
           select: {
-            rating: true,
-            comment: true,
+            amount: true,
+            status: true,
             createdAt: true
           }
         }
@@ -59,7 +69,7 @@ export async function GET(
     }
 
     // Verify ownership
-    if (service.customer.userId !== decoded.id) {
+    if (service.customer.userId !== userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -82,15 +92,13 @@ export async function POST(
 ) {
   try {
     // Verify customer authorization
-    const token = request.headers.get('Authorization')?.split(' ')[1];
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = await verifyToken(token);
-    if (!decoded || decoded.role !== 'CUSTOMER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { userId } = await validateUser(token, 'CUSTOMER');
 
     const { rating, comment } = await request.json();
 
@@ -102,10 +110,10 @@ export async function POST(
       );
     }
 
-    // Get the service and verify ownership
+    // Verify service ownership
     const service = await prisma.service.findUnique({
       where: { id: params.serviceId },
-      include: {
+      select: {
         customer: {
           select: {
             userId: true
@@ -118,30 +126,20 @@ export async function POST(
       return NextResponse.json({ error: 'Service not found' }, { status: 404 });
     }
 
-    if (service.customer.userId !== decoded.id) {
+    if (service.customer.userId !== userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Create or update feedback
-    const feedback = await prisma.serviceFeedback.upsert({
-      where: {
-        serviceId: params.serviceId
-      },
-      create: {
+    // Create feedback
+    const feedback = await prisma.serviceFeedback.create({
+      data: {
         serviceId: params.serviceId,
         rating,
-        comment: comment || '',
-      },
-      update: {
-        rating,
-        comment: comment || '',
+        comment
       }
     });
 
-    return NextResponse.json({
-      feedback,
-      message: 'Feedback submitted successfully'
-    });
+    return NextResponse.json(feedback);
   } catch (error) {
     console.error('Error submitting feedback:', error);
     return NextResponse.json(
