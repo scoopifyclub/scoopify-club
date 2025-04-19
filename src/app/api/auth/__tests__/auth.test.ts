@@ -1,11 +1,24 @@
-import { jest } from '@jest/globals';
-import { prisma } from '../../../../tests/setup';
-import { POST as signup } from '../signup/route';
-import { POST as signin } from '../signin/route';
-import { POST as verifyEmail } from '../verify-email/route';
-import { POST as forgotPassword } from '../forgot-password/route';
-import { POST as resetPassword } from '../reset-password/route';
+import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
+import { prisma } from '@/lib/prisma';
+import { cleanupDatabase, setupTestDatabase } from '@/tests/setup';
+import { testUsers, createTestUser } from '@/tests/setup';
 import { sendEmail } from '@/lib/email';
+
+// Mock Redis
+jest.mock('@upstash/redis', () => ({
+  Redis: jest.fn().mockImplementation(() => ({
+    set: jest.fn().mockResolvedValue(true),
+    get: jest.fn().mockResolvedValue(null),
+    del: jest.fn().mockResolvedValue(true),
+  })),
+}));
+
+// Mock rate limiter
+jest.mock('@upstash/ratelimit', () => ({
+  Ratelimit: jest.fn().mockImplementation(() => ({
+    limit: jest.fn().mockResolvedValue({ success: true }),
+  })),
+}));
 
 // Mock the email sending function
 jest.mock('@/lib/email', () => ({
@@ -14,69 +27,82 @@ jest.mock('@/lib/email', () => ({
 
 // Mock Request object
 const mockRequest = (body: any) => ({
-  json: () => Promise.resolve(body)
+  json: () => Promise.resolve(body),
+  headers: new Headers(),
+  cookies: {
+    get: () => undefined,
+    getAll: () => []
+  }
 } as Request);
 
 describe('Authentication', () => {
   beforeAll(async () => {
-    // Clean up any existing test users
-    try {
-      await prisma.user.deleteMany({
-        where: {
-          email: {
-            contains: 'test'
-          }
-        }
-      });
-    } catch (error) {
-      // If tables don't exist, that's fine - we'll create them
-      console.log('Tables not found, will be created by migrations');
-    }
+    await setupTestDatabase();
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
+    await cleanupDatabase();
+  });
+
+  beforeEach(async () => {
+    await cleanupDatabase();
   });
 
   describe('Signup', () => {
     it('should create a new user successfully', async () => {
-      const response = await signup(mockRequest({
-        firstName: 'Test',
-        lastName: 'User',
+      const { POST } = await import('../signup/route');
+      const response = await POST(mockRequest({
         email: 'test@example.com',
-        phone: '555-0123',
+        name: 'Test User',
         password: 'Test123!@#',
-        street: '123 Test St',
-        city: 'Test City',
-        state: 'CA',
-        zipCode: '12345',
-        gateCode: '1234',
-        serviceDay: 'MONDAY'
+        deviceFingerprint: 'test-device-fingerprint',
+        role: 'CUSTOMER',
+        address: {
+          street: '123 Test St',
+          city: 'Test City',
+          state: 'CA',
+          zipCode: '12345'
+        }
       }));
 
       const data = await response.json();
-      expect(response.status).toBe(200);
+      expect(response.status).toBe(201);
       expect(data.user).toBeDefined();
       expect(data.user.email).toBe('test@example.com');
-      expect(data.user.customer).toBeDefined();
-      expect(data.user.customer.address).toBeDefined();
-      expect(data.user.customer.gateCode).toBe('1234');
-      expect(data.user.customer.serviceDay).toBe('MONDAY');
+      expect(data.user.role).toBe('CUSTOMER');
     });
 
     it('should reject duplicate email', async () => {
-      const response = await signup(mockRequest({
-        firstName: 'Test',
-        lastName: 'User',
+      const { POST } = await import('../signup/route');
+      
+      // First signup
+      await POST(mockRequest({
         email: 'test@example.com',
-        phone: '555-0123',
+        name: 'Test User',
         password: 'Test123!@#',
-        street: '123 Test St',
-        city: 'Test City',
-        state: 'CA',
-        zipCode: '12345',
-        gateCode: '1234',
-        serviceDay: 'MONDAY'
+        deviceFingerprint: 'test-device-fingerprint',
+        role: 'CUSTOMER',
+        address: {
+          street: '123 Test St',
+          city: 'Test City',
+          state: 'CA',
+          zipCode: '12345'
+        }
+      }));
+
+      // Second signup with same email
+      const response = await POST(mockRequest({
+        email: 'test@example.com',
+        name: 'Test User 2',
+        password: 'Test123!@#',
+        deviceFingerprint: 'test-device-fingerprint-2',
+        role: 'CUSTOMER',
+        address: {
+          street: '456 Test St',
+          city: 'Test City',
+          state: 'CA',
+          zipCode: '12345'
+        }
       }));
 
       const data = await response.json();
@@ -85,42 +111,55 @@ describe('Authentication', () => {
     });
 
     it('should reject weak password', async () => {
-      const response = await signup(mockRequest({
-        firstName: 'Test',
-        lastName: 'User',
+      const { POST } = await import('../signup/route');
+      const response = await POST(mockRequest({
         email: 'test2@example.com',
-        phone: '555-0123',
+        name: 'Test User',
         password: 'weak',
-        street: '123 Test St',
-        city: 'Test City',
-        state: 'CA',
-        zipCode: '12345'
+        deviceFingerprint: 'test-device-fingerprint',
+        role: 'CUSTOMER',
+        address: {
+          street: '123 Test St',
+          city: 'Test City',
+          state: 'CA',
+          zipCode: '12345'
+        }
       }));
 
       const data = await response.json();
       expect(response.status).toBe(400);
-      expect(data.error).toBe('Invalid password');
-      expect(data.details).toBeDefined();
-      expect(data.strength).toBeDefined();
+      expect(data.error).toBe('Password does not meet requirements');
     });
   });
 
   describe('Signin', () => {
     it('should sign in user with valid credentials', async () => {
-      const response = await signin(mockRequest({
-        email: 'test@example.com',
-        password: 'Test123!@#'
+      // Create a test user first
+      const { credentials } = await createTestUser('CUSTOMER');
+      
+      const { POST } = await import('../signin/route');
+      const response = await POST(mockRequest({
+        email: credentials.email,
+        password: credentials.password,
+        deviceFingerprint: credentials.deviceFingerprint
       }));
 
       const data = await response.json();
       expect(response.status).toBe(200);
-      expect(data.token).toBeDefined();
+      expect(data.accessToken).toBeDefined();
+      expect(data.refreshToken).toBeDefined();
+      expect(data.user).toBeDefined();
+      expect(data.user.email).toBe(credentials.email);
     });
 
     it('should reject invalid credentials', async () => {
-      const response = await signin(mockRequest({
-        email: 'test@example.com',
-        password: 'WrongPassword123!'
+      const { credentials } = await createTestUser('CUSTOMER');
+      
+      const { POST } = await import('../signin/route');
+      const response = await POST(mockRequest({
+        email: credentials.email,
+        password: 'wrongpassword',
+        deviceFingerprint: credentials.deviceFingerprint
       }));
 
       const data = await response.json();
@@ -130,40 +169,38 @@ describe('Authentication', () => {
   });
 
   describe('Email Verification', () => {
-    let verificationToken: string;
-
-    beforeAll(async () => {
-      // Get the verification token from the database
-      const user = await prisma.user.findUnique({
-        where: { email: 'test@example.com' }
-      });
-      verificationToken = user?.verificationToken || '';
-
-      // If no token exists, create one
-      if (!verificationToken) {
-        const updatedUser = await prisma.user.update({
-          where: { email: 'test@example.com' },
-          data: {
-            verificationToken: 'test-verification-token',
-            verificationTokenExpiry: new Date(Date.now() + 3600000) // 1 hour from now
-          }
-        });
-        verificationToken = updatedUser.verificationToken || '';
-      }
-    });
-
     it('should verify email with valid token', async () => {
-      const response = await verifyEmail(mockRequest({
+      const { user } = await createTestUser('CUSTOMER');
+      const verificationToken = 'valid-token';
+      
+      // Set verification token
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          verificationToken,
+          verificationTokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        }
+      });
+
+      const { POST } = await import('../verify-email/route');
+      const response = await POST(mockRequest({
         token: verificationToken
       }));
 
       const data = await response.json();
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
+
+      // Check that email is verified
+      const updatedUser = await prisma.user.findUnique({
+        where: { id: user.id }
+      });
+      expect(updatedUser?.emailVerified).toBe(true);
     });
 
     it('should reject invalid verification token', async () => {
-      const response = await verifyEmail(mockRequest({
+      const { POST } = await import('../verify-email/route');
+      const response = await POST(mockRequest({
         token: 'invalid-token'
       }));
 
@@ -174,23 +211,21 @@ describe('Authentication', () => {
   });
 
   describe('Password Reset', () => {
-    let resetToken: string;
-
-    beforeAll(async () => {
-      // Request password reset
-      await forgotPassword(mockRequest({
-        email: 'test@example.com'
-      }));
-
-      // Get the reset token from the database
-      const user = await prisma.user.findUnique({
-        where: { email: 'test@example.com' }
-      });
-      resetToken = user?.resetToken || '';
-    });
-
     it('should reset password with valid token', async () => {
-      const response = await resetPassword(mockRequest({
+      const { user } = await createTestUser('CUSTOMER');
+      const resetToken = 'valid-reset-token';
+      
+      // Set reset token
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          resetToken,
+          resetTokenExpiry: new Date(Date.now() + 24 * 60 * 60 * 1000)
+        }
+      });
+
+      const { POST } = await import('../reset-password/route');
+      const response = await POST(mockRequest({
         token: resetToken,
         newPassword: 'NewTest123!@#'
       }));
@@ -199,19 +234,22 @@ describe('Authentication', () => {
       expect(response.status).toBe(200);
       expect(data.success).toBe(true);
 
-      // Verify new password works
+      // Try signing in with new password
+      const { POST: signin } = await import('../signin/route');
       const signinResponse = await signin(mockRequest({
-        email: 'test@example.com',
-        password: 'NewTest123!@#'
+        email: user.email,
+        password: 'NewTest123!@#',
+        deviceFingerprint: user.deviceFingerprint
       }));
 
       const signinData = await signinResponse.json();
       expect(signinResponse.status).toBe(200);
-      expect(signinData.token).toBeDefined();
+      expect(signinData.accessToken).toBeDefined();
     });
 
     it('should reject invalid reset token', async () => {
-      const response = await resetPassword(mockRequest({
+      const { POST } = await import('../reset-password/route');
+      const response = await POST(mockRequest({
         token: 'invalid-token',
         newPassword: 'NewTest123!@#'
       }));

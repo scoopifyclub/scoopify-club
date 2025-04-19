@@ -91,13 +91,18 @@ export default function LoginPage() {
 
       if (!response.ok) {
         console.error('Login failed:', data)
-        throw new Error(data.message || data.error || 'Failed to login')
+        if (response.status === 429) {
+          setError('Too many login attempts. Please try again later.')
+        } else {
+          setError(data.message || data.error || 'Invalid email or password')
+        }
+        return
       }
 
       console.log('Login successful, storing data...')
-      // Store user data and token in localStorage
-      localStorage.setItem('user', JSON.stringify(data.user))
-      localStorage.setItem('token', data.token)
+      // Store user data and token in cookies
+      document.cookie = `token=${data.token}; path=/; max-age=604800` // 7 days
+      document.cookie = `user=${JSON.stringify(data.user)}; path=/; max-age=604800`
 
       // Redirect based on role
       const redirectPath = data.user.role === 'CUSTOMER' 

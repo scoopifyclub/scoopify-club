@@ -14,14 +14,13 @@ async function setupTestDatabase() {
     const customer = await prisma.user.create({
       data: {
         email: 'test@example.com',
+        name: 'Test Customer',
         password: customerPassword,
         role: 'CUSTOMER',
-        name: 'Test Customer',
+        deviceFingerprint: 'test-device-1',
+        emailVerified: true,
         customer: {
           create: {
-            email: 'test@example.com',
-            phone: '555-123-4567',
-            status: 'ACTIVE',
             address: {
               create: {
                 street: '123 Test St',
@@ -39,16 +38,13 @@ async function setupTestDatabase() {
     const employee = await prisma.user.create({
       data: {
         email: 'employee@example.com',
+        name: 'Test Employee',
         password: employeePassword,
         role: 'EMPLOYEE',
-        name: 'Test Employee',
+        deviceFingerprint: 'test-device-2',
+        emailVerified: true,
         employee: {
-          create: {
-            name: 'Test Employee',
-            email: 'employee@example.com',
-            phone: '555-987-6543',
-            status: 'ACTIVE'
-          }
+          create: {}
         }
       }
     });
@@ -57,9 +53,11 @@ async function setupTestDatabase() {
     const admin = await prisma.user.create({
       data: {
         email: 'admin@example.com',
+        name: 'Test Admin',
         password: adminPassword,
         role: 'ADMIN',
-        name: 'Test Admin'
+        deviceFingerprint: 'test-device-3',
+        emailVerified: true
       }
     });
 

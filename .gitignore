@@ -7,6 +7,7 @@
 
 # testing
 /coverage
+/test-results
 
 # next.js
 /.next/
@@ -26,7 +27,7 @@ yarn-error.log*
 
 # local env files
 .env*.local
-.env
+.env.test
 
 # vercel
 .vercel
@@ -36,13 +37,13 @@ yarn-error.log*
 next-env.d.ts
 
 # IDE
-.vscode/
-.idea/
+.idea
+.vscode
 
 # Database
 *.db
-*.sqlite
-*.sqlite3
+*.db-journal
+prisma/generated/
 
 # Large files
 postgresql-installer.exe

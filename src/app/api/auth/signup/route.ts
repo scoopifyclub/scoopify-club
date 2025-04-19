@@ -5,66 +5,26 @@ import { stripe } from '@/lib/stripe'
 import { addDays } from 'date-fns'
 import { getSubscriptionPlans, getOneTimeServices } from '@/lib/constants'
 import { validatePassword } from '@/lib/password'
+import { v4 as uuidv4 } from 'uuid'
 
 export async function POST(request: Request) {
   try {
+    const body = await request.json()
     const {
-      firstName,
-      lastName,
       email,
-      phone,
+      name,
       password,
-      street,
-      city,
-      state,
-      zipCode,
-      gateCode,
-      serviceType,
-      serviceDay,
-      startDate,
-      isOneTimeService,
-      paymentMethodId,
-      referralCode
-    } = await request.json()
+      deviceFingerprint,
+      role = 'CUSTOMER',
+      address
+    } = body
 
     // Validate required fields
-    if (!firstName || !lastName || !email || !phone || !password || !street || 
-        !city || !state || !zipCode || !serviceType || !startDate || !paymentMethodId) {
+    if (!email || !name || !password || !deviceFingerprint) {
       return NextResponse.json(
         { error: 'All required fields must be provided' },
         { status: 400 }
       )
-    }
-
-    // Validate password strength
-    const passwordValidation = validatePassword(password)
-    if (!passwordValidation.isValid) {
-      return NextResponse.json(
-        { 
-          error: 'Invalid password',
-          details: passwordValidation.errors,
-          strength: passwordValidation.strength
-        },
-        { status: 400 }
-      )
-    }
-
-    // Get prices from Stripe
-    const [subscriptionPlans, oneTimeServices] = await Promise.all([
-      getSubscriptionPlans(),
-      getOneTimeServices()
-    ]);
-
-    // Find the selected plan
-    const selectedPlan = isOneTimeService 
-      ? oneTimeServices.find(plan => plan.id === serviceType)
-      : subscriptionPlans.find(plan => plan.id === serviceType);
-
-    if (!selectedPlan) {
-      return NextResponse.json(
-        { error: 'Invalid service type selected' },
-        { status: 400 }
-      );
     }
 
     // Check if user already exists
@@ -79,132 +39,76 @@ export async function POST(request: Request) {
       )
     }
 
-    // Create Stripe customer
-    const customer = await stripe.customers.create({
-      email,
-      name: `${firstName} ${lastName}`,
-      phone,
-      metadata: {
-        serviceType,
-        isOneTimeService: isOneTimeService ? 'true' : 'false',
-        serviceDay: serviceDay || 'none'
-      }
-    })
-
-    // Attach payment method to customer
-    await stripe.paymentMethods.attach(paymentMethodId, {
-      customer: customer.id
-    })
-
-    // Set as default payment method
-    await stripe.customers.update(customer.id, {
-      invoice_settings: {
-        default_payment_method: paymentMethodId
-      }
-    })
-
-    // Create subscription or one-time payment
-    let stripeSubscription;
-    let paymentIntent;
-    
-    if (!isOneTimeService) {
-      // Create subscription
-      stripeSubscription = await stripe.subscriptions.create({
-        customer: customer.id,
-        items: [{ price: selectedPlan.id }],
-        payment_behavior: 'default_incomplete',
-        payment_settings: { 
-          save_default_payment_method: 'on_subscription',
-          payment_method_types: ['card']
+    // Validate password strength
+    const validation = validatePassword(password)
+    if (!validation.isValid) {
+      return NextResponse.json(
+        {
+          error: 'Password does not meet requirements',
+          details: validation.errors,
+          strength: validation.strength
         },
-        expand: ['latest_invoice.payment_intent']
-      })
-    } else {
-      // Create one-time payment intent
-      paymentIntent = await stripe.paymentIntents.create({
-        amount: selectedPlan.amount,
-        currency: 'usd',
-        customer: customer.id,
-        payment_method: paymentMethodId,
-        confirm: true,
-        metadata: {
-          serviceType,
-          isOneTimeService: 'true'
-        }
-      })
+        { status: 400 }
+      )
     }
 
     // Hash password
     const hashedPassword = await hash(password, 12)
 
-    // Create user, customer, address, and subscription in a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Create user
-      const user = await tx.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          role: 'CUSTOMER',
-          name: `${firstName} ${lastName}`,
-          customer: {
-            create: {
-              stripeCustomerId: customer.id,
-              email,
-              phone,
-              gateCode: gateCode || null,
-              serviceDay: serviceDay || null,
-              referralCode: referralCode || null,
-              address: {
-                create: {
-                  street,
-                  city,
-                  state,
-                  zipCode
-                }
-              },
-              subscription: !isOneTimeService ? {
-                create: {
-                  plan: selectedPlan.plan,
-                  startDate: new Date(startDate),
-                  nextBilling: addDays(new Date(startDate), selectedPlan.interval === 'week' ? 7 : 14),
-                  status: 'PENDING',
-                  stripeSubscriptionId: stripeSubscription?.id
-                }
-              } : undefined
-            }
-          }
-        },
-        include: {
-          customer: {
-            include: {
-              address: true,
-              subscription: true
+    // Generate verification token
+    const verificationToken = uuidv4()
+    const verificationTokenExpiry = new Date()
+    verificationTokenExpiry.setHours(verificationTokenExpiry.getHours() + 24)
+
+    // Create user with appropriate role data
+    const userData = {
+      email,
+      name,
+      password: hashedPassword,
+      role,
+      deviceFingerprint,
+      verificationToken,
+      verificationTokenExpiry,
+      ...(role === 'CUSTOMER' && {
+        customer: {
+          create: {
+            address: address && {
+              create: {
+                street: address.street,
+                city: address.city,
+                state: address.state,
+                zipCode: address.zipCode
+              }
             }
           }
         }
+      }),
+      ...(role === 'EMPLOYEE' && {
+        employee: {
+          create: {}
+        }
       })
+    }
 
-      return user
-    })
-
-    return NextResponse.json({
-      user: {
-        id: result.id,
-        email: result.email,
-        name: result.name,
-        role: result.role,
-        customer: result.customer
-      },
-      subscription: !isOneTimeService ? {
-        id: stripeSubscription?.id,
-        status: stripeSubscription?.status,
-        clientSecret: (stripeSubscription?.latest_invoice as any)?.payment_intent?.client_secret
-      } : {
-        id: paymentIntent?.id,
-        status: paymentIntent?.status,
-        clientSecret: paymentIntent?.client_secret
+    const user = await prisma.user.create({
+      data: userData,
+      include: {
+        customer: {
+          include: {
+            address: true
+          }
+        },
+        employee: true
       }
     })
+
+    // Remove sensitive data before sending response
+    const { password: _, ...userWithoutPassword } = user
+
+    return NextResponse.json(
+      { user: userWithoutPassword },
+      { status: 201 }
+    )
   } catch (error) {
     console.error('Signup error:', error)
     return NextResponse.json(

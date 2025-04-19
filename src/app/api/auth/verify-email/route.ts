@@ -5,7 +5,8 @@ import { sendEmail } from '@/lib/email'
 
 export async function POST(request: Request) {
   try {
-    const { token } = await request.json()
+    const body = await request.json()
+    const { token } = body
 
     if (!token) {
       return NextResponse.json(

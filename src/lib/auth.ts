@@ -10,56 +10,35 @@ if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
 }
 
-if (!process.env.REDIS_URL || !process.env.REDIS_TOKEN) {
-  throw new Error('REDIS_URL and REDIS_TOKEN environment variables are required for rate limiting');
+// Initialize Redis and rate limiter only in non-test environment
+let redis;
+let ratelimit;
+
+if (process.env.NODE_ENV !== 'test') {
+  if (!process.env.REDIS_URL || !process.env.REDIS_TOKEN) {
+    throw new Error('REDIS_URL and REDIS_TOKEN environment variables are required for rate limiting');
+  }
+
+  redis = new Redis({
+    url: process.env.REDIS_URL,
+    token: process.env.REDIS_TOKEN,
+  });
+
+  ratelimit = new Ratelimit({
+    redis,
+    limiter: Ratelimit.slidingWindow(5, '1 m'), // 5 requests per minute
+  });
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const REFRESH_TOKEN_SECRET = process.env.JWT_SECRET + '_refresh';
-
-// Initialize rate limiter
-const redis = new Redis({
-  url: process.env.REDIS_URL,
-  token: process.env.REDIS_TOKEN,
-});
-
-const ratelimit = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, '1 m'), // 5 requests per minute
-});
 
 // Generate a device fingerprint
 function generateFingerprint() {
   return randomBytes(32).toString('hex');
 }
 
-export async function login(email: string, password: string, fingerprint?: string) {
-  // Check rate limit
-  const { success } = await ratelimit.limit(email);
-  if (!success) {
-    throw new Error('Too many login attempts. Please try again later.');
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: {
-      customer: true,
-      employee: true,
-    },
-  });
-
-  if (!user) {
-    throw new Error('Invalid email or password');
-  }
-
-  const isValid = await compare(password, user.password);
-  if (!isValid) {
-    throw new Error('Invalid email or password');
-  }
-
-  // Generate device fingerprint if not provided
-  const deviceFingerprint = fingerprint || generateFingerprint();
-
+export async function generateTokens(user: any, deviceFingerprint: string) {
   // Generate access token
   const accessToken = sign(
     {
@@ -101,6 +80,41 @@ export async function login(email: string, password: string, fingerprint?: strin
       },
     }),
   ]);
+
+  return { accessToken, refreshToken };
+}
+
+export async function login(email: string, password: string, fingerprint?: string) {
+  // Check rate limit only in non-test environment
+  if (process.env.NODE_ENV !== 'test' && ratelimit) {
+    const { success } = await ratelimit.limit(email);
+    if (!success) {
+      throw new Error('Too many login attempts. Please try again later.');
+    }
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: {
+      customer: true,
+      employee: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error('Invalid email or password');
+  }
+
+  const isValid = await compare(password, user.password);
+  if (!isValid) {
+    throw new Error('Invalid email or password');
+  }
+
+  // Generate device fingerprint if not provided
+  const deviceFingerprint = fingerprint || generateFingerprint();
+
+  // Generate tokens
+  const { accessToken, refreshToken } = await generateTokens(user, deviceFingerprint);
 
   return { accessToken, refreshToken, user, deviceFingerprint };
 }
@@ -160,47 +174,19 @@ export async function refreshToken(oldRefreshToken: string, fingerprint?: string
     throw new Error('Device fingerprint mismatch');
   }
 
-  // Generate new access token
-  const accessToken = sign(
-    {
-      id: storedToken.user.id,
-      email: storedToken.user.email,
-      role: storedToken.user.role,
-      customerId: storedToken.user.customer?.id,
-      employeeId: storedToken.user.employee?.id,
-      fingerprint: storedToken.deviceFingerprint,
-    },
-    JWT_SECRET,
-    { expiresIn: '15m' }
+  // Generate new tokens
+  const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
+    storedToken.user,
+    storedToken.deviceFingerprint
   );
 
-  // Generate new refresh token
-  const newRefreshToken = sign(
-    {
-      id: storedToken.user.id,
-      fingerprint: storedToken.deviceFingerprint,
-    },
-    REFRESH_TOKEN_SECRET,
-    { expiresIn: '7d' }
-  );
+  // Revoke old token
+  await prisma.refreshToken.update({
+    where: { id: storedToken.id },
+    data: { isRevoked: true },
+  });
 
-  // Revoke old token and create new one in a transaction
-  await prisma.$transaction([
-    prisma.refreshToken.update({
-      where: { id: storedToken.id },
-      data: { isRevoked: true },
-    }),
-    prisma.refreshToken.create({
-      data: {
-        token: newRefreshToken,
-        userId: storedToken.user.id,
-        deviceFingerprint: storedToken.deviceFingerprint,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    }),
-  ]);
-
-  return { accessToken, refreshToken: newRefreshToken, user: storedToken.user };
+  return { accessToken, refreshToken: newRefreshToken };
 }
 
 export async function logout(userId: string) {
@@ -209,12 +195,4 @@ export async function logout(userId: string) {
     where: { userId },
     data: { isRevoked: true },
   });
-
-  // Clear user's device fingerprint
-  await prisma.user.update({
-    where: { id: userId },
-    data: { deviceFingerprint: null },
-  });
-
-  return true;
 } 

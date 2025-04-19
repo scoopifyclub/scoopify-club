@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
+import { hash } from 'bcryptjs'
 import { validatePassword } from '@/lib/password'
 import { Resend } from 'resend'
 import { rateLimit } from '@/middleware/rate-limit'
@@ -9,7 +9,8 @@ const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(request: Request) {
   try {
-    const { token, newPassword } = await request.json()
+    const body = await request.json()
+    const { token, newPassword } = body
 
     if (!token || !newPassword) {
       return NextResponse.json(
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
       )
     }
 
-    // Find user with valid reset token
+    // Find user with this reset token
     const user = await prisma.user.findFirst({
       where: {
         resetToken: token,
@@ -49,9 +50,9 @@ export async function POST(request: Request) {
     }
 
     // Hash new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10)
+    const hashedPassword = await hash(newPassword, 12)
 
-    // Update password and clear reset token
+    // Update user's password and clear reset token
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -61,12 +62,9 @@ export async function POST(request: Request) {
       },
     })
 
-    return NextResponse.json({
-      success: true,
-      message: 'Password reset successfully',
-    })
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Reset password error:', error)
+    console.error('Password reset error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

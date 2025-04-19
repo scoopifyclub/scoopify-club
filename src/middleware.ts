@@ -53,6 +53,14 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/api/employee') ||
       pathname.startsWith('/api/customer')) {
     
+    // Apply rate limiting for authentication endpoints
+    if (pathname.includes('/login') || pathname.includes('/signup')) {
+      const rateLimitResponse = await rateLimit(request);
+      if (rateLimitResponse) {
+        return rateLimitResponse;
+      }
+    }
+
     const token = request.cookies.get('token')?.value;
     if (!token) {
       return createRedirectResponse(request, getLoginPath(pathname), 'No authentication token');
