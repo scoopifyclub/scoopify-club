@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import Navbar from '@/components/Navbar';
+import { Navbar } from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import Link from 'next/link';
 import { Home, Calendar, CreditCard, Settings, User } from 'lucide-react';

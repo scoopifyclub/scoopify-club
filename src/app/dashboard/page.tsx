@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { CustomerDashboardLayout } from '@/components/layouts/CustomerDashboardLayout';
-import { Calendar, CreditCard } from 'lucide-react';
+import { Calendar, CreditCard, Clock, DollarSign, MapPin } from 'lucide-react';
+import Link from 'next/link';
 
 interface CustomerData {
   id: string;
@@ -235,178 +236,142 @@ export default function CustomerDashboard() {
     );
   }
 
+  // Mock data - replace with real data from your backend
+  const metrics = [
+    {
+      title: "Next Appointment",
+      value: "May 25, 2024",
+      icon: Calendar,
+      color: "text-brand-primary"
+    },
+    {
+      title: "Total Cleanups",
+      value: "42",
+      icon: Clock,
+      color: "text-accent-secondary"
+    },
+    {
+      title: "Total Spent",
+      value: "$1,260",
+      icon: DollarSign,
+      color: "text-green-500"
+    },
+    {
+      title: "Service Area",
+      value: "5 miles",
+      icon: MapPin,
+      color: "text-blue-500"
+    }
+  ]
+
   return (
     <CustomerDashboardLayout>
-      {/* Welcome Section */}
-      <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">Welcome Back!</h1>
-            <p className="text-gray-600">Here's what's happening with your cleaning services</p>
+      <div className="min-h-screen bg-neutral-50">
+        <main className="container mx-auto px-4 py-8">
+          {/* Welcome Section */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold">Welcome back, John!</h1>
+            <p className="text-neutral-600 mt-2">Here's what's happening with your service</p>
           </div>
-          <Button 
-            onClick={() => router.push('/dashboard/services/schedule')}
-            className="bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600"
-          >
-            Schedule Service
-          </Button>
-        </div>
-      </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-medium text-blue-100">Active Services</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{services.filter(s => s.status === 'SCHEDULED').length}</div>
-            <p className="text-blue-100 text-sm mt-1">Scheduled cleanings</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-medium text-purple-100">Total Spent</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              ${payments.reduce((sum, payment) => sum + payment.amount, 0).toFixed(2)}
-            </div>
-            <p className="text-purple-100 text-sm mt-1">Lifetime value</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-medium text-green-100">Completed Services</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{services.filter(s => s.status === 'COMPLETED').length}</div>
-            <p className="text-green-100 text-sm mt-1">Successfully completed</p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-orange-500 to-orange-600 text-white">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-medium text-orange-100">Next Service</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {services.find(s => s.status === 'SCHEDULED') ? (
-              <>
-                <div className="text-3xl font-bold">
-                  {format(new Date(services.find(s => s.status === 'SCHEDULED')!.scheduledDate), 'MMM d')}
-                </div>
-                <p className="text-orange-100 text-sm mt-1">Upcoming cleaning</p>
-              </>
-            ) : (
-              <>
-                <div className="text-xl font-bold">No services scheduled</div>
-                <p className="text-orange-100 text-sm mt-1">Schedule now</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Services */}
-      <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-        <h2 className="text-xl font-semibold text-gray-800 mb-6">Recent Services</h2>
-        <div className="space-y-4">
-          {services.slice(0, 3).map((service) => (
-            <div 
-              key={service.id}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <div className="flex items-center space-x-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  service.status === 'COMPLETED' ? 'bg-green-100 text-green-600' :
-                  service.status === 'SCHEDULED' ? 'bg-blue-100 text-blue-600' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
-                  <Calendar className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-800">{service.servicePlan.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    {format(new Date(service.scheduledDate), 'MMMM d, yyyy')}
-                  </p>
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {metrics.map((metric) => (
+              <div key={metric.title} className="card group">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-neutral-600">{metric.title}</p>
+                    <p className="text-2xl font-bold mt-1">{metric.value}</p>
+                  </div>
+                  <div className={`p-3 rounded-full bg-${metric.color.split('-')[1]}/10`}>
+                    <metric.icon className={`w-6 h-6 ${metric.color}`} />
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center space-x-4">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  service.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                  service.status === 'SCHEDULED' ? 'bg-blue-100 text-blue-700' :
-                  'bg-gray-100 text-gray-700'
-                }`}>
-                  {service.status}
-                </span>
-                <span className="font-semibold text-gray-800">
-                  ${service.servicePlan.price}
-                </span>
+            ))}
+          </div>
+
+          {/* Schedule Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Upcoming Appointments */}
+            <div className="lg:col-span-2">
+              <div className="card">
+                <h2 className="text-xl font-semibold mb-6">Upcoming Appointments</h2>
+                <div className="space-y-4">
+                  {[
+                    {
+                      date: "May 25, 2024",
+                      time: "10:00 AM",
+                      status: "Confirmed"
+                    },
+                    {
+                      date: "June 1, 2024",
+                      time: "10:00 AM",
+                      status: "Scheduled"
+                    }
+                  ].map((appointment) => (
+                    <div key={appointment.date} className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                      <div>
+                        <p className="font-medium">{appointment.date}</p>
+                        <p className="text-sm text-neutral-600">{appointment.time}</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
+                          {appointment.status}
+                        </span>
+                        <Button variant="outline" size="sm">
+                          Reschedule
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-        {services.length > 3 && (
-          <div className="mt-6 text-center">
-            <Button
-              variant="outline"
-              onClick={() => router.push('/dashboard/services')}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              View All Services
-            </Button>
-          </div>
-        )}
-      </div>
 
-      {/* Recent Payments */}
-      <div className="bg-white rounded-2xl p-6 shadow-lg border border-gray-100">
-        <h2 className="text-xl font-semibold text-gray-800 mb-6">Recent Payments</h2>
-        <div className="space-y-4">
-          {payments.slice(0, 3).map((payment) => (
-            <div 
-              key={payment.id}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-            >
-              <div className="flex items-center space-x-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                  payment.status === 'COMPLETED' ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-600'
-                }`}>
-                  <CreditCard className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-medium text-gray-800">{payment.type}</h3>
-                  <p className="text-sm text-gray-500">
-                    {format(new Date(payment.createdAt), 'MMMM d, yyyy')}
-                  </p>
+            {/* Quick Actions */}
+            <div>
+              <div className="card">
+                <h2 className="text-xl font-semibold mb-6">Quick Actions</h2>
+                <div className="space-y-4">
+                  <Button className="w-full justify-start" variant="outline">
+                    <Calendar className="w-4 h-4 mr-2" />
+                    Schedule New Cleanup
+                  </Button>
+                  <Button className="w-full justify-start" variant="outline">
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Update Service Area
+                  </Button>
+                  <Button className="w-full justify-start" variant="outline">
+                    <DollarSign className="w-4 h-4 mr-2" />
+                    View Billing History
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center space-x-4">
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                  payment.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
-                }`}>
-                  {payment.status}
-                </span>
-                <span className="font-semibold text-gray-800">
-                  ${payment.amount}
-                </span>
+
+              {/* Service Status */}
+              <div className="card mt-6">
+                <h2 className="text-xl font-semibold mb-4">Service Status</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-600">Current Plan</span>
+                    <span className="font-medium">Weekly Cleanup</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-600">Next Billing</span>
+                    <span className="font-medium">June 1, 2024</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-600">Status</span>
+                    <span className="px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
+                      Active
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          ))}
-        </div>
-        {payments.length > 3 && (
-          <div className="mt-6 text-center">
-            <Button
-              variant="outline"
-              onClick={() => router.push('/dashboard/billing')}
-              className="text-blue-600 hover:text-blue-700"
-            >
-              View All Payments
-            </Button>
           </div>
-        )}
+        </main>
       </div>
     </CustomerDashboardLayout>
   );

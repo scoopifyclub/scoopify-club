@@ -1,5 +1,6 @@
-interface SkeletonProps {
-  className?: string
+import { cn } from "@/lib/utils"
+
+interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
   count?: number
   height?: string
   width?: string
@@ -12,16 +13,27 @@ export default function Skeleton({
   height = '1.5rem',
   width = '100%',
   rounded = false,
+  ...props
 }: SkeletonProps) {
-  const skeletons = Array.from({ length: count }, (_, i) => (
+  const skeletons = Array.from({
+    length: count
+  }).map((_, index) => (
     <div
-      key={i}
-      className={`animate-pulse bg-gray-200 ${rounded ? 'rounded-full' : 'rounded'} ${className}`}
-      style={{ height, width }}
+      key={index}
+      className={cn(
+        'animate-pulse bg-neutral-200',
+        rounded ? 'rounded-full' : 'rounded-md',
+        className
+      )}
+      style={{
+        height,
+        width
+      }}
+      {...props}
     />
-  ))
+  ));
 
-  return <>{skeletons}</>
+  return count === 1 ? skeletons[0] : <div className="space-y-2">{skeletons}</div>;
 }
 
 // Pre-built skeleton components

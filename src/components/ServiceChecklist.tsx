@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Check, ClipboardCheck } from 'lucide-react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { toast } from 'sonner';
 
 interface ChecklistItem {
   id: string;
   description: string;
   completed: boolean;
+  icon: string;
 }
 
 interface ServiceChecklistProps {
@@ -25,10 +26,10 @@ interface ServiceChecklistProps {
 
 export function ServiceChecklist({ serviceId, initialChecklist, onComplete }: ServiceChecklistProps) {
   const [checklist, setChecklist] = useState<ChecklistItem[]>([
-    { id: 'cornersCleaned', description: 'All corners cleaned', completed: false },
-    { id: 'wasteDisposed', description: 'Waste properly disposed', completed: false },
-    { id: 'areaRaked', description: 'Area raked and smoothed', completed: false },
-    { id: 'gateClosed', description: 'Gate closed and secured', completed: false },
+    { id: 'cornersCleaned', description: 'All corners cleaned', completed: false, icon: 'broom' },
+    { id: 'wasteDisposed', description: 'Waste properly disposed', completed: false, icon: 'trash-alt' },
+    { id: 'areaRaked', description: 'Area raked and smoothed', completed: false, icon: 'leaf' },
+    { id: 'gateClosed', description: 'Gate closed and secured', completed: false, icon: 'door-closed' },
   ]);
   const [notes, setNotes] = useState(initialChecklist?.notes || '');
   const [saving, setSaving] = useState(false);
@@ -96,8 +97,9 @@ export function ServiceChecklist({ serviceId, initialChecklist, onComplete }: Se
                   : 'bg-white border-2 border-gray-300'
               }`}
             >
-              {item.completed && <Check className="w-4 h-4" />}
+              {item.completed && <FontAwesomeIcon icon={['fas', 'check']} className="w-4 h-4" />}
             </button>
+            <FontAwesomeIcon icon={['fas', item.icon]} className="w-5 h-5 text-gray-500" />
             <span className="flex-1">{item.description}</span>
           </div>
         ))}
@@ -105,6 +107,7 @@ export function ServiceChecklist({ serviceId, initialChecklist, onComplete }: Se
 
       <div className="space-y-2">
         <label className="block text-sm font-medium text-gray-700">
+          <FontAwesomeIcon icon={['fas', 'sticky-note']} className="mr-2" />
           Additional Notes
         </label>
         <textarea
@@ -121,7 +124,7 @@ export function ServiceChecklist({ serviceId, initialChecklist, onComplete }: Se
         disabled={saving}
         className="w-full"
       >
-        <ClipboardCheck className="w-4 h-4 mr-2" />
+        <FontAwesomeIcon icon={['fas', 'clipboard-check']} className="w-4 h-4 mr-2" />
         {saving ? 'Saving...' : 'Save Checklist'}
       </Button>
     </div>

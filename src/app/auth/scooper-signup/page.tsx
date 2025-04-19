@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import PasswordStrength from '@/components/auth/PasswordStrength';
 
-export default function SignUp() {
+export default function ScooperSignUp() {
   const [formData, setFormData] = useState({
     firstName: '',
     lastName: '',
@@ -17,12 +17,7 @@ export default function SignUp() {
     city: '',
     state: '',
     zipCode: '',
-    gateCode: '',
-    serviceType: '',
-    serviceDay: '',
-    startDate: '',
-    isOneTimeService: false,
-    role: 'CUSTOMER',
+    role: 'EMPLOYEE',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -85,7 +80,7 @@ export default function SignUp() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Create your account
+            Sign up as a Scooper
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Already have an account?{' '}
@@ -251,37 +246,6 @@ export default function SignUp() {
                 onChange={handleChange}
               />
             </div>
-
-            <div>
-              <label htmlFor="gateCode" className="block text-sm font-medium text-gray-700">
-                Gate Code (Optional)
-              </label>
-              <input
-                id="gateCode"
-                name="gateCode"
-                type="text"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm"
-                value={formData.gateCode}
-                onChange={handleChange}
-              />
-            </div>
-
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                Role
-              </label>
-              <select
-                id="role"
-                name="role"
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm"
-                value={formData.role}
-                onChange={handleChange}
-              >
-                <option value="CUSTOMER">Customer</option>
-                <option value="EMPLOYEE">Scooper</option>
-              </select>
-            </div>
           </div>
 
           {error && (
@@ -294,7 +258,7 @@ export default function SignUp() {
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
               disabled={loading}
             >
-              {loading ? 'Creating account...' : 'Create account'}
+              {loading ? 'Creating account...' : 'Create scooper account'}
             </Button>
           </div>
         </form>

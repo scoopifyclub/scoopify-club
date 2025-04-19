@@ -9,47 +9,49 @@ import { toast } from 'sonner'
 
 const tiers = [
   {
-    name: 'Single Dog',
-    price: '$55',
-    description: 'Weekly yard cleaning for 1 dog',
+    name: 'Basic',
+    description: 'Perfect for small yards',
+    price: '$29',
+    priceId: 'price_basic',
     features: [
       'Weekly service',
-      '1 dog',
-      'Priority scheduling',
-      'Email notifications',
-      'Monthly billing',
+      'Up to 1,000 sq ft',
+      'Basic waste removal',
+      'Email support',
     ],
-    priceId: 'price_1RDxEPQ8d6yK8uhzrmZfPvWr', // Single Dog Monthly
     cta: 'Get Started',
+    featured: false,
   },
   {
-    name: 'Two Dogs',
-    price: '$70',
-    description: 'Weekly yard cleaning for 2 dogs',
+    name: 'Pro',
+    description: 'Ideal for medium-sized yards',
+    price: '$49',
+    priceId: 'price_pro',
     features: [
       'Weekly service',
-      '2 dogs',
-      'Priority scheduling',
-      'Email notifications',
-      'Monthly billing',
+      'Up to 2,500 sq ft',
+      'Premium waste removal',
+      'Priority support',
+      'Monthly deep clean',
     ],
-    priceId: 'price_1RDxEPQ8d6yK8uhzrmZfPvWr', // Two Dogs Monthly
     cta: 'Get Started',
     featured: true,
   },
   {
-    name: 'Three+ Dogs',
-    price: '$100',
-    description: 'Weekly yard cleaning for 3 or more dogs',
+    name: 'Enterprise',
+    description: 'For large properties',
+    price: '$99',
+    priceId: 'price_enterprise',
     features: [
       'Weekly service',
-      '3 or more dogs',
-      'Priority scheduling',
-      'Email notifications',
-      'Monthly billing',
+      'Up to 5,000 sq ft',
+      'Premium waste removal',
+      '24/7 support',
+      'Weekly deep clean',
+      'Custom scheduling',
     ],
-    priceId: 'price_1RDxEPQ8d6yK8uhzrmZfPvWr', // Three+ Dogs Monthly
     cta: 'Get Started',
+    featured: false,
   },
 ]
 
@@ -95,73 +97,67 @@ export function Pricing() {
   }
 
   return (
-    <div className="relative bg-gradient-to-b from-neutral-50 to-white py-24 sm:py-32">
-      <div className="absolute inset-0 bg-[url('/images/pattern.svg')] opacity-5" />
-      <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="text-center">
+    <div className="bg-neutral-50 py-24 sm:py-32">
+      <div className="container mx-auto px-4">
+        <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-3xl font-bold tracking-tight text-neutral-900 sm:text-4xl">
             Simple, transparent pricing
           </h2>
-          <p className="mt-4 text-lg text-neutral-600">
-            Choose the plan that's right for you and your furry friends
+          <p className="mt-4 text-lg leading-8 text-neutral-600">
+            Choose the perfect plan for your yard. No hidden fees, cancel anytime.
           </p>
         </div>
 
-        <div className="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mx-auto mt-16 grid max-w-5xl grid-cols-1 gap-6 lg:grid-cols-3">
           {tiers.map((tier) => (
             <div
               key={tier.name}
-              className={`relative rounded-2xl bg-white p-8 shadow-sm ring-1 ring-neutral-200 ${
-                tier.featured ? 'ring-2 ring-brand-primary' : ''
+              className={`flex flex-col justify-between rounded-2xl bg-white p-8 shadow-shopify ring-1 ring-neutral-200 ${
+                tier.featured ? 'ring-2 ring-primary-500' : ''
               }`}
             >
-              {tier.featured && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2 transform">
-                  <span className="inline-flex rounded-full bg-brand-primary px-4 py-1 text-sm font-semibold text-white">
-                    Most Popular
+              <div>
+                <h3 className="text-lg font-semibold leading-8 text-neutral-900">
+                  {tier.name}
+                </h3>
+                <p className="mt-4 text-sm leading-6 text-neutral-600">
+                  {tier.description}
+                </p>
+                <p className="mt-6 flex items-baseline gap-x-1">
+                  <span className="text-4xl font-bold tracking-tight text-neutral-900">
+                    {tier.price}
                   </span>
-                </div>
-              )}
-              <div className="flex flex-col h-full">
-                <div>
-                  <h3 className="text-lg font-semibold text-neutral-900">{tier.name}</h3>
-                  <p className="mt-4 text-sm text-neutral-600">{tier.description}</p>
-                  <p className="mt-6 flex items-baseline">
-                    <span className="text-4xl font-bold tracking-tight text-neutral-900">
-                      {tier.price}
-                    </span>
-                    <span className="ml-1 text-sm text-neutral-600">/month</span>
-                  </p>
-                  <ul className="mt-6 space-y-4">
-                    {tier.features.map((feature) => (
-                      <li key={feature} className="flex items-center">
-                        <Check className="h-5 w-5 text-brand-primary" />
-                        <span className="ml-3 text-sm text-neutral-600">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                <div className="mt-8">
-                  <Button
-                    onClick={() => handleCheckout(tier.priceId)}
-                    disabled={loading === tier.priceId}
-                    className={`w-full ${
-                      tier.featured
-                        ? 'bg-brand-primary text-white hover:bg-brand-primary-dark'
-                        : 'bg-white text-brand-primary hover:bg-neutral-50'
-                    }`}
-                  >
-                    {loading === tier.priceId ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      tier.cta
-                    )}
-                  </Button>
-                </div>
+                  <span className="text-sm font-semibold leading-6 text-neutral-600">
+                    /month
+                  </span>
+                </p>
+                <ul className="mt-8 space-y-3 text-sm leading-6 text-neutral-600">
+                  {tier.features.map((feature) => (
+                    <li key={feature} className="flex gap-x-3">
+                      <Check className="h-5 w-5 flex-none text-primary-500" />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
               </div>
+              <Button
+                onClick={() => handleCheckout(tier.priceId)}
+                disabled={loading === tier.priceId}
+                className={`mt-8 w-full ${
+                  tier.featured
+                    ? 'bg-primary-500 text-white hover:bg-primary-600'
+                    : 'bg-white text-primary-500 hover:bg-neutral-50'
+                }`}
+              >
+                {loading === tier.priceId ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  tier.cta
+                )}
+              </Button>
             </div>
           ))}
         </div>
