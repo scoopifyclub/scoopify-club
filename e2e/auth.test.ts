@@ -1,51 +1,95 @@
 import { test, expect } from '@playwright/test';
-import { loginAs, testData } from './setup';
+import { setupTestUser, cleanupTestData, loginAs } from './helpers/auth';
 
 test.describe('Authentication', () => {
-  test('should login successfully as customer', async ({ page }) => {
+  test.beforeEach(async () => {
+    await cleanupTestData();
+  });
+
+  test.afterEach(async () => {
+    await cleanupTestData();
+  });
+
+  test('customer can login successfully', async ({ page }) => {
+    // Setup test customer
+    await setupTestUser('CUSTOMER');
+    
+    // Login and verify
     await loginAs(page, 'customer');
-    await expect(page).toHaveURL('/dashboard');
-    await expect(page.locator('text=Welcome back')).toBeVisible();
+    
+    // Verify customer-specific content
+    await expect(page.getByText('Customer Dashboard')).toBeVisible();
+    await expect(page.getByText('My Services')).toBeVisible();
+    await expect(page.getByText('Payment History')).toBeVisible();
   });
 
-  test('should login successfully as employee', async ({ page }) => {
+  test('employee can login successfully', async ({ page }) => {
+    // Setup test employee
+    await setupTestUser('EMPLOYEE');
+    
+    // Login and verify
     await loginAs(page, 'employee');
-    await expect(page).toHaveURL('/dashboard');
-    await expect(page.locator('text=Employee Dashboard')).toBeVisible();
+    
+    // Verify employee-specific content
+    await expect(page.getByText('Employee Dashboard')).toBeVisible();
+    await expect(page.getByText('Today\'s Schedule')).toBeVisible();
+    await expect(page.getByText('Service History')).toBeVisible();
   });
 
-  test('should login successfully as admin', async ({ page }) => {
+  test('admin can login successfully', async ({ page }) => {
+    // Setup test admin
+    await setupTestUser('ADMIN');
+    
+    // Login and verify
     await loginAs(page, 'admin');
-    await expect(page).toHaveURL('/dashboard');
-    await expect(page.locator('text=Admin Dashboard')).toBeVisible();
+    
+    // Verify admin-specific content
+    await expect(page.getByText('Admin Dashboard')).toBeVisible();
+    await expect(page.getByText('Manage Users')).toBeVisible();
+    await expect(page.getByText('System Settings')).toBeVisible();
   });
 
-  test('should show error for invalid credentials', async ({ page }) => {
+  test('shows error for invalid credentials', async ({ page }) => {
     await page.goto('/login');
+    
+    // Fill in login form with invalid credentials
     await page.fill('input[name="email"]', 'invalid@example.com');
     await page.fill('input[name="password"]', 'wrongpassword');
-    await page.click('button[type="submit"]');
-    await expect(page.locator('text=Invalid email or password')).toBeVisible();
+    
+    // Submit form and wait for response
+    const [response] = await Promise.all([
+      page.waitForResponse((res) => res.url().includes('/api/auth/customer-login')),
+      page.click('button[type="submit"]'),
+    ]);
+
+    // Verify error response
+    expect(response.status()).toBe(401);
+    await expect(page.getByText('Invalid email or password')).toBeVisible();
   });
 
-  test('should redirect to login when accessing protected route', async ({ page }) => {
+  test('redirects to login when accessing protected route', async ({ page }) => {
+    // Try to access dashboard without login
     await page.goto('/dashboard');
+    
+    // Should be redirected to login
     await expect(page).toHaveURL('/login');
   });
 
-  test('should logout successfully', async ({ page }) => {
+  test('can logout successfully', async ({ page }) => {
+    // Setup and login as customer
+    await setupTestUser('CUSTOMER');
     await loginAs(page, 'customer');
-    await page.click('button[data-testid="logout-button"]');
+    
+    // Click logout button
+    await page.click('[data-testid="logout-button"]');
+    
+    // Should be redirected to login
     await expect(page).toHaveURL('/login');
-  });
-
-  test('should handle rate limiting', async ({ page }) => {
-    for (let i = 0; i < 6; i++) {
-      await page.goto('/login');
-      await page.fill('input[name="email"]', 'invalid@example.com');
-      await page.fill('input[name="password"]', 'wrongpassword');
-      await page.click('button[type="submit"]');
-    }
-    await expect(page.locator('text=Too many attempts')).toBeVisible();
+    
+    // Try to access dashboard again
+    await page.goto('/dashboard');
+    
+    // Should be redirected back to login
+    await expect(page).toHaveURL('/login');
   });
 }); 

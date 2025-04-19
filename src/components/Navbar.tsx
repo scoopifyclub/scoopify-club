@@ -1,69 +1,37 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
+import { Menu, X, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Menu, X, LogOut } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
-const publicNavigation = [
+const navigation = [
   { name: 'Home', href: '/' },
   { name: 'Services', href: '/services' },
   { name: 'Pricing', href: '/pricing' },
   { name: 'About', href: '/about' },
-  { name: 'Contact', href: '/contact' },
-];
-
-const customerNavigation = [
-  { name: 'Dashboard', href: '/dashboard' },
-  { name: 'Schedule', href: '/dashboard/schedule' },
-  { name: 'History', href: '/dashboard/history' },
-  { name: 'Settings', href: '/dashboard/settings' },
-];
-
-const employeeNavigation = [
-  { name: 'Dashboard', href: '/employee/dashboard' },
-  { name: 'Schedule', href: '/employee/schedule' },
-  { name: 'History', href: '/employee/history' },
 ];
 
 export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userType, setUserType] = useState<'customer' | 'employee' | null>(null);
-  const router = useRouter();
-
-  useEffect(() => {
-    const token = document.cookie.split('; ').find(row => row.startsWith('token='));
-    const type = document.cookie.split('; ').find(row => row.startsWith('userType='))?.split('=')[1];
-    
-    setIsAuthenticated(!!token);
-    setUserType(type as 'customer' | 'employee' | null);
-  }, []);
-
-  const handleLogout = () => {
-    // Clear cookies
-    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    document.cookie = 'userType=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-    
-    // Reset state
-    setIsAuthenticated(false);
-    setUserType(null);
-    
-    // Redirect to home
-    router.push('/');
-  };
-
-  const navigation = isAuthenticated 
-    ? (userType === 'customer' ? customerNavigation : employeeNavigation)
-    : publicNavigation;
 
   return (
-    <header className="bg-white">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between p-6 lg:px-8" aria-label="Global">
+    <header className="fixed w-full top-0 z-50 bg-white/80 backdrop-blur-md border-b border-gray-100">
+      <nav
+        className="mx-auto flex max-w-7xl items-center justify-between p-4 lg:px-8"
+        aria-label="Global"
+      >
         <div className="flex lg:flex-1">
           <Link href="/" className="-m-1.5 p-1.5">
-            <span className="text-xl font-bold text-brand-primary">Scoopify</span>
+            <span className="sr-only">Scoopify Club</span>
+            <div className="flex items-center space-x-2">
+              <div className="w-10 h-10 bg-scoopGreen rounded-xl flex items-center justify-center shadow-lg shadow-primary-200/50">
+                <ShoppingBag className="w-6 h-6 text-white" />
+              </div>
+              <span className="text-xl font-bold text-gray-900">
+                Scoopify<span className="text-scoopGreen">Club</span>
+              </span>
+            </div>
           </Link>
         </div>
         <div className="flex lg:hidden">
@@ -76,105 +44,91 @@ export default function Navbar() {
             <Menu className="h-6 w-6" aria-hidden="true" />
           </button>
         </div>
-        <div className="hidden lg:flex lg:gap-x-12">
+        <div className="hidden lg:flex lg:gap-x-8">
           {navigation.map((item) => (
             <Link
               key={item.name}
               href={item.href}
-              className="text-sm font-semibold leading-6 text-gray-900 hover:text-brand-primary"
+              className="text-sm font-semibold leading-6 text-gray-600 hover:text-scoopGreen transition-colors duration-200"
             >
               {item.name}
             </Link>
           ))}
         </div>
         <div className="hidden lg:flex lg:flex-1 lg:justify-end lg:gap-x-4">
-          {isAuthenticated ? (
-            <>
-              <span className="text-sm font-semibold leading-6 text-gray-900">
-                {userType === 'customer' ? 'Customer' : 'Employee'} Dashboard
-              </span>
-              <Button variant="ghost" onClick={handleLogout}>
-                <LogOut className="mr-2 h-4 w-4" />
-                Logout
-              </Button>
-            </>
-          ) : (
-            <>
-              <Link href="/login">
-                <Button variant="ghost">Login</Button>
-              </Link>
-              <Link href="/signup">
-                <Button>Sign Up</Button>
-              </Link>
-            </>
-          )}
+          <Link href="/login">
+            <Button variant="ghost" className="text-sm font-semibold text-gray-600 hover:text-scoopGreen">
+              Log in
+            </Button>
+          </Link>
+          <Link href="/signup">
+            <Button className="bg-scoopGreen hover:bg-primary-600 text-white font-semibold shadow-lg shadow-primary-200/50 transition-all duration-200">
+              Join the Club
+            </Button>
+          </Link>
         </div>
       </nav>
+
       {/* Mobile menu */}
-      <div className={`lg:hidden ${mobileMenuOpen ? 'fixed inset-0 z-50' : 'hidden'}`}>
-        <div className="fixed inset-0 bg-gray-900/80" onClick={() => setMobileMenuOpen(false)} />
-        <div className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-white px-6 py-6 sm:max-w-sm sm:ring-1 sm:ring-gray-900/10">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="-m-1.5 p-1.5">
-              <span className="text-xl font-bold text-brand-primary">Scoopify</span>
-            </Link>
-            <button
-              type="button"
-              className="-m-2.5 rounded-md p-2.5 text-gray-700"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              <span className="sr-only">Close menu</span>
-              <X className="h-6 w-6" aria-hidden="true" />
-            </button>
-          </div>
-          <div className="mt-6 flow-root">
-            <div className="-my-6 divide-y divide-gray-500/10">
-              <div className="space-y-2 py-6">
-                {navigation.map((item) => (
+      {mobileMenuOpen && (
+        <div className="lg:hidden">
+          <div className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
+          <div className="fixed inset-y-0 right-0 z-50 w-full overflow-y-auto bg-white px-6 py-6 sm:max-w-sm sm:ring-1 sm:ring-gray-900/10">
+            <div className="flex items-center justify-between">
+              <Link href="/" className="-m-1.5 p-1.5">
+                <div className="flex items-center space-x-2">
+                  <div className="w-10 h-10 bg-scoopGreen rounded-xl flex items-center justify-center shadow-lg shadow-primary-200/50">
+                    <ShoppingBag className="w-6 h-6 text-white" />
+                  </div>
+                  <span className="text-xl font-bold text-gray-900">
+                    Scoopify<span className="text-scoopGreen">Club</span>
+                  </span>
+                </div>
+              </Link>
+              <button
+                type="button"
+                className="-m-2.5 rounded-md p-2.5 text-gray-700"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <span className="sr-only">Close menu</span>
+                <X className="h-6 w-6" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="mt-6 flow-root">
+              <div className="-my-6 divide-y divide-gray-500/10">
+                <div className="space-y-2 py-6">
+                  {navigation.map((item) => (
+                    <Link
+                      key={item.name}
+                      href={item.href}
+                      className="-mx-3 block rounded-xl px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-primary-50"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {item.name}
+                    </Link>
+                  ))}
+                </div>
+                <div className="py-6 space-y-3">
                   <Link
-                    key={item.name}
-                    href={item.href}
-                    className="-mx-3 block rounded-lg px-3 py-2 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
+                    href="/login"
+                    className="-mx-3 block rounded-xl px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-primary-50"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    {item.name}
+                    Log in
                   </Link>
-                ))}
-              </div>
-              <div className="py-6">
-                {isAuthenticated ? (
-                  <button
-                    onClick={() => {
-                      handleLogout();
-                      setMobileMenuOpen(false);
-                    }}
-                    className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
+                  <Link
+                    href="/signup"
+                    className="-mx-3 block rounded-xl bg-scoopGreen px-3 py-2.5 text-base font-semibold leading-7 text-white hover:bg-primary-600 shadow-lg shadow-primary-200/50"
+                    onClick={() => setMobileMenuOpen(false)}
                   >
-                    Logout
-                  </button>
-                ) : (
-                  <>
-                    <Link
-                      href="/login"
-                      className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Login
-                    </Link>
-                    <Link
-                      href="/signup"
-                      className="-mx-3 block rounded-lg px-3 py-2.5 text-base font-semibold leading-7 text-gray-900 hover:bg-gray-50"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      Sign Up
-                    </Link>
-                  </>
-                )}
+                    Join the Club
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </header>
   );
 } 

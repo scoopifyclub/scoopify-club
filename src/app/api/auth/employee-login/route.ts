@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { compare } from 'bcryptjs'
-import { sign } from 'jsonwebtoken'
 import { prisma } from '@/lib/prisma'
+import { generateTokens } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
@@ -66,29 +66,49 @@ export async function POST(request: Request) {
       )
     }
 
-    console.log('Generating JWT token...')
-    // Generate JWT token with additional security claims
-    const token = sign(
-      { 
-        id: user.id, 
-        email: user.email,
-        role: user.role,
-        iat: Math.floor(Date.now() / 1000),
-        exp: Math.floor(Date.now() / 1000) + (7 * 24 * 60 * 60), // 7 days
-        iss: 'scoopify',
-        aud: 'employee'
-      },
-      process.env.JWT_SECRET!,
-      { algorithm: 'HS256' }
-    )
+    console.log('Generating JWT tokens...')
+    // Generate tokens using the shared function
+    const { accessToken, refreshToken } = await generateTokens(user, user.deviceFingerprint || '')
 
     console.log('Login successful, returning response')
     // Return user data and token
     const { password: _, ...userWithoutPassword } = user
-    return NextResponse.json({
+    
+    // Create response with user data
+    const response = NextResponse.json({
       user: userWithoutPassword,
-      token,
+      token: accessToken,
     })
+
+    // Set cookies with consistent settings
+    response.cookies.set('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60, // 15 minutes
+    })
+
+    response.cookies.set('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+    })
+
+    // Set device fingerprint cookie if we have one
+    if (user.deviceFingerprint) {
+      response.cookies.set('fingerprint', user.deviceFingerprint, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60, // 7 days
+      })
+    }
+
+    return response
   } catch (error) {
     console.error('Login error details:', error)
     if (error instanceof Error) {

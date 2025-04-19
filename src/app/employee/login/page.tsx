@@ -29,106 +29,83 @@ export default function EmployeeLoginPage() {
           email,
           password,
         }),
+        credentials: 'include', // Important for cookies
       })
 
       const data = await response.json()
 
       if (response.ok) {
-        // Set secure cookies with proper attributes
-        const cookieOptions = [
-          `token=${data.token}`,
-          'path=/',
-          'max-age=604800', // 7 days
-          'SameSite=Lax',
-          'Secure',
-          'HttpOnly'
-        ].join('; ')
-        
-        document.cookie = cookieOptions
-        document.cookie = `userType=employee; path=/; max-age=604800; SameSite=Lax; Secure`
-        
         router.push('/employee/dashboard')
       } else {
-        // Handle specific error messages
-        switch (response.status) {
-          case 401:
-            setError('Invalid email or password')
-            break
-          case 403:
-            setError('This account is not authorized for employee access')
-            break
-          case 404:
-            setError('Employee record not found')
-            break
-          case 419: // Token expired
-            setError('Your session has expired. Please log in again.')
-            break
-          default:
-            setError(data.message || 'Login failed')
-        }
+        setError(data.message || 'Login failed')
       }
     } catch (err) {
-      setError('An error occurred during login. Please try again.')
+      console.error('Login error:', err)
+      setError('An error occurred during login')
     }
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="max-w-md mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold">Employee Login</h1>
-            <p className="text-neutral-600 mt-2">Access your employee dashboard</p>
+      <main className="flex-grow flex items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-8">
+          <div>
+            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+              Employee Login
+            </h2>
           </div>
-
-          {error && (
-            <div className="bg-red-50 p-4 rounded-lg text-red-700 mb-4 flex items-center">
-              <AlertCircle className="h-5 w-5 mr-2" />
-              {error}
+          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+            {error && (
+              <div className="rounded-md bg-red-50 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <AlertCircle className="h-5 w-5 text-red-400" />
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="rounded-md shadow-sm -space-y-px">
+              <div>
+                <Label htmlFor="email">Email address</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                  placeholder="Email address"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                  placeholder="Password"
+                />
+              </div>
             </div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                aria-invalid={error ? 'true' : 'false'}
-                aria-describedby={error ? 'email-error' : undefined}
-              />
+              <Button
+                type="submit"
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Sign in
+              </Button>
             </div>
-
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                aria-invalid={error ? 'true' : 'false'}
-                aria-describedby={error ? 'password-error' : undefined}
-              />
-            </div>
-
-            <Button type="submit" className="w-full">
-              Sign In
-            </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-neutral-600">
-              Not an employee?{' '}
-              <a href="/login" className="text-brand-primary hover:underline">
-                Customer Login
-              </a>
-            </p>
-          </div>
         </div>
       </main>
       <Footer />

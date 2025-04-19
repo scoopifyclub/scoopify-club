@@ -1,51 +1,60 @@
 import { NextResponse } from 'next/server';
-import sql from '@/lib/db';
-import { verifyToken } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   try {
-    const token = request.headers.get('authorization')?.split(' ')[1];
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken')?.value;
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const decoded = verifyToken(token);
-    if (!decoded || decoded.role !== 'CUSTOMER') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const { userId } = await validateUser(token, 'CUSTOMER');
 
-    // Get customer's subscription details
-    const subscription = await sql`
-      SELECT 
-        s.*,
-        p.name as plan_name,
-        p.price as plan_price,
-        p.frequency as plan_frequency
-      FROM subscriptions s
-      JOIN plans p ON p.id = s.plan_id
-      WHERE s.customer_id = (
-        SELECT id FROM customers WHERE user_id = ${decoded.userId}
-      )
-      ORDER BY s.created_at DESC
-      LIMIT 1
-    `;
+    // Get customer's subscription details using Prisma
+    const subscription = await prisma.subscription.findFirst({
+      where: {
+        customer: {
+          userId: userId
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
 
-    if (!subscription.length) {
+    if (!subscription) {
       return NextResponse.json({ error: 'No subscription found' }, { status: 404 });
     }
 
-    const sub = subscription[0];
-    return NextResponse.json({
-      id: sub.id,
-      status: sub.status,
-      startDate: sub.start_date,
-      nextBillingDate: sub.next_billing_date,
-      plan: {
-        name: sub.plan_name,
-        price: sub.plan_price,
-        frequency: sub.plan_frequency,
+    // Get the service plan details
+    const servicePlan = await prisma.servicePlan.findUnique({
+      where: {
+        id: subscription.planId
       },
-      stripeSubscriptionId: sub.stripe_subscription_id,
+      select: {
+        name: true,
+        price: true,
+        duration: true
+      }
+    });
+
+    if (!servicePlan) {
+      return NextResponse.json({ error: 'Service plan not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      id: subscription.id,
+      status: subscription.status,
+      startDate: subscription.startDate,
+      endDate: subscription.endDate,
+      plan: {
+        name: servicePlan.name,
+        price: servicePlan.price,
+        duration: servicePlan.duration
+      }
     });
   } catch (error) {
     console.error('Subscription error:', error);

@@ -99,23 +99,33 @@ export default function LoginPage() {
         return
       }
 
-      console.log('Login successful, storing data...')
-      // Store user data and token in cookies
-      document.cookie = `token=${data.token}; path=/; max-age=604800` // 7 days
-      document.cookie = `user=${JSON.stringify(data.user)}; path=/; max-age=604800`
+      console.log('Login successful, response data:', data)
 
-      // Redirect based on role
-      const redirectPath = data.user.role === 'CUSTOMER' 
-        ? '/customer/dashboard'
-        : data.user.role === 'EMPLOYEE'
-          ? '/employee/dashboard'
-          : '/admin/dashboard'
+      // Check if we have the necessary data
+      if (!data.user || !data.user.role) {
+        console.error('Missing user data or role:', data)
+        setError('Invalid server response')
+        return
+      }
 
+      console.log('User role:', data.user.role)
+      
+      // Determine redirect path
+      let redirectPath = '/dashboard' // default
+      if (data.user.role === 'EMPLOYEE') {
+        redirectPath = '/employee/dashboard'
+      } else if (data.user.role === 'ADMIN') {
+        redirectPath = '/admin/dashboard'
+      }
+      
       console.log('Redirecting to:', redirectPath)
-      router.push(redirectPath)
-    } catch (err) {
-      console.error('Login error:', err)
-      setError(err instanceof Error ? err.message : 'An error occurred during login')
+      
+      // Force a hard navigation
+      window.location.href = redirectPath
+      
+    } catch (error) {
+      console.error('Login error:', error)
+      setError(error instanceof Error ? error.message : 'An error occurred during login')
     } finally {
       setLoading(false)
     }
