@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "setup-stripe": "ts-node scripts/setup-stripe.ts",
@@ -23,7 +23,19 @@
     "test:setup": "ts-node scripts/setup-test-db.ts",
     "test:db:create": "ts-node scripts/create-test-db.ts",
     "test:db:setup": "ts-node scripts/setup-test-db.ts",
-    "schedule-jobs": "ts-node scripts/schedule-jobs.ts"
+    "schedule-jobs": "ts-node scripts/schedule-jobs.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "deploy": "node scripts/deploy-to-vercel.js",
+    "deploy:prod": "node scripts/deploy-to-vercel.js --production",
+    "test:stripe": "node scripts/test-stripe-integration.js",
+    "test:payment-retry": "node scripts/test-payment-retry.js",
+    "cleanup:stripe": "node scripts/cleanup-stripe-tests.js",
+    "cleanup:retry": "node scripts/cleanup-retry-tests.js",
+    "retry-payments": "node scripts/retry-failed-payments.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",

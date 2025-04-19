@@ -16,6 +16,14 @@
     {
       "path": "/api/cron/schedule-services",
       "schedule": "0 0 * * 0" // Run at midnight every Sunday
+    },
+    {
+      "path": "/api/cron/retry-payments",
+      "schedule": "0 4 * * *" // Run daily at 4am
     }
-  ]
+  ],
+  "buildCommand": "npm run vercel-build",
+  "env": {
+    "DATABASE_PROVIDER": "postgresql"
+  }
 } 
