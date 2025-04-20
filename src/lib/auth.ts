@@ -130,10 +130,15 @@ export async function login(email: string, password: string, fingerprint?: strin
 
 export async function verifyToken(token: string) {
     try {
+        console.log('Verifying token...');
         const { payload } = await jwtVerify(
             token,
-            new TextEncoder().encode(JWT_SECRET)
+            new TextEncoder().encode(JWT_SECRET),
+            {
+                algorithms: ['HS256']
+            }
         );
+        console.log('Token payload:', payload);
         return payload;
     } catch (error) {
         console.error('Token verification failed:', error);
@@ -145,17 +150,18 @@ export async function generateAdminToken(user: any) {
     const token = await new SignJWT({ 
         id: user.id,
         email: user.email,
-        role: user.role
+        role: user.role,
+        type: 'admin'
     })
-        .setProtectedHeader({ alg: 'HS256' })
+        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
         .setIssuedAt()
-        .setExpirationTime(TOKEN_EXPIRY)
+        .setExpirationTime('24h')
         .sign(new TextEncoder().encode(JWT_SECRET));
     return token;
 }
 
 export async function setAdminCookie(token: string) {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.set('adminToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -166,7 +172,7 @@ export async function setAdminCookie(token: string) {
 }
 
 export async function clearAdminCookie() {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.delete('adminToken');
 }
 
@@ -243,7 +249,8 @@ export async function validateUser(token: string, requiredRole?: string) {
     throw new Error('Invalid token');
   }
 
-  if (requiredRole && payload.role !== requiredRole) {
+  // Allow admins to access everything, otherwise check specific role
+  if (requiredRole && payload.role !== 'ADMIN' && payload.role !== requiredRole) {
     throw new Error('Insufficient permissions');
   }
 
@@ -258,7 +265,7 @@ export async function validateUser(token: string, requiredRole?: string) {
 export async function verifyAuth(request: Request) {
   try {
     // Get tokens from cookies
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const accessToken = await cookieStore.get('accessToken')?.value;
     const refreshToken = await cookieStore.get('refreshToken')?.value;
     const fingerprint = await cookieStore.get('fingerprint')?.value;

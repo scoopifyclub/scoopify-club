@@ -1,119 +1,135 @@
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
+import { PrismaClient, Prisma } from '@prisma/client'
+import bcrypt from 'bcrypt'
 
 const prisma = new PrismaClient()
+
+type UserRole = 'ADMIN' | 'CUSTOMER' | 'EMPLOYEE'
+
+interface TestUser {
+  email: string;
+  role: UserRole;
+  password: string;
+}
 
 async function main() {
   console.log('Starting database seed...')
 
-  // Create test user
-  const hashedPassword = await bcrypt.hash('password123', 12)
-  const user = await prisma.user.upsert({
-    where: { email: 'demo@example.com' },
-    update: {},
-    create: {
-      email: 'demo@example.com',
-      name: 'Demo User',
-      password: hashedPassword,
-      role: 'CUSTOMER',
-      emailVerified: true,
+  // Create test users
+  const testUsers: TestUser[] = [
+    {
+      email: 'admin@scoopify.club',
+      role: 'ADMIN',
+      password: 'admin123',
     },
-  })
-
-  console.log('Created test user:', user.email)
+    {
+      email: 'demo@example.com',
+      role: 'CUSTOMER',
+      password: 'demo123',
+    },
+    {
+      email: 'john@example.com',
+      role: 'CUSTOMER',
+      password: 'john123',
+    },
+    {
+      email: 'employee@scoopify.club',
+      role: 'EMPLOYEE',
+      password: 'employee123',
+    },
+  ]
 
   // Create service plan
   const servicePlan = await prisma.servicePlan.create({
     data: {
-      name: 'Weekly Service',
-      description: 'Weekly yard cleaning service',
-      price: 29.99,
-      duration: 60,
-      type: 'REGULAR',
+      name: 'Basic Plan',
+      description: 'Basic cleaning service',
+      price: 99.99,
+      type: 'STANDARD',
+      duration: 60, // 60 minutes
       isActive: true,
     },
   })
 
-  console.log('Created service plan:', servicePlan.name)
-
-  // Create customer profile with address
-  const customer = await prisma.customer.upsert({
-    where: { userId: user.id },
-    update: {},
-    create: {
-      userId: user.id,
-      address: {
-        create: {
-          street: '123 Demo St',
-          city: 'Demo City',
-          state: 'CA',
-          zipCode: '12345',
+  // Create users and their profiles
+  const createdUsers = await Promise.all(
+    testUsers.map(async (user) => {
+      const hashedPassword = await bcrypt.hash(user.password, 10)
+      return prisma.user.create({
+        data: {
+          email: user.email,
+          password: hashedPassword,
+          role: user.role,
         },
-      },
-    },
-  })
+      })
+    })
+  )
 
-  console.log('Created customer profile')
+  // Create customer profiles for customer users
+  const customerUsers = createdUsers.filter((user) => user.role === 'CUSTOMER')
+  await Promise.all(
+    customerUsers.map(async (user, index) => {
+      const customer = await prisma.customer.create({
+        data: {
+          userId: user.id,
+          phone: `555-000-${index + 1}`,
+          stripeCustomerId: `cus_test_${index + 1}`,
+          cashappName: `$customer${index + 1}`,
+          address: {
+            create: {
+              street: `${index + 1} Main St`,
+              city: 'Test City',
+              state: 'TX',
+              zipCode: '75001',
+              country: 'USA',
+            },
+          },
+          subscription: {
+            create: {
+              servicePlanId: servicePlan.id,
+              status: 'ACTIVE',
+              startDate: new Date(),
+              endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+            },
+          },
+        },
+      })
 
-  // Create subscription
-  const subscription = await prisma.subscription.create({
-    data: {
-      customerId: customer.id,
-      planId: servicePlan.id,
-      status: 'ACTIVE',
-      startDate: new Date(),
-      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
-    },
-  })
+      // Create some services for each customer
+      await prisma.service.create({
+        data: {
+          customerId: customer.id,
+          servicePlanId: servicePlan.id,
+          status: 'COMPLETED',
+          scheduledDate: new Date(),
+        },
+      })
 
-  console.log('Created subscription')
+      // Create some payments for each customer
+      await prisma.payment.create({
+        data: {
+          customerId: customer.id,
+          amount: 99.99,
+          status: 'COMPLETED',
+          type: 'SUBSCRIPTION',
+        },
+      })
+    })
+  )
 
-  // Create some test services
-  const services = await Promise.all([
-    prisma.service.create({
+  // Create employee profile for employee user
+  const employeeUser = createdUsers.find((user) => user.role === 'EMPLOYEE')
+  if (employeeUser) {
+    await prisma.employee.create({
       data: {
-        customerId: customer.id,
-        status: 'SCHEDULED',
-        scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-        servicePlanId: servicePlan.id,
+        userId: employeeUser.id,
+        phone: '555-000-0000',
+        position: 'Cleaner',
+        startDate: new Date(),
       },
-    }),
-    prisma.service.create({
-      data: {
-        customerId: customer.id,
-        status: 'COMPLETED',
-        scheduledDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-        servicePlanId: servicePlan.id,
-      },
-    }),
-  ])
+    })
+  }
 
-  console.log('Created test services')
-
-  // Create some test payments
-  const payments = await Promise.all([
-    prisma.payment.create({
-      data: {
-        customerId: customer.id,
-        amount: 29.99,
-        status: 'COMPLETED',
-        type: 'COMPANY',
-        serviceId: services[1].id,
-      },
-    }),
-    prisma.payment.create({
-      data: {
-        customerId: customer.id,
-        amount: 29.99,
-        status: 'PENDING',
-        type: 'SUBSCRIPTION',
-        subscriptionId: subscription.id,
-      },
-    }),
-  ])
-
-  console.log('Created test payments')
-  console.log('Database seeding completed!')
+  console.log('Database seeded successfully')
 }
 
 main()

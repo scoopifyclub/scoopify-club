@@ -35,15 +35,27 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId } = await validateUser(accessToken, 'CUSTOMER');
+    const { userId, role } = await validateUser(accessToken);
 
-    const customer = await prisma.customer.findFirst({
-      where: { userId },
-      select: { id: true }
-    });
+    // If admin, get customerId from query params
+    let customerId;
+    if (role === 'ADMIN') {
+      const { searchParams } = new URL(request.url);
+      customerId = searchParams.get('customerId');
+      if (!customerId) {
+        return NextResponse.json({ error: 'Customer ID required for admin access' }, { status: 400 });
+      }
+    } else {
+      // For regular customers, get their own customer record
+      const customer = await prisma.customer.findFirst({
+        where: { userId },
+        select: { id: true }
+      });
 
-    if (!customer) {
-      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+      if (!customer) {
+        return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+      }
+      customerId = customer.id;
     }
 
     // Get query parameters
@@ -56,7 +68,7 @@ export async function GET(request: Request) {
 
     // Generate cache key
     const cacheKey = generateCacheKey('payments', {
-      customerId: customer.id,
+      customerId,
       page,
       limit,
       status,
@@ -71,7 +83,7 @@ export async function GET(request: Request) {
     }
 
     // Build where clause
-    const where: any = { customerId: customer.id };
+    const where: any = { customerId };
     if (status) where.status = status;
     if (startDate && endDate) {
       where.createdAt = {
@@ -120,7 +132,7 @@ export async function GET(request: Request) {
     // Cache the response
     await setCache(cacheKey, response, {
       ttl: 300, // 5 minutes
-      tags: [`customer:${customer.id}`, 'payments'],
+      tags: [`customer:${customerId}`, 'payments'],
     });
 
     return NextResponse.json(response);

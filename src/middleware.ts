@@ -49,6 +49,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith('/admin') || 
       pathname.startsWith('/employee') || 
       pathname.startsWith('/customer') ||
+      pathname.startsWith('/dashboard') ||
       pathname.startsWith('/api/admin') ||
       pathname.startsWith('/api/employee') ||
       pathname.startsWith('/api/customer')) {
@@ -80,11 +81,13 @@ export async function middleware(request: NextRequest) {
       return createRedirectResponse(request, '/', 'Insufficient permissions');
     }
 
-    if ((pathname.startsWith('/employee') || pathname.startsWith('/api/employee')) && payload.role !== 'EMPLOYEE') {
+    if ((pathname.startsWith('/employee') || pathname.startsWith('/api/employee')) && 
+        payload.role !== 'EMPLOYEE' && payload.role !== 'ADMIN') {
       return createRedirectResponse(request, '/', 'Insufficient permissions');
     }
 
-    if ((pathname.startsWith('/customer') || pathname.startsWith('/api/customer')) && payload.role !== 'CUSTOMER') {
+    if ((pathname.startsWith('/customer') || pathname.startsWith('/api/customer')) && 
+        payload.role !== 'CUSTOMER' && payload.role !== 'ADMIN') {
       return createRedirectResponse(request, '/', 'Insufficient permissions');
     }
 
@@ -113,6 +116,7 @@ export const config = {
     '/admin/:path*',
     '/employee/:path*',
     '/customer/:path*',
+    '/dashboard/:path*',
     '/api/admin/:path*',
     '/api/employee/:path*',
     '/api/customer/:path*',
