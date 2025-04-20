@@ -29,6 +29,7 @@ interface ServiceType {
   duration: number;
   price: number;
   notes?: string;
+  petDetails?: string;
 }
 
 interface ChecklistItem {
@@ -94,13 +95,14 @@ export default function ServicesPage() {
                 customerName: `Customer ${i + 1}`,
                 customerAddress: `${100 + i} Main St, Anytown, USA`,
                 customerPhone: `(555) 555-${1000 + i}`,
-                serviceType: i % 3 === 0 ? 'Regular Pool Service' : 
-                            i % 3 === 1 ? 'Deep Cleaning' : 'Chemical Treatment',
+                serviceType: i % 3 === 0 ? 'Weekly Cleanup' : 
+                            i % 3 === 1 ? 'Bi-Weekly Cleanup' : 'One-Time Cleanup',
                 scheduledDate: date,
                 scheduledTime: `${9 + (i % 8)}:00 ${(i % 8) < 3 ? 'AM' : 'PM'}`,
-                duration: 60 + (i % 4) * 30, // 60, 90, 120, or 150 minutes
-                price: 50 + (i % 4) * 25, // $50, $75, $100, or $125
-                notes: i % 2 === 0 ? 'Customer has dogs in backyard. Gate code 1234.' : undefined,
+                duration: 15 + (i % 3) * 5, // 15, 20, or 25 minutes
+                price: 15 + (i % 3) * 5, // $15, $20, or $25
+                notes: i % 2 === 0 ? 'Customer has 2 large dogs. Gate code 1234. Waste bins on side of house.' : undefined,
+                petDetails: i % 2 === 0 ? '2 German Shepherds, 1 Labrador' : '1 Bulldog, 1 Poodle'
               });
             }
             
@@ -247,32 +249,30 @@ export default function ServicesPage() {
     // Generate default checklist based on service type
     let defaultChecklist: ChecklistItem[] = [];
     
-    if (service.serviceType === 'Regular Pool Service') {
+    if (service.serviceType === 'Weekly Cleanup') {
       defaultChecklist = [
-        { id: '1', title: 'Check water chemistry', completed: false },
-        { id: '2', title: 'Skim surface debris', completed: false },
-        { id: '3', title: 'Vacuum pool floor', completed: false },
-        { id: '4', title: 'Clean pool filter', completed: false },
-        { id: '5', title: 'Check equipment operation', completed: false },
-        { id: '6', title: 'Add chemicals as needed', completed: false },
+        { id: '1', title: 'Check entire yard for waste', completed: false },
+        { id: '2', title: 'Empty and replace waste station bags if needed', completed: false },
+        { id: '3', title: 'Document any yard hazards', completed: false },
+        { id: '4', title: 'Ensure gate is secure when leaving', completed: false },
+        { id: '5', title: 'Apply yard deodorizer as requested', completed: false },
       ];
-    } else if (service.serviceType === 'Deep Cleaning') {
+    } else if (service.serviceType === 'Bi-Weekly Cleanup') {
       defaultChecklist = [
-        { id: '1', title: 'Brush walls and tile', completed: false },
-        { id: '2', title: 'Vacuum entire pool', completed: false },
-        { id: '3', title: 'Clean filter thoroughly', completed: false },
-        { id: '4', title: 'Check and clean pump basket', completed: false },
-        { id: '5', title: 'Test and balance water chemistry', completed: false },
-        { id: '6', title: 'Shock treatment', completed: false },
-        { id: '7', title: 'Clean pool deck', completed: false },
+        { id: '1', title: 'Thorough inspection of entire property', completed: false },
+        { id: '2', title: 'Remove all pet waste from yard', completed: false },
+        { id: '3', title: 'Check fence perimeter for access issues', completed: false },
+        { id: '4', title: 'Empty and replace waste station bags', completed: false },
+        { id: '5', title: 'Apply yard deodorizer as requested', completed: false },
+        { id: '6', title: 'Report any yard issues to customer', completed: false },
       ];
     } else {
       defaultChecklist = [
-        { id: '1', title: 'Test water chemistry', completed: false },
-        { id: '2', title: 'Add required chemicals', completed: false },
-        { id: '3', title: 'Check and adjust pH levels', completed: false },
-        { id: '4', title: 'Check chlorine levels', completed: false },
-        { id: '5', title: 'Document chemical readings', completed: false },
+        { id: '1', title: 'Initial yard assessment', completed: false },
+        { id: '2', title: 'Complete waste removal', completed: false },
+        { id: '3', title: 'Document yard condition', completed: false },
+        { id: '4', title: 'Take before/after photos', completed: false },
+        { id: '5', title: 'Discuss service options with customer if present', completed: false },
       ];
     }
     
@@ -349,7 +349,7 @@ export default function ServicesPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">My Services</h1>
           <p className="text-gray-500">
-            Manage and track all your assigned services
+            Manage and track all your assigned waste removal services
           </p>
         </div>
         <div className="flex gap-2">
@@ -499,6 +499,13 @@ export default function ServicesPage() {
                     <p className="mt-1">{selectedService.serviceType}</p>
                     <p className="text-sm text-gray-600">Duration: {selectedService.duration} mins</p>
                     <p className="text-sm font-medium text-green-600 mt-1">Price: ${selectedService.price}</p>
+                    
+                    {selectedService.petDetails && (
+                      <div className="mt-2">
+                        <h3 className="text-sm font-medium text-gray-500">Pet Details</h3>
+                        <p className="text-sm text-gray-600">{selectedService.petDetails}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
                 

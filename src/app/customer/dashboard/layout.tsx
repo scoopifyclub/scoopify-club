@@ -2,7 +2,8 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Home, Calendar, CreditCard, User } from 'lucide-react';
+import { Home, Calendar, CreditCard, User, LogOut } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 
 export default function DashboardLayout({
   children,
@@ -27,6 +28,11 @@ export default function DashboardLayout({
       params.set('tab', tab);
       router.push(`/customer/dashboard?${params.toString()}`);
     }
+  };
+  
+  // Handle logout
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: '/' });
   };
   
   // Listen for tab changes
@@ -105,6 +111,17 @@ export default function DashboardLayout({
               <User className={`w-5 h-5 mr-3 ${activeTab === 'profile' ? 'text-white' : 'text-blue-500'}`} />
               <span className="font-medium">Profile Settings</span>
             </button>
+            
+            {/* Logout Button */}
+            <div className="pt-4 mt-4 border-t border-gray-200">
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center px-4 py-3 rounded-xl transition-colors text-gray-700 hover:bg-red-50"
+              >
+                <LogOut className="w-5 h-5 mr-3 text-red-500" />
+                <span className="font-medium">Logout</span>
+              </button>
+            </div>
           </nav>
           
           {/* Quick Stats */}
