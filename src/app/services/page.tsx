@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Check, Camera, Calendar, Mail, CreditCard, RefreshCw } from 'lucide-react'
+import { Calendar, Camera, Check, CreditCard, Mail, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -37,24 +37,24 @@ export default function ServicesPage() {
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
               <div className="bg-neutral-50 rounded-xl p-6 text-center">
-                <div className="w-16 h-16 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Calendar className="h-8 w-8 text-brand-primary" />
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Calendar className="h-8 w-8 text-primary" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Choose Your Day</h3>
                 <p className="text-neutral-600">Select your preferred service day of the week for consistent cleaning</p>
               </div>
               
               <div className="bg-neutral-50 rounded-xl p-6 text-center">
-                <div className="w-16 h-16 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CreditCard className="h-8 w-8 text-brand-primary" />
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CreditCard className="h-8 w-8 text-primary" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Monthly Billing</h3>
                 <p className="text-neutral-600">Pay once monthly for all weekly services with no hidden fees</p>
               </div>
               
               <div className="bg-neutral-50 rounded-xl p-6 text-center">
-                <div className="w-16 h-16 bg-brand-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <RefreshCw className="h-8 w-8 text-brand-primary" />
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <RefreshCw className="h-8 w-8 text-primary" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Weekly Service</h3>
                 <p className="text-neutral-600">Enjoy regular weekly cleanings without having to remember to schedule</p>
@@ -85,8 +85,8 @@ export default function ServicesPage() {
                     'No contracts - pause or cancel anytime',
                   ].map((feature) => (
                     <li key={feature} className="flex items-start gap-3">
-                      <div className="flex-shrink-0 w-6 h-6 bg-brand-primary/10 rounded-full flex items-center justify-center">
-                        <Check className="h-4 w-4 text-brand-primary" />
+                      <div className="flex-shrink-0 w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center">
+                        <Check className="h-4 w-4 text-primary" />
                       </div>
                       <span className="text-base text-neutral-600">{feature}</span>
                     </li>
@@ -102,7 +102,7 @@ export default function ServicesPage() {
               </div>
               <div className="relative h-[400px] rounded-2xl overflow-hidden shadow-xl">
                 <Image
-                  src="/images/service-demo.jpg"
+                  src="/dog-hero.jpg"
                   alt="Professional dog waste removal service"
                   fill
                   className="object-cover"
@@ -127,8 +127,8 @@ export default function ServicesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
               <div className="bg-neutral-50 rounded-xl p-8">
                 <div className="flex items-center mb-6">
-                  <div className="w-12 h-12 bg-brand-primary/10 rounded-full flex items-center justify-center mr-4">
-                    <Camera className="h-6 w-6 text-brand-primary" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mr-4">
+                    <Camera className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="text-xl font-semibold">Photo Verification</h3>
                 </div>
@@ -139,8 +139,8 @@ export default function ServicesPage() {
               
               <div className="bg-neutral-50 rounded-xl p-8">
                 <div className="flex items-center mb-6">
-                  <div className="w-12 h-12 bg-brand-primary/10 rounded-full flex items-center justify-center mr-4">
-                    <Mail className="h-6 w-6 text-brand-primary" />
+                  <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mr-4">
+                    <Mail className="h-6 w-6 text-primary" />
                   </div>
                   <h3 className="text-xl font-semibold">Email Confirmations</h3>
                 </div>
@@ -155,7 +155,7 @@ export default function ServicesPage() {
         {/* CTA Section */}
         <section className="py-16">
           <div className="container mx-auto px-4">
-            <div className="rounded-2xl bg-gradient-to-br from-brand-primary to-brand-primary-dark px-6 py-16 sm:p-16">
+            <div className="rounded-2xl bg-gradient-to-br from-primary to-primary-dark px-6 py-16 sm:p-16">
               <div className="max-w-2xl mx-auto text-center text-white">
                 <h2 className="text-3xl font-bold tracking-tight mb-4">
                   Ready for Hassle-Free Waste Removal?
@@ -166,7 +166,7 @@ export default function ServicesPage() {
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Link href="/pricing">
                     <Button
-                      className="bg-white text-brand-primary hover:bg-white/90 text-lg w-full sm:w-auto"
+                      className="bg-white text-primary hover:bg-white/90 text-lg w-full sm:w-auto"
                     >
                       View Subscription Plans
                     </Button>

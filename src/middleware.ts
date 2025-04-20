@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import { rateLimit } from './middleware/rate-limit'
+import { rateLimit } from '@/lib/rate-limit'
 import { securityHeaders } from './middleware/security-headers'
 import { dbErrorHandler } from './middleware/db-error-handler'
 
@@ -22,13 +22,10 @@ function createRedirectResponse(request: NextRequest, destination: string, reaso
   return response;
 }
 
-// Helper function to determine login path based on URL
-function getLoginPath(url: string): string {
-  if (url.includes('/admin')) {
-    return '/admin/login';
-  } else if (url.includes('/employee')) {
-    return '/employee/login';
-  }
+// Helper function to get login path based on role
+function getLoginPath(pathname: string) {
+  if (pathname.startsWith('/admin')) return '/admin/login';
+  if (pathname.startsWith('/employee')) return '/employee/login';
   return '/login';
 }
 
@@ -40,6 +37,14 @@ export async function middleware(request: NextRequest) {
     timestamp: new Date().toISOString()
   });
 
+  // Apply rate limiting for authentication endpoints
+  if (pathname.includes('/login') || pathname.includes('/signup')) {
+    const rateLimitResponse = await rateLimit(request);
+    if (rateLimitResponse) {
+      return rateLimitResponse;
+    }
+  }
+
   // Check if the path requires authentication
   if (pathname.startsWith('/admin') || 
       pathname.startsWith('/employee') || 
@@ -48,14 +53,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith('/api/employee') ||
       pathname.startsWith('/api/customer')) {
     
-    // Apply rate limiting for authentication endpoints
-    if (pathname.includes('/login') || pathname.includes('/signup')) {
-      const rateLimitResponse = await rateLimit(request);
-      if (rateLimitResponse) {
-        return rateLimitResponse;
-      }
-    }
-
+    // Check for access token
     const token = request.cookies.get('accessToken')?.value;
     console.log('Token from cookie:', token ? 'Present' : 'Missing');
     
@@ -78,15 +76,15 @@ export async function middleware(request: NextRequest) {
     }
 
     // Check role-based access
-    if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
+    if ((pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) && payload.role !== 'ADMIN') {
       return createRedirectResponse(request, '/', 'Insufficient permissions');
     }
 
-    if (pathname.startsWith('/employee') && payload.role !== 'EMPLOYEE') {
+    if ((pathname.startsWith('/employee') || pathname.startsWith('/api/employee')) && payload.role !== 'EMPLOYEE') {
       return createRedirectResponse(request, '/', 'Insufficient permissions');
     }
 
-    if (pathname.startsWith('/customer') && payload.role !== 'CUSTOMER') {
+    if ((pathname.startsWith('/customer') || pathname.startsWith('/api/customer')) && payload.role !== 'CUSTOMER') {
       return createRedirectResponse(request, '/', 'Insufficient permissions');
     }
 

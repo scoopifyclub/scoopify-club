@@ -23,32 +23,32 @@ export default function AdminLogin() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ email, password }),
+        credentials: 'include'
       })
 
       if (!response.ok) {
-        throw new Error('Invalid credentials')
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Invalid credentials')
       }
 
       const data = await response.json()
       
-      // Set secure cookies with proper attributes
-      const cookieOptions = [
-        `token=${data.token}`,
-        'path=/',
-        'max-age=604800', // 7 days
-        'SameSite=Lax',
-        'Secure',
-        'HttpOnly'
-      ].join('; ')
-      
-      document.cookie = cookieOptions
-      document.cookie = `userType=admin; path=/; max-age=604800; SameSite=Lax; Secure`
-      
+      // Verify the login was successful
+      const verifyResponse = await fetch('/api/admin/verify', {
+        method: 'POST',
+        credentials: 'include'
+      })
+
+      if (!verifyResponse.ok) {
+        throw new Error('Failed to verify login')
+      }
+
       toast.success('Login successful!')
       router.push('/admin/dashboard')
+      router.refresh()
     } catch (error) {
       console.error('Login error:', error)
-      toast.error('Invalid email or password')
+      toast.error(error instanceof Error ? error.message : 'Invalid email or password')
     } finally {
       setLoading(false)
     }

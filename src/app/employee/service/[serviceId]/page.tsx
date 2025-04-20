@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { MapPinIcon, ClockIcon, CameraIcon, CheckCircleIcon, MapIcon } from '@heroicons/react/24/outline';

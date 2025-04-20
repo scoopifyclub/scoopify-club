@@ -1,14 +1,34 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    serverActions: {
-      allowedOrigins: ['localhost:3000'],
-    },
-  },
   images: {
     domains: ['localhost'],
+    formats: ['image/avif', 'image/webp'],
   },
+  webpack: (config, { isServer }) => {
+    // Optimize large string handling
+    config.optimization.splitChunks = {
+      ...config.optimization.splitChunks,
+      minSize: 20000,
+      maxSize: 244000,
+    };
+
+    // Improve caching
+    config.cache = {
+      type: 'filesystem',
+      buildDependencies: {
+        config: [__filename],
+      },
+    };
+
+    return config;
+  },
+  // Configure build output
+  distDir: '.next',
+  // Configure static file serving
+  staticPageGenerationTimeout: 1000,
+  // Configure API routes
+  serverExternalPackages: ['@prisma/client'],
   async headers() {
     return [
       {

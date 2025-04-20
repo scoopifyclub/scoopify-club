@@ -52,6 +52,10 @@ export async function POST(request: Request) {
         customerId: user.customer?.id,
         employeeId: user.employee?.id,
       },
+    }, {
+      headers: {
+        'Set-Cookie': `userRole=${user.role}; Path=/; Max-Age=${7 * 24 * 60 * 60}` // 7 days
+      }
     });
   } catch (error) {
     if (error instanceof Error) {

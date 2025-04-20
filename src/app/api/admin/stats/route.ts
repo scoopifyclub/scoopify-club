@@ -1,89 +1,183 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyAuth } from '@/lib/auth'
-import { startOfMonth, endOfMonth } from 'date-fns'
+import { verifyToken } from '@/lib/auth'
+import { cookies } from 'next/headers'
 
 export async function GET(request: Request) {
   try {
-    // Verify admin authentication
-    const auth = await verifyAuth(request)
-    if (!auth.success) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const cookieStore = await cookies()
+    const token = cookieStore.get('adminToken')?.value
+
+    if (!token) {
+      console.log('No admin token found in cookies')
+      return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 })
     }
-    if (auth.session.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    const decoded = await verifyToken(token)
+    console.log('Token verification result:', decoded)
+    
+    if (!decoded || decoded.role !== 'ADMIN') {
+      console.log('Invalid token or not admin:', decoded?.role)
+      return NextResponse.json({ error: 'Unauthorized - Not admin' }, { status: 401 })
     }
 
-    // Get total customers
-    const totalCustomers = await prisma.customer.count()
-
-    // Get total employees
-    const totalEmployees = await prisma.employee.count()
-
-    // Get active services (scheduled or in progress)
-    const activeServices = await prisma.service.count({
-      where: {
-        status: {
-          in: ['SCHEDULED', 'IN_PROGRESS']
-        }
-      }
-    })
-
-    // Get monthly revenue
-    const now = new Date()
-    const monthStart = startOfMonth(now)
-    const monthEnd = endOfMonth(now)
-
-    const monthlyPayments = await prisma.payment.findMany({
-      where: {
-        status: 'COMPLETED',
-        createdAt: {
-          gte: monthStart,
-          lte: monthEnd
-        }
-      },
-      select: {
-        amount: true
-      }
-    })
-
-    const monthlyRevenue = monthlyPayments.reduce((sum, payment) => sum + payment.amount, 0)
-
-    // Get service completion stats
-    const completedServices = await prisma.service.count({
-      where: {
-        status: 'COMPLETED',
-        scheduledDate: {
-          gte: monthStart,
-          lte: monthEnd
-        }
-      }
-    })
-
-    const totalServices = await prisma.service.count({
-      where: {
-        scheduledDate: {
-          gte: monthStart,
-          lte: monthEnd
-        }
-      }
-    })
-
-    return NextResponse.json({
+    // Fetch all stats in parallel
+    const [
       totalCustomers,
       totalEmployees,
       activeServices,
       monthlyRevenue,
+      serviceCompletion,
+      recentActivity,
+      paymentStats,
+      employees
+    ] = await Promise.all([
+      // Total Customers
+      prisma.customer.count(),
+      
+      // Total Employees
+      prisma.employee.count(),
+      
+      // Active Services
+      prisma.service.count({
+        where: {
+          status: 'SCHEDULED'
+        }
+      }),
+      
+      // Monthly Revenue
+      prisma.payment.aggregate({
+        where: {
+          createdAt: {
+            gte: new Date(new Date().setDate(1)), // First day of current month
+            lt: new Date(new Date().setMonth(new Date().getMonth() + 1)) // First day of next month
+          },
+          status: 'COMPLETED'
+        },
+        _sum: {
+          amount: true
+        }
+      }),
+      
+      // Service Completion
+      prisma.service.groupBy({
+        by: ['status'],
+        where: {
+          createdAt: {
+            gte: new Date(new Date().setDate(1))
+          }
+        },
+        _count: true
+      }),
+      
+      // Recent Activity
+      prisma.service.findMany({
+        take: 5,
+        orderBy: {
+          createdAt: 'desc'
+        },
+        include: {
+          customer: {
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  email: true
+                }
+              }
+            }
+          },
+          employee: {
+            include: {
+              user: {
+                select: {
+                  name: true
+                }
+              }
+            }
+          }
+        }
+      }),
+      
+      // Payment Stats
+      prisma.payment.aggregate({
+        where: {
+          createdAt: {
+            gte: new Date(new Date().setDate(1))
+          }
+        },
+        _count: true,
+        _sum: {
+          amount: true
+        }
+      }),
+      
+      // Employee Stats - fetch all employees with ratings
+      prisma.employee.findMany({
+        select: {
+          rating: true
+        }
+      })
+    ])
+
+    // Calculate completed services
+    const completedServices = serviceCompletion.find(s => s.status === 'COMPLETED')?._count || 0
+    const totalServices = serviceCompletion.reduce((acc, curr) => acc + curr._count, 0)
+
+    // Calculate average rating
+    const averageRating = employees.length > 0
+      ? employees.reduce((acc, emp) => acc + (emp.rating || 0), 0) / employees.length
+      : 0
+
+    const response = NextResponse.json({
+      totalCustomers,
+      totalEmployees,
+      activeServices,
+      monthlyRevenue: monthlyRevenue._sum.amount || 0,
       serviceCompletion: {
         completed: completedServices,
         total: totalServices
+      },
+      recentActivity: recentActivity.map(service => ({
+        id: service.id,
+        type: 'service',
+        status: service.status,
+        customerName: service.customer?.user?.name || 'Unknown',
+        employeeName: service.employee?.user?.name || 'Unassigned',
+        date: service.createdAt
+      })),
+      paymentStats: {
+        total: paymentStats._count,
+        amount: paymentStats._sum.amount || 0
+      },
+      employeeStats: {
+        averageRating: Number(averageRating.toFixed(2)),
+        total: totalEmployees
       }
     })
+
+    // Add CORS headers
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+    response.headers.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*')
+    response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    
+    return response
   } catch (error) {
     console.error('Error fetching admin stats:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to fetch dashboard stats' },
       { status: 500 }
     )
   }
+}
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS(request: Request) {
+  const response = new NextResponse(null, { status: 204 })
+  response.headers.set('Access-Control-Allow-Credentials', 'true')
+  response.headers.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*')
+  response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  return response
 } 
