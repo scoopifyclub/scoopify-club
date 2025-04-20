@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { format, isAfter } from 'date-fns';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
@@ -12,8 +12,13 @@ import {
   MapPin, 
   User,
   Camera,
-  AlarmClock
+  AlarmClock,
+  MessageSquare,
+  ThumbsUp,
+  Heart
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import ServiceMessageComponent from '@/components/ServiceMessageComponent';
 
 interface Photo {
   id: string;
@@ -47,6 +52,7 @@ export default function ServiceHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('completed');
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     fetchServices();
@@ -121,6 +127,36 @@ export default function ServiceHistoryPage() {
     
     const daysLeft = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
     return `Available for ${daysLeft} more day${daysLeft !== 1 ? 's' : ''}`;
+  };
+
+  const renderThankYouSection = (completedServices: Service[]) => {
+    if (completedServices.length === 0) return null;
+    
+    return (
+      <div className="bg-green-50 rounded-lg p-6 mb-8 border border-green-100">
+        <div className="flex items-center mb-4">
+          <Heart className="h-6 w-6 text-green-600 mr-2" />
+          <h3 className="text-xl font-semibold text-green-800">Thank You for Your Business!</h3>
+        </div>
+        <p className="text-green-700 mb-3">
+          We appreciate your trust in our services. We've completed {completedServices.length} service{completedServices.length !== 1 ? 's' : ''} for you.
+        </p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center text-green-700">
+            <CheckCircle className="h-5 w-5 mr-1" />
+            <span>Latest service: {format(new Date(completedServices[0].completedAt || completedServices[0].scheduledDate), 'MMMM d, yyyy')}</span>
+          </div>
+          <Button
+            variant="outline"
+            className="text-green-700 border-green-300 hover:bg-green-100"
+            onClick={() => window.open('/customer/feedback', '_blank')}
+          >
+            <ThumbsUp className="h-4 w-4 mr-2" />
+            Share Feedback
+          </Button>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
@@ -221,6 +257,18 @@ export default function ServiceHistoryPage() {
                             )}
                           </div>
                         </CardContent>
+                        <CardFooter className="pt-0 border-t">
+                          <div className="w-full flex justify-between">
+                            <Button variant="ghost" size="sm" className="text-green-600">
+                              <MessageSquare className="h-4 w-4 mr-2" />
+                              Send Message
+                            </Button>
+                            <Button variant="outline" size="sm" className="text-blue-600">
+                              <Clock className="h-4 w-4 mr-2" />
+                              Track Status
+                            </Button>
+                          </div>
+                        </CardFooter>
                       </Card>
                     ))}
                   </div>
@@ -240,6 +288,9 @@ export default function ServiceHistoryPage() {
             </div>
           ) : (
             <div className="space-y-8">
+              {/* Thank You Section */}
+              {renderThankYouSection(completedServices)}
+              
               {Object.entries(completedByMonth).map(([date, services]) => (
                 <div key={date}>
                   <h3 className="text-xl font-semibold mb-4">{date}</h3>
@@ -284,71 +335,60 @@ export default function ServiceHistoryPage() {
                                 <div className="flex items-center mb-2">
                                   <Camera className="h-4 w-4 mr-2 text-gray-500" />
                                   <p className="text-sm font-medium">Service Photos</p>
-                                  <div className="ml-auto flex items-center">
-                                    <AlarmClock className="h-3 w-3 mr-1 text-amber-500" />
-                                    <p className="text-xs text-amber-600">Photos available for 7 days</p>
-                                  </div>
                                 </div>
                                 
-                                <div className="grid grid-cols-2 gap-2">
-                                  {/* Before Photos */}
-                                  {service.photos.filter(p => p.type === 'BEFORE').map(photo => (
-                                    <div key={photo.id} className="relative aspect-square">
-                                      {isPhotoExpired(photo) ? (
-                                        <div className="flex items-center justify-center h-full bg-gray-100 rounded-md">
-                                          <div className="text-center">
-                                            <Camera className="h-8 w-8 text-gray-400 mx-auto" />
-                                            <p className="text-xs text-gray-500 mt-2">Photo no longer available</p>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <>
-                                          <Image
-                                            src={photo.url}
-                                            alt="Before service"
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                                  {service.photos.map(photo => !isPhotoExpired(photo) && (
+                                    <Dialog key={photo.id}>
+                                      <DialogTrigger asChild>
+                                        <button 
+                                          className="relative w-full h-24 sm:h-32 overflow-hidden rounded-md border border-gray-200 hover:opacity-90 transition-opacity"
+                                          onClick={() => setSelectedPhoto(photo.url)}
+                                        >
+                                          <Image 
+                                            src={photo.url} 
+                                            alt={`Service ${photo.type.toLowerCase()} photo`}
                                             fill
-                                            className="object-cover rounded-md"
+                                            className="object-cover"
                                           />
-                                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white px-2 py-1 text-xs">
-                                            <span>Before</span>
-                                            <span className="float-right">{getPhotoExpiryMessage(photo)}</span>
+                                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 px-2 py-1">
+                                            <p className="text-xs text-white">{photo.type}</p>
                                           </div>
-                                        </>
-                                      )}
-                                    </div>
-                                  ))}
-                                  
-                                  {/* After Photos */}
-                                  {service.photos.filter(p => p.type === 'AFTER').map(photo => (
-                                    <div key={photo.id} className="relative aspect-square">
-                                      {isPhotoExpired(photo) ? (
-                                        <div className="flex items-center justify-center h-full bg-gray-100 rounded-md">
-                                          <div className="text-center">
-                                            <Camera className="h-8 w-8 text-gray-400 mx-auto" />
-                                            <p className="text-xs text-gray-500 mt-2">Photo no longer available</p>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <>
-                                          <Image
-                                            src={photo.url}
-                                            alt="After service"
+                                        </button>
+                                      </DialogTrigger>
+                                      <DialogContent className="max-w-3xl">
+                                        <div className="relative w-full h-[60vh]">
+                                          <Image 
+                                            src={photo.url} 
+                                            alt={`Service ${photo.type.toLowerCase()} photo`}
                                             fill
-                                            className="object-cover rounded-md"
+                                            className="object-contain"
                                           />
-                                          <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 text-white px-2 py-1 text-xs">
-                                            <span>After</span>
-                                            <span className="float-right">{getPhotoExpiryMessage(photo)}</span>
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
+                                        </div>
+                                        <div className="flex justify-between items-center mt-2">
+                                          <p className="text-sm font-medium">{photo.type} Photo</p>
+                                          <p className="text-xs text-gray-500">
+                                            {getPhotoExpiryMessage(photo)}
+                                          </p>
+                                        </div>
+                                      </DialogContent>
+                                    </Dialog>
                                   ))}
                                 </div>
+                                {service.photos.every(photo => isPhotoExpired(photo)) && (
+                                  <p className="text-sm text-gray-500 mt-2">
+                                    Photos are no longer available (expired after 7 days)
+                                  </p>
+                                )}
                               </div>
                             )}
                           </div>
                         </CardContent>
+                        <CardFooter className="pt-0 border-t">
+                          <div className="w-full">
+                            <ServiceMessageComponent serviceId={service.id} />
+                          </div>
+                        </CardFooter>
                       </Card>
                     ))}
                   </div>
@@ -390,13 +430,23 @@ export default function ServiceHistoryPage() {
                         <p className="text-sm">{formatAddress(service.address)}</p>
                       </div>
                       {service.notes && (
-                        <div className="bg-gray-50 p-3 rounded-md">
+                        <div className="bg-gray-50 p-3 rounded-md mt-2">
                           <p className="text-sm font-medium mb-1">Cancellation Reason:</p>
                           <p className="text-sm">{service.notes}</p>
                         </div>
                       )}
                     </div>
                   </CardContent>
+                  <CardFooter>
+                    <Button 
+                      variant="outline" 
+                      className="w-full"
+                      onClick={() => window.location.href = '/customer/schedule'}
+                    >
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Reschedule Service
+                    </Button>
+                  </CardFooter>
                 </Card>
               ))}
             </div>
