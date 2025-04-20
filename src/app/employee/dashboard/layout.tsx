@@ -2,8 +2,7 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Home, Calendar, Users, DollarSign, User, MapPin, MessageSquare, Bell, CheckSquare, Settings, Image, LogOut } from 'lucide-react';
-import { signOut } from 'next-auth/react';
+import { Home, Calendar, Users, DollarSign, User, MapPin, MessageSquare, Bell, CheckSquare, Settings, Image } from 'lucide-react';
 
 export default function EmployeeDashboardLayout({
   children,
@@ -28,11 +27,6 @@ export default function EmployeeDashboardLayout({
       params.set('tab', tab);
       router.push(`/employee/dashboard?${params.toString()}`);
     }
-  };
-  
-  // Handle logout
-  const handleLogout = () => {
-    signOut({ callbackUrl: '/' });
   };
   
   // Listen for tab changes
@@ -192,15 +186,6 @@ export default function EmployeeDashboardLayout({
             >
               <Settings className={`w-5 h-5 mr-3 ${activeTab === 'settings' ? 'text-white' : 'text-green-500'}`} />
               <span className="font-medium">Settings</span>
-            </button>
-            
-            {/* Logout Button */}
-            <button 
-              onClick={handleLogout}
-              className="w-full flex items-center px-4 py-3 rounded-xl transition-colors text-gray-700 hover:bg-red-50 mt-6"
-            >
-              <LogOut className="w-5 h-5 mr-3 text-red-500" />
-              <span className="font-medium">Logout</span>
             </button>
           </nav>
           
