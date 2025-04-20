@@ -166,7 +166,7 @@ export function Navbar() {
             ) : (
               <>
                 <Link 
-                  href="/auth/signin"
+                  href="/login"
                   className="text-neutral-700 hover:text-primary font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
                 >
                   <span className="inline-flex items-center justify-center w-5 h-5">
@@ -192,7 +192,7 @@ export function Navbar() {
                   <span className="ml-2">Join the Club</span>
                 </Link>
                 <Link 
-                  href="/auth/scooper-signup"
+                  href="/scooper-signup"
                   className="border-2 border-primary text-primary font-medium px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200 flex items-center"
                 >
                   <span className="inline-flex items-center justify-center w-5 h-5">
@@ -278,6 +278,55 @@ export function Navbar() {
                       Log out
                     </div>
                   </button>
+                </>
+              )}
+              {!isLoggedIn && (
+                <>
+                  <Link
+                    href="/login"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
+                  >
+                    <div className="flex items-center">
+                      <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
+                        <FontAwesomeIcon 
+                          icon={faSignInAlt}
+                          width="20"
+                          height="20"
+                        />
+                      </span>
+                      Log in
+                    </div>
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
+                  >
+                    <div className="flex items-center">
+                      <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
+                        <FontAwesomeIcon 
+                          icon={faUserPlus}
+                          width="20"
+                          height="20"
+                        />
+                      </span>
+                      Join the Club
+                    </div>
+                  </Link>
+                  <Link
+                    href="/scooper-signup"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
+                  >
+                    <div className="flex items-center">
+                      <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
+                        <FontAwesomeIcon 
+                          icon={faBroom}
+                          width="20"
+                          height="20"
+                        />
+                      </span>
+                      Become a Scooper
+                    </div>
+                  </Link>
                 </>
               )}
             </div>
