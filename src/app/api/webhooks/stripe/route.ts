@@ -384,7 +384,8 @@ export async function POST(request: Request) {
                 status: 'PENDING',
                 type: 'REFERRAL',
                 customerId: customer.referredBy.id,
-                referredId: customer.id
+                referredId: customer.id,
+                notes: `Referral payment for customer ${customer.id}. $5.00 gross payment, with ${referralFee.toFixed(2)} in fees deducted from recipient.`
               }
             });
             

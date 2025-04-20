@@ -49,7 +49,9 @@ A web application for managing pet waste removal services.
 - When new users sign up using a referral code, the referrer is automatically linked
 - Referrers earn $5 per month for each active customer they refer
 - Referral earnings are tracked and displayed in the customer dashboard
-- Monthly payments are processed automatically via a scheduled cron job
+- Referral payments are only processed after a subscription payment is made
+- Any fees for sending the $5 referral payment are borne by the recipient
+- Monthly payments are processed automatically via the payment batch system
 
 ### Service Scheduling
 - Customers select their preferred service day (Monday-Sunday) during signup
@@ -77,9 +79,12 @@ Customer payment: $100.00
 ### Payment Batch System
 - Administrators can manage employee and referral payments in batches
 - Batches can be created, reviewed, and processed together
+- Batch approval workflow ensures proper oversight before payments are sent
 - Multiple payment methods supported (Stripe, Cash App, Cash, Check)
-- Batch status tracking (Draft, Processing, Completed, Partial, Failed)
-- Detailed audit logging of all payment batch activities
+- Batch status tracking (Draft, Processing, Completed, Partially Completed, Failed)
+- Payment history and audit logging for all batch activities
+- Failed payment handling with retry options
+- Manual payment entry for special cases
 - See [payment-batches.md](docs/payment-batches.md) for detailed documentation
 
 ### Employee Job Claiming
@@ -237,6 +242,13 @@ The application provides various loading states:
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+## Recent Updates
+- Added payment batch system for efficient processing of multiple payments
+- Enhanced referral payment workflow to ensure payments are only processed after subscription payments
+- Improved payment audit logging with detailed tracking of all payment activities
+- Added multiple payment method support for different recipient preferences
+- Implemented validation to ensure proper payment approval and processing
 
 ## Current Issues
 
