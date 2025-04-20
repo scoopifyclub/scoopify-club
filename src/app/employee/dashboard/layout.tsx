@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Home, Calendar, Users, DollarSign, User, MapPin } from 'lucide-react';
+import { Home, Calendar, Users, DollarSign, User, MapPin, MessageSquare, Bell, CheckSquare, Settings, Image } from 'lucide-react';
 
 export default function EmployeeDashboardLayout({
   children,
@@ -33,12 +33,12 @@ export default function EmployeeDashboardLayout({
   useEffect(() => {
     // Get tab from URL params
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['overview', 'schedule', 'customers', 'earnings', 'profile'].includes(tabParam)) {
+    if (tabParam && ['overview', 'schedule', 'customers', 'earnings', 'services', 'messages', 'notifications', 'checklists', 'photos', 'maps', 'settings', 'profile'].includes(tabParam)) {
       setActiveTab(tabParam);
     } else {
       // Fallback to localStorage
       const storedTab = localStorage.getItem('employee_dashboard_active_tab');
-      if (storedTab && ['overview', 'schedule', 'customers', 'earnings', 'profile'].includes(storedTab)) {
+      if (storedTab && ['overview', 'schedule', 'customers', 'earnings', 'services', 'messages', 'notifications', 'checklists', 'photos', 'maps', 'settings', 'profile'].includes(storedTab)) {
         setActiveTab(storedTab);
         
         // Sync URL with stored tab if needed
@@ -61,6 +61,7 @@ export default function EmployeeDashboardLayout({
             <div className="h-0.5 bg-gradient-to-r from-green-500 to-blue-500 mx-4 mb-6"></div>
           </div>
           <nav className="space-y-2">
+            <div className="text-xs font-semibold uppercase text-gray-500 px-4 mb-2">Main</div>
             <button 
               onClick={() => setDashboardTab('overview')}
               className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
@@ -84,6 +85,17 @@ export default function EmployeeDashboardLayout({
               <span className="font-medium">My Schedule</span>
             </button>
             <button 
+              onClick={() => setDashboardTab('services')}
+              className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
+                activeTab === 'services' 
+                  ? 'bg-gradient-to-r from-green-500 to-blue-500 text-white' 
+                  : 'text-gray-700 hover:bg-green-50'
+              }`}
+            >
+              <CheckSquare className={`w-5 h-5 mr-3 ${activeTab === 'services' ? 'text-white' : 'text-green-500'}`} />
+              <span className="font-medium">Services</span>
+            </button>
+            <button 
               onClick={() => setDashboardTab('customers')}
               className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
                 activeTab === 'customers' 
@@ -105,6 +117,54 @@ export default function EmployeeDashboardLayout({
               <DollarSign className={`w-5 h-5 mr-3 ${activeTab === 'earnings' ? 'text-white' : 'text-green-500'}`} />
               <span className="font-medium">Earnings</span>
             </button>
+            
+            <div className="text-xs font-semibold uppercase text-gray-500 px-4 mt-6 mb-2">Tools</div>
+            <button 
+              onClick={() => setDashboardTab('maps')}
+              className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
+                activeTab === 'maps' 
+                  ? 'bg-gradient-to-r from-green-500 to-blue-500 text-white' 
+                  : 'text-gray-700 hover:bg-green-50'
+              }`}
+            >
+              <MapPin className={`w-5 h-5 mr-3 ${activeTab === 'maps' ? 'text-white' : 'text-green-500'}`} />
+              <span className="font-medium">Maps & Routes</span>
+            </button>
+            <button 
+              onClick={() => setDashboardTab('messages')}
+              className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
+                activeTab === 'messages' 
+                  ? 'bg-gradient-to-r from-green-500 to-blue-500 text-white' 
+                  : 'text-gray-700 hover:bg-green-50'
+              }`}
+            >
+              <MessageSquare className={`w-5 h-5 mr-3 ${activeTab === 'messages' ? 'text-white' : 'text-green-500'}`} />
+              <span className="font-medium">Messages</span>
+            </button>
+            <button 
+              onClick={() => setDashboardTab('photos')}
+              className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
+                activeTab === 'photos' 
+                  ? 'bg-gradient-to-r from-green-500 to-blue-500 text-white' 
+                  : 'text-gray-700 hover:bg-green-50'
+              }`}
+            >
+              <Image className={`w-5 h-5 mr-3 ${activeTab === 'photos' ? 'text-white' : 'text-green-500'}`} />
+              <span className="font-medium">Service Photos</span>
+            </button>
+            <button 
+              onClick={() => setDashboardTab('notifications')}
+              className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
+                activeTab === 'notifications' 
+                  ? 'bg-gradient-to-r from-green-500 to-blue-500 text-white' 
+                  : 'text-gray-700 hover:bg-green-50'
+              }`}
+            >
+              <Bell className={`w-5 h-5 mr-3 ${activeTab === 'notifications' ? 'text-white' : 'text-green-500'}`} />
+              <span className="font-medium">Notifications</span>
+            </button>
+            
+            <div className="text-xs font-semibold uppercase text-gray-500 px-4 mt-6 mb-2">Account</div>
             <button 
               onClick={() => setDashboardTab('profile')}
               className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
@@ -114,7 +174,18 @@ export default function EmployeeDashboardLayout({
               }`}
             >
               <User className={`w-5 h-5 mr-3 ${activeTab === 'profile' ? 'text-white' : 'text-green-500'}`} />
-              <span className="font-medium">Profile Settings</span>
+              <span className="font-medium">Profile</span>
+            </button>
+            <button 
+              onClick={() => setDashboardTab('settings')}
+              className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
+                activeTab === 'settings' 
+                  ? 'bg-gradient-to-r from-green-500 to-blue-500 text-white' 
+                  : 'text-gray-700 hover:bg-green-50'
+              }`}
+            >
+              <Settings className={`w-5 h-5 mr-3 ${activeTab === 'settings' ? 'text-white' : 'text-green-500'}`} />
+              <span className="font-medium">Settings</span>
             </button>
           </nav>
           
