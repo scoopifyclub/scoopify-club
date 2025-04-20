@@ -1,73 +1,60 @@
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
-import { Home, Calendar, CreditCard, Settings, User } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Home, Calendar, CreditCard, User } from 'lucide-react';
 
-interface CustomerDashboardLayoutProps {
-  children: ReactNode;
-}
-
-export function CustomerDashboardLayout({ children }: CustomerDashboardLayoutProps) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
-  
-  // Determine if on dashboard
-  const isDashboard = pathname === '/customer/dashboard';
   
   // Function to set active tab and update URL
   const setDashboardTab = (tab: string) => {
     setActiveTab(tab);
-    localStorage.setItem('dashboard_active_tab', tab);
     
-    // Update URL without page reload
-    const newUrl = new URL(window.location.href);
-    newUrl.searchParams.set('tab', tab);
-    window.history.pushState({}, '', newUrl.toString());
-    
-    // Dispatch storage event to sync across components
-    window.dispatchEvent(new StorageEvent('storage', {
-      key: 'dashboard_active_tab',
-      newValue: tab,
-      storageArea: localStorage
-    }));
+    // Store in localStorage for persistence
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('dashboard_active_tab', tab);
+      
+      // Use Next.js router for navigation
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', tab);
+      router.push(`/customer/dashboard?${params.toString()}`);
+    }
   };
   
   // Listen for tab changes
   useEffect(() => {
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === 'dashboard_active_tab' && event.newValue) {
-        setActiveTab(event.newValue);
-      }
-    };
-    
-    // Check URL parameter
-    if (isDashboard && typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const tabParam = urlParams.get('tab');
-      if (tabParam && ['overview', 'services', 'billing', 'profile'].includes(tabParam)) {
-        setActiveTab(tabParam);
-      }
-      
-      // Also check localStorage
+    // Get tab from URL params
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['overview', 'services', 'billing', 'profile'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    } else {
+      // Fallback to localStorage
       const storedTab = localStorage.getItem('dashboard_active_tab');
       if (storedTab && ['overview', 'services', 'billing', 'profile'].includes(storedTab)) {
         setActiveTab(storedTab);
+        
+        // Sync URL with stored tab if needed
+        if (!tabParam) {
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('tab', storedTab);
+          router.replace(`/customer/dashboard?${params.toString()}`);
+        }
       }
-      
-      window.addEventListener('storage', handleStorageChange);
-      
-      return () => {
-        window.removeEventListener('storage', handleStorageChange);
-      };
     }
-  }, [isDashboard]);
-  
+  }, [searchParams, router]);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex gap-8">
-        {/* Enhanced Sidebar */}
+        {/* Sidebar */}
         <aside className="w-72 bg-white rounded-2xl shadow-lg p-6 h-fit border border-gray-100">
           <div className="mb-8">
             <h2 className="text-lg font-semibold text-gray-800 px-4 mb-2">Dashboard</h2>
@@ -137,7 +124,7 @@ export function CustomerDashboardLayout({ children }: CustomerDashboardLayoutPro
         </aside>
 
         {/* Main Content */}
-        <main className="flex-1 space-y-8">
+        <main className="flex-1 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
           {children}
         </main>
       </div>

@@ -5,6 +5,29 @@ import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import Image from 'next/image';
 import { toast } from 'sonner';
+import { 
+  Home, 
+  Calendar, 
+  CreditCard, 
+  User, 
+  ChevronRight,
+  CheckCircle,
+  XCircle,
+  Clock,
+  DollarSign,
+  MapPin,
+  Camera
+} from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+
+// Add global type declaration for window.setDashboardTab
+declare global {
+  interface Window {
+    setDashboardTab?: (tab: string) => void;
+  }
+}
 
 interface Service {
   id: string;
@@ -22,6 +45,7 @@ interface Service {
   employee: {
     name: string;
   } | null;
+  isPaused: boolean;
 }
 
 interface Subscription {
@@ -47,14 +71,16 @@ interface Customer {
     state: string;
     zipCode: string;
   } | null;
+  referralCode: string;
+  cashAppName: string | null;
 }
 
 interface Payment {
   id: string;
   amount: number;
   status: string;
-  date: string;
-  description: string;
+  createdAt: string;
+  receiptUrl: string;
 }
 
 export default function CustomerDashboard() {
@@ -66,6 +92,8 @@ export default function CustomerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
   const [formData, setFormData] = useState({
     phone: '',
     gateCode: '',
@@ -77,113 +105,416 @@ export default function CustomerDashboard() {
       zipCode: '',
     },
     preferences: {
-      grassHeight: 3,
       specialInstructions: '',
-      serviceAreas: ['FRONT_YARD', 'BACK_YARD'],
-      addOns: [],
+      gateLocation: '',
     },
   });
+  const [fetchedAt, setFetchedAt] = useState<string | null>(null);
+  const [authDebug, setAuthDebug] = useState<string>('Starting auth check...');
+  
+  // Listen for tab changes more aggressively
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'dashboard_active_tab' && event.newValue) {
+        console.log('Tab changed via storage event:', event.newValue);
+        setActiveTab(event.newValue);
+      }
+    };
+
+    // Custom event listener for direct communication
+    const handleTabChange = (event: CustomEvent) => {
+      if (event.detail && event.detail.tab) {
+        console.log('Tab changed via custom event:', event.detail.tab);
+        setActiveTab(event.detail.tab);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      // Check URL parameter on mount and when URL changes
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      
+      if (tabParam && ['overview', 'services', 'billing', 'profile'].includes(tabParam)) {
+        console.log('Setting tab from URL parameter:', tabParam);
+        setActiveTab(tabParam);
+      }
+      
+      // Also check localStorage
+      const storedTab = localStorage.getItem('dashboard_active_tab');
+      if (storedTab && ['overview', 'services', 'billing', 'profile'].includes(storedTab)) {
+        console.log('Setting tab from localStorage:', storedTab);
+        setActiveTab(storedTab);
+      }
+      
+      // Add event listeners
+      window.addEventListener('storage', handleStorageChange);
+      window.addEventListener('dashboardTabChange', handleTabChange as EventListener);
+      
+      // Poll for changes as a fallback
+      const interval = setInterval(() => {
+        const currentTab = localStorage.getItem('dashboard_active_tab');
+        if (currentTab && currentTab !== activeTab) {
+          console.log('Tab change detected in polling:', currentTab);
+          setActiveTab(currentTab);
+        }
+      }, 500);
+      
+      return () => {
+        window.removeEventListener('storage', handleStorageChange);
+        window.removeEventListener('dashboardTabChange', handleTabChange as EventListener);
+        clearInterval(interval);
+      };
+    }
+  }, [activeTab]);
+
+  const getAccessToken = () => {
+    // Try to get token from cookies first
+    const cookies = document.cookie.split(';');
+    const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken=')) || 
+                            cookies.find(cookie => cookie.trim().startsWith('accessToken_client='));
+    let token = accessTokenCookie ? accessTokenCookie.split('=')[1].trim() : '';
+    
+    // If token not found in cookies, try sessionStorage as a fallback
+    if (!token) {
+      try {
+        token = sessionStorage.getItem('accessToken') || '';
+        setAuthDebug(prev => `${prev}\nToken not found in cookies, checking sessionStorage: ${!!token}`);
+      } catch (err) {
+        setAuthDebug(prev => `${prev}\nError accessing sessionStorage: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      }
+    } else {
+      // Store found token in sessionStorage for future use
+      try {
+        sessionStorage.setItem('accessToken', token);
+      } catch (err) {
+        console.error('Error storing token in sessionStorage', err);
+      }
+    }
+    
+    // Log token status for debugging
+    setAuthDebug(prev => `${prev}\nToken found: ${!!token}`);
+    
+    // If still no token, make a session check request
+    if (!token) {
+      setAuthDebug(prev => `${prev}\nNo token found in client storage, will need server-side check`);
+    }
+    
+    return token;
+  };
 
   useEffect(() => {
+    // Add console logs to debug potential authentication issues
+    console.log('Dashboard component mounted');
+    
     const fetchData = async () => {
       try {
-        // Fetch services
-        const servicesRes = await fetch('/api/customer/services');
-        if (!servicesRes.ok) throw new Error('Failed to fetch services');
-        const servicesData = await servicesRes.json();
-        setServices(servicesData);
-
-        // Fetch subscription
-        const subscriptionRes = await fetch('/api/customer/subscription');
-        if (subscriptionRes.ok) {
-          const subscriptionData = await subscriptionRes.json();
-          setSubscription(subscriptionData);
+        console.log('Starting fetchData function');
+        const accessToken = getAccessToken();
+        console.log('Access token retrieved:', !!accessToken);
+        
+        if (!accessToken) {
+          setAuthDebug(prev => `${prev}\nNo access token found in client, trying session check API...`);
+          
+          try {
+            console.log('Making session check request...');
+            // Try server-side session check since HTTP-only cookies won't be visible to client JS
+            const sessionResponse = await fetch('/api/auth/session', {
+              credentials: 'include' // Important for sending cookies
+            }).catch(err => {
+              console.error('Fetch error for session check:', err);
+              throw new Error('Network error during session check');
+            });
+            
+            console.log('Session check response status:', sessionResponse.status);
+            setAuthDebug(prev => `${prev}\nSession check response: ${sessionResponse.status}`);
+            
+            if (sessionResponse.ok) {
+              const sessionData = await sessionResponse.json();
+              console.log('Session data:', sessionData);
+              setAuthDebug(prev => `${prev}\nSession valid, user: ${JSON.stringify(sessionData)}`);
+              
+              // If we get a valid session response, continue with requests
+              await loadDashboardData();
+              setLoading(false); // Ensure loading is set to false after data is loaded
+              return;
+            } else {
+              try {
+                const errorData = await sessionResponse.json();
+                console.error('Session check error data:', errorData);
+                setAuthDebug(prev => `${prev}\nSession invalid, error: ${JSON.stringify(errorData)}`);
+              } catch (e) {
+                console.error('Failed to parse error response');
+              }
+              
+              // Display error but don't redirect automatically
+              setError('Session validation failed. Please check your login credentials.');
+              setLoading(false);
+              return;
+            }
+          } catch (err) {
+            console.error('Error checking session:', err);
+            setAuthDebug(prev => `${prev}\nError checking session: ${err instanceof Error ? err.message : 'Unknown error'}`);
+            setError('Error validating your session. Please try logging in again.');
+            setLoading(false);
+            return;
+          }
         }
 
-        // Fetch customer profile
-        const customerRes = await fetch('/api/customer/profile');
+        console.log('About to load dashboard data with token');
+        await loadDashboardData(accessToken);
+        console.log('Dashboard data loaded successfully');
+        setLoading(false); // Make sure to set loading to false after data is loaded
+      } catch (err) {
+        console.error('Error fetching dashboard data:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load data');
+        setAuthDebug(prev => `${prev}\nError: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        
+        setLoading(false);
+      }
+    };
+    
+    const loadDashboardData = async (token?: string) => {
+      console.log('loadDashboardData started with token:', !!token);
+      setAuthDebug(prev => `${prev}\nMaking API requests with${token ? '' : 'out'} token`);
+      const headers: HeadersInit = {};
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      try {
+        // Fetch customer profile first to get address info
+        console.log('About to fetch customer profile');
+        const customerRes = await fetch('/api/customer/profile', { 
+          headers,
+          credentials: 'include'
+        });
+        console.log('Customer profile response status:', customerRes.status);
+        setAuthDebug(prev => `${prev}\nProfile API response status: ${customerRes.status}`);
+        
         if (customerRes.ok) {
           const customerData = await customerRes.json();
+          console.log('Fetched customer data:', customerData);
           setCustomer(customerData);
+          
+          // Update form data with customer information, handling null values
           setFormData({
             phone: customerData.phone || '',
             gateCode: customerData.gateCode || '',
             serviceDay: customerData.serviceDay || '',
-            address: customerData.address || {
+            address: customerData.address ? {
+              street: customerData.address.street || '',
+              city: customerData.address.city || '',
+              state: customerData.address.state || '',
+              zipCode: customerData.address.zipCode || '',
+            } : {
               street: '',
               city: '',
               state: '',
               zipCode: '',
             },
-            preferences: customerData.preferences || {
-              grassHeight: 3,
+            preferences: customerData.preferences ? {
+              specialInstructions: customerData.preferences.specialInstructions || '',
+              gateLocation: customerData.preferences.gateLocation || '',
+            } : {
               specialInstructions: '',
-              serviceAreas: ['FRONT_YARD', 'BACK_YARD'],
-              addOns: [],
+              gateLocation: '',
             },
           });
+          
+          // Save fetch timestamp
+          setFetchedAt(new Date().toLocaleString());
+        } else {
+          const errorData = await customerRes.json().catch(() => ({}));
+          console.error('Profile API error:', errorData);
+          setAuthDebug(prev => `${prev}\nProfile API error: ${JSON.stringify(errorData)}`);
+          if (customerRes.status === 401) {
+            // Try to refresh token
+            console.log('Attempting token refresh');
+            const refreshResult = await fetch('/api/auth/refresh', { 
+              method: 'POST',
+              credentials: 'include'
+            });
+            console.log('Refresh attempt status:', refreshResult.status);
+            setAuthDebug(prev => `${prev}\nRefresh attempt status: ${refreshResult.status}`);
+            
+            if (refreshResult.ok) {
+              // Successfully refreshed, try to load data again
+              console.log('Token refresh successful, reloading page');
+              window.location.reload();
+              return;
+            } else {
+              // Redirect to login if refresh fails
+              console.log('Token refresh failed, redirecting to login');
+              router.push('/login');
+              return;
+            }
+          }
+          throw new Error(`Failed to fetch profile: ${customerRes.status}`);
+        }
+
+        // Fetch services
+        console.log('About to fetch customer services');
+        const servicesRes = await fetch('/api/customer/services', { 
+          headers,
+          credentials: 'include'
+        });
+        console.log('Services API response status:', servicesRes.status);
+        setAuthDebug(prev => `${prev}\nServices API response status: ${servicesRes.status}`);
+        
+        if (!servicesRes.ok) {
+          const errorData = await servicesRes.json().catch(() => ({}));
+          console.error('Services API error:', errorData);
+          setAuthDebug(prev => `${prev}\nServices API error: ${JSON.stringify(errorData)}`);
+          throw new Error('Failed to fetch services');
+        }
+        
+        const servicesData = await servicesRes.json();
+        console.log('Services data:', servicesData);
+        setServices(Array.isArray(servicesData) ? servicesData : []);
+
+        // Fetch subscription
+        console.log('About to fetch customer subscription');
+        const subscriptionRes = await fetch('/api/customer/subscription', { 
+          headers,
+          credentials: 'include'
+        });
+        console.log('Subscription API response status:', subscriptionRes.status);
+        setAuthDebug(prev => `${prev}\nSubscription API response status: ${subscriptionRes.status}`);
+        
+        if (subscriptionRes.ok) {
+          const subscriptionData = await subscriptionRes.json();
+          console.log('Subscription data:', subscriptionData);
+          setSubscription(subscriptionData);
+        } else if (subscriptionRes.status === 404) {
+          // Handle case where no subscription exists (demo account)
+          console.log('No subscription found (404), setting to null');
+          setSubscription(null);
+        } else {
+          const errorData = await subscriptionRes.json().catch(() => ({}));
+          console.error('Subscription API error:', errorData);
+          setAuthDebug(prev => `${prev}\nSubscription API error: ${JSON.stringify(errorData)}`);
+          console.error('Failed to fetch subscription:', errorData);
+          // Don't throw here since subscription is optional
         }
 
         // Fetch payments
-        const paymentsRes = await fetch('/api/customer/payments');
-        if (!paymentsRes.ok) throw new Error('Failed to fetch payments');
-        const paymentsData = await paymentsRes.json();
-        setPayments(paymentsData);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
-        if (err instanceof Error && err.message.includes('401')) {
-          router.push('/login');
+        console.log('About to fetch customer payments');
+        const paymentsRes = await fetch('/api/customer/payments', { 
+          headers,
+          credentials: 'include'
+        });
+        console.log('Payments API response status:', paymentsRes.status);
+        setAuthDebug(prev => `${prev}\nPayments API response status: ${paymentsRes.status}`);
+        
+        if (!paymentsRes.ok) {
+          const errorData = await paymentsRes.json().catch(() => ({}));
+          console.error('Payments API error:', errorData);
+          setAuthDebug(prev => `${prev}\nPayments API error: ${JSON.stringify(errorData)}`);
+          throw new Error('Failed to fetch payments');
         }
-      } finally {
+        
+        const paymentsData = await paymentsRes.json();
+        console.log('Payments data:', paymentsData);
+        setPayments(Array.isArray(paymentsData) ? paymentsData : []);
+
+        console.log('All data loaded successfully');
+        // Force loading to false here just to be extra sure
+        setTimeout(() => {
+          console.log('Forcing loading state to false');
+          setLoading(false);
+        }, 500);
+      } catch (err) {
+        console.error("Error in loadDashboardData:", err);
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
         setLoading(false);
+        throw err;
       }
     };
 
     fetchData();
   }, [router]);
 
-  const handleUpdateProfile = async () => {
+  const handleUpdateProfile = async (updatedData: Partial<Customer>) => {
     try {
+      console.log('Updating profile with data:', updatedData);
+      
+      // Prepare the request data, only including fields that are provided
+      const requestData: Record<string, any> = {};
+      
+      // Add specific fields if they're in the updated data
+      if (updatedData.phone !== undefined) requestData.phone = updatedData.phone;
+      if (updatedData.gateCode !== undefined) requestData.gateCode = updatedData.gateCode;
+      if (updatedData.serviceDay !== undefined) requestData.serviceDay = updatedData.serviceDay;
+      
+      // Handle address separately to avoid sending undefined
+      if (updatedData.address) {
+        requestData.address = {};
+        if (updatedData.address.street !== undefined) requestData.address.street = updatedData.address.street;
+        if (updatedData.address.city !== undefined) requestData.address.city = updatedData.address.city;
+        if (updatedData.address.state !== undefined) requestData.address.state = updatedData.address.state;
+        if (updatedData.address.zipCode !== undefined) requestData.address.zipCode = updatedData.address.zipCode;
+      }
+      
+      console.log('Sending request with data:', requestData);
+      
       const response = await fetch('/api/customer/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(requestData),
+        credentials: 'include',
       });
 
-      if (!response.ok) throw new Error('Failed to update profile');
-      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Profile update error:', errorData);
+        throw new Error(errorData.error || 'Failed to update profile');
+      }
+
       const updatedCustomer = await response.json();
       setCustomer(updatedCustomer);
-      setIsEditing(false);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update profile');
-      if (err instanceof Error && err.message.includes('401')) {
-        router.push('/login');
-      }
+      toast.success('Profile updated successfully');
+    } catch (error) {
+      console.error('Profile update error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to update profile');
     }
   };
 
   const handleScheduleService = async () => {
     try {
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        toast.error('Not authenticated. Please log in again.');
+        router.push('/login');
+        return;
+      }
+
       const response = await fetch('/api/customer/services', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
         },
+        credentials: 'include', // Include cookies
         body: JSON.stringify({
           scheduledFor: new Date().toISOString(),
           preferences: formData.preferences,
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to schedule service');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to schedule service');
+      }
       
       const newService = await response.json();
       setServices([...services, newService]);
+      toast.success('Service scheduled successfully');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to schedule service');
+      console.error('Schedule error:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to schedule service');
       if (err instanceof Error && err.message.includes('401')) {
         router.push('/login');
       }
@@ -192,414 +523,784 @@ export default function CustomerDashboard() {
 
   const handleCancelSubscription = async () => {
     try {
+      const accessToken = getAccessToken();
+      if (!accessToken) {
+        toast.error('Not authenticated. Please log in again.');
+        router.push('/login');
+        return;
+      }
+
       const response = await fetch('/api/subscriptions', {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+          'Authorization': `Bearer ${accessToken}`
         },
+        credentials: 'include', // Include cookies
       });
 
-      if (!response.ok) throw new Error('Failed to cancel subscription');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to cancel subscription');
+      }
       
       const updatedSubscription = await response.json();
       setSubscription(updatedSubscription);
       toast.success('Subscription cancelled successfully');
     } catch (err) {
-      console.error('Error cancelling subscription:', err);
-      toast.error('Failed to cancel subscription');
+      console.error('Cancel subscription error:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel subscription');
+      if (err instanceof Error && err.message.includes('401')) {
+        router.push('/login');
+      }
     }
   };
 
+  const handlePauseService = async (serviceId: string) => {
+    try {
+      const response = await fetch(`/api/customer/services/${serviceId}/pause`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to pause service');
+      }
+
+      const updatedService = await response.json();
+      setServices(services.map(s => s.id === serviceId ? updatedService : s));
+      toast.success('Service paused successfully');
+    } catch (error) {
+      toast.error('Failed to pause service');
+    }
+  };
+
+  const handleCancelService = async (serviceId: string) => {
+    if (!confirm('Are you sure you want to cancel this service?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/customer/services/${serviceId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to cancel service');
+      }
+
+      const updatedService = await response.json();
+      setServices(services.map(s => s.id === serviceId ? updatedService : s));
+      toast.success('Service cancelled successfully');
+    } catch (error) {
+      toast.error('Failed to cancel service');
+    }
+  };
+
+  const handleChoosePlan = () => {
+    // For now, just show a toast since we don't have the plans page implemented
+    toast.info('Plan selection will be available soon. Please check back later.', {
+      duration: 5000,
+    });
+    
+    // Alternatively, you could use this to show a modal:
+    // setShowPlanModal(true);
+  };
+
+  const handleUpdatePaymentMethod = async (cardDetails: any) => {
+    try {
+      const response = await fetch('/api/customer/payment-method', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cardDetails),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update payment method');
+      }
+
+      toast.success('Payment method updated successfully');
+    } catch (error) {
+      toast.error('Failed to update payment method');
+    }
+  };
+
+  const handleUpdateCashAppName = async (cashAppName: string) => {
+    try {
+      const response = await fetch('/api/customer/cashapp', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ cashAppName }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update Cash App name');
+      }
+
+      setCustomer({ ...customer, cashAppName });
+      toast.success('Cash App name updated successfully');
+    } catch (error) {
+      toast.error('Failed to update Cash App name');
+    }
+  };
+
+  // Function to navigate to a tab using the layout's mechanism
+  const navigateToTab = (tab: string) => {
+    if (typeof window !== 'undefined') {
+      // Update localStorage and dispatch event to notify layout
+      localStorage.setItem('dashboard_active_tab', tab);
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'dashboard_active_tab',
+        newValue: tab,
+        storageArea: localStorage
+      }));
+      
+      // Also update URL for direct navigation
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      window.history.pushState({}, '', url);
+      
+      // Update local state for immediate UI response
+      setActiveTab(tab);
+    }
+  };
+
+  console.log('Current active tab:', activeTab);
+
+  // Dashboard loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="animate-pulse">
-            <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-24 bg-gray-200 rounded"></div>
-              ))}
-            </div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="mt-4 text-gray-600 font-medium">Loading your dashboard...</p>
+          <div className="mt-4 p-4 border rounded bg-blue-50 text-sm text-blue-800 max-w-md mx-auto text-left whitespace-pre-wrap">
+            <strong>Debug info:</strong><br/>
+            {authDebug}
           </div>
+          <button 
+            onClick={() => {
+              console.log('Manually exiting loading state');
+              setLoading(false);
+            }}
+            className="mt-4 bg-red-500 text-white p-2 rounded"
+          >
+            Debug: Force Exit Loading
+          </button>
         </div>
       </div>
     );
   }
 
+  // Dashboard error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-            {error}
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center max-w-md mx-auto p-6 bg-white rounded-2xl shadow-lg">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <span className="text-red-500 text-2xl">!</span>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">Error Loading Dashboard</h3>
+          <p className="text-gray-600">{error}</p>
+          <div className="mt-4 p-4 border rounded bg-red-50 text-sm text-red-800 text-left whitespace-pre-wrap">
+            <strong>Debug info:</strong><br/>
+            {authDebug}
+          </div>
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="mt-4 bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:from-blue-600 hover:to-purple-600"
+          >
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // No customer data found state
+  if (!customer) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <div className="bg-yellow-50 p-6 rounded-lg shadow-lg text-yellow-700 max-w-md">
+          <h3 className="text-xl font-bold mb-4">No Customer Data Found</h3>
+          <p className="mb-4">We couldn't load your customer profile. This may be due to:</p>
+          <ul className="text-left list-disc pl-5 mb-4">
+            <li>Your session has expired</li>
+            <li>You need to complete your profile</li>
+            <li>There was a server-side error</li>
+          </ul>
+          <div className="bg-yellow-100 p-4 rounded mb-4 text-left text-sm overflow-auto max-h-40 whitespace-pre-wrap">
+            <strong>Debug info:</strong><br />
+            {authDebug}
+          </div>
+          <div className="mt-6 flex flex-col space-y-2">
+            <button 
+              onClick={() => window.location.reload()}
+              className="w-full py-2 px-4 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Try Again
+            </button>
+            <button 
+              onClick={() => router.push('/login')}
+              className="w-full py-2 px-4 bg-gray-100 text-gray-800 rounded hover:bg-gray-200"
+            >
+              Return to Login
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard</h1>
+  console.log('Current active tab:', activeTab);
 
-        {/* Account Information */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Account Information</h2>
-            <button
-              onClick={() => setIsEditing(!isEditing)}
-              className="text-blue-600 hover:text-blue-800"
-            >
-              {isEditing ? 'Cancel' : 'Edit'}
-            </button>
+  // Dashboard metrics
+  const metrics = [
+    {
+      title: "Preferred Service Day",
+      value: customer?.serviceDay || "Not set",
+      icon: Calendar,
+      color: "text-blue-500"
+    },
+    {
+      title: "Last Service",
+      value: services.length > 0 
+        ? format(new Date(services[services.length - 1].scheduledFor), 'MMM d, yyyy')
+        : "No services yet",
+      icon: Clock,
+      color: "text-green-500"
+    },
+    {
+      title: "Active Subscription",
+      value: subscription ? subscription.plan.name : "No active subscription",
+      icon: CreditCard,
+      color: "text-purple-500"
+    },
+    {
+      title: "Current Address",
+      value: customer?.address ? `${customer.address.city}, ${customer.address.state}` : "Not set",
+      icon: MapPin,
+      color: "text-red-500"
+    }
+  ];
+
+  // Main dashboard content
+  return (
+    <div key={activeTab} className="space-y-8">
+      {/* Debug info section - only shown in development */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="bg-blue-50 text-blue-800 p-2 text-xs rounded mb-4">
+          <div><strong>Active Tab:</strong> {activeTab}</div>
+          <div><strong>Fetched At:</strong> {fetchedAt}</div>
+          <div><strong>Customer ID:</strong> {customer?.id}</div>
+          <div><strong>Services:</strong> {services.length}</div>
+          <div><strong>Subscription:</strong> {subscription ? 'Active' : 'None'}</div>
+          <div><strong>Payments:</strong> {payments.length}</div>
+          <div className="mt-1"><strong>API Status:</strong></div>
+          <div className="text-xs whitespace-pre-wrap">{authDebug}</div>
+        </div>
+      )}
+      
+      {activeTab === 'overview' && (
+        // Overview tab content
+        <>
+          <h1 className="text-3xl font-bold mb-6">Dashboard Overview</h1>
+          
+          {/* Dashboard Metrics */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {metrics.map((metric, index) => (
+              <Card key={index} className="hover:shadow-md transition-shadow duration-200">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-gray-500">{metric.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center">
+                    <div className={`p-2 rounded-full bg-gray-100 mr-3 ${metric.color}`}>
+                      <metric.icon className="w-5 h-5" />
+                    </div>
+                    <div className="text-xl font-bold">{metric.value}</div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+          
+          {/* Recent Service Photos */}
+          {services.length > 0 && (
+            <Card className="mt-8">
+              <CardHeader>
+                <CardTitle>Recent Service Photos</CardTitle>
+                <CardDescription>Photos from your last service</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {services[services.length - 1].photos && services[services.length - 1].photos.length > 0 ? (
+                    services[services.length - 1].photos.map((photo) => (
+                      <div key={photo.id} className="relative aspect-square">
+                        <Image
+                          src={photo.url}
+                          alt={`${photo.type} service photo`}
+                          fill
+                          className="object-cover rounded-lg"
+                        />
+                        <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2">
+                          {photo.type === 'BEFORE' ? 'Before Service' : 'After Service'}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8">
+                      <Camera className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                      <p className="text-gray-500">No photos available from last service</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Upcoming Services */}
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle>Upcoming Services</CardTitle>
+              <CardDescription>Your next scheduled visits</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {services.filter(s => s.status === 'SCHEDULED').length > 0 ? (
+                <div className="space-y-4">
+                  {services
+                    .filter(s => s.status === 'SCHEDULED')
+                    .slice(0, 3)
+                    .map((service) => (
+                      <div key={service.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center">
+                          <Calendar className="w-5 h-5 text-blue-500 mr-3" />
+                          <div>
+                            <p className="font-medium">{format(new Date(service.scheduledFor), 'MMMM d, yyyy')}</p>
+                            <p className="text-sm text-gray-500">{format(new Date(service.scheduledFor), 'h:mm a')}</p>
+                          </div>
+                        </div>
+                        <Badge className="bg-blue-100 text-blue-800">
+                          {service.status}
+                        </Badge>
+                      </div>
+                    ))}
+                    
+                  <Button 
+                    variant="outline" 
+                    className="w-full mt-2"
+                    onClick={() => navigateToTab('services')}
+                  >
+                    View All Services
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500">No upcoming services scheduled</p>
+                  <Button className="mt-4" onClick={() => navigateToTab('services')}>
+                    Schedule a Service
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          
+          {/* Subscription Status */}
+          <Card className="mt-8">
+            <CardHeader>
+              <CardTitle>Subscription Status</CardTitle>
+              <CardDescription>Your current plan details</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {subscription ? (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-lg">{subscription.plan.name}</p>
+                      <p className="text-gray-500">${subscription.plan.price}/{subscription.plan.frequency}</p>
+                    </div>
+                    <Badge className={
+                      subscription.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 
+                      subscription.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 
+                      'bg-red-100 text-red-800'
+                    }>
+                      {subscription.status}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Next billing date</span>
+                    <span className="font-medium">{format(new Date(subscription.nextBillingDate), 'MMMM d, yyyy')}</span>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full mt-2"
+                    onClick={() => navigateToTab('billing')}
+                  >
+                    Manage Subscription
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500">No active subscription found</p>
+                  <Button className="mt-4" onClick={handleChoosePlan}>
+                    Choose a Plan
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {activeTab === 'services' && (
+        // Services tab content
+        <>
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-3xl font-bold">My Services</h1>
+            <Button onClick={() => handleScheduleService()}>
+              Schedule New Service
+            </Button>
           </div>
 
-          {isEditing ? (
-            <form onSubmit={(e) => { e.preventDefault(); handleUpdateProfile(); }} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Phone</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                  />
+          <div className="space-y-6">
+            {services.map((service) => (
+              <Card key={service.id}>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span>{service.type}</span>
+                    <Badge variant={service.status === 'SCHEDULED' ? 'default' : 'secondary'}>
+                      {service.status}
+                    </Badge>
+                  </CardTitle>
+                  <CardDescription>
+                    Scheduled for {format(new Date(service.scheduledFor), 'MMMM d, yyyy')}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <User className="w-4 h-4" />
+                        <span>{service.employee?.name || 'No employee assigned'}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <DollarSign className="w-4 h-4" />
+                        <span>${service.amount}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end space-x-2">
+                      {service.status === 'SCHEDULED' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            onClick={() => handlePauseService(service.id)}
+                            disabled={service.isPaused}
+                          >
+                            {service.isPaused ? 'Service Paused' : 'Pause Service'}
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={() => handleCancelService(service.id)}
+                          >
+                            Cancel Service
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+
+      {activeTab === 'billing' && (
+        // Billing tab content
+        <>
+          <h1 className="text-3xl font-bold mb-6">Billing & Payments</h1>
+          
+          {/* Payment Method */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Payment Method</CardTitle>
+              <CardDescription>Update your payment information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <CreditCard className="w-4 h-4" />
+                    <span>Current Card: **** **** **** 4242</span>
+                  </div>
+                  <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
+                    Update Card
+                  </Button>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Billing History */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Billing History</CardTitle>
+              <CardDescription>View and download your receipts</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {payments.map((payment) => (
+                  <div key={payment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium">${payment.amount}</p>
+                      <p className="text-sm text-gray-500">
+                        {format(new Date(payment.createdAt), 'MMMM d, yyyy')}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={payment.status === 'PAID' ? 'default' : 'destructive'}>
+                        {payment.status}
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => window.open(payment.receiptUrl, '_blank')}
+                      >
+                        Download Receipt
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Referral Program */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Referral Program</CardTitle>
+              <CardDescription>Share your referral code and earn rewards</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div>
+                    <p className="font-medium">Your Referral Code</p>
+                    <p className="text-sm text-gray-500">Share this code with friends</p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <code className="px-3 py-1 bg-gray-100 rounded">{customer?.referralCode}</code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(customer?.referralCode || '');
+                        toast.success('Referral code copied to clipboard');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Cash App Name</label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={customer?.cashAppName || ''}
+                      onChange={(e) => setCustomer({ ...customer, cashAppName: e.target.value })}
+                      className="flex-1 px-3 py-2 border rounded-md"
+                      placeholder="Enter your Cash App name"
+                    />
+                    <Button
+                      onClick={() => handleUpdateCashAppName(customer?.cashAppName || '')}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    Enter your Cash App name to receive referral rewards
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {activeTab === 'profile' && (
+        // Profile tab content
+        <>
+          <h1 className="text-3xl font-bold mb-6">Profile Settings</h1>
+          
+          {/* Address Information */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Address Information</CardTitle>
+              <CardDescription>Update your service address</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium">Street Address</label>
+                    <input
+                      type="text"
+                      value={customer?.address?.street || ''}
+                      onChange={(e) => setCustomer({
+                        ...customer,
+                        address: { ...customer?.address, street: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border rounded-md"
+                      placeholder="Enter street address"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">City</label>
+                    <input
+                      type="text"
+                      value={customer?.address?.city || ''}
+                      onChange={(e) => setCustomer({
+                        ...customer,
+                        address: { ...customer?.address, city: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border rounded-md"
+                      placeholder="Enter city"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">State</label>
+                    <input
+                      type="text"
+                      value={customer?.address?.state || ''}
+                      onChange={(e) => setCustomer({
+                        ...customer,
+                        address: { ...customer?.address, state: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border rounded-md"
+                      placeholder="Enter state"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">ZIP Code</label>
+                    <input
+                      type="text"
+                      value={customer?.address?.zipCode || ''}
+                      onChange={(e) => setCustomer({
+                        ...customer,
+                        address: { ...customer?.address, zipCode: e.target.value }
+                      })}
+                      className="w-full px-3 py-2 border rounded-md"
+                      placeholder="Enter ZIP code"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={() => {
+                      console.log('Saving address:', customer?.address);
+                      if (customer?.address) {
+                        handleUpdateProfile({ address: { ...customer.address } });
+                      }
+                    }}
+                  >
+                    Save Address
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Gate Code */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Gate Code</CardTitle>
+              <CardDescription>Update your gate access code</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Gate Code</label>
+                  <label className="text-sm font-medium">Gate Code</label>
                   <input
                     type="text"
-                    value={formData.gateCode}
-                    onChange={(e) => setFormData({ ...formData, gateCode: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                    value={customer?.gateCode || ''}
+                    onChange={(e) => setCustomer({
+                      ...customer,
+                      gateCode: e.target.value
+                    })}
+                    className="w-full px-3 py-2 border rounded-md"
+                    placeholder="Enter gate code"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Service Day</label>
-                  <select
-                    value={formData.serviceDay}
-                    onChange={(e) => setFormData({ ...formData, serviceDay: e.target.value })}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={() => {
+                      console.log('Saving gate code:', customer?.gateCode);
+                      handleUpdateProfile({ gateCode: customer?.gateCode });
+                    }}
                   >
-                    <option value="MONDAY">Monday</option>
-                    <option value="TUESDAY">Tuesday</option>
-                    <option value="WEDNESDAY">Wednesday</option>
-                    <option value="THURSDAY">Thursday</option>
-                    <option value="FRIDAY">Friday</option>
+                    Save Gate Code
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Service Preferences */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Service Preferences</CardTitle>
+              <CardDescription>Set your preferred service day</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Preferred Service Day</label>
+                  <select
+                    value={customer?.serviceDay || ''}
+                    onChange={(e) => setCustomer({
+                      ...customer,
+                      serviceDay: e.target.value
+                    })}
+                    className="w-full px-3 py-2 border rounded-md"
+                  >
+                    <option value="">Select a day</option>
+                    <option value="Monday">Monday</option>
+                    <option value="Tuesday">Tuesday</option>
+                    <option value="Wednesday">Wednesday</option>
+                    <option value="Thursday">Thursday</option>
+                    <option value="Friday">Friday</option>
+                    <option value="Saturday">Saturday</option>
+                    <option value="Sunday">Sunday</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Address</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Street</label>
-                    <input
-                      type="text"
-                      value={formData.address.street}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        address: { ...formData.address, street: e.target.value }
-                      })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">City</label>
-                    <input
-                      type="text"
-                      value={formData.address.city}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        address: { ...formData.address, city: e.target.value }
-                      })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">State</label>
-                    <input
-                      type="text"
-                      value={formData.address.state}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        address: { ...formData.address, state: e.target.value }
-                      })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">ZIP Code</label>
-                    <input
-                      type="text"
-                      value={formData.address.zipCode}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        address: { ...formData.address, zipCode: e.target.value }
-                      })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    />
-                  </div>
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={() => {
+                      console.log('Saving service day:', customer?.serviceDay);
+                      handleUpdateProfile({ serviceDay: customer?.serviceDay });
+                    }}
+                  >
+                    Save Preferences
+                  </Button>
                 </div>
               </div>
-
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium text-gray-900">Service Preferences</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Grass Height (inches)</label>
-                    <input
-                      type="number"
-                      value={formData.preferences.grassHeight}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        preferences: { ...formData.preferences, grassHeight: Number(e.target.value) }
-                      })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Service Areas</label>
-                    <div className="mt-2 space-y-2">
-                      {['FRONT_YARD', 'BACK_YARD', 'SIDE_YARD'].map((area) => (
-                        <label key={area} className="flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={formData.preferences.serviceAreas.includes(area)}
-                            onChange={(e) => {
-                              const newAreas = e.target.checked
-                                ? [...formData.preferences.serviceAreas, area]
-                                : formData.preferences.serviceAreas.filter(a => a !== area);
-                              setFormData({
-                                ...formData,
-                                preferences: { ...formData.preferences, serviceAreas: newAreas }
-                              });
-                            }}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="ml-2 text-sm text-gray-700">{area.replace('_', ' ')}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-gray-700">Special Instructions</label>
-                    <textarea
-                      value={formData.preferences.specialInstructions}
-                      onChange={(e) => setFormData({
-                        ...formData,
-                        preferences: { ...formData.preferences, specialInstructions: e.target.value }
-                      })}
-                      rows={3}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </form>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Phone</p>
-                <p className="font-medium">{customer?.phone}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Gate Code</p>
-                <p className="font-medium">{customer?.gateCode || 'Not set'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Service Day</p>
-                <p className="font-medium">{customer?.serviceDay}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Address</p>
-                <p className="font-medium">
-                  {customer?.address.street}
-                  <br />
-                  {customer?.address.city}, {customer?.address.state} {customer?.address.zipCode}
-                </p>
-              </div>
-              {customer?.preferences && (
-                <>
-                  <div>
-                    <p className="text-sm text-gray-500">Preferred Grass Height</p>
-                    <p className="font-medium">{customer.preferences.grassHeight} inches</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Service Areas</p>
-                    <p className="font-medium">
-                      {customer.preferences.serviceAreas.map(area => area.replace('_', ' ')).join(', ')}
-                    </p>
-                  </div>
-                  {customer.preferences.specialInstructions && (
-                    <div className="md:col-span-2">
-                      <p className="text-sm text-gray-500">Special Instructions</p>
-                      <p className="font-medium">{customer.preferences.specialInstructions}</p>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Subscription Information */}
-        {subscription && (
-          <div className="bg-white rounded-lg shadow p-6 mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-900">Subscription</h2>
-              <button
-                onClick={handleCancelSubscription}
-                disabled={subscription.status === 'CANCELLED'}
-                className="text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel Subscription
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Plan</p>
-                <p className="font-medium">{subscription.plan.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Status</p>
-                <p className="font-medium capitalize">{subscription.status.toLowerCase()}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Next Billing Date</p>
-                <p className="font-medium">
-                  {format(new Date(subscription.nextBillingDate), 'MMMM d, yyyy')}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Price</p>
-                <p className="font-medium">
-                  ${subscription.plan.price}/{subscription.plan.frequency}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Payment History */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Payment History</h2>
-          {payments.length === 0 ? (
-            <p className="text-gray-500">No payments found.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {payments.map((payment) => (
-                    <tr key={payment.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {format(new Date(payment.date), 'MMMM d, yyyy')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${payment.amount.toFixed(2)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          payment.status === 'SUCCESS' ? 'bg-green-100 text-green-800' :
-                          payment.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {payment.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {payment.description}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Service History */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Service History</h2>
-            <button
-              onClick={handleScheduleService}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-            >
-              Schedule Service
-            </button>
-          </div>
-          {services.length === 0 ? (
-            <p className="text-gray-500">No services completed yet.</p>
-          ) : (
-            <div className="space-y-8">
-              {services.map((service) => (
-                <div key={service.id} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <p className="font-medium">
-                        {format(new Date(service.scheduledFor), 'MMMM d, yyyy')}
-                      </p>
-                      <p className="text-sm text-gray-500 capitalize">{service.status}</p>
-                    </div>
-                    {service.employee && (
-                      <div className="text-right">
-                        <p className="font-medium">{service.employee.name}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {service.photos.length > 0 && (
-                    <div className="mt-4">
-                      <h3 className="text-sm font-medium text-gray-700 mb-2">Photos</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        {service.photos.map((photo) => (
-                          <div key={photo.id} className="relative aspect-video">
-                            <Image
-                              src={photo.url}
-                              alt={`${photo.type} service photo`}
-                              fill
-                              className="object-cover rounded-lg"
-                            />
-                            <span className="absolute bottom-2 left-2 bg-black bg-opacity-50 text-white text-xs px-2 py-1 rounded">
-                              {photo.type}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {service.description && (
-                    <p className="mt-4 text-sm text-gray-600">{service.description}</p>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 } 

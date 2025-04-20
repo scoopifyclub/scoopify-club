@@ -37,6 +37,11 @@ model Customer {
   id                String        @id @default(cuid())
   userId            String        @unique
   subscriptionId    String?       @unique
+  phone             String?
+  gateCode          String?
+  serviceDay        String?
+  cashAppName       String?
+  referralCode      String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   stripeCustomerId  String?       @unique
