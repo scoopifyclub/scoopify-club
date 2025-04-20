@@ -6,6 +6,9 @@ import { z } from 'zod';
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { getCache, setCache, generateCacheKey, invalidateCache } from '@/lib/cache';
+import { getServerSession } from 'next-auth/next';
+import { authOptions } from '@/lib/auth';
+import { isAfter } from 'date-fns';
 
 // Initialize rate limiter only if Redis is configured
 const ratelimit = process.env.REDIS_URL && process.env.REDIS_TOKEN
@@ -20,119 +23,90 @@ const ratelimit = process.env.REDIS_URL && process.env.REDIS_TOKEN
 
 export async function GET(request: Request) {
   try {
-    // Rate limiting only if configured
-    if (ratelimit) {
-      const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
-      const { success } = await ratelimit.limit(ip);
-      if (!success) {
-        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-      }
-    }
-
-    const cookieStore = await cookies();
-    const accessToken = cookieStore.get('accessToken')?.value;
-    if (!accessToken) {
+    // Verify authentication
+    const session = await getServerSession(authOptions);
+    if (!session?.user || session.user.role !== 'CUSTOMER') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId, role } = await validateUser(accessToken);
-
-    let customerId;
-    if (role === 'ADMIN') {
-      const { searchParams } = new URL(request.url);
-      customerId = searchParams.get('customerId');
-      if (!customerId) {
-        return NextResponse.json({ error: 'Customer ID required for admin access' }, { status: 400 });
-      }
-    } else {
-      const customer = await prisma.customer.findFirst({
-        where: { userId },
-        select: { id: true }
-      });
-
-      if (!customer) {
-        return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-      }
-      customerId = customer.id;
-    }
-
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const status = searchParams.get('status');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
-
-    const cacheKey = generateCacheKey('services', {
-      customerId,
-      page,
-      limit,
-      status,
-      startDate,
-      endDate,
+    // Get the customer record for the current user
+    const customer = await prisma.customer.findUnique({
+      where: { userId: session.user.id }
     });
 
-    const cachedData = await getCache(cacheKey);
-    if (cachedData) {
-      if (Array.isArray(cachedData)) {
-        return NextResponse.json(cachedData);
-      } else if (cachedData.services) {
-        return NextResponse.json(cachedData.services);
-      } else {
-        return NextResponse.json([]);
-      }
+    if (!customer) {
+      return NextResponse.json({ error: 'Customer record not found' }, { status: 404 });
     }
 
-    const where: any = { customerId };
-    if (status) where.status = status;
-    if (startDate && endDate) {
-      where.scheduledDate = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      };
-    }
+    // Get query parameters
+    const url = new URL(request.url);
+    const status = url.searchParams.get('status');
+    const limit = parseInt(url.searchParams.get('limit') || '50');
 
-    const [services, total] = await Promise.all([
-      prisma.service.findMany({
-        where,
-        include: {
-          servicePlan: {
-            select: {
-              name: true,
-              price: true,
-              duration: true
-            }
-          },
-          employee: {
-            include: {
-              user: {
-                select: {
-                  name: true,
-                  email: true,
-                  image: true
-                }
-              }
-            }
+    // Build the query
+    const query: any = {
+      where: {
+        customerId: customer.id,
+        ...(status && { status: status.toUpperCase() })
+      },
+      include: {
+        employee: {
+          select: {
+            id: true,
+            name: true,
+            userId: true
           }
         },
-        orderBy: {
-          scheduledDate: 'desc'
+        photos: {
+          select: {
+            id: true,
+            url: true,
+            type: true,
+            createdAt: true,
+            expiresAt: true
+          }
         },
-        skip: (page - 1) * limit,
-        take: limit
-      }),
-      prisma.service.count({ where })
-    ]);
+        address: true
+      },
+      orderBy: {
+        scheduledDate: 'desc'
+      },
+      take: limit
+    };
 
-    await setCache(cacheKey, services, {
-      ttl: 300,
-      tags: [`customer:${customerId}`, 'services'],
+    // Fetch the services
+    const services = await prisma.service.findMany(query);
+
+    // Process the services to format them for the frontend
+    const formattedServices = services.map(service => {
+      // Check if any photos are expired
+      const processedPhotos = service.photos.map(photo => {
+        // Return the photo with an additional property indicating if it's expired
+        return {
+          ...photo,
+          isExpired: photo.expiresAt ? isAfter(new Date(), new Date(photo.expiresAt)) : false
+        };
+      });
+
+      return {
+        id: service.id,
+        status: service.status,
+        scheduledDate: service.scheduledDate.toISOString(),
+        completedAt: service.completedAt ? service.completedAt.toISOString() : null,
+        address: service.address,
+        employee: service.employee,
+        notes: service.notes,
+        photos: processedPhotos
+      };
     });
 
-    return NextResponse.json(services);
+    return NextResponse.json(formattedServices);
   } catch (error) {
-    console.error('Services error:', error);
-    return NextResponse.json([]);
+    console.error('Error fetching customer services:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch services' },
+      { status: 500 }
+    );
   }
 }
 

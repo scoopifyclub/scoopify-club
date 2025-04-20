@@ -8,6 +8,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum PhotoType {
+  BEFORE
+  AFTER
+  ISSUE
+  OTHER
+}
+
 model User {
   id                      String         @id @default(cuid())
   email                   String         @unique
@@ -173,15 +180,13 @@ model Payment {
 
 model ServicePhoto {
   id        String    @id @default(cuid())
-  serviceId String
   url       String
-  type      String
-  latitude  Float?
-  longitude Float?
-  timestamp DateTime?
+  type      PhotoType
+  serviceId String
+  service   Service   @relation(fields: [serviceId], references: [id])
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  service   Service   @relation(fields: [serviceId], references: [id])
+  expiresAt DateTime? // When this photo should be deleted
 }
 
 model ServicePlan {
@@ -453,4 +458,16 @@ model PaymentReconciliationItem {
   @@index([reportId])
   @@index([paymentId])
   @@index([matchStatus])
+}
+
+model CleanupTask {
+  id           String    @id @default(cuid())
+  taskType     String    // PHOTO_CLEANUP, etc.
+  status       String    // PENDING, COMPLETED, FAILED
+  scheduledFor DateTime
+  targetId     String    // ID of the object to clean up (e.g., serviceId)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  completedAt  DateTime?
+  notes        String?
 }
