@@ -1,36 +1,95 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { useSession, signOut } from 'next-auth/react';
+import { 
+  faPaw, 
+  faHome, 
+  faBroom, 
+  faTags, 
+  faInfoCircle, 
+  faSignInAlt, 
+  faUserPlus, 
+  faBars, 
+  faTimes,
+  faSignOutAlt,
+  faUser,
+  faShieldAlt
+} from '@fortawesome/free-solid-svg-icons';
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { data: session, status } = useSession();
-  const isAuthenticated = status === 'authenticated';
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRole, setUserRole] = useState<'ADMIN' | 'CUSTOMER' | 'EMPLOYEE' | null>(null);
+  const router = useRouter();
 
-  const navigation = [
-    { name: 'Home', href: '/', icon: 'home' },
-    { name: 'Services', href: '/services', icon: 'broom' },
-    { name: 'Pricing', href: '/pricing', icon: 'tags' },
-    { name: 'About', href: '/about', icon: 'info-circle' },
-  ];
+  useEffect(() => {
+    // Check if user is logged in by looking for the access token
+    const checkAuth = () => {
+      const cookies = document.cookie.split(';');
+      const hasAccessToken = cookies.some(cookie => cookie.trim().startsWith('accessToken='));
+      setIsLoggedIn(hasAccessToken);
 
-  // Add dashboard link if user is authenticated
-  const authLinks = isAuthenticated ? [
-    { 
-      name: session?.user?.role === 'EMPLOYEE' ? 'Employee Dashboard' : 'Customer Dashboard', 
-      href: session?.user?.role === 'EMPLOYEE' ? '/employee/dashboard' : '/customer/dashboard', 
-      icon: 'tachometer-alt'
-    },
-  ] : [];
+      // Try to get user role from localStorage
+      const storedRole = localStorage.getItem('userRole');
+      if (storedRole) {
+        setUserRole(storedRole as 'ADMIN' | 'CUSTOMER' | 'EMPLOYEE');
+      }
+    };
 
-  const combinedNavigation = [...navigation, ...authLinks];
+    checkAuth();
+  }, []);
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: '/' });
+    try {
+      // Call logout API
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        // Clear cookies
+        document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+        document.cookie = 'refreshToken=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+        document.cookie = 'fingerprint=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT';
+        
+        // Clear localStorage
+        localStorage.removeItem('userRole');
+        
+        // Reset state
+        setIsLoggedIn(false);
+        setUserRole(null);
+        
+        // Redirect to home page
+        router.push('/');
+        router.refresh();
+      }
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
   };
+
+  const getDashboardLink = () => {
+    switch (userRole) {
+      case 'ADMIN':
+        return '/admin/dashboard';
+      case 'EMPLOYEE':
+        return '/employee/dashboard';
+      case 'CUSTOMER':
+      default:
+        return '/customer/dashboard';
+    }
+  };
+
+  const navigation = [
+    { name: 'Home', href: '/', icon: faHome },
+    { name: 'Services', href: '/services', icon: faBroom },
+    { name: 'Pricing', href: '/pricing', icon: faTags },
+    { name: 'About', href: '/about', icon: faInfoCircle },
+  ];
 
   return (
     <header className="bg-white border-b border-neutral-200">
@@ -41,7 +100,7 @@ export function Navbar() {
             <div className="text-2xl font-bold flex items-center">
               <span className="inline-flex items-center justify-center w-8 h-8">
                 <FontAwesomeIcon 
-                  icon="paw"
+                  icon={faPaw}
                   className="text-primary-500"
                   width="32"
                   height="32"
@@ -53,7 +112,7 @@ export function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            {combinedNavigation.map((item) => (
+            {navigation.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
@@ -73,19 +132,30 @@ export function Navbar() {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            {isAuthenticated ? (
-              // Logged in - show logout button and user info
+            {isLoggedIn ? (
               <>
-                <div className="text-neutral-700 font-medium px-2">
-                  Hello, {session?.user?.name || session?.user?.email?.split('@')[0] || 'User'}
-                </div>
+                <Link 
+                  href={getDashboardLink()}
+                  className="text-neutral-700 hover:text-primary font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
+                >
+                  <span className="inline-flex items-center justify-center w-5 h-5">
+                    <FontAwesomeIcon 
+                      icon={userRole === 'ADMIN' ? faShieldAlt : faUser}
+                      width="20"
+                      height="20"
+                    />
+                  </span>
+                  <span className="ml-2">
+                    {userRole === 'ADMIN' ? 'Admin Dashboard' : 'Dashboard'}
+                  </span>
+                </Link>
                 <button
                   onClick={handleLogout}
                   className="text-neutral-700 hover:text-primary font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
                 >
                   <span className="inline-flex items-center justify-center w-5 h-5">
                     <FontAwesomeIcon 
-                      icon="sign-out-alt"
+                      icon={faSignOutAlt}
                       width="20"
                       height="20"
                     />
@@ -94,7 +164,6 @@ export function Navbar() {
                 </button>
               </>
             ) : (
-              // Not logged in - show login and signup buttons
               <>
                 <Link 
                   href="/auth/signin"
@@ -102,7 +171,7 @@ export function Navbar() {
                 >
                   <span className="inline-flex items-center justify-center w-5 h-5">
                     <FontAwesomeIcon 
-                      icon="sign-in-alt"
+                      icon={faSignInAlt}
                       width="20"
                       height="20"
                     />
@@ -115,7 +184,7 @@ export function Navbar() {
                 >
                   <span className="inline-flex items-center justify-center w-5 h-5">
                     <FontAwesomeIcon 
-                      icon="user-plus"
+                      icon={faUserPlus}
                       width="20"
                       height="20"
                     />
@@ -128,7 +197,7 @@ export function Navbar() {
                 >
                   <span className="inline-flex items-center justify-center w-5 h-5">
                     <FontAwesomeIcon 
-                      icon="broom"
+                      icon={faBroom}
                       width="20"
                       height="20"
                     />
@@ -148,7 +217,7 @@ export function Navbar() {
             >
               <span className="sr-only">Open main menu</span>
               <FontAwesomeIcon 
-                icon={mobileMenuOpen ? 'times' : 'bars'}
+                icon={mobileMenuOpen ? faTimes : faBars}
                 className="h-6 w-6"
               />
             </button>
@@ -159,7 +228,7 @@ export function Navbar() {
         {mobileMenuOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1">
-              {combinedNavigation.map((item) => (
+              {navigation.map((item) => (
                 <Link
                   key={item.name}
                   href={item.href}
@@ -177,71 +246,38 @@ export function Navbar() {
                   </div>
                 </Link>
               ))}
-              
-              {/* Mobile Auth */}
-              {isAuthenticated ? (
-                <button
-                  onClick={handleLogout}
-                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
-                >
-                  <div className="flex items-center">
-                    <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
-                      <FontAwesomeIcon 
-                        icon="sign-out-alt"
-                        width="20"
-                        height="20"
-                      />
-                    </span>
-                    Log out
-                  </div>
-                </button>
-              ) : (
+              {isLoggedIn && (
                 <>
                   <Link
-                    href="/auth/signin"
+                    href={getDashboardLink()}
                     className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
                   >
                     <div className="flex items-center">
                       <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
                         <FontAwesomeIcon 
-                          icon="sign-in-alt"
+                          icon={userRole === 'ADMIN' ? faShieldAlt : faUser}
                           width="20"
                           height="20"
                         />
                       </span>
-                      Log in
+                      {userRole === 'ADMIN' ? 'Admin Dashboard' : 'Dashboard'}
                     </div>
                   </Link>
-                  <Link
-                    href="/signup"
-                    className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
+                  <button
+                    onClick={handleLogout}
+                    className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
                   >
                     <div className="flex items-center">
                       <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
                         <FontAwesomeIcon 
-                          icon="user-plus"
+                          icon={faSignOutAlt}
                           width="20"
                           height="20"
                         />
                       </span>
-                      Join the Club
+                      Log out
                     </div>
-                  </Link>
-                  <Link
-                    href="/auth/scooper-signup"
-                    className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
-                  >
-                    <div className="flex items-center">
-                      <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
-                        <FontAwesomeIcon 
-                          icon="broom"
-                          width="20"
-                          height="20"
-                        />
-                      </span>
-                      Become a Scooper
-                    </div>
-                  </Link>
+                  </button>
                 </>
               )}
             </div>

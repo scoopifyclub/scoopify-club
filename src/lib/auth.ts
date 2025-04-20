@@ -9,9 +9,9 @@ import { NextResponse } from 'next/server';
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 
-if (!process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required');
-}
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
+const TOKEN_EXPIRY = '24h';
 
 // Initialize Redis and rate limiter only in non-test environment
 let redis;
@@ -38,10 +38,6 @@ if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
   };
 }
 
-// Create a consistent secret key for JWT
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
-const REFRESH_TOKEN_SECRET = new TextEncoder().encode(process.env.JWT_SECRET + '_refresh');
-
 // Generate a device fingerprint
 function generateFingerprint() {
   return randomBytes(32).toString('hex');
@@ -59,8 +55,8 @@ export async function generateTokens(user: any, deviceFingerprint: string) {
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setExpirationTime('7d')
-    .sign(JWT_SECRET);
+    .setExpirationTime('15m') // 15 minutes
+    .sign(new TextEncoder().encode(JWT_SECRET));
 
   // Generate refresh token
   const refreshToken = await new SignJWT({
@@ -70,7 +66,7 @@ export async function generateTokens(user: any, deviceFingerprint: string) {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(REFRESH_TOKEN_SECRET);
+    .sign(new TextEncoder().encode(REFRESH_SECRET));
 
   // Store refresh token and fingerprint
   await prisma.$transaction([
@@ -132,29 +128,50 @@ export async function login(email: string, password: string, fingerprint?: strin
   return { accessToken, refreshToken, user, deviceFingerprint };
 }
 
-export async function verifyToken(token: string, isRefreshToken = false) {
-  try {
-    console.log('Verifying token with secret:', isRefreshToken ? 'REFRESH' : 'ACCESS');
-    const { payload } = await jwtVerify(token, isRefreshToken ? REFRESH_TOKEN_SECRET : JWT_SECRET, {
-      algorithms: ['HS256']
+export async function verifyToken(token: string) {
+    try {
+        const { payload } = await jwtVerify(
+            token,
+            new TextEncoder().encode(JWT_SECRET)
+        );
+        return payload;
+    } catch (error) {
+        console.error('Token verification failed:', error);
+        return null;
+    }
+}
+
+export async function generateAdminToken(user: any) {
+    const token = await new SignJWT({ 
+        id: user.id,
+        email: user.email,
+        role: user.role
+    })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setIssuedAt()
+        .setExpirationTime(TOKEN_EXPIRY)
+        .sign(new TextEncoder().encode(JWT_SECRET));
+    return token;
+}
+
+export async function setAdminCookie(token: string) {
+    const cookieStore = cookies();
+    cookieStore.set('adminToken', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24 * 60 * 60 // 24 hours
     });
-    console.log('Token payload:', payload);
-    return payload as {
-      id: string;
-      email?: string;
-      role?: string;
-      customerId?: string;
-      employeeId?: string;
-      fingerprint?: string;
-    };
-  } catch (error) {
-    console.error('Token verification error:', error);
-    return null;
-  }
+}
+
+export async function clearAdminCookie() {
+    const cookieStore = cookies();
+    cookieStore.delete('adminToken');
 }
 
 export async function refreshToken(oldRefreshToken: string, fingerprint?: string) {
-  const payload = await verifyToken(oldRefreshToken, true);
+  const payload = await verifyToken(oldRefreshToken);
   if (!payload) {
     throw new Error('Invalid refresh token');
   }

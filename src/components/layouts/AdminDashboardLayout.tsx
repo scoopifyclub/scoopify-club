@@ -1,7 +1,6 @@
 import { ReactNode } from 'react';
-import Navbar from '@/components/Navbar';
-import Footer from '@/components/Footer';
 import Link from 'next/link';
+import Footer from '@/components/Footer';
 
 interface AdminDashboardLayoutProps {
   children: ReactNode;
@@ -10,7 +9,6 @@ interface AdminDashboardLayoutProps {
 export function AdminDashboardLayout({ children }: AdminDashboardLayoutProps) {
   return (
     <div className="min-h-screen bg-neutral-50">
-      <Navbar />
       <div className="container mx-auto px-4 py-8">
         <div className="flex gap-6">
           {/* Sidebar */}

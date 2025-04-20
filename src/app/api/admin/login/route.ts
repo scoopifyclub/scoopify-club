@@ -1,65 +1,67 @@
-import { NextResponse } from 'next/server'
+import { NextResponse } from 'next/response'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
+import { generateAdminToken, setAdminCookie } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json()
 
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: 'Email and password are required' },
+        { status: 400 }
+      )
+    }
+
     const user = await prisma.user.findUnique({
-      where: { email },
-      include: {
-        employee: true,
-        customer: true,
-      },
+      where: { email }
     })
 
-    if (!user || !user.password) {
-      return new NextResponse('Invalid credentials', { status: 401 })
+    if (!user || user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      )
     }
 
-    const isValid = await bcrypt.compare(password, user.password)
-
-    if (!isValid) {
-      return new NextResponse('Invalid credentials', { status: 401 })
+    const isValidPassword = await bcrypt.compare(password, user.password)
+    if (!isValidPassword) {
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      )
     }
 
-    const token = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        employeeId: user.employee?.id,
-        customerId: user.customer?.id,
+    const token = await generateAdminToken(user)
+    await setAdminCookie(token)
+
+    return NextResponse.json(
+      { 
+        success: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role
+        }
       },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '7d' }
+      { status: 200 }
     )
-
-    const response = NextResponse.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        employeeId: user.employee?.id,
-        customerId: user.customer?.id,
-      },
-      token,
-    })
-
-    response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-      path: '/',
-    })
-
-    return response
   } catch (error) {
     console.error('Login error:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    )
   }
+}
+
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS(request: Request) {
+  const response = new NextResponse(null, { status: 204 })
+  response.headers.set('Access-Control-Allow-Credentials', 'true')
+  response.headers.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*')
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  return response
 } 

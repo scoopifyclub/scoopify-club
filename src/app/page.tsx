@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPaw, faCircleInfo, faBroom, faCalendar, faStar, faCircleCheck, faTags } from '@fortawesome/free-solid-svg-icons';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -45,21 +46,21 @@ export default function Home() {
                   href="/signup" 
                   className="inline-flex items-center justify-center bg-primary text-white font-semibold px-6 py-3 rounded-lg hover:bg-primary-dark transition-colors duration-200"
                 >
-                  <FontAwesomeIcon icon={['fas', 'paw']} className="mr-2 h-4 w-4" />
+                  <FontAwesomeIcon icon={faPaw} className="mr-2 h-4 w-4" />
                   Join the Club
                 </Link>
                 <Link 
                   href="/services" 
                   className="inline-flex items-center justify-center bg-white text-primary border-2 border-primary font-semibold px-6 py-3 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200"
                 >
-                  <FontAwesomeIcon icon={['fas', 'circle-info']} className="mr-2 h-4 w-4" />
+                  <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-4 w-4" />
                   Learn More
                 </Link>
                 <Link 
                   href="/auth/scooper-signup" 
                   className="inline-flex items-center justify-center border-2 border-primary text-primary font-semibold px-6 py-3 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200"
                 >
-                  <FontAwesomeIcon icon={['fas', 'broom']} className="mr-2 h-4 w-4" />
+                  <FontAwesomeIcon icon={faBroom} className="mr-2 h-4 w-4" />
                   Become a Scooper
                 </Link>
               </div>
@@ -94,7 +95,7 @@ export default function Home() {
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
                   <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <FontAwesomeIcon icon={['fas', 'broom']} className="w-6 h-6 text-primary" />
+                    <FontAwesomeIcon icon={faBroom} className="w-6 h-6 text-primary" />
                   </div>
                 </div>
                 <div>
@@ -108,7 +109,7 @@ export default function Home() {
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
                   <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <FontAwesomeIcon icon={['fas', 'calendar']} className="w-6 h-6 text-primary" />
+                    <FontAwesomeIcon icon={faCalendar} className="w-6 h-6 text-primary" />
                   </div>
                 </div>
                 <div>
@@ -122,7 +123,7 @@ export default function Home() {
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
                   <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <FontAwesomeIcon icon={['fas', 'star']} className="w-6 h-6 text-primary" />
+                    <FontAwesomeIcon icon={faStar} className="w-6 h-6 text-primary" />
                   </div>
                 </div>
                 <div>
@@ -151,14 +152,14 @@ export default function Home() {
                 href="/signup" 
                 className="inline-flex items-center justify-center bg-white text-primary font-semibold px-6 py-3 rounded-lg hover:bg-neutral-100 transition-colors duration-200 shadow-lg"
               >
-                <FontAwesomeIcon icon={['fas', 'circle-check']} className="mr-2 h-4 w-4" />
+                <FontAwesomeIcon icon={faCircleCheck} className="mr-2 h-4 w-4" />
                 Get Started Now
               </Link>
               <Link 
                 href="/pricing" 
                 className="inline-flex items-center text-white font-semibold hover:text-white/80 transition-colors duration-200 group"
               >
-                <FontAwesomeIcon icon={['fas', 'tags']} className="mr-2 h-4 w-4" />
+                <FontAwesomeIcon icon={faTags} className="mr-2 h-4 w-4" />
                 View Pricing
                 <span className="ml-2 group-hover:translate-x-1 transition-transform duration-200">→</span>
               </Link>

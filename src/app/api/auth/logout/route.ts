@@ -3,26 +3,18 @@ import { logout } from '@/lib/auth'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 
-export async function POST(request: Request) {
+export async function POST() {
   try {
-    const accessToken = cookies().get('accessToken')?.value
-    if (!accessToken) {
-      return NextResponse.json({ success: true })
-    }
-
-    const payload = await verifyToken(accessToken)
-    if (payload) {
-      await logout(payload.id)
-    }
-
-    // Clear cookies
+    // Clear all authentication cookies
     cookies().delete('accessToken')
     cookies().delete('refreshToken')
+    cookies().delete('fingerprint')
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ message: 'Logged out successfully' })
   } catch (error) {
+    console.error('Logout error:', error)
     return NextResponse.json(
-      { error: 'An unexpected error occurred' },
+      { error: 'An error occurred during logout' },
       { status: 500 }
     )
   }

@@ -15,28 +15,22 @@ export async function GET(request: Request) {
     }
 
     const customers = await prisma.customer.findMany({
-      where: {
-        status: 'ACTIVE',
-        user: {
-          isActive: true
-        }
-      },
       include: {
         user: {
           select: {
             name: true,
-            email: true
+            email: true,
+            phone: true
           }
         },
         address: true,
         subscription: {
-          select: {
-            status: true,
+          include: {
             plan: {
               select: {
                 name: true,
                 price: true,
-                frequency: true
+                duration: true
               }
             }
           }
@@ -48,10 +42,23 @@ export async function GET(request: Request) {
       id: customer.id,
       name: customer.user.name,
       email: customer.user.email,
-      address: customer.address.street,
-      coordinates: [customer.address.latitude, customer.address.longitude],
+      phone: customer.user.phone,
+      address: customer.address ? {
+        street: customer.address.street,
+        city: customer.address.city,
+        state: customer.address.state,
+        zipCode: customer.address.zipCode
+      } : null,
       serviceDay: customer.serviceDay,
-      subscription: customer.subscription
+      subscription: customer.subscription ? {
+        id: customer.subscription.id,
+        status: customer.subscription.status,
+        plan: {
+          name: customer.subscription.plan.name,
+          price: customer.subscription.plan.price,
+          frequency: customer.subscription.plan.duration
+        }
+      } : null
     }));
 
     return NextResponse.json({ customers: formattedCustomers });

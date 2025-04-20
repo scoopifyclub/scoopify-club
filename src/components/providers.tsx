@@ -5,7 +5,6 @@ import { Toaster } from 'sonner';
 import { config } from '@fortawesome/fontawesome-svg-core';
 import '@fortawesome/fontawesome-svg-core/styles.css';
 import { library } from '@fortawesome/fontawesome-svg-core';
-import { SessionProvider } from 'next-auth/react';
 import { 
   faPaw, 
   faHome, 
@@ -33,6 +32,8 @@ import {
 
 // Initialize Font Awesome configuration
 config.autoAddCss = false; // Tell Font Awesome to skip adding CSS automatically since we're doing it manually
+
+// Add icons to library
 library.add(
   faPaw, 
   faHome, 
@@ -72,16 +73,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
           fill: currentColor;
         }
       `}</style>
-      <SessionProvider>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          {children}
-        </ThemeProvider>
-      </SessionProvider>
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="system"
+        enableSystem
+        disableTransitionOnChange
+      >
+        {children}
+      </ThemeProvider>
       <Toaster richColors position="top-right" />
     </>
   );
