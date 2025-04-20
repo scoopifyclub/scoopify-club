@@ -2,7 +2,8 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Home, Calendar, Users, DollarSign, User, MapPin, MessageSquare, Bell, CheckSquare, Settings, Image } from 'lucide-react';
+import { Home, Calendar, Users, DollarSign, User, MapPin, MessageSquare, Bell, CheckSquare, Settings, Image, LogOut } from 'lucide-react';
+import { signOut } from 'next-auth/react';
 
 export default function EmployeeDashboardLayout({
   children,
@@ -27,6 +28,11 @@ export default function EmployeeDashboardLayout({
       params.set('tab', tab);
       router.push(`/employee/dashboard?${params.toString()}`);
     }
+  };
+  
+  // Handle logout
+  const handleLogout = () => {
+    signOut({ callbackUrl: '/' });
   };
   
   // Listen for tab changes
@@ -57,7 +63,7 @@ export default function EmployeeDashboardLayout({
         {/* Sidebar */}
         <aside className="w-72 bg-white rounded-2xl shadow-lg p-6 h-fit border border-gray-100">
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-gray-800 px-4 mb-2">Scooper Dashboard</h2>
+            <h2 className="text-lg font-semibold text-gray-800 px-4 mb-2">Scoopify Dashboard</h2>
             <div className="h-0.5 bg-gradient-to-r from-green-500 to-blue-500 mx-4 mb-6"></div>
           </div>
           <nav className="space-y-2">
@@ -93,7 +99,7 @@ export default function EmployeeDashboardLayout({
               }`}
             >
               <CheckSquare className={`w-5 h-5 mr-3 ${activeTab === 'services' ? 'text-white' : 'text-green-500'}`} />
-              <span className="font-medium">Services</span>
+              <span className="font-medium">Yard Cleanups</span>
             </button>
             <button 
               onClick={() => setDashboardTab('customers')}
@@ -128,7 +134,7 @@ export default function EmployeeDashboardLayout({
               }`}
             >
               <MapPin className={`w-5 h-5 mr-3 ${activeTab === 'maps' ? 'text-white' : 'text-green-500'}`} />
-              <span className="font-medium">Maps & Routes</span>
+              <span className="font-medium">Routes & Yards</span>
             </button>
             <button 
               onClick={() => setDashboardTab('messages')}
@@ -150,7 +156,7 @@ export default function EmployeeDashboardLayout({
               }`}
             >
               <Image className={`w-5 h-5 mr-3 ${activeTab === 'photos' ? 'text-white' : 'text-green-500'}`} />
-              <span className="font-medium">Service Photos</span>
+              <span className="font-medium">Yard Photos</span>
             </button>
             <button 
               onClick={() => setDashboardTab('notifications')}
@@ -187,6 +193,15 @@ export default function EmployeeDashboardLayout({
               <Settings className={`w-5 h-5 mr-3 ${activeTab === 'settings' ? 'text-white' : 'text-green-500'}`} />
               <span className="font-medium">Settings</span>
             </button>
+            
+            {/* Logout Button */}
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center px-4 py-3 rounded-xl transition-colors text-gray-700 hover:bg-red-50 mt-6"
+            >
+              <LogOut className="w-5 h-5 mr-3 text-red-500" />
+              <span className="font-medium">Logout</span>
+            </button>
           </nav>
           
           {/* Quick Stats */}
@@ -198,12 +213,12 @@ export default function EmployeeDashboardLayout({
                 <span className="font-semibold">5</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-green-100">Next Service</span>
+                <span className="text-green-100">Next Cleanup</span>
                 <span className="font-semibold">Today, 2 PM</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-green-100">Earnings This Week</span>
-                <span className="font-semibold">$320</span>
+                <span className="text-green-100">Yards Cleaned</span>
+                <span className="font-semibold">12 today</span>
               </div>
             </div>
           </div>

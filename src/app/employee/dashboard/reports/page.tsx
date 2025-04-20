@@ -64,9 +64,9 @@ const customerReviewsData = [
 const COLORS = ['#22c55e', '#84cc16', '#facc15', '#f97316', '#ef4444'];
 
 const serviceTypeData = [
-  { name: 'Regular Pool Service', value: 65 },
-  { name: 'Deep Cleaning', value: 20 },
-  { name: 'Chemical Treatment', value: 15 },
+  { name: 'Weekly Cleanup', value: 65 },
+  { name: 'Bi-Weekly Cleanup', value: 20 },
+  { name: 'One-Time Cleanup', value: 15 },
 ];
 
 const SERVICE_COLORS = ['#3b82f6', '#8b5cf6', '#06b6d4'];
@@ -285,7 +285,7 @@ export default function ReportsPage() {
               <CardHeader>
                 <CardTitle>Service Breakdown</CardTitle>
                 <CardDescription>
-                  Types of services performed
+                  Types of waste removal services performed
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex justify-center">
@@ -321,7 +321,7 @@ export default function ReportsPage() {
             <CardHeader>
               <CardTitle>Service Performance Metrics</CardTitle>
               <CardDescription>
-                Detailed breakdown of service efficiency and quality
+                Detailed breakdown of waste removal efficiency and quality
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -337,7 +337,7 @@ export default function ReportsPage() {
                       { name: 'On-Time Rate', value: performanceData.onTimeRate, fill: '#3b82f6' },
                       { name: 'Completion Rate', value: performanceData.completionRate, fill: '#22c55e' },
                       { name: 'Customer Satisfaction', value: performanceData.customerSatisfaction, fill: '#f59e0b' },
-                      { name: 'Quality Score', value: 92, fill: '#8b5cf6' },
+                      { name: 'Yard Coverage', value: 98, fill: '#8b5cf6' },
                     ]}
                   >
                     <RadialBar
@@ -475,7 +475,7 @@ export default function ReportsPage() {
                           <span className="text-xs text-gray-500 ml-2">John S.</span>
                         </div>
                         <p className="text-sm mt-1">
-                          "Always on time and does an excellent job with our pool. Highly recommended!"
+                          "Always on time and does an excellent job with our yard. Highly recommended!"
                         </p>
                       </div>
                       <div>
@@ -488,7 +488,7 @@ export default function ReportsPage() {
                           <span className="text-xs text-gray-500 ml-2">Sarah J.</span>
                         </div>
                         <p className="text-sm mt-1">
-                          "Very thorough and professional service. Our pool has never looked better."
+                          "Very thorough and professional service. Our yard has never been cleaner."
                         </p>
                       </div>
                     </div>
@@ -512,7 +512,7 @@ export default function ReportsPage() {
           <div className="flex flex-wrap gap-4">
             <div className="flex flex-col items-center p-4 border rounded-lg">
               <Award className="h-10 w-10 text-amber-500 mb-2" />
-              <h4 className="font-medium">Top Performer</h4>
+              <h4 className="font-medium">Top Scooper</h4>
               <p className="text-xs text-gray-500">April 2023</p>
             </div>
             <div className="flex flex-col items-center p-4 border rounded-lg">
@@ -527,8 +527,8 @@ export default function ReportsPage() {
             </div>
             <div className="flex flex-col items-center p-4 border rounded-lg">
               <CheckCircle2 className="h-10 w-10 text-purple-500 mb-2" />
-              <h4 className="font-medium">Perfect Completion</h4>
-              <p className="text-xs text-gray-500">100% completion rate</p>
+              <h4 className="font-medium">200+ Yards Cleaned</h4>
+              <p className="text-xs text-gray-500">This month</p>
             </div>
           </div>
         </CardContent>

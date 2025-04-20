@@ -22,6 +22,10 @@ interface ServiceLocation {
   completed: boolean;
   lat: number;
   lng: number;
+  yardSize: 'Small' | 'Medium' | 'Large';
+  dogs: number;
+  gateCode?: string;
+  specialInstructions?: string;
 }
 
 export default function MapsPage() {
@@ -57,7 +61,11 @@ export default function MapsPage() {
           scheduledTime: '9:00 AM',
           completed: false,
           lat: 34.052235,
-          lng: -118.243683
+          lng: -118.243683,
+          yardSize: 'Medium',
+          dogs: 2,
+          gateCode: '1234',
+          specialInstructions: 'Dogs may be in backyard. Please text before arrival.'
         },
         {
           id: '2',
@@ -67,7 +75,10 @@ export default function MapsPage() {
           scheduledTime: '10:30 AM',
           completed: false,
           lat: 34.059483,
-          lng: -118.278621
+          lng: -118.278621,
+          yardSize: 'Large',
+          dogs: 3,
+          specialInstructions: 'Waste bins on side of garage. Beware of sprinklers.'
         },
         {
           id: '3',
@@ -77,7 +88,10 @@ export default function MapsPage() {
           scheduledTime: '1:00 PM',
           completed: false,
           lat: 34.073678,
-          lng: -118.240082
+          lng: -118.240082,
+          yardSize: 'Small',
+          dogs: 1,
+          gateCode: '5678'
         },
         {
           id: '4',
@@ -87,7 +101,9 @@ export default function MapsPage() {
           scheduledTime: '2:30 PM',
           completed: false,
           lat: 34.061867,
-          lng: -118.300125
+          lng: -118.300125,
+          yardSize: 'Medium',
+          dogs: 2
         },
         {
           id: '5',
@@ -97,7 +113,10 @@ export default function MapsPage() {
           scheduledTime: '4:00 PM',
           completed: false,
           lat: 34.045803,
-          lng: -118.269012
+          lng: -118.269012,
+          yardSize: 'Small',
+          dogs: 1,
+          specialInstructions: 'Enter through side gate. Waste bags provided.'
         }
       ];
       
@@ -244,6 +263,26 @@ export default function MapsPage() {
                 </CardHeader>
                 <CardContent className="p-4 pt-0">
                   <p className="text-sm">{location.address}, {location.city}</p>
+                  
+                  <div className="mt-2 text-xs text-gray-500 flex gap-2">
+                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full">
+                      {location.yardSize} Yard
+                    </span>
+                    <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded-full">
+                      {location.dogs} {location.dogs === 1 ? 'Dog' : 'Dogs'}
+                    </span>
+                    {location.gateCode && (
+                      <span className="px-1.5 py-0.5 bg-gray-50 text-gray-700 rounded-full">
+                        Gate: {location.gateCode}
+                      </span>
+                    )}
+                  </div>
+                  
+                  {location.specialInstructions && (
+                    <p className="mt-2 text-xs italic text-gray-600">
+                      Note: {location.specialInstructions}
+                    </p>
+                  )}
                 </CardContent>
                 <CardFooter className="p-4 pt-0 flex justify-between">
                   <Button
@@ -273,9 +312,9 @@ export default function MapsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Maps & Routes</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Routes & Yards</h1>
         <p className="text-gray-500">
-          Plan your route and navigate to customer locations
+          Plan your route and navigate to customer yards for waste cleanup
         </p>
       </div>
       

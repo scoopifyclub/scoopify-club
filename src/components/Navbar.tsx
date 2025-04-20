@@ -3,9 +3,12 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { useSession, signOut } from 'next-auth/react';
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { data: session, status } = useSession();
+  const isAuthenticated = status === 'authenticated';
 
   const navigation = [
     { name: 'Home', href: '/', icon: 'home' },
@@ -13,6 +16,21 @@ export function Navbar() {
     { name: 'Pricing', href: '/pricing', icon: 'tags' },
     { name: 'About', href: '/about', icon: 'info-circle' },
   ];
+
+  // Add dashboard link if user is authenticated
+  const authLinks = isAuthenticated ? [
+    { 
+      name: session?.user?.role === 'EMPLOYEE' ? 'Employee Dashboard' : 'Customer Dashboard', 
+      href: session?.user?.role === 'EMPLOYEE' ? '/employee/dashboard' : '/customer/dashboard', 
+      icon: 'tachometer-alt'
+    },
+  ] : [];
+
+  const combinedNavigation = [...navigation, ...authLinks];
+
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: '/' });
+  };
 
   return (
     <header className="bg-white border-b border-neutral-200">
@@ -35,7 +53,7 @@ export function Navbar() {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-8">
-            {navigation.map((item) => (
+            {combinedNavigation.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
@@ -55,45 +73,70 @@ export function Navbar() {
 
           {/* Auth Buttons */}
           <div className="hidden md:flex items-center space-x-4">
-            <Link 
-              href="/auth/signin"
-              className="text-neutral-700 hover:text-primary font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
-            >
-              <span className="inline-flex items-center justify-center w-5 h-5">
-                <FontAwesomeIcon 
-                  icon="sign-in-alt"
-                  width="20"
-                  height="20"
-                />
-              </span>
-              <span className="ml-2">Log in</span>
-            </Link>
-            <Link 
-              href="/signup"
-              className="bg-primary text-white font-medium px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors duration-200 flex items-center"
-            >
-              <span className="inline-flex items-center justify-center w-5 h-5">
-                <FontAwesomeIcon 
-                  icon="user-plus"
-                  width="20"
-                  height="20"
-                />
-              </span>
-              <span className="ml-2">Join the Club</span>
-            </Link>
-            <Link 
-              href="/auth/scooper-signup"
-              className="border-2 border-primary text-primary font-medium px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200 flex items-center"
-            >
-              <span className="inline-flex items-center justify-center w-5 h-5">
-                <FontAwesomeIcon 
-                  icon="broom"
-                  width="20"
-                  height="20"
-                />
-              </span>
-              <span className="ml-2">Become a Scooper</span>
-            </Link>
+            {isAuthenticated ? (
+              // Logged in - show logout button and user info
+              <>
+                <div className="text-neutral-700 font-medium px-2">
+                  Hello, {session?.user?.name || session?.user?.email?.split('@')[0] || 'User'}
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="text-neutral-700 hover:text-primary font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
+                >
+                  <span className="inline-flex items-center justify-center w-5 h-5">
+                    <FontAwesomeIcon 
+                      icon="sign-out-alt"
+                      width="20"
+                      height="20"
+                    />
+                  </span>
+                  <span className="ml-2">Log out</span>
+                </button>
+              </>
+            ) : (
+              // Not logged in - show login and signup buttons
+              <>
+                <Link 
+                  href="/auth/signin"
+                  className="text-neutral-700 hover:text-primary font-medium px-4 py-2 rounded-lg transition-colors duration-200 flex items-center"
+                >
+                  <span className="inline-flex items-center justify-center w-5 h-5">
+                    <FontAwesomeIcon 
+                      icon="sign-in-alt"
+                      width="20"
+                      height="20"
+                    />
+                  </span>
+                  <span className="ml-2">Log in</span>
+                </Link>
+                <Link 
+                  href="/signup"
+                  className="bg-primary text-white font-medium px-4 py-2 rounded-lg hover:bg-primary-dark transition-colors duration-200 flex items-center"
+                >
+                  <span className="inline-flex items-center justify-center w-5 h-5">
+                    <FontAwesomeIcon 
+                      icon="user-plus"
+                      width="20"
+                      height="20"
+                    />
+                  </span>
+                  <span className="ml-2">Join the Club</span>
+                </Link>
+                <Link 
+                  href="/auth/scooper-signup"
+                  className="border-2 border-primary text-primary font-medium px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200 flex items-center"
+                >
+                  <span className="inline-flex items-center justify-center w-5 h-5">
+                    <FontAwesomeIcon 
+                      icon="broom"
+                      width="20"
+                      height="20"
+                    />
+                  </span>
+                  <span className="ml-2">Become a Scooper</span>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile menu button */}
@@ -116,7 +159,7 @@ export function Navbar() {
         {mobileMenuOpen && (
           <div className="md:hidden">
             <div className="px-2 pt-2 pb-3 space-y-1">
-              {navigation.map((item) => (
+              {combinedNavigation.map((item) => (
                 <Link
                   key={item.name}
                   href={item.href}
@@ -134,6 +177,73 @@ export function Navbar() {
                   </div>
                 </Link>
               ))}
+              
+              {/* Mobile Auth */}
+              {isAuthenticated ? (
+                <button
+                  onClick={handleLogout}
+                  className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
+                >
+                  <div className="flex items-center">
+                    <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
+                      <FontAwesomeIcon 
+                        icon="sign-out-alt"
+                        width="20"
+                        height="20"
+                      />
+                    </span>
+                    Log out
+                  </div>
+                </button>
+              ) : (
+                <>
+                  <Link
+                    href="/auth/signin"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
+                  >
+                    <div className="flex items-center">
+                      <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
+                        <FontAwesomeIcon 
+                          icon="sign-in-alt"
+                          width="20"
+                          height="20"
+                        />
+                      </span>
+                      Log in
+                    </div>
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
+                  >
+                    <div className="flex items-center">
+                      <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
+                        <FontAwesomeIcon 
+                          icon="user-plus"
+                          width="20"
+                          height="20"
+                        />
+                      </span>
+                      Join the Club
+                    </div>
+                  </Link>
+                  <Link
+                    href="/auth/scooper-signup"
+                    className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
+                  >
+                    <div className="flex items-center">
+                      <span className="inline-flex items-center justify-center w-5 h-5 mr-2">
+                        <FontAwesomeIcon 
+                          icon="broom"
+                          width="20"
+                          height="20"
+                        />
+                      </span>
+                      Become a Scooper
+                    </div>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         )}
