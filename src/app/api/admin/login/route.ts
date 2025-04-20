@@ -34,19 +34,40 @@ export async function POST(request: Request) {
     }
 
     const token = await generateAdminToken(user)
-    await setAdminCookie(token)
-
-    return NextResponse.json(
+    
+    // Create response with user data and token
+    const response = NextResponse.json(
       { 
         success: true,
         user: {
           id: user.id,
           email: user.email,
           role: user.role
-        }
+        },
+        token // Include token in response
       },
       { status: 200 }
     )
+
+    // Set HTTP-only cookie
+    response.cookies.set('adminToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60 // 24 hours
+    })
+
+    // Set client-accessible cookie
+    response.cookies.set('accessToken_client', token, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60 // 24 hours
+    })
+
+    return response
   } catch (error) {
     console.error('Login error:', error)
     return NextResponse.json(

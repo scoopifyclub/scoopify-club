@@ -35,7 +35,7 @@ export async function createSession(userId: string, email: string, role: string)
 }
 
 export async function verifySession(): Promise<Session | null> {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const accessToken = cookieStore.get('accessToken')?.value
 
   if (!accessToken) {
@@ -82,7 +82,7 @@ export async function verifySession(): Promise<Session | null> {
 }
 
 export async function invalidateSession() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const refreshToken = cookieStore.get('refreshToken')?.value
 
   if (refreshToken) {

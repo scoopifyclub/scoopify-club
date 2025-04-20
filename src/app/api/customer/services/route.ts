@@ -29,24 +29,33 @@ export async function GET(request: Request) {
       }
     }
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const accessToken = cookieStore.get('accessToken')?.value;
     if (!accessToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { userId } = await validateUser(accessToken, 'CUSTOMER');
+    const { userId, role } = await validateUser(accessToken);
 
-    const customer = await prisma.customer.findFirst({
-      where: { userId },
-      select: { id: true }
-    });
+    let customerId;
+    if (role === 'ADMIN') {
+      const { searchParams } = new URL(request.url);
+      customerId = searchParams.get('customerId');
+      if (!customerId) {
+        return NextResponse.json({ error: 'Customer ID required for admin access' }, { status: 400 });
+      }
+    } else {
+      const customer = await prisma.customer.findFirst({
+        where: { userId },
+        select: { id: true }
+      });
 
-    if (!customer) {
-      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+      if (!customer) {
+        return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+      }
+      customerId = customer.id;
     }
 
-    // Get query parameters
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
@@ -54,9 +63,8 @@ export async function GET(request: Request) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    // Generate cache key
     const cacheKey = generateCacheKey('services', {
-      customerId: customer.id,
+      customerId,
       page,
       limit,
       status,
@@ -64,10 +72,8 @@ export async function GET(request: Request) {
       endDate,
     });
 
-    // Try to get from cache
     const cachedData = await getCache(cacheKey);
     if (cachedData) {
-      // Ensure we're returning an array for the frontend
       if (Array.isArray(cachedData)) {
         return NextResponse.json(cachedData);
       } else if (cachedData.services) {
@@ -77,8 +83,7 @@ export async function GET(request: Request) {
       }
     }
 
-    // Build where clause
-    const where: any = { customerId: customer.id };
+    const where: any = { customerId };
     if (status) where.status = status;
     if (startDate && endDate) {
       where.scheduledDate = {
@@ -119,24 +124,18 @@ export async function GET(request: Request) {
       prisma.service.count({ where })
     ]);
 
-    // Modified: Return just the services array instead of an object with services and pagination
-    // This ensures the frontend receives an array (even if empty) that it can use filter() on
-    
-    // Cache the response
     await setCache(cacheKey, services, {
-      ttl: 300, // 5 minutes
-      tags: [`customer:${customer.id}`, 'services'],
+      ttl: 300,
+      tags: [`customer:${customerId}`, 'services'],
     });
 
     return NextResponse.json(services);
   } catch (error) {
     console.error('Services error:', error);
-    // In case of error, return an empty array to avoid frontend errors
     return NextResponse.json([]);
   }
 }
 
-// Input validation schema
 const createServiceSchema = z.object({
   scheduledDate: z.string().datetime(),
   servicePlanId: z.string().min(1),
@@ -146,7 +145,6 @@ const createServiceSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    // Rate limiting
     if (ratelimit) {
       const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
       const { success } = await ratelimit.limit(ip);
@@ -155,7 +153,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const accessToken = cookieStore.get('accessToken')?.value;
     if (!accessToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -175,7 +173,6 @@ export async function POST(request: Request) {
     const body = await request.json();
     const validatedData = createServiceSchema.parse(body);
 
-    // Create service
     const service = await prisma.service.create({
       data: {
         customerId: customer.id,
@@ -196,7 +193,6 @@ export async function POST(request: Request) {
       }
     });
 
-    // Invalidate relevant caches
     await invalidateCache([`customer:${customer.id}`, 'services']);
 
     return NextResponse.json(service, { status: 201 });
