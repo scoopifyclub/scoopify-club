@@ -82,6 +82,21 @@ export default function ScooperSignUp() {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Sign up as a Scooper
           </h2>
+          
+          {/* Scooper Benefits Section */}
+          <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-100">
+            <h3 className="text-lg font-medium text-purple-800 mb-2">Scooper Benefits</h3>
+            <ul className="text-sm text-gray-700 space-y-2 list-disc pl-5">
+              <li>Earn 75% of service fees after deductions</li>
+              <li>Flexible schedule - claim jobs that work for you</li>
+              <li>Get paid weekly through your preferred payment method</li>
+              <li>Access to our batch payment system for reliable income</li>
+              <li>Multiple payment options: Stripe, Cash App, Cash, or Check</li>
+              <li>Real-time notifications for new job opportunities</li>
+              <li>Track your earnings and completed services</li>
+            </ul>
+          </div>
+          
           <p className="mt-2 text-center text-sm text-gray-600">
             Already have an account?{' '}
             <a href="/auth/signin" className="font-medium text-purple-600 hover:text-purple-500">
