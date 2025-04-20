@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, HomeIcon, CalendarIcon, MessageSquare, CircleDollarSign, Settings, Briefcase, RefreshCw, LogOut, ShoppingBag } from 'lucide-react';
+import { Loader2, HomeIcon, CalendarIcon, MessageSquare, CircleDollarSign, Settings, Briefcase, RefreshCw, LogOut, ShoppingBag, Menu, X } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 
 interface QuickStats {
   activeJobs: number;
@@ -19,6 +20,7 @@ export default function EmployeeDashboardLayout({ children }: { children: React.
   const [activeTab, setActiveTab] = useState('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [quickStats, setQuickStats] = useState<QuickStats>({
     activeJobs: 0,
     completedToday: 0,
@@ -134,95 +136,125 @@ export default function EmployeeDashboardLayout({ children }: { children: React.
     );
   }
 
-  return (
-    <div className="flex flex-col md:flex-row max-w-screen-xl mx-auto px-4 py-8">
-      {/* Mobile Header with Logout Button for small screens */}
-      <div className="md:hidden w-full flex justify-between items-center mb-4">
-        <h1 className="text-xl font-bold">Employee Dashboard</h1>
-        <Button 
-          variant="destructive" 
-          size="sm"
-          onClick={() => signOut({ callbackUrl: '/login' })}
+  // Helper function to render navigation links
+  const renderNavLinks = () => (
+    <nav className="space-y-1">
+      {tabs.map((tab) => (
+        <Link
+          key={tab.id}
+          href={tab.href}
+          className={`flex items-center px-3 py-2 rounded-md transition-colors ${
+            activeTab === tab.id
+              ? 'bg-primary text-primary-foreground font-medium'
+              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+          }`}
+          onClick={() => {
+            setActiveTab(tab.id);
+            setMobileMenuOpen(false);
+          }}
         >
-          <LogOut className="h-4 w-4 mr-2" />
-          Log Out
-        </Button>
+          {tab.icon}
+          <span className="ml-3">{tab.label}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+
+  // Helper function to render quick stats
+  const renderQuickStats = () => (
+    <div className="mt-8">
+      <h3 className="text-sm font-medium text-muted-foreground mb-2">Quick Stats</h3>
+      <div className="space-y-2">
+        <div className="flex justify-between">
+          <span className="text-sm">Active Jobs</span>
+          <span className="text-sm font-medium">{quickStats.activeJobs}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-sm">Completed Today</span>
+          <span className="text-sm font-medium">{quickStats.completedToday}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-sm">Earnings Today</span>
+          <span className="text-sm font-medium">${quickStats.earningsToday}</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  // Helper function to render buttons
+  const renderButtons = () => (
+    <div className="mt-6 pt-6 border-t">
+      <Button 
+        variant="outline" 
+        size="sm" 
+        className="w-full flex items-center justify-center"
+        onClick={refreshSession}
+        disabled={isRefreshing}
+      >
+        {isRefreshing ? (
+          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+        ) : (
+          <RefreshCw className="h-4 w-4 mr-2" />
+        )}
+        Refresh Session
+      </Button>
+      
+      <Button 
+        variant="destructive" 
+        size="sm" 
+        className="w-full flex items-center justify-center mt-2"
+        onClick={() => signOut({ callbackUrl: '/login' })}
+      >
+        <LogOut className="h-4 w-4 mr-2" />
+        Log Out
+      </Button>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col max-w-screen-xl mx-auto px-4 py-4 sm:py-8">
+      {/* Mobile Header */}
+      <div className="md:hidden w-full flex justify-between items-center mb-4 sticky top-0 z-10 bg-background pb-2 border-b">
+        <h1 className="text-xl font-bold">Employee Dashboard</h1>
+        
+        <div className="flex items-center gap-2">
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="h-6 w-6" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[300px] sm:w-[350px]">
+              <SheetHeader>
+                <SheetTitle>Employee Dashboard</SheetTitle>
+              </SheetHeader>
+              <div className="py-4">
+                {renderNavLinks()}
+                {renderQuickStats()}
+                {renderButtons()}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
       
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 mb-6 md:mb-0 md:mr-8">
-        <div className="bg-card text-card-foreground rounded-lg p-4 shadow-sm sticky top-8">
-          <h2 className="text-xl font-semibold mb-4">Employee Dashboard</h2>
-          
-          <nav className="space-y-1">
-            {tabs.map((tab) => (
-              <Link
-                key={tab.id}
-                href={tab.href}
-                className={`flex items-center px-3 py-2 rounded-md transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-primary text-primary-foreground font-medium'
-                    : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                }`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.icon}
-                <span className="ml-3">{tab.label}</span>
-              </Link>
-            ))}
-          </nav>
-
-          <div className="mt-8">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">Quick Stats</h3>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-sm">Active Jobs</span>
-                <span className="text-sm font-medium">{quickStats.activeJobs}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm">Completed Today</span>
-                <span className="text-sm font-medium">{quickStats.completedToday}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-sm">Earnings Today</span>
-                <span className="text-sm font-medium">${quickStats.earningsToday}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-6 border-t">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full flex items-center justify-center"
-              onClick={refreshSession}
-              disabled={isRefreshing}
-            >
-              {isRefreshing ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Refresh Session
-            </Button>
+      <div className="flex flex-col md:flex-row">
+        {/* Sidebar - hidden on mobile, visible on medium screens and up */}
+        <aside className="hidden md:block w-64 mb-6 md:mb-0 md:mr-8 shrink-0">
+          <div className="bg-card text-card-foreground rounded-lg p-4 shadow-sm sticky top-8">
+            <h2 className="text-xl font-semibold mb-4">Employee Dashboard</h2>
             
-            <Button 
-              variant="destructive" 
-              size="sm" 
-              className="w-full flex items-center justify-center mt-2"
-              onClick={() => signOut({ callbackUrl: '/login' })}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Log Out
-            </Button>
+            {renderNavLinks()}
+            {renderQuickStats()}
+            {renderButtons()}
           </div>
-        </div>
-      </aside>
+        </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 min-h-[calc(100vh-4rem)]">
-        {children}
-      </main>
+        {/* Main Content */}
+        <main className="flex-1 min-h-[calc(100vh-4rem)]">
+          {children}
+        </main>
+      </div>
     </div>
   );
 } 

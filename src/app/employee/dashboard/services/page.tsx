@@ -40,6 +40,7 @@ export default function ServicesPage() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'Weekly Cleanup' | 'Bi-Weekly Cleanup' | 'One-Time Cleanup'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'priority'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
 
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -170,7 +171,7 @@ export default function ServicesPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Yard Cleanups</h1>
         <p className="text-gray-500">
@@ -178,8 +179,76 @@ export default function ServicesPage() {
         </p>
       </div>
 
-      {/* Filters and Search */}
-      <div className="flex flex-col sm:flex-row gap-4">
+      {/* Filters and Search - Mobile */}
+      <div className="md:hidden space-y-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+          <Input
+            placeholder="Search services..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        
+        <div className="flex justify-between items-center">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-1"
+            onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+          >
+            <Filter className="h-4 w-4" />
+            Filters
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSortOrder(current => current === 'asc' ? 'desc' : 'asc');
+            }}
+            className="flex items-center gap-1"
+          >
+            <ArrowUpDown className="h-4 w-4" />
+            {sortOrder === 'asc' ? 'Oldest First' : 'Newest First'}
+          </Button>
+        </div>
+        
+        {isFilterExpanded && (
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+              <SelectTrigger className="text-sm">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="scheduled">Scheduled</SelectItem>
+                <SelectItem value="in-progress">In Progress</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+            
+            <Select value={typeFilter} onValueChange={(value: any) => setTypeFilter(value)}>
+              <SelectTrigger className="text-sm">
+                <CheckSquare className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="Weekly Cleanup">Weekly</SelectItem>
+                <SelectItem value="Bi-Weekly Cleanup">Bi-Weekly</SelectItem>
+                <SelectItem value="One-Time Cleanup">One-Time</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+      </div>
+
+      {/* Filters and Search - Desktop */}
+      <div className="hidden md:flex md:flex-row gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
           <Input
@@ -227,57 +296,67 @@ export default function ServicesPage() {
         </div>
       </div>
 
+      {/* Results Summary */}
+      <div className="text-sm text-gray-500">
+        {filteredServices.length === 0 ? 'No services found' : `Showing ${filteredServices.length} services`}
+      </div>
+
       {/* Services List */}
-      <div className="space-y-4">
+      <div className="space-y-3 sm:space-y-4">
         {filteredServices.map(service => (
-          <Card key={service.id} className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-6">
-              <div className="flex flex-col md:flex-row md:items-center gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline" className={getStatusColor(service.status)}>
-                      {service.status}
-                    </Badge>
-                    <Badge variant="outline" className={getPriorityColor(service.priority)}>
-                      {service.priority} priority
-                    </Badge>
-                    <Badge variant="outline">{service.type}</Badge>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-500">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      {service.customerName}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4" />
-                      {format(new Date(service.date), 'MMM d, yyyy')}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4" />
-                      {service.startTime} - {service.endTime}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4" />
-                      {service.address}
-                    </div>
-                  </div>
-                  {service.notes && (
-                    <div className="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                      <span className="font-medium">Notes:</span> {service.notes}
-                    </div>
-                  )}
+          <Card key={service.id} className="hover:shadow-md transition-shadow cursor-pointer overflow-hidden">
+            <CardContent className="p-3 sm:p-6">
+              <div className="flex flex-col gap-3">
+                {/* Status and Type Badges */}
+                <div className="flex flex-wrap items-center gap-2 mb-1 sm:mb-2">
+                  <Badge variant="outline" className={`text-xs ${getStatusColor(service.status)}`}>
+                    {service.status}
+                  </Badge>
+                  <Badge variant="outline" className={`text-xs ${getPriorityColor(service.priority)}`}>
+                    {service.priority} priority
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">{service.type}</Badge>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm">
+                
+                {/* Service Details */}
+                <div className="grid grid-cols-1 gap-2 text-xs sm:text-sm text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{service.customerName}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 flex-shrink-0" />
+                    <span>{format(new Date(service.date), 'MMM d, yyyy')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 flex-shrink-0" />
+                    <span>{service.startTime} - {service.endTime}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{service.address}</span>
+                  </div>
+                </div>
+                
+                {/* Notes */}
+                {service.notes && (
+                  <div className="mt-2 text-xs sm:text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                    <span className="font-medium">Notes:</span> {service.notes}
+                  </div>
+                )}
+                
+                {/* Actions */}
+                <div className="flex flex-wrap gap-2 mt-2 sm:mt-3">
+                  <Button variant="outline" size="sm" className="text-xs w-full sm:w-auto">
                     View Details
                   </Button>
                   {service.status === 'scheduled' && (
-                    <Button variant="default" size="sm">
+                    <Button variant="default" size="sm" className="text-xs w-full sm:w-auto">
                       Start Service
                     </Button>
                   )}
                   {service.status === 'in-progress' && (
-                    <Button variant="default" size="sm">
+                    <Button variant="default" size="sm" className="text-xs w-full sm:w-auto">
                       Complete Service
                     </Button>
                   )}
@@ -288,10 +367,10 @@ export default function ServicesPage() {
         ))}
 
         {filteredServices.length === 0 && (
-          <div className="text-center py-12">
-            <CheckSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900">No services found</h3>
-            <p className="text-gray-500">
+          <div className="text-center py-8 sm:py-12">
+            <CheckSquare className="h-10 w-10 sm:h-12 sm:w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-base sm:text-lg font-medium text-gray-900">No services found</h3>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">
               Try adjusting your search or filters to find what you're looking for.
             </p>
           </div>

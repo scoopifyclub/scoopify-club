@@ -190,8 +190,8 @@ export default function JobsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Available Jobs</h1>
           <p className="text-gray-500">
@@ -201,14 +201,16 @@ export default function JobsPage() {
             Available from 7am to 7pm today
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full sm:w-auto gap-2">
           <Button 
             variant="outline" 
             onClick={refreshLocation}
             disabled={loading}
+            className="flex-1 sm:flex-initial"
+            size="sm"
           >
             <Navigation className="h-4 w-4 mr-2" />
-            Update Location
+            <span className="sm:inline">Update Location</span>
           </Button>
           <Button 
             onClick={() => fetchAvailableJobs(
@@ -216,83 +218,85 @@ export default function JobsPage() {
               userLocation?.longitude
             )}
             disabled={loading}
+            className="flex-1 sm:flex-initial"
+            size="sm"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
+            <span className="sm:inline">Refresh</span>
           </Button>
         </div>
       </div>
 
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+        <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 text-red-700 px-3 py-2 sm:px-4 sm:py-3 rounded text-sm">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="flex justify-center items-center py-8 sm:py-12">
+          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-primary"></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {jobs.map((job) => (
             <Card key={job.id} className="hover:shadow-md transition-shadow">
-              <CardHeader>
+              <CardHeader className="pb-0 sm:pb-2">
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle>{format(new Date(job.scheduledDate), 'EEEE, MMM d')}</CardTitle>
+                    <CardTitle className="text-base sm:text-lg">{format(new Date(job.scheduledDate), 'EEE, MMM d')}</CardTitle>
                     <CardDescription>
                       {format(new Date(job.scheduledDate), 'h:mm a')}
                     </CardDescription>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                  <div className="flex flex-col items-end gap-1 sm:gap-2">
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs sm:text-sm">
                       ${job.potentialEarnings.toFixed(2)}
                     </Badge>
                     {job.distance && (
-                      <Badge variant="outline" className="text-gray-500">
+                      <Badge variant="outline" className="text-gray-500 text-xs sm:text-sm">
                         {job.distance} mi
                       </Badge>
                     )}
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="py-3 space-y-3">
                 <div className="flex items-start gap-2">
                   <MapPinIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-medium">{job.customer.name}</p>
-                    <p className="text-sm text-gray-500">{formatAddress(job)}</p>
+                    <p className="font-medium text-sm sm:text-base">{job.customer.name}</p>
+                    <p className="text-xs sm:text-sm text-gray-500">{formatAddress(job)}</p>
                     {job.customer.gateCode && (
-                      <p className="text-sm text-gray-500">
+                      <p className="text-xs sm:text-sm text-gray-500">
                         Gate code: {job.customer.gateCode}
                       </p>
                     )}
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-2">
-                  <ClockIcon className="h-5 w-5 text-gray-400" />
-                  <p className="text-sm">Est. {job.servicePlan.duration} minutes</p>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <DollarSignIcon className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="text-sm font-medium text-green-600">
-                      Earn ${job.potentialEarnings.toFixed(2)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      75% after processing fees
-                    </p>
+                <div className="flex flex-wrap gap-x-6 gap-y-2 mt-2">
+                  <div className="flex items-center gap-2">
+                    <ClockIcon className="h-4 w-4 text-gray-400" />
+                    <p className="text-xs sm:text-sm">Est. {job.servicePlan.duration} mins</p>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <DollarSignIcon className="h-4 w-4 text-gray-400" />
+                    <div>
+                      <p className="text-xs sm:text-sm font-medium text-green-600">
+                        Earn ${job.potentialEarnings.toFixed(2)}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </CardContent>
-              <CardFooter className="flex justify-between gap-2">
+              <CardFooter className="flex flex-col sm:flex-row gap-2 pt-0">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => window.open(getDirectionsUrl(job), '_blank')}
+                  className="w-full sm:w-auto text-xs sm:text-sm"
                 >
                   <Navigation className="h-4 w-4 mr-2" />
                   Directions
@@ -300,7 +304,8 @@ export default function JobsPage() {
                 <Button
                   onClick={() => handleClaimJob(job.id)}
                   disabled={claiming === job.id}
-                  className="flex-1"
+                  className="w-full text-xs sm:text-sm"
+                  size="sm"
                 >
                   {claiming === job.id ? (
                     <>
@@ -316,9 +321,18 @@ export default function JobsPage() {
           ))}
           
           {jobs.length === 0 && !loading && (
-            <div className="col-span-full text-center py-12 bg-gray-50 rounded-lg">
+            <div className="col-span-full text-center py-8 sm:py-12 bg-gray-50 rounded-lg">
               <p className="text-gray-500">No jobs available at the moment.</p>
-              <p className="text-gray-400 text-sm mt-2">Check back later for new opportunities.</p>
+              <p className="text-gray-400 text-xs sm:text-sm mt-2">Check back later for new opportunities.</p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-4"
+                onClick={() => fetchAvailableJobs(userLocation?.latitude, userLocation?.longitude)}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
             </div>
           )}
         </div>
