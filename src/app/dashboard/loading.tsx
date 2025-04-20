@@ -1,4 +1,4 @@
-import { Skeleton } from "@/components/ui/skeleton"
+import { Skeleton } from "@/components/ui/Skeleton"
 
 export default function DashboardLoading() {
   return (
@@ -13,7 +13,7 @@ export default function DashboardLoading() {
         {/* Metrics Grid Skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="card">
+            <div key={i} className="bg-white rounded-lg shadow-sm p-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
                   <Skeleton className="h-4 w-24" />
@@ -29,7 +29,7 @@ export default function DashboardLoading() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Upcoming Appointments Skeleton */}
           <div className="lg:col-span-2">
-            <div className="card">
+            <div className="bg-white rounded-lg shadow-sm p-6">
               <Skeleton className="h-8 w-48 mb-6" />
               <div className="space-y-4">
                 {[...Array(2)].map((_, i) => (
@@ -50,7 +50,7 @@ export default function DashboardLoading() {
 
           {/* Quick Actions & Service Status Skeleton */}
           <div className="space-y-6">
-            <div className="card">
+            <div className="bg-white rounded-lg shadow-sm p-6">
               <Skeleton className="h-8 w-32 mb-6" />
               <div className="space-y-4">
                 {[...Array(3)].map((_, i) => (
@@ -59,7 +59,7 @@ export default function DashboardLoading() {
               </div>
             </div>
 
-            <div className="card">
+            <div className="bg-white rounded-lg shadow-sm p-6">
               <Skeleton className="h-8 w-32 mb-4" />
               <div className="space-y-4">
                 {[...Array(3)].map((_, i) => (

@@ -22,30 +22,51 @@ async function main() {
 
   console.log('Created test user:', user.email)
 
-  // Create customer profile
+  // Create service plan
+  const servicePlan = await prisma.servicePlan.create({
+    data: {
+      name: 'Weekly Service',
+      description: 'Weekly yard cleaning service',
+      price: 29.99,
+      duration: 60,
+      type: 'REGULAR',
+      isActive: true,
+    },
+  })
+
+  console.log('Created service plan:', servicePlan.name)
+
+  // Create customer profile with address
   const customer = await prisma.customer.upsert({
     where: { userId: user.id },
     update: {},
     create: {
       userId: user.id,
-      subscription: {
+      address: {
         create: {
-          status: 'ACTIVE',
-          startDate: new Date(),
-          plan: {
-            create: {
-              name: 'Weekly Service',
-              price: 29.99,
-              duration: 60,
-              description: 'Weekly yard cleaning service',
-            },
-          },
+          street: '123 Demo St',
+          city: 'Demo City',
+          state: 'CA',
+          zipCode: '12345',
         },
       },
     },
   })
 
   console.log('Created customer profile')
+
+  // Create subscription
+  const subscription = await prisma.subscription.create({
+    data: {
+      customerId: customer.id,
+      planId: servicePlan.id,
+      status: 'ACTIVE',
+      startDate: new Date(),
+      endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days from now
+    },
+  })
+
+  console.log('Created subscription')
 
   // Create some test services
   const services = await Promise.all([
@@ -54,14 +75,7 @@ async function main() {
         customerId: customer.id,
         status: 'SCHEDULED',
         scheduledDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-        servicePlan: {
-          create: {
-            name: 'Regular Cleanup',
-            price: 29.99,
-            duration: 60,
-            description: 'Standard yard cleaning service',
-          },
-        },
+        servicePlanId: servicePlan.id,
       },
     }),
     prisma.service.create({
@@ -69,14 +83,7 @@ async function main() {
         customerId: customer.id,
         status: 'COMPLETED',
         scheduledDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
-        servicePlan: {
-          create: {
-            name: 'Deep Clean',
-            price: 49.99,
-            duration: 90,
-            description: 'Thorough yard cleaning service',
-          },
-        },
+        servicePlanId: servicePlan.id,
       },
     }),
   ])
@@ -90,7 +97,7 @@ async function main() {
         customerId: customer.id,
         amount: 29.99,
         status: 'COMPLETED',
-        type: 'SERVICE',
+        type: 'COMPANY',
         serviceId: services[1].id,
       },
     }),
@@ -100,6 +107,7 @@ async function main() {
         amount: 29.99,
         status: 'PENDING',
         type: 'SUBSCRIPTION',
+        subscriptionId: subscription.id,
       },
     }),
   ])

@@ -7,24 +7,50 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertCircle } from 'lucide-react'
-import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
 
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   })
 
   useEffect(() => {
+    // Add debug info to check existing cookies
+    const checkAuth = () => {
+      const cookies = document.cookie.split(';');
+      const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken=')) || 
+                              cookies.find(cookie => cookie.trim().startsWith('accessToken_client='));
+      
+      if (accessTokenCookie) {
+        console.log('User already has an access token, redirecting to dashboard');
+        setDebugInfo('Found token, redirecting to /customer/dashboard');
+        
+        // Store token in sessionStorage as a backup
+        try {
+          const tokenValue = accessTokenCookie.split('=')[1].trim();
+          sessionStorage.setItem('accessToken', tokenValue);
+        } catch (err) {
+          console.error('Failed to store token in sessionStorage:', err);
+        }
+        
+        // Use window location for hard redirect instead of router
+        window.location.href = '/customer/dashboard';
+      } else {
+        setDebugInfo('No access token found, showing login form');
+      }
+    };
+    
+    checkAuth();
+
     if (searchParams.get('signup') === 'success') {
       setError('Account created successfully! Please log in.')
     }
-  }, [searchParams])
+  }, [searchParams, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -36,6 +62,7 @@ export default function LoginPage() {
     console.log('Form submitted with data:', formData)
     setLoading(true)
     setError(null)
+    setDebugInfo('Attempting login...')
 
     try {
       console.log('Attempting customer login...')
@@ -62,6 +89,7 @@ export default function LoginPage() {
       })
       
       console.log('Customer login response:', { status: response.status, data })
+      setDebugInfo(`Login response: ${response.status}, checking cookies...`)
 
       // If customer login fails with 403, try employee login
       if (response.status === 403) {
@@ -100,6 +128,15 @@ export default function LoginPage() {
       }
 
       console.log('Login successful, response data:', data)
+      
+      // Display cookie info for debugging
+      const cookies = document.cookie.split(';');
+      const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken=')) ||
+                              cookies.find(cookie => cookie.trim().startsWith('accessToken_client='));
+      const refreshTokenCookie = cookies.find(cookie => cookie.trim().startsWith('refreshToken=')) ||
+                              cookies.find(cookie => cookie.trim().startsWith('refreshToken_client='));
+      
+      setDebugInfo(`Login successful. Token present: ${!!accessTokenCookie}. Cookie values: ${cookies.map(c => c.trim()).join(', ')}. Setting redirect...`)
 
       // Check if we have the necessary data
       if (!data.user || !data.user.role) {
@@ -110,8 +147,35 @@ export default function LoginPage() {
 
       console.log('User role:', data.user.role)
       
-      // Determine redirect path
-      let redirectPath = '/dashboard' // default
+      // Manually set cookies if they're in the response but not set automatically
+      if (data.accessToken && !accessTokenCookie) {
+        console.log('Manually setting accessToken cookie');
+        document.cookie = `accessToken_client=${data.accessToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+        
+        // Also store in sessionStorage as a fallback
+        try {
+          sessionStorage.setItem('accessToken', data.accessToken);
+          console.log('Token stored in sessionStorage');
+        } catch (err) {
+          console.error('Failed to store token in sessionStorage:', err);
+        }
+      }
+      
+      if (data.refreshToken && !refreshTokenCookie) {
+        console.log('Manually setting refreshToken cookie');
+        document.cookie = `refreshToken_client=${data.refreshToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
+        
+        // Also store in sessionStorage as a fallback
+        try {
+          sessionStorage.setItem('refreshToken', data.refreshToken);
+          console.log('Refresh token stored in sessionStorage');
+        } catch (err) {
+          console.error('Failed to store refresh token in sessionStorage:', err);
+        }
+      }
+      
+      // Determine redirect path with updated paths
+      let redirectPath = '/customer/dashboard' // default for customers
       if (data.user.role === 'EMPLOYEE') {
         redirectPath = '/employee/dashboard'
       } else if (data.user.role === 'ADMIN') {
@@ -120,12 +184,40 @@ export default function LoginPage() {
       
       console.log('Redirecting to:', redirectPath)
       
-      // Force a hard navigation
-      window.location.href = redirectPath
+      // Add slight delay before redirect to make sure cookies are set
+      setTimeout(() => {
+        // Check cookies again before redirecting
+        const finalCookies = document.cookie.split(';');
+        const finalAccessToken = finalCookies.find(cookie => cookie.trim().startsWith('accessToken=')) ||
+                               finalCookies.find(cookie => cookie.trim().startsWith('accessToken_client='));
+        console.log('Final cookie check before redirect:', finalCookies.map(c => c.trim()).join(', '));
+        
+        let hasToken = !!finalAccessToken;
+        
+        // Also check sessionStorage as a fallback
+        if (!hasToken) {
+          try {
+            hasToken = !!sessionStorage.getItem('accessToken');
+            console.log('Token found in sessionStorage:', hasToken);
+          } catch (err) {
+            console.error('Error checking sessionStorage:', err);
+          }
+        }
+        
+        if (!hasToken) {
+          setError('Failed to set authentication token. Please try again.');
+          setDebugInfo('No access token cookie found after login attempt');
+          return;
+        }
+        
+        // Force a hard navigation
+        window.location.href = redirectPath;
+      }, 1000);
       
     } catch (error) {
       console.error('Login error:', error)
       setError(error instanceof Error ? error.message : 'An error occurred during login')
+      setDebugInfo(`Login error: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setLoading(false)
     }
@@ -154,6 +246,15 @@ export default function LoginPage() {
                 role="alert"
               >
                 <span className="block sm:inline">{error}</span>
+              </div>
+            )}
+            
+            {debugInfo && (
+              <div 
+                className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded relative"
+                role="alert"
+              >
+                <span className="block sm:inline">Debug: {debugInfo}</span>
               </div>
             )}
 

@@ -1,12 +1,5 @@
 import { loadStripe } from '@stripe/stripe-js';
 import Stripe from 'stripe';
-import fs from 'fs';
-import path from 'path';
-
-// Check if we're running in non-secure mode
-const projectRoot = process.cwd();
-const nonSecureMarkerPath = path.join(projectRoot, '.non-secure-mode');
-const isNonSecureMode = fs.existsSync(nonSecureMarkerPath);
 
 // Initialize Stripe with your publishable key
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
@@ -14,6 +7,7 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 
 // For development, provide a fallback to prevent build errors
 const isDev = process.env.NODE_ENV === 'development';
+const isNonSecureMode = process.env.NEXT_PUBLIC_NON_SECURE_MODE === 'true';
 
 if (!stripePublishableKey) {
   if (isDev) {
@@ -23,7 +17,8 @@ if (!stripePublishableKey) {
   }
 }
 
-if (!stripeSecretKey) {
+// Only check for server-side keys on the server
+if (typeof window === 'undefined' && !stripeSecretKey) {
   if (isDev) {
     console.warn('⚠️ STRIPE_SECRET_KEY is not defined, using test key for development');
   } else {
@@ -39,25 +34,17 @@ if (isNonSecureMode && isDev) {
 
 // Development fallbacks for Stripe keys
 const publishableKey = stripePublishableKey || 'pk_test_placeholder';
-const secretKey = stripeSecretKey || 'sk_test_placeholder';
 
+// This is used client-side - safe to use publishable key
 export const stripePromise = loadStripe(publishableKey);
 
-export const stripe = new Stripe(secretKey, {
-  apiVersion: '2023-10-16',
-  typescript: true,
-});
-
-// In non-secure mode, implement stub methods for Stripe
-const mockStripeResponse = { id: 'mock_id', status: 'succeeded' };
-
-// Price IDs for services
+// Price IDs for services - these are safe to use client-side as they're just identifiers
 export const STRIPE_PRICE_IDS = {
-  MONTHLY_SUBSCRIPTION: process.env.STRIPE_MONTHLY_PRICE_ID || 'price_monthly',
-  ONE_TIME_CLEANUP: process.env.STRIPE_CLEANUP_PRICE_ID || 'price_cleanup',
+  MONTHLY_SUBSCRIPTION: process.env.NEXT_PUBLIC_STRIPE_MONTHLY_PRICE_ID || 'price_monthly',
+  ONE_TIME_CLEANUP: process.env.NEXT_PUBLIC_STRIPE_CLEANUP_PRICE_ID || 'price_cleanup',
 };
 
-// Webhook event types we handle
+// Webhook event types - these are just string constants, safe for client
 export const STRIPE_WEBHOOK_EVENTS = {
   CUSTOMER_SUBSCRIPTION_CREATED: 'customer.subscription.created',
   CUSTOMER_SUBSCRIPTION_UPDATED: 'customer.subscription.updated',
@@ -66,7 +53,24 @@ export const STRIPE_WEBHOOK_EVENTS = {
   INVOICE_PAYMENT_FAILED: 'invoice.payment_failed',
 };
 
-export const createStripeCustomer = async (email: string, name: string, phone?: string) => {
+// Initialize Stripe only on the server side
+let stripe: Stripe | null = null;
+
+// Server-side only code
+if (typeof window === 'undefined') {
+  const secretKey = stripeSecretKey || 'sk_test_placeholder';
+  stripe = new Stripe(secretKey, {
+    apiVersion: '2023-10-16',
+    typescript: true,
+  });
+}
+
+// Create a Stripe customer - server side only function
+const createStripeCustomer = async (email: string, name: string, phone?: string) => {
+  if (typeof window !== 'undefined' || !stripe) {
+    throw new Error('This function can only be called from the server');
+  }
+  
   if (isNonSecureMode && isDev) {
     console.warn('⚠️ Creating mock Stripe customer in non-secure mode');
     return { id: `customer_mock_${Date.now()}`, email, name, phone };
@@ -79,10 +83,15 @@ export const createStripeCustomer = async (email: string, name: string, phone?: 
   });
 };
 
-export const createStripeSubscription = async (
+// Create a Stripe subscription - server side only
+const createStripeSubscription = async (
   customerId: string,
   paymentMethodId: string
 ) => {
+  if (typeof window !== 'undefined' || !stripe) {
+    throw new Error('This function can only be called from the server');
+  }
+  
   if (isNonSecureMode && isDev) {
     console.warn('⚠️ Creating mock Stripe subscription in non-secure mode');
     return { 
@@ -120,11 +129,16 @@ export const createStripeSubscription = async (
   });
 };
 
-export const createOneTimeCharge = async (
+// Create a one-time charge - server side only
+const createOneTimeCharge = async (
   customerId: string,
   amount: number,
   description: string
 ) => {
+  if (typeof window !== 'undefined' || !stripe) {
+    throw new Error('This function can only be called from the server');
+  }
+  
   if (isNonSecureMode && isDev) {
     console.warn('⚠️ Creating mock payment intent in non-secure mode');
     return { 
@@ -147,7 +161,12 @@ export const createOneTimeCharge = async (
   });
 };
 
-export const cancelStripeSubscription = async (subscriptionId: string) => {
+// Cancel a subscription - server side only
+const cancelStripeSubscription = async (subscriptionId: string) => {
+  if (typeof window !== 'undefined' || !stripe) {
+    throw new Error('This function can only be called from the server');
+  }
+  
   if (isNonSecureMode && isDev) {
     console.warn('⚠️ Cancelling mock subscription in non-secure mode');
     return { id: subscriptionId, status: 'canceled' };
@@ -158,7 +177,12 @@ export const cancelStripeSubscription = async (subscriptionId: string) => {
   });
 };
 
-export const handleStripeWebhook = async (payload: Buffer, signature: string) => {
+// Handle webhooks - server side only
+const handleStripeWebhook = async (payload: Buffer, signature: string) => {
+  if (typeof window !== 'undefined' || !stripe) {
+    throw new Error('This function can only be called from the server');
+  }
+  
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   
   if (isNonSecureMode && isDev) {
@@ -197,4 +221,14 @@ export const handleStripeWebhook = async (payload: Buffer, signature: string) =>
   }
 
   return { received: true };
+};
+
+// Export server-side functions only when in a server context
+export {
+  stripe,
+  createStripeCustomer,
+  createStripeSubscription,
+  createOneTimeCharge,
+  cancelStripeSubscription,
+  handleStripeWebhook,
 }; 

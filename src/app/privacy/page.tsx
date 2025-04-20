@@ -1,12 +1,10 @@
 'use client'
 
-import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
+import { Button } from '@/components/ui/button'
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
+    <>
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="prose prose-lg max-w-none">
           <h1 className="text-4xl font-bold text-gray-900 mb-8">Privacy Policy</h1>
@@ -52,13 +50,14 @@ export default function PrivacyPage() {
           <section className="mb-8">
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">4. Information Sharing</h2>
             <p className="text-gray-600 mb-4">
-              We do not sell or rent your personal information to third parties. We may share your information with:
+              We do not sell, rent, or share your personal information with any third parties under any circumstances, with one exception:
             </p>
             <ul className="list-disc pl-6 text-gray-600 mb-4">
-              <li>Service providers who assist in our operations</li>
-              <li>Law enforcement when required by law</li>
-              <li>Other parties with your consent</li>
+              <li>Law enforcement agencies when required by a valid court order</li>
             </ul>
+            <p className="text-gray-600 mb-4">
+              Your privacy is our priority. We maintain strict internal access controls and do not provide your information to service providers, business partners, or any other external parties.
+            </p>
           </section>
 
           <section className="mb-8">
@@ -94,7 +93,6 @@ export default function PrivacyPage() {
           </section>
         </div>
       </main>
-      <Footer />
-    </div>
+    </>
   )
 } 

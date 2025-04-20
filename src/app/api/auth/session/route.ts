@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const accessToken = cookieStore.get('accessToken')?.value;
     const refreshTokenCookie = cookieStore.get('refreshToken')?.value;
     const fingerprint = cookieStore.get('deviceFingerprint')?.value;
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Attempt to refresh the tokens
-    const { accessToken: newAccessToken, refreshToken: newRefreshToken } = await refreshToken(
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken, user: refreshedUser } = await refreshToken(
       refreshTokenCookie,
       fingerprint
     );
@@ -67,11 +67,11 @@ export async function GET(request: NextRequest) {
     // Create response with new tokens
     const response = NextResponse.json({
       user: {
-        id: payload?.id,
-        email: payload?.email,
-        role: payload?.role,
-        customerId: payload?.customerId,
-        employeeId: payload?.employeeId,
+        id: refreshedUser.id,
+        email: refreshedUser.email,
+        role: refreshedUser.role,
+        customerId: refreshedUser.customerId,
+        employeeId: refreshedUser.employeeId,
       }
     });
 

@@ -1,12 +1,8 @@
 'use client'
 
-import Navbar from '@/components/Navbar'
-import Footer from '@/components/Footer'
-
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
+    <>
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="prose prose-lg max-w-none">
           <h1 className="text-4xl font-bold text-gray-900 mb-8">Terms of Service</h1>
@@ -105,7 +101,6 @@ export default function TermsPage() {
           </section>
         </div>
       </main>
-      <Footer />
-    </div>
+    </>
   )
 } 

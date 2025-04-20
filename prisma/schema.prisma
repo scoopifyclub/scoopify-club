@@ -99,16 +99,23 @@ model TimeExtension {
 }
 
 model Employee {
-  id             String           @id @default(cuid())
-  userId         String           @unique
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  user           User             @relation(fields: [userId], references: [id])
-  payments       Payment[]
-  services       Service[]
-  serviceAreas   ServiceArea[]
-  messages       ServiceMessage[]
-  timeExtensions TimeExtension[]
+  id               String           @id @default(cuid())
+  userId           String           @unique
+  phone            String?
+  cashAppUsername  String?
+  bio              String?
+  availability     Json?            // Stored as JSON with days and hours
+  status           String           @default("ACTIVE")  // ACTIVE, INACTIVE, PENDING, SUSPENDED
+  rating           Float?           // Average rating from customers
+  completedJobs    Int              @default(0)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  user             User             @relation(fields: [userId], references: [id])
+  payments         Payment[]
+  services         Service[]
+  serviceAreas     ServiceArea[]
+  messages         ServiceMessage[]
+  timeExtensions   TimeExtension[]
 }
 
 model Payment {
