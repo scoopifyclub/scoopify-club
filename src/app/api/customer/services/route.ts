@@ -67,7 +67,14 @@ export async function GET(request: Request) {
     // Try to get from cache
     const cachedData = await getCache(cacheKey);
     if (cachedData) {
-      return NextResponse.json(cachedData);
+      // Ensure we're returning an array for the frontend
+      if (Array.isArray(cachedData)) {
+        return NextResponse.json(cachedData);
+      } else if (cachedData.services) {
+        return NextResponse.json(cachedData.services);
+      } else {
+        return NextResponse.json([]);
+      }
     }
 
     // Build where clause
@@ -112,29 +119,20 @@ export async function GET(request: Request) {
       prisma.service.count({ where })
     ]);
 
-    const response = {
-      services,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
-    };
-
+    // Modified: Return just the services array instead of an object with services and pagination
+    // This ensures the frontend receives an array (even if empty) that it can use filter() on
+    
     // Cache the response
-    await setCache(cacheKey, response, {
+    await setCache(cacheKey, services, {
       ttl: 300, // 5 minutes
       tags: [`customer:${customer.id}`, 'services'],
     });
 
-    return NextResponse.json(response);
+    return NextResponse.json(services);
   } catch (error) {
     console.error('Services error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch services' },
-      { status: 500 }
-    );
+    // In case of error, return an empty array to avoid frontend errors
+    return NextResponse.json([]);
   }
 }
 

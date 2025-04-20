@@ -62,9 +62,18 @@ export default function ServicesPage() {
 
   const fetchServices = async () => {
     try {
+      const cookies = document.cookie.split(';');
+      const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken='));
+      const accessToken = accessTokenCookie ? accessTokenCookie.split('=')[1].trim() : '';
+
+      if (!accessToken) {
+        router.push('/login');
+        return;
+      }
+
       const response = await fetch('/api/customer/services', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
       });
 
@@ -73,8 +82,13 @@ export default function ServicesPage() {
       }
 
       const data = await response.json();
-      setServices(data);
-      setError(null);
+      if (Array.isArray(data)) {
+        setServices(data);
+      } else {
+        console.error('Expected array of services but got:', data);
+        setServices([]);
+        setError('Invalid data format received from server');
+      }
     } catch (err) {
       setError('Failed to load services');
       console.error('Error fetching services:', err);
@@ -104,10 +118,20 @@ export default function ServicesPage() {
     }
 
     try {
+      const cookies = document.cookie.split(';');
+      const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken='));
+      const accessToken = accessTokenCookie ? accessTokenCookie.split('=')[1].trim() : '';
+
+      if (!accessToken) {
+        toast.error('You need to be logged in to cancel a service');
+        router.push('/login');
+        return;
+      }
+
       const response = await fetch(`/api/customer/services/${serviceId}/cancel`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
       });
 
@@ -154,7 +178,7 @@ export default function ServicesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {services.filter((s) => s.status === 'SCHEDULED').length}
+              {Array.isArray(services) ? services.filter((s) => s.status === 'SCHEDULED').length : 0}
             </div>
           </CardContent>
         </Card>
@@ -166,7 +190,7 @@ export default function ServicesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {services.filter((s) => s.status === 'IN_PROGRESS').length}
+              {Array.isArray(services) ? services.filter((s) => s.status === 'IN_PROGRESS').length : 0}
             </div>
           </CardContent>
         </Card>
@@ -178,7 +202,7 @@ export default function ServicesPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {services.filter((s) => s.status === 'COMPLETED').length}
+              {Array.isArray(services) ? services.filter((s) => s.status === 'COMPLETED').length : 0}
             </div>
           </CardContent>
         </Card>
@@ -201,7 +225,7 @@ export default function ServicesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {services.length === 0 ? (
+              {!Array.isArray(services) || services.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-8">
                     No services found. Schedule your first service now!

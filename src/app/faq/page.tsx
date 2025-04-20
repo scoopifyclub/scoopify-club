@@ -1,8 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Navbar } from '@/components/Navbar'
-import { Footer } from '@/components/Footer'
 import { Button } from '@/components/ui/button'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -45,75 +43,71 @@ export default function FAQPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar />
-      <main>
-        {/* Hero Section */}
-        <section className="relative py-24 bg-gradient-to-br from-neutral-50 to-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-neutral-900 sm:text-5xl md:text-6xl">
-                Frequently Asked Questions
-              </h1>
-              <p className="mt-6 text-xl text-neutral-600 max-w-3xl mx-auto">
-                Find answers to common questions about our service
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* FAQ Section */}
-        <section className="py-24 bg-white">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="space-y-6">
-              {faqs.map((faq, index) => (
-                <div
-                  key={index}
-                  className="border border-neutral-200 rounded-xl overflow-hidden"
-                >
-                  <button
-                    className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-neutral-50"
-                    onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                  >
-                    <span className="text-lg font-semibold text-neutral-900">
-                      {faq.question}
-                    </span>
-                    {openIndex === index ? (
-                      <ChevronUp className="h-5 w-5 text-neutral-500" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5 text-neutral-500" />
-                    )}
-                  </button>
-                  {openIndex === index && (
-                    <div className="px-6 py-4 bg-neutral-50">
-                      <p className="text-neutral-600">{faq.answer}</p>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* CTA Section */}
-        <section className="py-24 bg-brand-primary">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl font-bold text-white mb-6">
-              Still Have Questions?
-            </h2>
-            <p className="text-xl text-white/90 mb-8">
-              Contact our friendly team for more information
+    <>
+      {/* Hero Section */}
+      <section className="relative py-24 bg-gradient-to-br from-neutral-50 to-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-neutral-900 sm:text-5xl md:text-6xl">
+              Frequently Asked Questions
+            </h1>
+            <p className="mt-6 text-xl text-neutral-600 max-w-3xl mx-auto">
+              Find answers to common questions about our service
             </p>
-            <Button
-              size="lg"
-              className="bg-white text-brand-primary hover:bg-neutral-100"
-            >
-              Contact Us
-            </Button>
           </div>
-        </section>
-      </main>
-      <Footer />
-    </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="py-24 bg-white">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="space-y-6">
+            {faqs.map((faq, index) => (
+              <div
+                key={index}
+                className="border border-neutral-200 rounded-xl overflow-hidden"
+              >
+                <button
+                  className="w-full px-6 py-4 text-left flex items-center justify-between hover:bg-neutral-50"
+                  onClick={() => setOpenIndex(openIndex === index ? null : index)}
+                >
+                  <span className="text-lg font-semibold text-neutral-900">
+                    {faq.question}
+                  </span>
+                  {openIndex === index ? (
+                    <ChevronUp className="h-5 w-5 text-neutral-500" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-neutral-500" />
+                  )}
+                </button>
+                {openIndex === index && (
+                  <div className="px-6 py-4 bg-neutral-50">
+                    <p className="text-neutral-600">{faq.answer}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-24 bg-brand-primary">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl font-bold text-white mb-6">
+            Still Have Questions?
+          </h2>
+          <p className="text-xl text-white/90 mb-8">
+            Contact our friendly team for more information
+          </p>
+          <Button
+            size="lg"
+            className="bg-white text-brand-primary hover:bg-neutral-100"
+          >
+            Contact Us
+          </Button>
+        </div>
+      </section>
+    </>
   )
 } 

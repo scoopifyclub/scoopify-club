@@ -38,17 +38,17 @@ export default function ProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await fetch('/api/auth/session')
+        const response = await fetch('/api/users/profile')
         if (!response.ok) {
           throw new Error('Failed to fetch profile')
         }
 
-        const data = await response.json()
+        const userData = await response.json()
         setProfile({
-          name: data.user.name || '',
-          email: data.user.email,
-          phone: data.user.customer?.phone || '',
-          address: data.user.customer?.address || {
+          name: userData.name || '',
+          email: userData.email,
+          phone: userData.phone || '',
+          address: userData.customer?.address || {
             street: '',
             city: '',
             state: '',
@@ -80,13 +80,14 @@ export default function ProfilePage() {
       })
 
       if (!response.ok) {
-        throw new Error('Failed to update profile')
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update profile');
       }
 
       toast.success('Profile updated successfully!')
     } catch (error) {
       console.error('Profile update error:', error)
-      toast.error('Failed to update profile')
+      toast.error(error instanceof Error ? error.message : 'Failed to update profile')
     } finally {
       setSaving(false)
     }

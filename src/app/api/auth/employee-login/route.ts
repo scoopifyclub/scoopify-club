@@ -77,14 +77,15 @@ export async function POST(request: Request) {
     // Create response with user data
     const response = NextResponse.json({
       user: userWithoutPassword,
-      token: accessToken,
+      accessToken: accessToken,
+      refreshToken: refreshToken
     })
 
     // Set cookies with consistent settings
     response.cookies.set('accessToken', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       maxAge: 15 * 60, // 15 minutes
     })
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
     response.cookies.set('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      sameSite: 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60, // 7 days
     })
@@ -102,11 +103,15 @@ export async function POST(request: Request) {
       response.cookies.set('fingerprint', user.deviceFingerprint, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        sameSite: 'lax',
         path: '/',
         maxAge: 7 * 24 * 60 * 60, // 7 days
       })
     }
+
+    // Also set non-httpOnly cookies for client JS access
+    response.headers.append('Set-Cookie', `accessToken_client=${accessToken}; Path=/; Max-Age=${15 * 60}; SameSite=Lax`);
+    response.headers.append('Set-Cookie', `refreshToken_client=${refreshToken}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
 
     return response
   } catch (error) {

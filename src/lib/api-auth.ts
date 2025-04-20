@@ -3,7 +3,7 @@ import { verifyToken } from './auth';
 import { Role } from '@prisma/client';
 
 export async function getAuthUser(request: NextRequest) {
-  const token = request.cookies.get('token')?.value;
+  const token = request.cookies.get('accessToken')?.value;
   if (!token) {
     return null;
   }
