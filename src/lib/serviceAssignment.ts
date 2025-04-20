@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { calculateDistance } from '@/lib/geocoding';
 
 interface Coordinates {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import { getEmployeeEarnings } from '@/lib/payment'
-import { prisma } from '@/lib/prisma'
+import prisma from "@/lib/prisma";
 
 export async function GET(req: Request) {
   try {

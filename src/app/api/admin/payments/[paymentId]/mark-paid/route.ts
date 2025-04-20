@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { authOptions } from '@/lib/auth';
 
 const VALID_PAYMENT_METHODS = ['CASH', 'CASH_APP', 'CHECK'] as const;

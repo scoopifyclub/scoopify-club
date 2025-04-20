@@ -1,545 +1,297 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { MapPin, Search, Navigation, Route, CalendarDays, ArrowRight, List, Grid } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Checkbox } from '@/components/ui/checkbox';
-import { MapPin, Navigation, Car, Clock, RotateCw, Search, ChevronDown, List, MapIcon } from 'lucide-react';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Slider } from '@/components/ui/slider';
-import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
-// Mock data for locations
-interface ServiceLocation {
+interface Location {
   id: string;
-  customerName: string;
+  name: string;
   address: string;
-  city: string;
-  scheduledTime: string;
-  completed: boolean;
-  lat: number;
-  lng: number;
-  yardSize: 'Small' | 'Medium' | 'Large';
-  dogs: number;
-  gateCode?: string;
-  specialInstructions?: string;
+  customerName: string;
+  serviceType: string;
+  appointmentTime: string;
+  status: 'completed' | 'pending' | 'upcoming';
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
 }
 
 export default function MapsPage() {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const [locations, setLocations] = useState<ServiceLocation[]>([]);
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [mapLoaded, setMapLoaded] = useState(false);
-  const [activeTab, setActiveTab] = useState('map');
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [routeOptimized, setRouteOptimized] = useState(false);
-  const [transportMode, setTransportMode] = useState('driving');
-  const [mapObject, setMapObject] = useState<any>(null);
-  const [mapMarkers, setMapMarkers] = useState<any[]>([]);
-  const [directionsRenderer, setDirectionsRenderer] = useState<any>(null);
-  const [estimatedTime, setEstimatedTime] = useState('');
-  const [estimatedDistance, setEstimatedDistance] = useState('');
-  const { toast } = useToast();
-
-  // Load Google Maps API
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  
   useEffect(() => {
-    // In a real application, you would load the actual Google Maps API
-    // For this demo, we'll simulate it
-    setTimeout(() => {
-      setMapLoaded(true);
-      
-      // Mock locations
-      const mockLocations: ServiceLocation[] = [
-        {
-          id: '1',
-          customerName: 'John Smith',
-          address: '123 Main St',
-          city: 'Anytown, CA',
-          scheduledTime: '9:00 AM',
-          completed: false,
-          lat: 34.052235,
-          lng: -118.243683,
-          yardSize: 'Medium',
-          dogs: 2,
-          gateCode: '1234',
-          specialInstructions: 'Dogs may be in backyard. Please text before arrival.'
-        },
-        {
-          id: '2',
-          customerName: 'Sarah Johnson',
-          address: '456 Oak Ave',
-          city: 'Anytown, CA',
-          scheduledTime: '10:30 AM',
-          completed: false,
-          lat: 34.059483,
-          lng: -118.278621,
-          yardSize: 'Large',
-          dogs: 3,
-          specialInstructions: 'Waste bins on side of garage. Beware of sprinklers.'
-        },
-        {
-          id: '3',
-          customerName: 'Michael Brown',
-          address: '789 Pine Rd',
-          city: 'Anytown, CA',
-          scheduledTime: '1:00 PM',
-          completed: false,
-          lat: 34.073678,
-          lng: -118.240082,
-          yardSize: 'Small',
-          dogs: 1,
-          gateCode: '5678'
-        },
-        {
-          id: '4',
-          customerName: 'Emma Davis',
-          address: '101 Cedar Blvd',
-          city: 'Anytown, CA',
-          scheduledTime: '2:30 PM',
-          completed: false,
-          lat: 34.061867,
-          lng: -118.300125,
-          yardSize: 'Medium',
-          dogs: 2
-        },
-        {
-          id: '5',
-          customerName: 'Robert Wilson',
-          address: '202 Maple Dr',
-          city: 'Anytown, CA',
-          scheduledTime: '4:00 PM',
-          completed: false,
-          lat: 34.045803,
-          lng: -118.269012,
-          yardSize: 'Small',
-          dogs: 1,
-          specialInstructions: 'Enter through side gate. Waste bags provided.'
-        }
-      ];
-      
-      setLocations(mockLocations);
-      
-      // Initialize mock map
-      if (mapRef.current) {
-        // In a real app, this would be where we initialize the Google Map
-        const mockMap = {
-          setCenter: () => {},
-          setZoom: () => {},
-        };
-        setMapObject(mockMap);
-        
-        // Set up mock directions renderer
-        setDirectionsRenderer({
-          setMap: () => {},
-          setDirections: () => {},
-        });
-      }
-    }, 1000);
-  }, []);
-
-  // Filter locations based on search
-  const filteredLocations = locations.filter(location => 
-    location.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    location.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    location.city.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  // Toggle location selection
-  const toggleLocation = (locationId: string) => {
-    setSelectedLocations(prev => {
-      if (prev.includes(locationId)) {
-        return prev.filter(id => id !== locationId);
-      } else {
-        return [...prev, locationId];
-      }
-    });
-    
-    // Clear optimized route when selection changes
-    setRouteOptimized(false);
-  };
-
-  // Select all locations
-  const selectAllLocations = () => {
-    if (selectedLocations.length === filteredLocations.length) {
-      setSelectedLocations([]);
-    } else {
-      setSelectedLocations(filteredLocations.map(location => location.id));
-    }
-    setRouteOptimized(false);
-  };
-
-  // Optimize route
-  const optimizeRoute = () => {
-    if (selectedLocations.length < 2) {
-      toast({
-        title: "Route Optimization Error",
-        description: "Please select at least 2 locations to optimize a route.",
-        variant: "destructive"
-      });
+    // Redirect to login if not authenticated
+    if (status === 'unauthenticated') {
+      router.push('/auth/login?callbackUrl=/employee/dashboard');
       return;
     }
     
-    // In a real app, this would calculate the optimal route using Google's Direction Service
-    // For this demo, we'll just simulate it
-    
-    // Simulate processing time
-    setTimeout(() => {
-      // Sort selected locations by ID for this demo (in real app, would be optimal order)
-      const sortedLocations = [...selectedLocations].sort();
-      setSelectedLocations(sortedLocations);
-      setRouteOptimized(true);
-      
-      // Set mock estimated time and distance
-      setEstimatedTime('1 hour 45 minutes');
-      setEstimatedDistance('28.5 miles');
-      
-      toast({
-        title: "Route Optimized",
-        description: "The most efficient route has been calculated.",
-      });
-    }, 1500);
-  };
+    // Verify user is an employee
+    if (status === 'authenticated' && session?.user?.role !== 'EMPLOYEE') {
+      router.push('/');
+      return;
+    }
 
-  // Navigate to location
-  const navigateToLocation = (locationId: string) => {
-    // In a real app, this would open navigation in Google Maps or similar
-    // For this demo, we'll just show a notification
-    
-    const location = locations.find(loc => loc.id === locationId);
-    
-    if (location) {
-      toast({
-        title: "Starting Navigation",
-        description: `Navigating to: ${location.address}, ${location.city}`,
-      });
-      
-      // In a real app, we would use something like:
-      // window.open(`https://www.google.com/maps/dir/?api=1&destination=${location.lat},${location.lng}`);
+    // Fetch locations data
+    const fetchLocations = async () => {
+      try {
+        // In a real app, you would fetch this data from your API
+        // For now, using mock data
+        const mockLocations: Location[] = [
+          {
+            id: '1',
+            name: 'Riverside Park Home',
+            address: '123 Riverside Dr, Anytown, USA',
+            customerName: 'John Smith',
+            serviceType: 'Weekly Cleanup',
+            appointmentTime: '09:00 AM',
+            status: 'completed',
+            coordinates: { lat: 37.7749, lng: -122.4194 }
+          },
+          {
+            id: '2',
+            name: 'Oak Avenue Residence',
+            address: '456 Oak Ave, Anytown, USA',
+            customerName: 'Jane Doe',
+            serviceType: 'Bi-Weekly Cleanup',
+            appointmentTime: '11:00 AM',
+            status: 'pending',
+            coordinates: { lat: 37.7749, lng: -122.4294 }
+          },
+          {
+            id: '3',
+            name: 'Pine Road Estate',
+            address: '789 Pine Rd, Anytown, USA',
+            customerName: 'Bob Wilson',
+            serviceType: 'One-Time Cleanup',
+            appointmentTime: '02:00 PM',
+            status: 'upcoming',
+            coordinates: { lat: 37.7849, lng: -122.4194 }
+          }
+        ];
+        
+        setLocations(mockLocations);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching locations:', error);
+        setIsLoading(false);
+      }
+    };
+
+    if (status === 'authenticated' && session?.user?.role === 'EMPLOYEE') {
+      fetchLocations();
+    }
+  }, [status, session, router]);
+
+  const filteredLocations = locations.filter(location => 
+    location.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    location.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    location.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const getStatusColor = (status: Location['status']) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'upcoming':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
     }
   };
 
-  // Mark location as completed
-  const markLocationCompleted = (locationId: string, completed: boolean) => {
-    setLocations(prev => 
-      prev.map(location => 
-        location.id === locationId ? { ...location, completed } : location
-      )
-    );
-  };
-
-  // Render locations list
-  const renderLocationsList = () => {
+  if (status === 'loading' || isLoading) {
     return (
-      <ScrollArea className="h-[calc(100vh-250px)]">
-        <div className="space-y-2 p-1">
-          {filteredLocations.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No locations found
-            </div>
-          ) : (
-            filteredLocations.map(location => (
-              <Card key={location.id} className={`${location.completed ? 'bg-gray-50' : ''}`}>
-                <CardHeader className="p-4 pb-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex gap-2">
-                      <Checkbox 
-                        checked={selectedLocations.includes(location.id)}
-                        onCheckedChange={() => toggleLocation(location.id)}
-                        id={`location-${location.id}`}
-                      />
-                      <div>
-                        <CardTitle className="text-base font-medium">
-                          {location.customerName}
-                        </CardTitle>
-                        <CardDescription>
-                          {location.scheduledTime} • {location.completed ? 'Completed' : 'Pending'}
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 pt-0">
-                  <p className="text-sm">{location.address}, {location.city}</p>
-                  
-                  <div className="mt-2 text-xs text-gray-500 flex gap-2">
-                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-full">
-                      {location.yardSize} Yard
-                    </span>
-                    <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded-full">
-                      {location.dogs} {location.dogs === 1 ? 'Dog' : 'Dogs'}
-                    </span>
-                    {location.gateCode && (
-                      <span className="px-1.5 py-0.5 bg-gray-50 text-gray-700 rounded-full">
-                        Gate: {location.gateCode}
-                      </span>
-                    )}
-                  </div>
-                  
-                  {location.specialInstructions && (
-                    <p className="mt-2 text-xs italic text-gray-600">
-                      Note: {location.specialInstructions}
-                    </p>
-                  )}
-                </CardContent>
-                <CardFooter className="p-4 pt-0 flex justify-between">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigateToLocation(location.id)}
-                  >
-                    <Navigation className="h-4 w-4 mr-2" />
-                    Navigate
-                  </Button>
-                  <Button
-                    variant={location.completed ? "outline" : "default"}
-                    size="sm"
-                    onClick={() => markLocationCompleted(location.id, !location.completed)}
-                  >
-                    {location.completed ? 'Undo Complete' : 'Mark Complete'}
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))
-          )}
-        </div>
-      </ScrollArea>
+      <div className="flex items-center justify-center h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+      </div>
     );
-  };
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Routes & Yards</h1>
-        <p className="text-gray-500">
-          Plan your route and navigate to customer yards for waste cleanup
-        </p>
-      </div>
-      
-      <Tabs defaultValue="map" value={activeTab} onValueChange={setActiveTab}>
-        <div className="flex justify-between items-center">
-          <TabsList>
-            <TabsTrigger value="map">
-              <MapIcon className="h-4 w-4 mr-2" />
-              Map View
-            </TabsTrigger>
-            <TabsTrigger value="list">
-              <List className="h-4 w-4 mr-2" />
-              List View
-            </TabsTrigger>
-          </TabsList>
-          
-          <div className="flex items-center gap-2">
-            <Select value={transportMode} onValueChange={setTransportMode}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="Transport Mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="driving">
-                  <div className="flex items-center">
-                    <Car className="h-4 w-4 mr-2" />
-                    Driving
-                  </div>
-                </SelectItem>
-                <SelectItem value="bicycling">Bicycling</SelectItem>
-                <SelectItem value="walking">Walking</SelectItem>
-              </SelectContent>
-            </Select>
-            
-            <Button 
-              variant="default"
-              onClick={optimizeRoute}
-              disabled={selectedLocations.length < 2}
-            >
-              <RotateCw className="h-4 w-4 mr-2" />
-              Optimize Route
-            </Button>
-          </div>
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Routes & Yards</h1>
+          <p className="text-gray-500">
+            View your service locations and optimized routes
+          </p>
         </div>
-        
-        <div className="flex mt-4 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
-            <Input 
-              placeholder="Search customers or addresses..." 
-              className="pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
+        <div className="flex gap-2">
           <Button
-            variant="outline"
-            className="ml-2"
-            onClick={selectAllLocations}
+            variant={viewMode === 'map' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('map')}
           >
-            {selectedLocations.length === filteredLocations.length && filteredLocations.length > 0 
-              ? 'Deselect All' 
-              : 'Select All'}
+            <Grid className="h-4 w-4 mr-2" />
+            Map View
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="h-4 w-4 mr-2" />
+            List View
           </Button>
         </div>
-        
-        <TabsContent value="map" className="mt-0">
-          <div className="grid grid-cols-3 gap-4 h-[calc(100vh-280px)]">
-            <Card className="col-span-2">
-              <CardContent className="p-4">
-                {mapLoaded ? (
-                  <div 
-                    ref={mapRef} 
-                    className="w-full h-full rounded-md bg-gray-100 flex items-center justify-center"
-                    style={{ minHeight: '500px' }}
-                  >
-                    <div className="text-center p-4">
-                      <MapIcon className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-                      <p className="text-muted-foreground">
-                        Map integration would appear here with Google Maps API
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        (In a production environment with proper API keys)
-                      </p>
+      </div>
+
+      {/* Filters and Search */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+          <Input
+            placeholder="Search locations, customers, addresses..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex gap-2">
+          <div className="flex items-center bg-white border rounded-md px-3">
+            <CalendarDays className="h-4 w-4 text-gray-500 mr-2" />
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="border-none focus:outline-none"
+            />
+          </div>
+          <Button variant="default">
+            <Route className="h-4 w-4 mr-2" />
+            Optimize Route
+          </Button>
+        </div>
+      </div>
+
+      {viewMode === 'map' ? (
+        /* Map View - In a real app, you would integrate with a map library like Google Maps */
+        <Card className="h-[500px] flex items-center justify-center bg-gray-100">
+          <div className="text-center p-8">
+            <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900">Map View</h3>
+            <p className="text-gray-500 max-w-md mx-auto">
+              This is where a map would be displayed. In a real application, this would integrate with 
+              Google Maps, Mapbox, or another mapping service to show your service locations and optimized routes.
+            </p>
+          </div>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {filteredLocations.map(location => (
+            <Card key={location.id} className="hover:shadow-md transition-shadow">
+              <CardContent className="p-6">
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h3 className="text-lg font-semibold">{location.name}</h3>
+                      <Badge variant="outline" className={getStatusColor(location.status)}>
+                        {location.status}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 text-sm text-gray-500">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        {location.address}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span>{location.customerName}</span>
+                        <span>{location.appointmentTime}</span>
+                      </div>
+                      <div>
+                        <Badge variant="outline">{location.serviceType}</Badge>
+                      </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center" style={{ minHeight: '500px' }}>
-                    <p>Loading map...</p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm">
+                      <Navigation className="h-4 w-4 mr-2" />
+                      Directions
+                    </Button>
+                    <Button variant="default" size="sm">
+                      View Details
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
                   </div>
-                )}
+                </div>
               </CardContent>
             </Card>
+          ))}
+
+          {filteredLocations.length === 0 && (
+            <div className="text-center py-12">
+              <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900">No locations found</h3>
+              <p className="text-gray-500">
+                Try adjusting your search to find what you're looking for.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Route Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Today's Route</CardTitle>
+          <CardDescription>Your optimized route for today's appointments</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center">
+                <span className="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center mr-2">
+                  {locations.filter(loc => loc.status === 'completed').length}
+                </span>
+                <span>Completed</span>
+              </div>
+              <div className="flex items-center">
+                <span className="bg-yellow-500 text-white rounded-full w-6 h-6 flex items-center justify-center mr-2">
+                  {locations.filter(loc => loc.status === 'pending').length}
+                </span>
+                <span>In Progress</span>
+              </div>
+              <div className="flex items-center">
+                <span className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center mr-2">
+                  {locations.filter(loc => loc.status === 'upcoming').length}
+                </span>
+                <span>Upcoming</span>
+              </div>
+              <div className="flex items-center">
+                <span className="bg-gray-200 text-gray-700 rounded-full w-6 h-6 flex items-center justify-center mr-2">
+                  {locations.length}
+                </span>
+                <span>Total Stops</span>
+              </div>
+            </div>
             
-            <div className="space-y-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Route Details</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {selectedLocations.length < 2 ? (
-                    <p className="text-sm text-muted-foreground">
-                      Select at least 2 locations to plan a route
-                    </p>
-                  ) : (
-                    <>
-                      <div className="space-y-4">
-                        <div>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span>Stops:</span>
-                            <span className="font-medium">{selectedLocations.length}</span>
-                          </div>
-                          
-                          {routeOptimized && (
-                            <>
-                              <div className="flex justify-between text-sm mb-1">
-                                <span>Estimated Time:</span>
-                                <span className="font-medium">{estimatedTime}</span>
-                              </div>
-                              <div className="flex justify-between text-sm mb-1">
-                                <span>Total Distance:</span>
-                                <span className="font-medium">{estimatedDistance}</span>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                        
-                        <div>
-                          <p className="text-sm font-medium mb-2">Selected Stops:</p>
-                          <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                            {selectedLocations.map((locId, index) => {
-                              const location = locations.find(l => l.id === locId);
-                              if (!location) return null;
-                              
-                              return (
-                                <div key={locId} className="flex items-start gap-2 border-b pb-2">
-                                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-primary flex items-center justify-center text-white text-xs">
-                                    {index + 1}
-                                  </div>
-                                  <div>
-                                    <p className="text-sm font-medium">{location.customerName}</p>
-                                    <p className="text-xs text-muted-foreground">{location.address}</p>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-                <CardFooter>
-                  <Button 
-                    className="w-full"
-                    disabled={!routeOptimized || selectedLocations.length < 1}
-                    onClick={() => navigateToLocation(selectedLocations[0])}
-                  >
-                    <Navigation className="h-4 w-4 mr-2" />
-                    Start Navigation
-                  </Button>
-                </CardFooter>
-              </Card>
-              
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Route Options</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium">Avoid Tolls</label>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Checkbox id="avoid-tolls" />
-                        <label htmlFor="avoid-tolls" className="text-sm">
-                          Plan route avoiding toll roads
-                        </label>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium">Avoid Highways</label>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Checkbox id="avoid-highways" />
-                        <label htmlFor="avoid-highways" className="text-sm">
-                          Plan route avoiding highways
-                        </label>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium">Traffic Conditions</label>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Checkbox id="traffic-conditions" checked />
-                        <label htmlFor="traffic-conditions" className="text-sm">
-                          Consider real-time traffic
-                        </label>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="text-sm font-medium">Departure Time</label>
-                      <Select defaultValue="now">
-                        <SelectTrigger>
-                          <SelectValue placeholder="Departure time" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="now">Leave now</SelectItem>
-                          <SelectItem value="15min">In 15 minutes</SelectItem>
-                          <SelectItem value="30min">In 30 minutes</SelectItem>
-                          <SelectItem value="1hour">In 1 hour</SelectItem>
-                          <SelectItem value="custom">Custom time</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-green-500 via-yellow-500 to-blue-500"
+                style={{ 
+                  width: `${(locations.filter(loc => loc.status === 'completed').length / locations.length) * 100}%` 
+                }}
+              ></div>
             </div>
           </div>
-        </TabsContent>
-        
-        <TabsContent value="list" className="mt-0">
-          {renderLocationsList()}
-        </TabsContent>
-      </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

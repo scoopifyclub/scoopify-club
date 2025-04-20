@@ -1,50 +1,34 @@
 import { NextResponse } from 'next/server';
-import { login } from '@/lib/auth';
 import { cookies } from 'next/headers';
+import { login } from '@/lib/auth';
 
 export async function POST(request: Request) {
+  console.log('Login request received');
   try {
-    const { email, password } = await request.json();
-
+    const body = await request.json();
+    console.log('Request body parsed:', { email: body.email });
+    
+    const { email, password } = body;
+    
     if (!email || !password) {
+      console.log('Missing email or password');
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
       );
     }
+    
+    console.log('Getting cookie store');
+    const cookieStore = await cookies();
+    const existingFingerprint = cookieStore.get('fingerprint')?.value;
+    console.log('Existing fingerprint:', existingFingerprint ? 'Present' : 'Not found');
 
-    // Get existing fingerprint if it exists
-    const existingFingerprint = cookies().get('fingerprint')?.value;
-
+    console.log('Attempting login');
     const { accessToken, refreshToken, user, deviceFingerprint } = await login(email, password, existingFingerprint);
+    console.log('Login successful for user:', { id: user.id, role: user.role });
 
-    // Set cookies
-    cookies().set('accessToken', accessToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 15 * 60, // 15 minutes
-    });
-
-    cookies().set('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
-
-    // Set device fingerprint cookie
-    cookies().set('fingerprint', deviceFingerprint, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
-
-    return NextResponse.json({
+    // Create response with user data
+    const response = NextResponse.json({
       user: {
         id: user.id,
         email: user.email,
@@ -52,29 +36,57 @@ export async function POST(request: Request) {
         customerId: user.customer?.id,
         employeeId: user.employee?.id,
       },
-    }, {
-      headers: {
-        'Set-Cookie': `userRole=${user.role}; Path=/; Max-Age=${7 * 24 * 60 * 60}` // 7 days
-      }
+      accessToken,
+      refreshToken
     });
+
+    console.log('Setting cookies');
+    // Set HTTP-only cookies
+    response.cookies.set('accessToken', accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 15 * 60, // 15 minutes
+    });
+
+    response.cookies.set('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+    });
+
+    response.cookies.set('fingerprint', deviceFingerprint, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60, // 7 days
+    });
+
+    console.log('Cookies set successfully');
+    return response;
   } catch (error) {
+    console.error('Login error:', error);
     if (error instanceof Error) {
-      if (error.message.includes('Too many login attempts')) {
-        return NextResponse.json(
-          { error: error.message },
-          { status: 429 }
-        );
-      }
       if (error.message.includes('Invalid email or password')) {
         return NextResponse.json(
-          { error: error.message },
+          { error: 'Invalid email or password' },
           { status: 401 }
+        );
+      }
+      if (error.message.includes('Too many login attempts')) {
+        return NextResponse.json(
+          { error: 'Too many login attempts. Please try again later.' },
+          { status: 429 }
         );
       }
     }
     return NextResponse.json(
-      { error: 'An unexpected error occurred' },
-      { status: 500 }
+      { error: 'Login failed' },
+      { status: 401 }
     );
   }
 } 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
 import { logger } from '@/lib/logger';
@@ -304,7 +304,26 @@ export async function POST(request: Request) {
         // Get the customer from our database
         const customer = await prisma.customer.findUnique({
           where: { stripeCustomerId: invoice.customer as string },
-          include: { subscription: true }
+          include: { 
+            subscription: true,
+            services: {
+              where: {
+                status: 'SCHEDULED',
+              },
+              include: {
+                employee: true
+              },
+              orderBy: {
+                scheduledDate: 'asc'
+              },
+              take: 1
+            },
+            referredBy: {
+              include: {
+                user: true
+              }
+            }
+          }
         });
 
         if (!customer) {
@@ -312,18 +331,66 @@ export async function POST(request: Request) {
           break;
         }
 
+        // Calculate Stripe fee and net amount
+        const stripeFee = invoice.total > 0 ? (invoice.total * 0.029 + 30) : 0; // 2.9% + 30¢
+        const netAmount = invoice.amount_paid / 100 - stripeFee / 100; // Net amount after fees
+
         // Create payment record
-        await prisma.payment.create({
+        const payment = await prisma.payment.create({
           data: {
             amount: invoice.amount_paid / 100, // Convert from cents to dollars
+            stripeFee: stripeFee / 100, // Convert from cents to dollars
+            netAmount: netAmount, // Net amount after fees
             status: 'COMPLETED',
-            type: 'SERVICE',
+            type: 'SUBSCRIPTION',
             customerId: customer.id,
             subscriptionId: customer.subscription?.id,
             stripePaymentIntentId: invoice.payment_intent as string,
             stripeInvoiceId: invoice.id
           }
         });
+
+        // Calculate and create earnings for the scooper if assigned
+        if (customer.services[0]?.employee) {
+          const employee = customer.services[0].employee;
+          
+          // Calculate scooper earnings (75% of net amount after fees)
+          const earningsAmount = netAmount * 0.75;
+
+          // Create earnings record
+          await prisma.earning.create({
+            data: {
+              amount: earningsAmount,
+              status: 'PENDING',
+              paymentId: payment.id,
+              employeeId: employee.id,
+              paidVia: employee.cashAppUsername ? 'CASH_APP' : 'STRIPE'
+            }
+          });
+
+          // If there's a referral, create the referral payment
+          if (customer.referredBy) {
+            // Calculate Stripe fee for the $5 payment (this will be deducted from the recipient's amount)
+            const referralFee = (5 * 0.029) + 0.30; // 2.9% + $0.30
+            
+            // Actual amount the recipient will receive after Stripe fees
+            const netReferralAmount = 5 - referralFee;
+            
+            await prisma.payment.create({
+              data: {
+                amount: 5.00, // Gross amount is $5
+                stripeFee: referralFee, // Track the fee that will be charged to recipient
+                netAmount: netReferralAmount, // Net amount recipient will receive
+                status: 'PENDING',
+                type: 'REFERRAL',
+                customerId: customer.referredBy.id,
+                referredId: customer.id
+              }
+            });
+            
+            logger.info(`Created $5 referral payment for customer ${customer.referredBy.id} (net amount: $${netReferralAmount.toFixed(2)} after Stripe fees)`);
+          }
+        }
 
         // If this is a subscription invoice, update the subscription's next billing date
         if (invoice.subscription && customer.subscription) {

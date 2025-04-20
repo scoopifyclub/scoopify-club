@@ -21,25 +21,72 @@ export default function LoginPage() {
 
   useEffect(() => {
     // Add debug info to check existing cookies
-    const checkAuth = () => {
+    const checkAuth = async () => {
+      // Check if we're coming from a logout
+      const isFromLogout = sessionStorage.getItem('justLoggedOut');
+      if (isFromLogout) {
+        // Clear the flag
+        sessionStorage.removeItem('justLoggedOut');
+        setDebugInfo('Just logged out, showing login form');
+        return;
+      }
+
       const cookies = document.cookie.split(';');
       const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken=')) || 
                               cookies.find(cookie => cookie.trim().startsWith('accessToken_client='));
       
       if (accessTokenCookie) {
-        console.log('User already has an access token, redirecting to dashboard');
-        setDebugInfo('Found token, redirecting to /customer/dashboard');
-        
-        // Store token in sessionStorage as a backup
+        // Verify the token is still valid
         try {
-          const tokenValue = accessTokenCookie.split('=')[1].trim();
-          sessionStorage.setItem('accessToken', tokenValue);
-        } catch (err) {
-          console.error('Failed to store token in sessionStorage:', err);
+          console.log('Checking existing token validity...');
+          const response = await fetch('/api/auth/session', {
+            credentials: 'include'
+          });
+          
+          if (!response.ok) {
+            console.log('Token invalid, showing login form');
+            setDebugInfo('Token invalid, please log in');
+            return;
+          }
+
+          // Safely parse the JSON response
+          let data;
+          try {
+            const text = await response.text();
+            data = text ? JSON.parse(text) : {};
+            console.log('Session data:', data);
+          } catch (parseError) {
+            console.error('Error parsing session response:', parseError);
+            setDebugInfo('Error parsing session data, please log in');
+            return;
+          }
+
+          console.log('User already has a valid token, redirecting to dashboard');
+          
+          // Determine redirect path based on user role
+          let redirectPath = '/customer/dashboard'; // default
+          if (data?.user?.role === 'EMPLOYEE') {
+            redirectPath = '/employee/dashboard';
+          } else if (data?.user?.role === 'ADMIN') {
+            redirectPath = '/admin/dashboard';
+          }
+          
+          setDebugInfo(`Found valid token for ${data?.user?.role || 'user'}, redirecting to ${redirectPath}`);
+          
+          // Store token in sessionStorage as a backup
+          try {
+            const tokenValue = accessTokenCookie.split('=')[1].trim();
+            sessionStorage.setItem('accessToken', tokenValue);
+          } catch (err) {
+            console.error('Failed to store token in sessionStorage:', err);
+          }
+          
+          // Use window location for hard redirect instead of router
+          window.location.href = redirectPath;
+        } catch (error) {
+          console.error('Error verifying token:', error);
+          setDebugInfo('Error verifying token, please log in');
         }
-        
-        // Use window location for hard redirect instead of router
-        window.location.href = '/customer/dashboard';
       } else {
         setDebugInfo('No access token found, showing login form');
       }
@@ -65,6 +112,73 @@ export default function LoginPage() {
     setDebugInfo('Attempting login...')
 
     try {
+      // For admin login, only use NextAuth
+      if (formData.email === 'admin@scoopify.club') {
+        console.log('Admin login detected, attempting login')
+        setDebugInfo('Admin login detected, attempting login')
+        
+        try {
+          // First try the dedicated admin login endpoint
+          const adminResponse = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formData),
+            credentials: 'include',
+          });
+          
+          if (adminResponse.ok) {
+            const data = await adminResponse.json();
+            console.log('Admin login successful via admin endpoint:', data);
+            setDebugInfo('Admin login successful via admin endpoint');
+            
+            // Redirect to admin dashboard
+            window.location.href = '/admin/dashboard';
+            return;
+          }
+          
+          console.log('Admin endpoint login failed, trying NextAuth');
+          setDebugInfo('Admin endpoint login failed, trying NextAuth');
+          
+          // Fallback to NextAuth if admin login fails
+          const callbackUrl = searchParams.get('callbackUrl') || '/admin/dashboard'
+          const { signIn } = await import('next-auth/react')
+          
+          setDebugInfo('Signing in with NextAuth credentials provider...')
+          const result = await signIn('credentials', {
+            redirect: false,
+            email: formData.email,
+            password: formData.password,
+            callbackUrl
+          })
+          
+          console.log('NextAuth login result for admin:', result)
+          
+          if (result?.error) {
+            console.error('Admin login failed:', result.error)
+            setError('Invalid admin credentials')
+            return
+          }
+          
+          // Admin login successful
+          console.log('Admin login successful, redirecting to:', result?.url)
+          setDebugInfo('Admin login successful, redirecting to admin dashboard')
+          
+          // Use a slight delay to ensure NextAuth has time to set cookies
+          setTimeout(() => {
+            // Force a hard navigation to the admin dashboard
+            window.location.href = result?.url || '/admin/dashboard'
+          }, 500)
+          return
+        } catch (error) {
+          console.error('Error during admin login:', error)
+          setError('An error occurred during admin login. Please try again.')
+          return
+        }
+      }
+      
+      // For non-admin users, first try custom endpoints
       console.log('Attempting customer login...')
       // Try customer login first
       let response = await fetch('/api/auth/customer-login', {
@@ -179,40 +293,26 @@ export default function LoginPage() {
       if (data.user.role === 'EMPLOYEE') {
         redirectPath = '/employee/dashboard'
       } else if (data.user.role === 'ADMIN') {
+        // For admin users that somehow made it here instead of the NextAuth flow
+        // Initialize NextAuth session before redirecting
+        try {
+          console.log('Admin user detected, initializing NextAuth session');
+          const { signIn } = await import('next-auth/react');
+          await signIn('credentials', {
+            redirect: false,
+            email: formData.email,
+            password: formData.password
+          });
+        } catch (err) {
+          console.error('Error initializing NextAuth session for admin:', err);
+        }
         redirectPath = '/admin/dashboard'
       }
       
       console.log('Redirecting to:', redirectPath)
       
-      // Add slight delay before redirect to make sure cookies are set
-      setTimeout(() => {
-        // Check cookies again before redirecting
-        const finalCookies = document.cookie.split(';');
-        const finalAccessToken = finalCookies.find(cookie => cookie.trim().startsWith('accessToken=')) ||
-                               finalCookies.find(cookie => cookie.trim().startsWith('accessToken_client='));
-        console.log('Final cookie check before redirect:', finalCookies.map(c => c.trim()).join(', '));
-        
-        let hasToken = !!finalAccessToken;
-        
-        // Also check sessionStorage as a fallback
-        if (!hasToken) {
-          try {
-            hasToken = !!sessionStorage.getItem('accessToken');
-            console.log('Token found in sessionStorage:', hasToken);
-          } catch (err) {
-            console.error('Error checking sessionStorage:', err);
-          }
-        }
-        
-        if (!hasToken) {
-          setError('Failed to set authentication token. Please try again.');
-          setDebugInfo('No access token cookie found after login attempt');
-          return;
-        }
-        
-        // Force a hard navigation
-        window.location.href = redirectPath;
-      }, 1000);
+      // Force a hard navigation immediately
+      window.location.href = redirectPath;
       
     } catch (error) {
       console.error('Login error:', error)
@@ -302,8 +402,9 @@ export default function LoginPage() {
 
             <div className="text-sm text-center mt-4">
               <p>Test Accounts:</p>
+              <p>Admin: admin@scoopify.club / admin123</p>
               <p>Customer: demo@example.com / demo123</p>
-              <p>Employee: employee@scoopify.com / demo123</p>
+              <p>Employee: employee@scoopify.club / employee123</p>
             </div>
           </form>
         </div>

@@ -21,6 +21,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import PaymentInfoReminder from '@/components/PaymentInfoReminder';
 
 // Add global type declaration for window.setDashboardTab
 declare global {
@@ -51,9 +52,9 @@ interface Service {
 interface Subscription {
   id: string;
   status: string;
-  startDate: string;
-  nextBillingDate: string;
-  plan: {
+  startDate: string | null;
+  nextBillingDate: string | null;
+  plan?: {
     name: string;
     price: number;
     frequency: string;
@@ -73,6 +74,7 @@ interface Customer {
   } | null;
   referralCode: string;
   cashAppName: string | null;
+  hasPaymentInfo: boolean;
 }
 
 interface Payment {
@@ -324,6 +326,14 @@ export default function CustomerDashboard() {
           
           // Save fetch timestamp
           setFetchedAt(new Date().toLocaleString());
+
+          // Check if the customer has set up their Cash App information
+          const hasPaymentInfo = !!customerData.cashAppName;
+          
+          setCustomer({
+            ...customerData,
+            hasPaymentInfo
+          });
         } else {
           const errorData = await customerRes.json().catch(() => ({}));
           console.error('Profile API error:', errorData);
@@ -773,7 +783,16 @@ export default function CustomerDashboard() {
     {
       title: "Last Service",
       value: services.length > 0 
-        ? format(new Date(services[services.length - 1].scheduledFor), 'MMM d, yyyy')
+        ? (() => {
+            try {
+              const lastService = services[services.length - 1];
+              const date = lastService.scheduledDate || lastService.scheduledFor;
+              return format(new Date(date), 'MMM d, yyyy');
+            } catch (error) {
+              console.error('Error formatting date:', error);
+              return "Date unavailable";
+            }
+          })()
         : "No services yet",
       icon: Clock,
       color: "text-green-500"
@@ -807,6 +826,11 @@ export default function CustomerDashboard() {
           <div className="mt-1"><strong>API Status:</strong></div>
           <div className="text-xs whitespace-pre-wrap">{authDebug}</div>
         </div>
+      )}
+      
+      {/* Payment Info Reminder */}
+      {customer && !customer.hasPaymentInfo && (
+        <PaymentInfoReminder userType="customer" hasPaymentInfo={customer.hasPaymentInfo} />
       )}
       
       {activeTab === 'overview' && (
@@ -884,8 +908,25 @@ export default function CustomerDashboard() {
                         <div className="flex items-center">
                           <Calendar className="w-5 h-5 text-blue-500 mr-3" />
                           <div>
-                            <p className="font-medium">{format(new Date(service.scheduledFor), 'MMMM d, yyyy')}</p>
-                            <p className="text-sm text-gray-500">{format(new Date(service.scheduledFor), 'h:mm a')}</p>
+                            {(() => {
+                              try {
+                                const date = service.scheduledDate || service.scheduledFor;
+                                return (
+                                  <>
+                                    <p className="font-medium">{format(new Date(date), 'MMMM d, yyyy')}</p>
+                                    <p className="text-sm text-gray-500">{format(new Date(date), 'h:mm a')}</p>
+                                  </>
+                                );
+                              } catch (error) {
+                                console.error('Error formatting service date:', error);
+                                return (
+                                  <>
+                                    <p className="font-medium">Date unavailable</p>
+                                    <p className="text-sm text-gray-500">Time unavailable</p>
+                                  </>
+                                );
+                              }
+                            })()}
                           </div>
                         </div>
                         <Badge className="bg-blue-100 text-blue-800">
@@ -925,20 +966,64 @@ export default function CustomerDashboard() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
                     <div>
-                      <p className="font-medium text-lg">{subscription.plan.name}</p>
-                      <p className="text-gray-500">${subscription.plan.price}/{subscription.plan.frequency}</p>
+                      <p className="font-medium text-lg">{subscription.plan?.name || 'Unknown Plan'}</p>
+                      <p className="text-gray-500">
+                        ${subscription.plan?.price || '0.00'}/{subscription.plan?.frequency || 'month'}
+                      </p>
                     </div>
                     <Badge className={
                       subscription.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 
                       subscription.status === 'PENDING' ? 'bg-yellow-100 text-yellow-800' : 
                       'bg-red-100 text-red-800'
                     }>
-                      {subscription.status}
+                      {subscription.status || 'UNKNOWN'}
                     </Badge>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Next billing date</span>
-                    <span className="font-medium">{format(new Date(subscription.nextBillingDate), 'MMMM d, yyyy')}</span>
+                    <span className="font-medium">
+                      {(() => {
+                        try {
+                          // Check if nextBillingDate exists and is valid
+                          if (!subscription.nextBillingDate) {
+                            return "Not available";
+                          }
+                          // Try parsing the date
+                          const date = new Date(subscription.nextBillingDate);
+                          // Check if the date is valid
+                          if (isNaN(date.getTime())) {
+                            throw new Error('Invalid date');
+                          }
+                          return format(date, 'MMMM d, yyyy');
+                        } catch (error) {
+                          console.error('Error formatting billing date:', error, 'Date value:', subscription.nextBillingDate);
+                          return "Date unavailable";
+                        }
+                      })()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Start date</span>
+                    <span className="font-medium">
+                      {(() => {
+                        try {
+                          // Check if startDate exists and is valid
+                          if (!subscription.startDate) {
+                            return "Not available";
+                          }
+                          // Try parsing the date
+                          const date = new Date(subscription.startDate);
+                          // Check if the date is valid
+                          if (isNaN(date.getTime())) {
+                            throw new Error('Invalid date');
+                          }
+                          return format(date, 'MMMM d, yyyy');
+                        } catch (error) {
+                          console.error('Error formatting start date:', error, 'Date value:', subscription.startDate);
+                          return "Date unavailable";
+                        }
+                      })()}
+                    </span>
                   </div>
                   <Button 
                     variant="outline" 
@@ -977,13 +1062,21 @@ export default function CustomerDashboard() {
               <Card key={service.id}>
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
-                    <span>{service.type}</span>
+                    <span>{service.type || 'Service'}</span>
                     <Badge variant={service.status === 'SCHEDULED' ? 'default' : 'secondary'}>
                       {service.status}
                     </Badge>
                   </CardTitle>
                   <CardDescription>
-                    Scheduled for {format(new Date(service.scheduledFor), 'MMMM d, yyyy')}
+                    {(() => {
+                      try {
+                        const date = service.scheduledDate || service.scheduledFor;
+                        return `Scheduled for ${format(new Date(date), 'MMMM d, yyyy')}`;
+                      } catch (error) {
+                        console.error('Error formatting service date:', error);
+                        return 'Schedule date unavailable';
+                      }
+                    })()}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -995,7 +1088,7 @@ export default function CustomerDashboard() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <DollarSign className="w-4 h-4" />
-                        <span>${service.amount}</span>
+                        <span>${service.amount || '0.00'}</span>
                       </div>
                     </div>
                     
@@ -1022,6 +1115,17 @@ export default function CustomerDashboard() {
                 </CardContent>
               </Card>
             ))}
+            {services.length === 0 && (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                  <p className="text-gray-500">No services found</p>
+                  <Button className="mt-4" onClick={() => handleScheduleService()}>
+                    Schedule Your First Service
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </>
       )}
@@ -1063,22 +1167,31 @@ export default function CustomerDashboard() {
                 {payments.map((payment) => (
                   <div key={payment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
-                      <p className="font-medium">${payment.amount}</p>
+                      <p className="font-medium">${payment.amount || '0.00'}</p>
                       <p className="text-sm text-gray-500">
-                        {format(new Date(payment.createdAt), 'MMMM d, yyyy')}
+                        {(() => {
+                          try {
+                            return format(new Date(payment.createdAt), 'MMMM d, yyyy');
+                          } catch (error) {
+                            console.error('Error formatting payment date:', error);
+                            return 'Date unavailable';
+                          }
+                        })()}
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Badge variant={payment.status === 'PAID' ? 'default' : 'destructive'}>
                         {payment.status}
                       </Badge>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => window.open(payment.receiptUrl, '_blank')}
-                      >
-                        Download Receipt
-                      </Button>
+                      {payment.receiptUrl && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => window.open(payment.receiptUrl, '_blank')}
+                        >
+                          Download Receipt
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))}

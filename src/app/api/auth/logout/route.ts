@@ -1,21 +1,26 @@
 import { NextResponse } from 'next/server'
-import { logout } from '@/lib/auth'
 import { cookies } from 'next/headers'
-import { verifyToken } from '@/lib/auth'
 
 export async function POST() {
-  try {
-    // Clear all authentication cookies
-    cookies().delete('accessToken')
-    cookies().delete('refreshToken')
-    cookies().delete('fingerprint')
+  const cookieStore = await cookies()
+  
+  // Clear all auth-related cookies individually with await
+  await cookieStore.delete('accessToken')
+  await cookieStore.delete('accessToken_client')
+  await cookieStore.delete('refreshToken')
+  await cookieStore.delete('deviceFingerprint')
+  await cookieStore.delete('adminToken')
+  await cookieStore.delete('next-auth.session-token')
+  await cookieStore.delete('next-auth.callback-url')
+  await cookieStore.delete('next-auth.csrf-token')
 
-    return NextResponse.json({ message: 'Logged out successfully' })
-  } catch (error) {
-    console.error('Logout error:', error)
-    return NextResponse.json(
-      { error: 'An error occurred during logout' },
-      { status: 500 }
-    )
-  }
+  // Set cookies with expired date to ensure they're removed
+  const response = NextResponse.json({ success: true })
+  response.cookies.set('accessToken', '', { maxAge: 0 })
+  response.cookies.set('accessToken_client', '', { maxAge: 0 })
+  response.cookies.set('refreshToken', '', { maxAge: 0 })
+  response.cookies.set('deviceFingerprint', '', { maxAge: 0 })
+  response.cookies.set('adminToken', '', { maxAge: 0 })
+  
+  return response
 } 

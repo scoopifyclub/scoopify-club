@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
@@ -29,8 +29,8 @@ export async function GET(request: Request) {
       }
     }
 
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('accessToken')?.value;
+    const cookieStore = await cookies();
+    const accessToken = await cookieStore.get('accessToken')?.value;
     if (!accessToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -163,8 +163,8 @@ export async function POST(request: Request) {
       }
     }
 
-    const cookieStore = cookies();
-    const accessToken = cookieStore.get('accessToken')?.value;
+    const cookieStore = await cookies();
+    const accessToken = await cookieStore.get('accessToken')?.value;
     if (!accessToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

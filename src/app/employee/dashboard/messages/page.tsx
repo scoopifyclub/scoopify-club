@@ -1,24 +1,32 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { User } from "lucide-react";
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import { MessageSquare, Search, Send, User, Clock, Plus } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Avatar } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 
 interface Message {
   id: string;
-  content: string;
   sender: {
     id: string;
     name: string;
-    role: "CUSTOMER" | "EMPLOYEE" | "ADMIN";
-    avatarUrl?: string;
+    avatar: string;
+    role: string;
   };
-  timestamp: Date;
-  isRead: boolean;
+  recipient: {
+    id: string;
+    name: string;
+    avatar: string;
+    role: string;
+  };
+  content: string;
+  timestamp: string;
+  read: boolean;
 }
 
 interface Conversation {
@@ -26,388 +34,416 @@ interface Conversation {
   participant: {
     id: string;
     name: string;
-    role: "CUSTOMER" | "EMPLOYEE" | "ADMIN";
-    avatarUrl?: string;
+    avatar: string;
+    role: string;
   };
   lastMessage: {
     content: string;
-    timestamp: Date;
-    isRead: boolean;
+    timestamp: string;
+    isFromMe: boolean;
   };
-  messages: Message[];
+  unreadCount: number;
 }
 
 export default function MessagesPage() {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-  const [newMessage, setNewMessage] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    // Simulate fetching conversations
-    setTimeout(() => {
-      const mockConversations: Conversation[] = [
-        {
-          id: "1",
-          participant: {
-            id: "101",
-            name: "Jane Smith",
-            role: "CUSTOMER",
-            avatarUrl: "/avatars/jane.jpg"
-          },
-          lastMessage: {
-            content: "When will my pool cleaning be completed?",
-            timestamp: new Date(Date.now() - 3600000),
-            isRead: false
-          },
-          messages: [
-            {
-              id: "m1",
-              content: "Hello, I'd like to know when my pool cleaning will be completed?",
-              sender: {
-                id: "101",
-                name: "Jane Smith",
-                role: "CUSTOMER"
-              },
-              timestamp: new Date(Date.now() - 3600000),
-              isRead: false
-            }
-          ]
-        },
-        {
-          id: "2",
-          participant: {
-            id: "102",
-            name: "Bob Johnson",
-            role: "CUSTOMER",
-            avatarUrl: "/avatars/bob.jpg"
-          },
-          lastMessage: {
-            content: "Thanks for the quick response!",
-            timestamp: new Date(Date.now() - 7200000),
-            isRead: true
-          },
-          messages: [
-            {
-              id: "m2",
-              content: "I need to reschedule my pool maintenance appointment.",
-              sender: {
-                id: "102",
-                name: "Bob Johnson",
-                role: "CUSTOMER"
-              },
-              timestamp: new Date(Date.now() - 86400000),
-              isRead: true
+    // Redirect to login if not authenticated
+    if (status === 'unauthenticated') {
+      router.push('/login?callbackUrl=/employee/dashboard');
+      return;
+    }
+    
+    // Verify user is an employee
+    if (status === 'authenticated' && session?.user?.role !== 'EMPLOYEE') {
+      router.push('/');
+      return;
+    }
+
+    // Fetch conversations data
+    const fetchConversations = async () => {
+      try {
+        // In a real app, you would fetch this data from your API
+        // For now, using mock data
+        const mockConversations: Conversation[] = [
+          {
+            id: '1',
+            participant: {
+              id: 'admin1',
+              name: 'Support Team',
+              avatar: 'https://ui-avatars.com/api/?name=Support+Team&background=0D8ABC&color=fff',
+              role: 'ADMIN'
             },
-            {
-              id: "m3",
-              content: "Sure, when would you like to reschedule?",
-              sender: {
-                id: "201",
-                name: "Current Employee",
-                role: "EMPLOYEE"
-              },
-              timestamp: new Date(Date.now() - 82800000),
-              isRead: true
+            lastMessage: {
+              content: 'Hi there! How can I help you today?',
+              timestamp: '2024-03-15T10:30:00',
+              isFromMe: false
             },
-            {
-              id: "m4",
-              content: "Thanks for the quick response!",
-              sender: {
-                id: "102",
-                name: "Bob Johnson",
-                role: "CUSTOMER"
-              },
-              timestamp: new Date(Date.now() - 7200000),
-              isRead: true
-            }
-          ]
-        },
-        {
-          id: "3",
-          participant: {
-            id: "301",
-            name: "Sarah Admin",
-            role: "ADMIN",
-            avatarUrl: "/avatars/sarah.jpg"
+            unreadCount: 1
           },
-          lastMessage: {
-            content: "Please update your service reports by Friday",
-            timestamp: new Date(Date.now() - 10800000),
-            isRead: true
+          {
+            id: '2',
+            participant: {
+              id: 'manager1',
+              name: 'Sarah Johnson',
+              avatar: 'https://ui-avatars.com/api/?name=Sarah+Johnson&background=9C27B0&color=fff',
+              role: 'MANAGER'
+            },
+            lastMessage: {
+              content: 'Please update me on your progress for today',
+              timestamp: '2024-03-14T16:45:00',
+              isFromMe: false
+            },
+            unreadCount: 2
           },
-          messages: [
-            {
-              id: "m5",
-              content: "Please update your service reports by Friday",
-              sender: {
-                id: "301",
-                name: "Sarah Admin",
-                role: "ADMIN"
-              },
-              timestamp: new Date(Date.now() - 10800000),
-              isRead: true
-            }
-          ]
+          {
+            id: '3',
+            participant: {
+              id: 'customer1',
+              name: 'John Smith',
+              avatar: 'https://ui-avatars.com/api/?name=John+Smith&background=4CAF50&color=fff',
+              role: 'CUSTOMER'
+            },
+            lastMessage: {
+              content: 'Thanks for the great service yesterday!',
+              timestamp: '2024-03-13T09:15:00',
+              isFromMe: false
+            },
+            unreadCount: 0
+          }
+        ];
+        
+        setConversations(mockConversations);
+        
+        // Select the first conversation by default
+        if (mockConversations.length > 0 && !selectedConversation) {
+          setSelectedConversation(mockConversations[0].id);
+          fetchMessages(mockConversations[0].id);
         }
-      ];
-
-      setConversations(mockConversations);
-      setIsLoading(false);
-    }, 1000);
-  }, []);
-
-  const handleSendMessage = () => {
-    if (!newMessage.trim() || !selectedConversation) return;
-
-    const newMessageObj: Message = {
-      id: `m${Date.now()}`,
-      content: newMessage,
-      sender: {
-        id: "201", // Current employee ID
-        name: "Current Employee",
-        role: "EMPLOYEE"
-      },
-      timestamp: new Date(),
-      isRead: true
-    };
-
-    const updatedConversation = {
-      ...selectedConversation,
-      messages: [...selectedConversation.messages, newMessageObj],
-      lastMessage: {
-        content: newMessage,
-        timestamp: new Date(),
-        isRead: true
+        
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        setIsLoading(false);
       }
     };
 
-    setConversations(conversations.map(conv => 
-      conv.id === selectedConversation.id ? updatedConversation : conv
-    ));
-    setSelectedConversation(updatedConversation);
-    setNewMessage("");
+    const fetchMessages = async (conversationId: string) => {
+      try {
+        // In a real app, you would fetch this data from your API
+        // For now, using mock data
+        const mockMessages: Message[] = [
+          {
+            id: '1',
+            sender: {
+              id: 'admin1',
+              name: 'Support Team',
+              avatar: 'https://ui-avatars.com/api/?name=Support+Team&background=0D8ABC&color=fff',
+              role: 'ADMIN'
+            },
+            recipient: {
+              id: 'employee1',
+              name: 'Me',
+              avatar: '',
+              role: 'EMPLOYEE'
+            },
+            content: 'Hi there! How can I help you today?',
+            timestamp: '2024-03-15T10:30:00',
+            read: true
+          },
+          {
+            id: '2',
+            sender: {
+              id: 'employee1',
+              name: 'Me',
+              avatar: '',
+              role: 'EMPLOYEE'
+            },
+            recipient: {
+              id: 'admin1',
+              name: 'Support Team',
+              avatar: 'https://ui-avatars.com/api/?name=Support+Team&background=0D8ABC&color=fff',
+              role: 'ADMIN'
+            },
+            content: 'I have a question about today\'s route.',
+            timestamp: '2024-03-15T10:32:00',
+            read: true
+          },
+          {
+            id: '3',
+            sender: {
+              id: 'admin1',
+              name: 'Support Team',
+              avatar: 'https://ui-avatars.com/api/?name=Support+Team&background=0D8ABC&color=fff',
+              role: 'ADMIN'
+            },
+            recipient: {
+              id: 'employee1',
+              name: 'Me',
+              avatar: '',
+              role: 'EMPLOYEE'
+            },
+            content: 'Sure, what would you like to know?',
+            timestamp: '2024-03-15T10:33:00',
+            read: false
+          }
+        ];
+        
+        setMessages(mockMessages);
+      } catch (error) {
+        console.error('Error fetching messages:', error);
+      }
+    };
+
+    if (status === 'authenticated' && session?.user?.role === 'EMPLOYEE') {
+      fetchConversations();
+    }
+  }, [status, session, router, selectedConversation]);
+
+  const handleSelectConversation = (conversationId: string) => {
+    setSelectedConversation(conversationId);
+    
+    // Mark messages as read
+    setConversations(prev => 
+      prev.map(conv => 
+        conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
+      )
+    );
   };
 
-  const filteredConversations = conversations.filter(conv => 
-    conv.participant.name.toLowerCase().includes(searchQuery.toLowerCase())
+  const handleSendMessage = () => {
+    if (!newMessage.trim() || !selectedConversation) return;
+    
+    // Find the selected conversation
+    const conversation = conversations.find(c => c.id === selectedConversation);
+    if (!conversation) return;
+    
+    // Create a new message
+    const newMessageObj: Message = {
+      id: `new-${Date.now()}`,
+      sender: {
+        id: 'employee1',
+        name: 'Me',
+        avatar: session?.user?.image || '',
+        role: 'EMPLOYEE'
+      },
+      recipient: conversation.participant,
+      content: newMessage,
+      timestamp: new Date().toISOString(),
+      read: false
+    };
+    
+    // Add the message to the messages list
+    setMessages(prev => [...prev, newMessageObj]);
+    
+    // Update the conversation with the new last message
+    setConversations(prev => 
+      prev.map(conv => 
+        conv.id === selectedConversation 
+          ? {
+              ...conv,
+              lastMessage: {
+                content: newMessage,
+                timestamp: new Date().toISOString(),
+                isFromMe: true
+              }
+            }
+          : conv
+      )
+    );
+    
+    // Clear the input
+    setNewMessage('');
+  };
+
+  const filteredConversations = conversations.filter(conversation => 
+    conversation.participant.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const customerConversations = filteredConversations.filter(conv => conv.participant.role === "CUSTOMER");
-  const adminConversations = filteredConversations.filter(conv => conv.participant.role === "ADMIN");
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatDate = (date: Date) => {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+  const formatTime = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
     
-    if (date.toDateString() === today.toDateString()) {
-      return "Today";
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return "Yesterday";
+    if (date.toDateString() === now.toDateString()) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else {
-      return date.toLocaleDateString();
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
     }
   };
 
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-screen">Loading conversations...</div>;
+  if (status === 'loading' || isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[400px] transition-opacity duration-300">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <div className="w-1/3 border-r">
-        <div className="p-4 border-b">
-          <Input
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full"
-          />
-        </div>
-        
-        <Tabs defaultValue="customers" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="customers">Customers</TabsTrigger>
-            <TabsTrigger value="admin">Admin</TabsTrigger>
-          </TabsList>
+    <div className="p-6 h-[calc(100vh-4rem)] space-y-6 animate-fade-in">
+      <div className="flex h-full gap-6">
+        {/* Conversations Sidebar */}
+        <div className="w-80 h-full flex flex-col">
+          <div className="flex justify-between items-center mb-4">
+            <h1 className="text-2xl font-bold tracking-tight">Messages</h1>
+            <Button size="icon" variant="outline">
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
           
-          <TabsContent value="customers" className="mt-0">
-            <ScrollArea className="h-[calc(100vh-140px)]">
-              {customerConversations.length > 0 ? (
-                customerConversations.map((conversation) => (
-                  <div
-                    key={conversation.id}
-                    className={`flex items-center gap-4 p-4 cursor-pointer hover:bg-accent/50 transition-colors ${
-                      selectedConversation?.id === conversation.id ? "bg-accent" : ""
-                    } ${!conversation.lastMessage.isRead ? "font-medium" : ""}`}
-                    onClick={() => setSelectedConversation(conversation)}
-                  >
-                    <Avatar>
-                      <AvatarImage src={conversation.participant.avatarUrl} />
-                      <AvatarFallback>
-                        <User className="h-5 w-5" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center">
-                        <p className="font-medium truncate">{conversation.participant.name}</p>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(conversation.lastMessage.timestamp)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {conversation.lastMessage.content}
-                      </p>
-                    </div>
-                    {!conversation.lastMessage.isRead && (
-                      <div className="h-2 w-2 bg-primary rounded-full"></div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="p-4 text-center text-muted-foreground">
-                  No customer conversations found
-                </div>
-              )}
-            </ScrollArea>
-          </TabsContent>
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+            <Input
+              placeholder="Search conversations..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
           
-          <TabsContent value="admin" className="mt-0">
-            <ScrollArea className="h-[calc(100vh-140px)]">
-              {adminConversations.length > 0 ? (
-                adminConversations.map((conversation) => (
-                  <div
-                    key={conversation.id}
-                    className={`flex items-center gap-4 p-4 cursor-pointer hover:bg-accent/50 transition-colors ${
-                      selectedConversation?.id === conversation.id ? "bg-accent" : ""
-                    } ${!conversation.lastMessage.isRead ? "font-medium" : ""}`}
-                    onClick={() => setSelectedConversation(conversation)}
-                  >
-                    <Avatar>
-                      <AvatarImage src={conversation.participant.avatarUrl} />
-                      <AvatarFallback>
-                        <User className="h-5 w-5" />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center">
-                        <p className="font-medium truncate">{conversation.participant.name}</p>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTime(conversation.lastMessage.timestamp)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {conversation.lastMessage.content}
-                      </p>
-                    </div>
-                    {!conversation.lastMessage.isRead && (
-                      <div className="h-2 w-2 bg-primary rounded-full"></div>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <div className="p-4 text-center text-muted-foreground">
-                  No admin conversations found
-                </div>
-              )}
-            </ScrollArea>
-          </TabsContent>
-        </Tabs>
-      </div>
-      
-      <div className="flex-1 flex flex-col">
-        {selectedConversation ? (
-          <>
-            <div className="p-4 border-b flex items-center gap-4">
-              <Avatar>
-                <AvatarImage src={selectedConversation.participant.avatarUrl} />
-                <AvatarFallback>
-                  <User className="h-5 w-5" />
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-medium">{selectedConversation.participant.name}</h3>
-                <p className="text-xs text-muted-foreground">
-                  {selectedConversation.participant.role === "CUSTOMER" ? "Customer" : "Admin"}
-                </p>
-              </div>
-            </div>
-            
-            <ScrollArea className="flex-1 p-4">
-              {selectedConversation.messages.map((message, index) => {
-                const isCurrentUser = message.sender.role === "EMPLOYEE";
-                const showDate = index === 0 || 
-                  formatDate(message.timestamp) !== formatDate(selectedConversation.messages[index - 1].timestamp);
-                
-                return (
-                  <div key={message.id}>
-                    {showDate && (
-                      <div className="text-center my-4">
-                        <span className="text-xs bg-accent px-2 py-1 rounded-full">
-                          {formatDate(message.timestamp)}
-                        </span>
-                      </div>
-                    )}
-                    <div className={`flex mb-4 ${isCurrentUser ? "justify-end" : "justify-start"}`}>
-                      <div className={`flex gap-2 max-w-[80%] ${isCurrentUser ? "flex-row-reverse" : ""}`}>
-                        {!isCurrentUser && (
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={message.sender.avatarUrl} />
-                            <AvatarFallback>
-                              <User className="h-4 w-4" />
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
-                        <div>
-                          <div className={`p-3 rounded-lg ${
-                            isCurrentUser 
-                              ? "bg-primary text-primary-foreground" 
-                              : "bg-accent"
-                          }`}>
-                            {message.content}
-                          </div>
-                          <div className={`text-xs text-muted-foreground mt-1 ${
-                            isCurrentUser ? "text-right" : ""
-                          }`}>
-                            {formatTime(message.timestamp)}
-                          </div>
+          <div className="flex-1 overflow-y-auto space-y-2">
+            {filteredConversations.length > 0 ? (
+              filteredConversations.map(conversation => (
+                <Card 
+                  key={conversation.id} 
+                  className={`hover:shadow-md transition-shadow cursor-pointer ${
+                    selectedConversation === conversation.id ? 'border-green-500 shadow-sm' : ''
+                  }`}
+                  onClick={() => handleSelectConversation(conversation.id)}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex gap-3">
+                      <Avatar className="h-10 w-10">
+                        <img src={conversation.participant.avatar} alt={conversation.participant.name} />
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-center">
+                          <h3 className="font-medium text-sm truncate">{conversation.participant.name}</h3>
+                          <span className="text-xs text-gray-500">{formatTime(conversation.lastMessage.timestamp)}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <p className="text-sm text-gray-500 truncate">
+                            {conversation.lastMessage.isFromMe ? 'You: ' : ''}{conversation.lastMessage.content}
+                          </p>
+                          {conversation.unreadCount > 0 && (
+                            <Badge variant="destructive" className="rounded-full text-xs">
+                              {conversation.unreadCount}
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </ScrollArea>
-            
-            <div className="p-4 border-t flex gap-2">
-              <Input
-                placeholder="Type a message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                className="flex-1"
-              />
-              <Button onClick={handleSendMessage} disabled={!newMessage.trim()}>
-                Send
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            Select a conversation to start messaging
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No conversations found
+              </div>
+            )}
           </div>
-        )}
+        </div>
+        
+        {/* Message Content */}
+        <div className="flex-1 border rounded-lg h-full flex flex-col bg-gray-50">
+          {selectedConversation ? (
+            <>
+              {/* Conversation Header */}
+              <div className="border-b bg-white p-4 rounded-t-lg">
+                {conversations.find(c => c.id === selectedConversation) && (
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <img 
+                        src={conversations.find(c => c.id === selectedConversation)?.participant.avatar} 
+                        alt={conversations.find(c => c.id === selectedConversation)?.participant.name} 
+                      />
+                    </Avatar>
+                    <div>
+                      <h2 className="font-bold">
+                        {conversations.find(c => c.id === selectedConversation)?.participant.name}
+                      </h2>
+                      <p className="text-xs text-gray-500">
+                        {conversations.find(c => c.id === selectedConversation)?.participant.role}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.map(message => (
+                  <div 
+                    key={message.id} 
+                    className={`flex ${message.sender.role === 'EMPLOYEE' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div 
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        message.sender.role === 'EMPLOYEE' 
+                          ? 'bg-green-500 text-white rounded-tr-none' 
+                          : 'bg-white border rounded-tl-none'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start gap-4">
+                        <p>{message.content}</p>
+                      </div>
+                      <div 
+                        className={`text-xs mt-1 flex justify-end ${
+                          message.sender.role === 'EMPLOYEE' ? 'text-green-100' : 'text-gray-500'
+                        }`}
+                      >
+                        <Clock className="h-3 w-3 mr-1" />
+                        {formatTime(message.timestamp)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Message Input */}
+              <div className="p-4 border-t bg-white rounded-b-lg">
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="Type a message..." 
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                  />
+                  <Button 
+                    variant="default"
+                    onClick={handleSendMessage}
+                    disabled={!newMessage.trim()}
+                  >
+                    <Send className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900">No conversation selected</h3>
+                <p className="text-gray-500">
+                  Select a conversation to start messaging
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

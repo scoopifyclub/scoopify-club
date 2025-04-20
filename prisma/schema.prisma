@@ -31,20 +31,21 @@ model User {
   referredPayments        Payment[]      @relation("ReferredPayments")
   refreshTokens           RefreshToken[]
   serviceDelays           ServiceDelay[]
+  paymentBatches          PaymentBatch[]
 }
 
 model Customer {
   id                String        @id @default(cuid())
   userId            String        @unique
   subscriptionId    String?       @unique
-  phone             String?
-  gateCode          String?
-  serviceDay        String?
-  cashAppName       String?
-  referralCode      String?
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
   stripeCustomerId  String?       @unique
+  gateCode          String?
+  phone             String?
+  serviceDay        String?
+  cashAppName       String?
+  referralCode      String?
   address           Address?
   subscription      Subscription? @relation(fields: [subscriptionId], references: [id])
   user              User          @relation(fields: [userId], references: [id])
@@ -99,49 +100,75 @@ model TimeExtension {
 }
 
 model Employee {
-  id               String           @id @default(cuid())
-  userId           String           @unique
-  phone            String?
-  cashAppUsername  String?
-  bio              String?
-  availability     Json?            // Stored as JSON with days and hours
-  status           String           @default("ACTIVE")  // ACTIVE, INACTIVE, PENDING, SUSPENDED
-  rating           Float?           // Average rating from customers
-  completedJobs    Int              @default(0)
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  user             User             @relation(fields: [userId], references: [id])
-  payments         Payment[]
-  services         Service[]
-  serviceAreas     ServiceArea[]
-  messages         ServiceMessage[]
-  timeExtensions   TimeExtension[]
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  phone           String?
+  cashAppUsername String?
+  stripeAccountId String?         @unique
+  preferredPaymentMethod String?  // CASH_APP or STRIPE
+  bio             String?
+  availability    Json?
+  status          String           @default("ACTIVE")
+  rating          Float?
+  completedJobs   Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  user            User             @relation(fields: [userId], references: [id])
+  payments        Payment[]
+  services        Service[]
+  serviceAreas    ServiceArea[]
+  messages        ServiceMessage[]
+  timeExtensions  TimeExtension[]
+  earnings        Earning[]
 }
 
 model Payment {
   id             String         @id @default(cuid())
-  amount         Float
-  status         String         @default("PENDING")
+  amount         Float          // Total payment amount
+  stripeFee      Float?         // Stripe processing fee
+  netAmount      Float?         // Net amount after fees
+  status         String         @default("PENDING") // PENDING, APPROVED, PAID, FAILED
   type           String
   serviceId      String?
   employeeId     String?
   customerId     String?
   referredId     String?
+  paymentMethod  String?        // CASH, CASH_APP, CHECK, STRIPE, etc.
+  paidAt         DateTime?      // When the payment was actually sent
+  approvedAt     DateTime?      // When the payment was approved by admin
+  approvedBy     String?        // Admin who approved the payment
+  notes          String?        // Additional information about the payment
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   subscriptionId String?
+  stripePaymentIntentId String?
+  stripeInvoiceId String?
+  stripeTransferId String?      // ID of Stripe transfer (for employee payouts)
+  // Refund fields
+  refundedAmount Float?         // Amount refunded
+  refundedAt     DateTime?      // When the refund was processed
+  refundedBy     String?        // Admin who processed the refund
+  refundReason   String?        // Reason for the refund
+  refundStatus   String?        // PENDING, COMPLETED, FAILED
+  refundTransactionId String?   // ID of refund transaction from payment provider
+  batchId        String?        // ID of the batch this payment belongs to
   subscription   Subscription?  @relation(fields: [subscriptionId], references: [id])
   referredBy     User?          @relation("ReferredPayments", fields: [referredId], references: [id])
   customer       Customer?      @relation(fields: [customerId], references: [id])
   service        Service?       @relation(fields: [serviceId], references: [id])
   employee       Employee?      @relation(fields: [employeeId], references: [id])
   retries        PaymentRetry[]
+  earnings       Earning[]
+  auditLogs      PaymentAuditLog[]
+  batch          PaymentBatch?  @relation(fields: [batchId], references: [id])
 
   @@index([serviceId])
   @@index([employeeId])
   @@index([customerId])
   @@index([referredId])
   @@index([subscriptionId])
+  @@index([status])
+  @@index([batchId])
 }
 
 model ServicePhoto {
@@ -179,6 +206,12 @@ model Service {
   servicePlanId  String
   employeeId     String?
   serviceAreaId  String?
+  potentialEarnings Float?          // What the scooper would earn for this job
+  stripeFees     Float?            // Stripe processing fee for this service
+  netAmount      Float?            // Net amount after stripe fees
+  paymentStatus  String           @default("PENDING") // PENDING, APPROVED, PAID
+  paymentApprovedAt DateTime?     // When admin approved the payment
+  paymentApprovedBy String?       // Admin who approved the payment
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
   location       Location?
@@ -192,6 +225,11 @@ model Service {
   messages       ServiceMessage[]
   photos         ServicePhoto[]
   timeExtensions TimeExtension[]
+  earnings       Earning[]
+
+  @@index([paymentStatus])
+  @@index([employeeId])
+  @@index([serviceAreaId])
 }
 
 model ServiceChecklist {
@@ -227,15 +265,16 @@ model ServiceArea {
 }
 
 model PaymentRetry {
-  id            String    @id @default(cuid())
-  paymentId     String
-  status        String    @default("SCHEDULED")
-  errorMessage  String?
-  retryCount    Int       @default(0)
-  nextRetryDate DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  payment       Payment   @relation(fields: [paymentId], references: [id])
+  id                   String    @id @default(cuid())
+  paymentId            String
+  status               String    // SCHEDULED, PENDING, SUCCESS, FAILED
+  retryCount           Int       @default(0)
+  nextRetryDate        DateTime
+  errorMessage         String?
+  scheduledDate        DateTime  @default(now())
+  processedDate        DateTime?
+  stripePaymentIntentId String?
+  payment              Payment   @relation(fields: [paymentId], references: [id])
 
   @@index([paymentId])
   @@index([status])
@@ -329,4 +368,89 @@ model ServiceMessage {
 
   @@index([serviceId])
   @@index([employeeId])
+}
+
+model Earning {
+  id              String   @id @default(cuid())
+  amount          Float    // Amount earned by the scooper for this service
+  status          String   @default("PENDING") // PENDING, APPROVED, PAID, FAILED
+  serviceId       String   // Reference to the completed service
+  employeeId      String   // The scooper who earned this
+  paidVia         String?  // CASH_APP or STRIPE
+  paidAt          DateTime?
+  approvedAt      DateTime? // When the admin approved the payment
+  approvedBy      String?   // Admin who approved the payment
+  stripeTransferId String? @unique
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  service         Service  @relation(fields: [serviceId], references: [id])
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  payments        Payment[]
+
+  @@index([serviceId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+// Audit log for payment system
+model PaymentAuditLog {
+  id          String   @id @default(cuid())
+  paymentId   String
+  eventType   String   // CREATED, STATUS_CHANGED, APPROVED, PROCESSED, REFUNDED, etc.
+  details     String   // JSON string with event details
+  performedBy String   // USER_ID or SYSTEM
+  timestamp   DateTime @default(now())
+  payment     Payment  @relation(fields: [paymentId], references: [id])
+
+  @@index([paymentId])
+  @@index([eventType])
+  @@index([timestamp])
+  @@index([performedBy])
+}
+
+// New Payment Batch model for managing payments in batches
+model PaymentBatch {
+  id                 String    @id @default(cuid())
+  name               String
+  description        String?
+  status             String    // DRAFT, PROCESSING, COMPLETED, PARTIAL, FAILED
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdById        String
+  createdBy          User      @relation(fields: [createdById], references: [id])
+  processingStartedAt DateTime?
+  completedAt        DateTime?
+  notes              String?
+  payments           Payment[]
+}
+
+// Payment reconciliation
+model PaymentReconciliationReport {
+  id                     String    @id @default(cuid())
+  timestamp              DateTime  @default(now())
+  totalRecords           Int
+  matchedCount           Int
+  mismatchCount          Int
+  missingFromStripeCount Int
+  missingFromSystemCount Int
+  items                  PaymentReconciliationItem[]
+
+  @@index([timestamp])
+}
+
+model PaymentReconciliationItem {
+  id           String              @id @default(cuid())
+  reportId     String
+  paymentId    String?
+  stripeId     String?
+  systemAmount Float?
+  stripeAmount Float?
+  matchStatus  String              // MATCHED, AMOUNT_MISMATCH, MISSING_FROM_STRIPE, MISSING_FROM_SYSTEM
+  notes        String
+  report       PaymentReconciliationReport @relation(fields: [reportId], references: [id])
+
+  @@index([reportId])
+  @@index([paymentId])
+  @@index([matchStatus])
 }

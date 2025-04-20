@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { hash } from 'bcryptjs';
 
 export const testUsers = {

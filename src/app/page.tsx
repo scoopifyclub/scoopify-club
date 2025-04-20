@@ -67,7 +67,7 @@ export default function Home() {
             </div>
             <div className="relative h-[500px] rounded-2xl overflow-hidden shadow-2xl">
               <Image
-                src="/dog-hero.jpg"
+                src="https://images.unsplash.com/photo-1585071550721-fdb362ae2b8d?q=80&w=2070&auto=format&fit=crop"
                 alt="Happy dog in clean yard"
                 fill
                 className="object-cover"

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/response'
+import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { verifyToken } from '@/lib/auth'
 
@@ -29,6 +29,11 @@ export async function GET() {
     console.error('Token verification error:', error)
     return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
   }
+}
+
+// Add POST method that does the same thing as GET
+export async function POST() {
+  return GET();
 }
 
 // Handle OPTIONS request for CORS preflight

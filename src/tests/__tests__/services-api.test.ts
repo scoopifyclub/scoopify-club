@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { POST, GET } from '@/app/api/services/route';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { requireAuth } from '@/lib/api-auth';
 import { sendServiceNotificationEmail } from '@/lib/email';
 

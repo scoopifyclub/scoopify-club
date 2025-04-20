@@ -10,6 +10,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardFooter,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
@@ -20,24 +21,37 @@ import {
   ClockIcon,
   DollarSignIcon,
   PawPrintIcon,
+  Navigation,
+  RefreshCw,
 } from 'lucide-react';
+import { getCurrentLocation } from '@/lib/geolocation';
 
 interface AvailableJob {
   id: string;
-  scheduledFor: string;
-  type: 'regular' | 'one-time' | 'extra';
-  numberOfDogs: number;
-  estimatedDuration: number;
-  payment: number;
-  address: {
-    street: string;
-    city: string;
-    state: string;
-    zipCode: string;
+  scheduledDate: string;
+  type: string;
+  potentialEarnings: number;
+  distance?: number;
+  location?: {
     latitude: number;
     longitude: number;
+    address?: string;
   };
-  distance?: number;
+  customer: {
+    name: string;
+    address: {
+      street: string;
+      city: string;
+      state: string;
+      zipCode: string;
+    };
+    gateCode?: string;
+  };
+  servicePlan: {
+    name: string;
+    price: number;
+    duration: number;
+  };
 }
 
 export default function JobsPage() {
@@ -45,6 +59,7 @@ export default function JobsPage() {
   const { data: session, status } = useSession();
   const [jobs, setJobs] = useState<AvailableJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [claiming, setClaimingJob] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{
     latitude: number;
@@ -64,7 +79,7 @@ export default function JobsPage() {
       return;
     }
 
-    // Get user's location for distance calculation
+    // Get user's location for proximity calculation
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -72,74 +87,41 @@ export default function JobsPage() {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           });
+          fetchAvailableJobs(position.coords.latitude, position.coords.longitude);
         },
         (error) => {
           console.error('Error getting location:', error);
+          fetchAvailableJobs(); // Fetch without location if permission denied
         }
       );
-    }
-
-    if (status === 'authenticated' && session?.user?.role === 'EMPLOYEE') {
-      fetchAvailableJobs();
+    } else {
+      fetchAvailableJobs(); // Fetch without location if geolocation not supported
     }
   }, [status, session, router]);
 
-  const fetchAvailableJobs = async () => {
+  const fetchAvailableJobs = async (latitude?: number, longitude?: number) => {
     try {
-      // In a real app, fetch from API
-      // For demo purposes, using mock data
-      const mockJobs: AvailableJob[] = [
-        {
-          id: '1',
-          scheduledFor: new Date(Date.now() + 86400000).toISOString(), // tomorrow
-          type: 'regular',
-          numberOfDogs: 2,
-          estimatedDuration: 45,
-          payment: 35.50,
-          address: {
-            street: '123 Pine St',
-            city: 'Seattle',
-            state: 'WA',
-            zipCode: '98101',
-            latitude: 47.6062,
-            longitude: -122.3321,
-          }
-        },
-        {
-          id: '2',
-          scheduledFor: new Date(Date.now() + 172800000).toISOString(), // day after tomorrow
-          type: 'one-time',
-          numberOfDogs: 1,
-          estimatedDuration: 30,
-          payment: 25.00,
-          address: {
-            street: '456 Oak Ave',
-            city: 'Seattle',
-            state: 'WA',
-            zipCode: '98102',
-            latitude: 47.6102,
-            longitude: -122.3426,
-          }
-        },
-        {
-          id: '3',
-          scheduledFor: new Date(Date.now() + 259200000).toISOString(), // 3 days from now
-          type: 'extra',
-          numberOfDogs: 3,
-          estimatedDuration: 60,
-          payment: 45.75,
-          address: {
-            street: '789 Maple Rd',
-            city: 'Bellevue',
-            state: 'WA',
-            zipCode: '98004',
-            latitude: 47.6101,
-            longitude: -122.2015,
-          }
-        }
-      ];
+      setLoading(true);
+      setError(null);
       
-      setJobs(mockJobs);
+      // Build the API URL with location parameters if available
+      let url = '/api/employee/available-services';
+      if (latitude && longitude) {
+        url += `?latitude=${latitude}&longitude=${longitude}`;
+      }
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${session?.user?.accessToken}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch available jobs');
+      }
+      
+      const data = await response.json();
+      setJobs(data);
     } catch (err) {
       setError('Failed to load available jobs');
       console.error('Error fetching jobs:', err);
@@ -149,51 +131,63 @@ export default function JobsPage() {
   };
 
   const handleClaimJob = async (jobId: string) => {
-    if (!confirm('Are you sure you want to claim this job?')) {
-      return;
-    }
-
     try {
-      // In a real app, make API call to claim job
-      // For demo, just remove the job from the list
-      setJobs(jobs.filter(job => job.id !== jobId));
+      setClaimingJob(jobId);
       
-      // Show success message
-      toast.success('Job claimed successfully!');
+      const response = await fetch(`/api/employee/services/${jobId}/claim`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session?.user?.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to claim job');
+      }
+      
+      toast.success('Job claimed successfully! Check your schedule for details.');
+      
+      // Refresh the jobs list
+      await fetchAvailableJobs(
+        userLocation?.latitude,
+        userLocation?.longitude
+      );
+      
+      // Redirect to schedule page after successful claim
+      router.push('/employee/dashboard/schedule');
     } catch (err) {
       toast.error('Failed to claim job. Please try again.');
       console.error('Error claiming job:', err);
+    } finally {
+      setClaimingJob(null);
     }
   };
 
-  const calculateDistance = (job: AvailableJob) => {
-    if (!userLocation) return null;
-
-    const R = 6371; // Earth's radius in km
-    const lat1 = userLocation.latitude * (Math.PI / 180);
-    const lat2 = job.address.latitude * (Math.PI / 180);
-    const deltaLat = (job.address.latitude - userLocation.latitude) * (Math.PI / 180);
-    const deltaLon = (job.address.longitude - userLocation.longitude) * (Math.PI / 180);
-
-    const a =
-      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
-      Math.cos(lat1) *
-        Math.cos(lat2) *
-        Math.sin(deltaLon / 2) *
-        Math.sin(deltaLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
-
-    return Math.round(distance * 0.621371 * 10) / 10; // Convert to miles and round to 1 decimal
+  const refreshLocation = async () => {
+    try {
+      const position = await getCurrentLocation();
+      setUserLocation(position);
+      fetchAvailableJobs(position.latitude, position.longitude);
+      toast.success('Location updated');
+    } catch (error) {
+      toast.error('Could not get your location');
+      fetchAvailableJobs();
+    }
   };
 
-  if (status === 'loading' || loading) {
-    return (
-      <div className="flex items-center justify-center h-[400px] transition-opacity duration-300">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
-      </div>
-    );
-  }
+  const formatAddress = (job: AvailableJob) => {
+    const address = job.customer.address;
+    return `${address.street}, ${address.city}, ${address.state} ${address.zipCode}`;
+  };
+
+  const getDirectionsUrl = (job: AvailableJob) => {
+    if (job.location) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${job.location.latitude},${job.location.longitude}`;
+    } else {
+      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(formatAddress(job))}`;
+    }
+  };
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
@@ -203,8 +197,30 @@ export default function JobsPage() {
           <p className="text-gray-500">
             {jobs.length} jobs available in your service area
           </p>
+          <p className="text-sm text-gray-400">
+            Available from 7am to 7pm today
+          </p>
         </div>
-        <Button onClick={() => fetchAvailableJobs()}>Refresh</Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={refreshLocation}
+            disabled={loading}
+          >
+            <Navigation className="h-4 w-4 mr-2" />
+            Update Location
+          </Button>
+          <Button 
+            onClick={() => fetchAvailableJobs(
+              userLocation?.latitude,
+              userLocation?.longitude
+            )}
+            disabled={loading}
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -213,82 +229,100 @@ export default function JobsPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {jobs.map((job) => (
-          <Card key={job.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle>{format(new Date(job.scheduledFor), 'EEEE, MMM d')}</CardTitle>
-                  <CardDescription>
-                    {format(new Date(job.scheduledFor), 'h:mm a')}
-                  </CardDescription>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={
-                    job.type === 'regular'
-                      ? 'bg-blue-100 text-blue-800'
-                      : job.type === 'extra'
-                      ? 'bg-purple-100 text-purple-800'
-                      : 'bg-green-100 text-green-800'
-                  }
-                >
-                  {job.type}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center text-gray-600">
-                  <MapPinIcon className="w-5 h-5 mr-2" />
+      {loading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {jobs.map((job) => (
+            <Card key={job.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex justify-between items-start">
                   <div>
-                    <div>{job.address.street}</div>
-                    <div className="text-sm">
-                      {job.address.city}, {job.address.state} {job.address.zipCode}
-                    </div>
-                    {userLocation && (
-                      <div className="text-sm text-blue-600">
-                        {calculateDistance(job)} miles away
-                      </div>
+                    <CardTitle>{format(new Date(job.scheduledDate), 'EEEE, MMM d')}</CardTitle>
+                    <CardDescription>
+                      {format(new Date(job.scheduledDate), 'h:mm a')}
+                    </CardDescription>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <Badge variant="secondary" className="bg-green-100 text-green-800">
+                      ${job.potentialEarnings.toFixed(2)}
+                    </Badge>
+                    {job.distance && (
+                      <Badge variant="outline" className="text-gray-500">
+                        {job.distance} mi
+                      </Badge>
                     )}
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center text-gray-600">
-                    <ClockIcon className="w-5 h-5 mr-2" />
-                    <span>{job.estimatedDuration} mins</span>
-                  </div>
-                  <div className="flex items-center text-gray-600">
-                    <PawPrintIcon className="w-5 h-5 mr-2" />
-                    <span>{job.numberOfDogs} dogs</span>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start gap-2">
+                  <MapPinIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium">{job.customer.name}</p>
+                    <p className="text-sm text-gray-500">{formatAddress(job)}</p>
+                    {job.customer.gateCode && (
+                      <p className="text-sm text-gray-500">
+                        Gate code: {job.customer.gateCode}
+                      </p>
+                    )}
                   </div>
                 </div>
-
-                <div className="flex items-center text-green-600 font-semibold">
-                  <DollarSignIcon className="w-5 h-5 mr-2" />
-                  <span>${job.payment.toFixed(2)}</span>
+                
+                <div className="flex items-center gap-2">
+                  <ClockIcon className="h-5 w-5 text-gray-400" />
+                  <p className="text-sm">Est. {job.servicePlan.duration} minutes</p>
                 </div>
-
+                
+                <div className="flex items-center gap-2">
+                  <DollarSignIcon className="h-5 w-5 text-gray-400" />
+                  <div>
+                    <p className="text-sm font-medium text-green-600">
+                      Earn ${job.potentialEarnings.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      75% after processing fees
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-between gap-2">
                 <Button
-                  className="w-full"
-                  onClick={() => handleClaimJob(job.id)}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open(getDirectionsUrl(job), '_blank')}
                 >
-                  Claim Job
+                  <Navigation className="h-4 w-4 mr-2" />
+                  Directions
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-
-        {jobs.length === 0 && (
-          <div className="col-span-full text-center py-12 bg-gray-50 rounded-lg">
-            <p className="text-gray-500">No jobs available at the moment.</p>
-            <p className="text-gray-400 text-sm mt-2">Check back later for new opportunities.</p>
-          </div>
-        )}
-      </div>
+                <Button
+                  onClick={() => handleClaimJob(job.id)}
+                  disabled={claiming === job.id}
+                  className="flex-1"
+                >
+                  {claiming === job.id ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Claiming...
+                    </>
+                  ) : (
+                    'Claim Job'
+                  )}
+                </Button>
+              </CardFooter>
+            </Card>
+          ))}
+          
+          {jobs.length === 0 && !loading && (
+            <div className="col-span-full text-center py-12 bg-gray-50 rounded-lg">
+              <p className="text-gray-500">No jobs available at the moment.</p>
+              <p className="text-gray-400 text-sm mt-2">Check back later for new opportunities.</p>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 } 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { compare } from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
+import prisma from "@/lib/prisma";
 import { generateTokens } from '@/lib/auth'
 
 export async function POST(request: Request) {

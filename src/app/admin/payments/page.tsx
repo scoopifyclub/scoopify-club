@@ -10,11 +10,14 @@ interface Payment {
   employeeId: string;
   employeeName: string;
   amount: number;
-  status: 'PENDING' | 'PAID';
+  status: 'PENDING' | 'PAID' | 'APPROVED' | 'FAILED';
   paymentMethod?: string;
+  preferredPaymentMethod?: string;
   paidAt?: string;
   serviceDate?: string;
   customerName?: string;
+  type: 'EARNINGS' | 'REFERRAL';
+  notes?: string;
 }
 
 export default function AdminPaymentsPage() {
@@ -23,6 +26,8 @@ export default function AdminPaymentsPage() {
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
+  const [processingBatch, setProcessingBatch] = useState(false);
 
   useEffect(() => {
     fetchPayments();
@@ -68,6 +73,80 @@ export default function AdminPaymentsPage() {
     }
   };
 
+  const handleBatchApprove = async () => {
+    if (selectedPayments.length === 0) {
+      toast.error('Please select payments to approve');
+      return;
+    }
+
+    try {
+      setProcessingBatch(true);
+      const response = await fetch('/api/admin/payments', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentIds: selectedPayments,
+          paymentMethod
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to approve payments');
+      
+      const data = await response.json();
+      toast.success(`Successfully approved ${data.results.length} payments`);
+      setSelectedPayments([]);
+      fetchPayments();
+    } catch (error) {
+      console.error('Error approving payments:', error);
+      toast.error('Failed to approve payments');
+    } finally {
+      setProcessingBatch(false);
+    }
+  };
+
+  const handleBatchProcess = async () => {
+    if (selectedPayments.length === 0) {
+      toast.error('Please select payments to process');
+      return;
+    }
+
+    try {
+      setProcessingBatch(true);
+      const response = await fetch('/api/admin/payments/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          paymentIds: selectedPayments
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to process payments');
+      
+      const data = await response.json();
+      toast.success(`Successfully processed ${data.results.filter(r => r.status === 'PAID').length} payments`);
+      setSelectedPayments([]);
+      fetchPayments();
+    } catch (error) {
+      console.error('Error processing payments:', error);
+      toast.error('Failed to process payments');
+    } finally {
+      setProcessingBatch(false);
+    }
+  };
+
+  // Toggle payment selection
+  const togglePaymentSelection = (paymentId: string) => {
+    setSelectedPayments(prev => 
+      prev.includes(paymentId) 
+        ? prev.filter(id => id !== paymentId) 
+        : [...prev, paymentId]
+    );
+  };
+
   if (loading) {
     return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
@@ -96,18 +175,77 @@ export default function AdminPaymentsPage() {
           </div>
         </div>
 
+        {/* Batch Actions */}
+        {selectedPayments.length > 0 && (
+          <div className="bg-blue-50 p-4 rounded-lg mb-6">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-lg font-semibold text-blue-800">Batch Actions</h2>
+                <p className="text-sm text-blue-600">{selectedPayments.length} payments selected</p>
+              </div>
+              <div className="flex gap-2">
+                <select
+                  className="border rounded px-2 py-1"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                >
+                  <option value="CASH_APP">Cash App</option>
+                  <option value="STRIPE">Stripe</option>
+                  <option value="CASH">Cash</option>
+                  <option value="CHECK">Check</option>
+                </select>
+                <Button
+                  onClick={handleBatchApprove}
+                  disabled={processingBatch}
+                  variant="outline"
+                  className="bg-blue-100"
+                >
+                  Approve Selected
+                </Button>
+                <Button
+                  onClick={handleBatchProcess}
+                  disabled={processingBatch}
+                  variant="default"
+                >
+                  Process Payments
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-2 py-3 text-left">
+                  <input 
+                    type="checkbox" 
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedPayments(payments.filter(p => p.status === 'PENDING').map(p => p.id));
+                      } else {
+                        setSelectedPayments([]);
+                      }
+                    }}
+                    checked={selectedPayments.length > 0 && 
+                             selectedPayments.length === payments.filter(p => p.status === 'PENDING').length}
+                  />
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Employee
+                  Employee/Recipient
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Customer
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Payment Method
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Service Date
@@ -123,6 +261,15 @@ export default function AdminPaymentsPage() {
             <tbody className="bg-white divide-y divide-gray-200">
               {payments.map((payment) => (
                 <tr key={payment.id}>
+                  <td className="px-2 py-4">
+                    {payment.status === 'PENDING' && (
+                      <input 
+                        type="checkbox" 
+                        checked={selectedPayments.includes(payment.id)}
+                        onChange={() => togglePaymentSelection(payment.id)}
+                      />
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {payment.employeeName}
                   </td>
@@ -130,7 +277,31 @@ export default function AdminPaymentsPage() {
                     {payment.customerName || 'N/A'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      payment.type === 'EARNINGS' ? 'bg-blue-100 text-blue-800' : 
+                      payment.type === 'REFERRAL' ? 'bg-purple-100 text-purple-800' : 
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {payment.type}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
                     ${payment.amount.toFixed(2)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {payment.preferredPaymentMethod ? (
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                        payment.preferredPaymentMethod === 'CASH_APP' 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-purple-100 text-purple-800'
+                      }`}>
+                        {payment.preferredPaymentMethod === 'CASH_APP' ? 'Cash App' : 'Stripe'}
+                      </span>
+                    ) : (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                        Not Set
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {payment.serviceDate ? new Date(payment.serviceDate).toLocaleDateString() : 'N/A'}
@@ -140,9 +311,17 @@ export default function AdminPaymentsPage() {
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
                         Pending
                       </span>
-                    ) : (
+                    ) : payment.status === 'APPROVED' ? (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                        Approved
+                      </span>
+                    ) : payment.status === 'PAID' ? (
                       <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                         Paid
+                      </span>
+                    ) : (
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                        Failed
                       </span>
                     )}
                   </td>

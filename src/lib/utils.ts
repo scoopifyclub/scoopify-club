@@ -41,6 +41,19 @@ export function calculateReferralCommission(amount: number): number {
   return amount * 0.1; // 10% commission
 }
 
+/**
+ * Generate a random referral code
+ * @returns A random alphanumeric code
+ */
 export function generateReferralCode(): string {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing characters like 0, O, 1, I
+  let code = '';
+  
+  // Generate a 6-character code
+  for (let i = 0; i < 6; i++) {
+    const randomIndex = Math.floor(Math.random() * chars.length);
+    code += chars[randomIndex];
+  }
+  
+  return code;
 }

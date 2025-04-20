@@ -16,6 +16,7 @@ import {
   ArrowTrendingUpIcon,
   StarIcon
 } from '@heroicons/react/24/outline';
+import Link from 'next/link';
 
 interface DashboardStats {
   totalCustomers: number;
@@ -281,6 +282,18 @@ export default function AdminDashboard() {
           >
             View Payments
           </Button>
+        </div>
+
+        <div className="mt-4">
+          <h3 className="text-lg font-medium">Documentation</h3>
+          <ul className="mt-2 space-y-2">
+            <li>
+              <Link href="/docs/payment-batches.md" className="text-primary hover:underline">
+                Payment Batch System
+              </Link>
+            </li>
+            {/* Other documentation links */}
+          </ul>
         </div>
       </div>
     </AdminDashboardLayout>

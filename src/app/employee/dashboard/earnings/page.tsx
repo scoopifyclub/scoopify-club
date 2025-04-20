@@ -1,370 +1,392 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Loader2, DollarSign, TrendingUp, Calendar, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  Card, 
+  CardContent, 
+  CardDescription, 
+  CardHeader, 
+  CardTitle 
+} from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import { toast } from 'sonner';
+import { 
+  ChevronDown, 
+  Download,
+  DollarSign, 
+  BarChart3, 
+  Calendar, 
+  ArrowUpRight, 
+  ArrowDownRight
+} from 'lucide-react';
+import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
-interface EarningsData {
-  date: string;
-  amount: number;
-  services: number;
-  hours: number;
-}
-
-interface PaymentHistory {
+interface Transaction {
   id: string;
   date: string;
   amount: number;
-  status: 'completed' | 'pending' | 'processing';
+  status: 'completed' | 'pending' | 'failed';
   description: string;
+  type: 'payment' | 'bonus' | 'refund';
 }
 
-export default function EmployeeEarningsPage() {
+interface EarningsData {
+  currentPeriodEarnings: number;
+  previousPeriodEarnings: number;
+  percentageChange: number;
+  totalEarnings: number;
+  projectedEarnings: number;
+  transactions: Transaction[];
+  weeklyEarnings: {
+    week: string;
+    amount: number;
+  }[];
+}
+
+export default function EarningsPage() {
   const { data: session, status } = useSession();
-  const [earningsData, setEarningsData] = useState<EarningsData[]>([]);
-  const [paymentHistory, setPaymentHistory] = useState<PaymentHistory[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState('week');
-  const [stats, setStats] = useState({
-    totalEarnings: 0,
-    totalServices: 0,
-    totalHours: 0,
-    averagePerService: 0,
-    previousPeriodComparison: 0
-  });
+  const router = useRouter();
+  const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
+  const [timeframe, setTimeframe] = useState<'weekly' | 'monthly' | 'yearly'>('monthly');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchEarningsData = async () => {
-      if (status === 'authenticated' && session?.user?.email) {
-        try {
-          // In a real app, you would fetch this data from your API
-          // This is just mock data for demonstration
-          setTimeout(() => {
-            // Generate mock data based on time range
-            let mockData: EarningsData[] = [];
-            let mockPayments: PaymentHistory[] = [];
-            let mockStats = {
-              totalEarnings: 0,
-              totalServices: 0,
-              totalHours: 0,
-              averagePerService: 0,
-              previousPeriodComparison: 0
-            };
-            
-            if (timeRange === 'week') {
-              // Last 7 days
-              mockData = Array.from({ length: 7 }, (_, i) => {
-                const amount = Math.floor(Math.random() * 80) + 40;
-                const services = Math.floor(Math.random() * 3) + 1;
-                const hours = services * 2 + Math.floor(Math.random() * 2);
-                
-                return {
-                  date: new Date(Date.now() - (6 - i) * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { weekday: 'short' }),
-                  amount,
-                  services,
-                  hours
-                };
-              });
-              
-              mockStats = {
-                totalEarnings: mockData.reduce((sum, item) => sum + item.amount, 0),
-                totalServices: mockData.reduce((sum, item) => sum + item.services, 0),
-                totalHours: mockData.reduce((sum, item) => sum + item.hours, 0),
-                averagePerService: Math.round(mockData.reduce((sum, item) => sum + item.amount, 0) / mockData.reduce((sum, item) => sum + item.services, 0)),
-                previousPeriodComparison: Math.floor(Math.random() * 30) - 10
-              };
-            } else if (timeRange === 'month') {
-              // Last 4 weeks
-              mockData = Array.from({ length: 4 }, (_, i) => {
-                const amount = Math.floor(Math.random() * 350) + 200;
-                const services = Math.floor(Math.random() * 10) + 5;
-                const hours = services * 2 + Math.floor(Math.random() * 5);
-                
-                return {
-                  date: `Week ${i + 1}`,
-                  amount,
-                  services,
-                  hours
-                };
-              });
-              
-              mockStats = {
-                totalEarnings: mockData.reduce((sum, item) => sum + item.amount, 0),
-                totalServices: mockData.reduce((sum, item) => sum + item.services, 0),
-                totalHours: mockData.reduce((sum, item) => sum + item.hours, 0),
-                averagePerService: Math.round(mockData.reduce((sum, item) => sum + item.amount, 0) / mockData.reduce((sum, item) => sum + item.services, 0)),
-                previousPeriodComparison: Math.floor(Math.random() * 20) - 5
-              };
-            } else {
-              // Last 6 months
-              mockData = Array.from({ length: 6 }, (_, i) => {
-                const amount = Math.floor(Math.random() * 1200) + 800;
-                const services = Math.floor(Math.random() * 30) + 20;
-                const hours = services * 2 + Math.floor(Math.random() * 20);
-                
-                return {
-                  date: new Date(Date.now() - (5 - i) * 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short' }),
-                  amount,
-                  services,
-                  hours
-                };
-              });
-              
-              mockStats = {
-                totalEarnings: mockData.reduce((sum, item) => sum + item.amount, 0),
-                totalServices: mockData.reduce((sum, item) => sum + item.services, 0),
-                totalHours: mockData.reduce((sum, item) => sum + item.hours, 0),
-                averagePerService: Math.round(mockData.reduce((sum, item) => sum + item.amount, 0) / mockData.reduce((sum, item) => sum + item.services, 0)),
-                previousPeriodComparison: Math.floor(Math.random() * 15) - 3
-              };
-            }
-            
-            // Generate payment history
-            mockPayments = Array.from({ length: 5 }, (_, i) => ({
-              id: `pay-${i}`,
-              date: new Date(Date.now() - i * 7 * 24 * 60 * 60 * 1000).toLocaleDateString(),
-              amount: Math.floor(Math.random() * 500) + 200,
-              status: i === 0 ? 'pending' : i === 1 ? 'processing' : 'completed',
-              description: `Payment for services - ${new Date(Date.now() - i * 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short' })} Week ${Math.floor(Math.random() * 4) + 1}`
-            }));
-            
-            setEarningsData(mockData);
-            setPaymentHistory(mockPayments);
-            setStats(mockStats);
-            setIsLoading(false);
-          }, 1000);
-        } catch (error) {
-          console.error('Error fetching earnings data:', error);
-          setIsLoading(false);
-        }
-      }
-    };
+    // Redirect to login if not authenticated
+    if (status === 'unauthenticated') {
+      router.push('/login?callbackUrl=/employee/dashboard/earnings');
+      return;
+    }
     
-    fetchEarningsData();
-  }, [session, status, timeRange]);
+    // Verify user is an employee
+    if (status === 'authenticated' && session?.user?.role !== 'EMPLOYEE') {
+      router.push('/');
+      return;
+    }
 
-  if (status === 'loading' || isLoading) {
+    if (status === 'authenticated' && session?.user?.role === 'EMPLOYEE') {
+      fetchEarningsData();
+    }
+  }, [status, session, router, timeframe]);
+
+  const fetchEarningsData = async () => {
+    try {
+      setError(null);
+      // In a real app, fetch from API based on timeframe
+      // For demo purposes, using mock data
+      const mockEarningsData: EarningsData = {
+        currentPeriodEarnings: 1250.75,
+        previousPeriodEarnings: 1100.50,
+        percentageChange: 13.7,
+        totalEarnings: 6752.25,
+        projectedEarnings: 1500.00,
+        transactions: [
+          {
+            id: '1',
+            date: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
+            amount: 45.00,
+            status: 'completed',
+            description: 'Payment for job #1234',
+            type: 'payment'
+          },
+          {
+            id: '2',
+            date: format(subDays(new Date(), 3), 'yyyy-MM-dd'),
+            amount: 35.50,
+            status: 'completed',
+            description: 'Payment for job #1235',
+            type: 'payment'
+          },
+          {
+            id: '3',
+            date: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
+            amount: 10.00,
+            status: 'completed',
+            description: 'Customer tip',
+            type: 'bonus'
+          },
+          {
+            id: '4',
+            date: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
+            amount: 42.25,
+            status: 'completed',
+            description: 'Payment for job #1236',
+            type: 'payment'
+          },
+          {
+            id: '5',
+            date: format(subDays(new Date(), 9), 'yyyy-MM-dd'),
+            amount: 50.00,
+            status: 'completed',
+            description: 'Payment for job #1237',
+            type: 'payment'
+          }
+        ],
+        weeklyEarnings: [
+          { week: 'Week 1', amount: 325.50 },
+          { week: 'Week 2', amount: 275.00 },
+          { week: 'Week 3', amount: 350.25 },
+          { week: 'Week 4', amount: 300.00 }
+        ]
+      };
+      
+      setEarningsData(mockEarningsData);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load earnings data';
+      setError(errorMessage);
+      toast.error(errorMessage);
+      console.error('Error fetching earnings data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadStatement = () => {
+    try {
+      // In a real app, generate and download a statement
+      // Mock the download functionality
+      toast.success('Statement download started successfully');
+      
+      // Simulate download completion after a delay
+      setTimeout(() => {
+        toast.success('Statement downloaded successfully');
+      }, 2000);
+    } catch (error) {
+      toast.error('Failed to download statement. Please try again.');
+      console.error('Error downloading statement:', error);
+    }
+  };
+
+  if (status === 'loading' || loading) {
     return (
-      <div className="flex items-center justify-center h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+      <div className="flex items-center justify-center h-[400px] transition-opacity duration-300">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Earnings Dashboard</h1>
-        <p className="text-gray-500">
-          Track your income and service performance.
-        </p>
+  if (!earningsData && !error) {
+    return (
+      <div className="p-6">
+        <div className="bg-amber-50 text-amber-800 p-4 rounded-md">
+          No earnings data available. Please try again later.
+        </div>
       </div>
-      
-      {/* Time Range Selector */}
-      <div className="flex justify-end">
-        <div className="border rounded-md overflow-hidden">
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
+          <p className="font-medium">Error loading earnings data</p>
+          <p>{error}</p>
           <Button 
-            variant={timeRange === 'week' ? 'default' : 'ghost'} 
-            className="rounded-none"
-            onClick={() => setTimeRange('week')}
+            variant="outline" 
+            className="mt-2" 
+            onClick={() => fetchEarningsData()}
           >
-            Weekly
-          </Button>
-          <Button 
-            variant={timeRange === 'month' ? 'default' : 'ghost'} 
-            className="rounded-none"
-            onClick={() => setTimeRange('month')}
-          >
-            Monthly
-          </Button>
-          <Button 
-            variant={timeRange === 'year' ? 'default' : 'ghost'} 
-            className="rounded-none"
-            onClick={() => setTimeRange('year')}
-          >
-            Yearly
+            Try Again
           </Button>
         </div>
       </div>
-      
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold">${stats.totalEarnings}</div>
-              <div className={`flex items-center ${stats.previousPeriodComparison >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                {stats.previousPeriodComparison >= 0 ? (
-                  <ArrowUpRight className="h-4 w-4 mr-1" />
-                ) : (
-                  <ArrowDownRight className="h-4 w-4 mr-1" />
-                )}
-                <span>{Math.abs(stats.previousPeriodComparison)}%</span>
+    );
+  }
+
+  const getStatusColor = (status: Transaction['status']) => {
+    switch (status) {
+      case 'completed':
+        return 'text-green-600';
+      case 'pending':
+        return 'text-amber-600';
+      case 'failed':
+        return 'text-red-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  const getTypeIcon = (type: Transaction['type']) => {
+    switch (type) {
+      case 'payment':
+        return <DollarSign className="h-4 w-4 text-green-500" />;
+      case 'bonus':
+        return <ArrowUpRight className="h-4 w-4 text-blue-500" />;
+      case 'refund':
+        return <ArrowDownRight className="h-4 w-4 text-red-500" />;
+      default:
+        return <DollarSign className="h-4 w-4 text-gray-500" />;
+    }
+  };
+
+  return (
+    <div className="p-6 space-y-6 animate-fade-in">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Earnings</h1>
+          <p className="text-gray-500">
+            Track your income and payment history
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <div className="flex items-center bg-white px-3 py-2 rounded-lg border cursor-pointer">
+                <span className="font-medium">
+                  {timeframe === 'weekly' ? 'This Week' : 
+                   timeframe === 'monthly' ? `${format(startOfMonth(new Date()), 'MMM')} - ${format(endOfMonth(new Date()), 'MMM yyyy')}` : 
+                   'This Year'}
+                </span>
+                <ChevronDown className="ml-2 h-4 w-4 text-gray-500" />
               </div>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setTimeframe('weekly')}>
+                Weekly
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTimeframe('monthly')}>
+                Monthly
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setTimeframe('yearly')}>
+                Yearly
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="icon" onClick={handleDownloadStatement}>
+            <Download className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardDescription>Current {timeframe} earnings</CardDescription>
+            <CardTitle className="text-3xl font-bold">${earningsData.currentPeriodEarnings.toFixed(2)}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center">
+              {earningsData.percentageChange >= 0 ? (
+                <span className="flex items-center text-sm text-green-600">
+                  <ArrowUpRight className="h-4 w-4 mr-1" />
+                  {earningsData.percentageChange}% from last {timeframe}
+                </span>
+              ) : (
+                <span className="flex items-center text-sm text-red-600">
+                  <ArrowDownRight className="h-4 w-4 mr-1" />
+                  {Math.abs(earningsData.percentageChange)}% from last {timeframe}
+                </span>
+              )}
             </div>
-            <p className="text-xs text-gray-500 mt-1">vs previous period</p>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Services</CardTitle>
+            <CardDescription>Total earnings</CardDescription>
+            <CardTitle className="text-3xl font-bold">${earningsData.totalEarnings.toFixed(2)}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalServices}</div>
-            <p className="text-xs text-gray-500">Completed jobs</p>
+            <div className="text-sm text-gray-500">Lifetime earnings since joining</div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Hours</CardTitle>
+            <CardDescription>Projected earnings</CardDescription>
+            <CardTitle className="text-3xl font-bold">${earningsData.projectedEarnings.toFixed(2)}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalHours}</div>
-            <p className="text-xs text-gray-500">Hours worked</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Avg. Per Service</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${stats.averagePerService}</div>
-            <p className="text-xs text-gray-500">Average earning per job</p>
+            <div className="text-sm text-gray-500">Forecast for next {timeframe}</div>
           </CardContent>
         </Card>
       </div>
-      
-      {/* Charts */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Earnings Overview</CardTitle>
-          <CardDescription>
-            Your earnings and service trends for the selected period
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="earnings">
-            <TabsList className="mb-4">
-              <TabsTrigger value="earnings">Earnings</TabsTrigger>
-              <TabsTrigger value="services">Services</TabsTrigger>
-              <TabsTrigger value="hours">Hours</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="earnings">
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={earningsData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => [`$${value}`, 'Earnings']} />
-                    <Legend />
-                    <Line type="monotone" dataKey="amount" stroke="#16a34a" strokeWidth={2} name="Earnings ($)" />
-                  </LineChart>
-                </ResponsiveContainer>
+
+      <Tabs defaultValue="transactions" className="w-full">
+        <TabsList className="mb-4">
+          <TabsTrigger value="transactions">Transactions</TabsTrigger>
+          <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="transactions" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Payment History</CardTitle>
+              <CardDescription>Recent transactions and payments</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Date</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-500">Description</th>
+                      <th className="text-right py-3 px-4 font-medium text-gray-500">Amount</th>
+                      <th className="text-right py-3 px-4 font-medium text-gray-500">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {earningsData.transactions.map((transaction) => (
+                      <tr key={transaction.id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center">
+                            {getTypeIcon(transaction.type)}
+                            <span className="ml-2">{format(new Date(transaction.date), 'MMM d, yyyy')}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">{transaction.description}</td>
+                        <td className="py-3 px-4 text-right font-medium">${transaction.amount.toFixed(2)}</td>
+                        <td className={`py-3 px-4 text-right font-medium ${getStatusColor(transaction.status)}`}>
+                          {transaction.status}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </TabsContent>
-            
-            <TabsContent value="services">
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={earningsData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="services" fill="#3b82f6" name="Services Completed" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="hours">
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={earningsData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="hours" fill="#8b5cf6" name="Hours Worked" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-      
-      {/* Payment History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment History</CardTitle>
-          <CardDescription>Recent payments and transactions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="relative overflow-x-auto">
-            <table className="w-full text-sm text-left">
-              <thead className="text-xs uppercase bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3">Date</th>
-                  <th className="px-4 py-3">Description</th>
-                  <th className="px-4 py-3">Amount</th>
-                  <th className="px-4 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paymentHistory.map((payment) => (
-                  <tr key={payment.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3">{payment.date}</td>
-                    <td className="px-4 py-3">{payment.description}</td>
-                    <td className="px-4 py-3 font-medium">${payment.amount}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        payment.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        payment.status === 'processing' ? 'bg-blue-100 text-blue-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {payment.status}
-                      </span>
-                    </td>
-                  </tr>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="analytics" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Earnings Breakdown</CardTitle>
+              <CardDescription>Analytics view of your earnings</CardDescription>
+            </CardHeader>
+            <CardContent className="h-[300px] flex flex-col justify-center items-center">
+              <BarChart3 className="h-16 w-16 text-gray-300 mb-4" />
+              <p className="text-gray-500">Detailed earnings analytics would be displayed here</p>
+              <p className="text-sm text-gray-400">Weekly earnings data visualization</p>
+              <div className="w-full grid grid-cols-4 gap-2 mt-8">
+                {earningsData.weeklyEarnings.map((week, index) => (
+                  <div key={index} className="text-center">
+                    <div className="h-24 bg-primary-100 rounded-md flex items-end justify-center p-2">
+                      <div 
+                        className="bg-primary w-full rounded-sm" 
+                        style={{ 
+                          height: `${(week.amount / Math.max(...earningsData.weeklyEarnings.map(w => w.amount))) * 100}%` 
+                        }}
+                      ></div>
+                    </div>
+                    <div className="mt-2 text-xs font-medium">{week.week}</div>
+                    <div className="text-xs text-gray-500">${week.amount}</div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
-          
-          {paymentHistory.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              <DollarSign className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-              <p>No payment history available</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 } 

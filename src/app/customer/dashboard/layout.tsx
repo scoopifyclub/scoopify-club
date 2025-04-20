@@ -2,7 +2,8 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Home, Calendar, CreditCard, User } from 'lucide-react';
+import { Home, Calendar, CreditCard, User, LogOut, Users } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function DashboardLayout({
   children,
@@ -13,6 +14,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState('overview');
+  const { logout } = useAuth();
   
   // Function to set active tab and update URL
   const setDashboardTab = (tab: string) => {
@@ -28,17 +30,26 @@ export default function DashboardLayout({
       router.push(`/customer/dashboard?${params.toString()}`);
     }
   };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
   
   // Listen for tab changes
   useEffect(() => {
     // Get tab from URL params
     const tabParam = searchParams.get('tab');
-    if (tabParam && ['overview', 'services', 'billing', 'profile'].includes(tabParam)) {
+    if (tabParam && ['overview', 'services', 'billing', 'profile', 'referrals'].includes(tabParam)) {
       setActiveTab(tabParam);
     } else {
       // Fallback to localStorage
       const storedTab = localStorage.getItem('dashboard_active_tab');
-      if (storedTab && ['overview', 'services', 'billing', 'profile'].includes(storedTab)) {
+      if (storedTab && ['overview', 'services', 'billing', 'profile', 'referrals'].includes(storedTab)) {
         setActiveTab(storedTab);
         
         // Sync URL with stored tab if needed
@@ -95,6 +106,17 @@ export default function DashboardLayout({
               <span className="font-medium">Billing & Payments</span>
             </button>
             <button 
+              onClick={() => router.push('/customer/dashboard/referrals')}
+              className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
+                pathname.includes('/referrals')
+                  ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white' 
+                  : 'text-gray-700 hover:bg-blue-50'
+              }`}
+            >
+              <Users className={`w-5 h-5 mr-3 ${pathname.includes('/referrals') ? 'text-white' : 'text-blue-500'}`} />
+              <span className="font-medium">Referrals</span>
+            </button>
+            <button 
               onClick={() => setDashboardTab('profile')}
               className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${
                 activeTab === 'profile' 
@@ -104,6 +126,14 @@ export default function DashboardLayout({
             >
               <User className={`w-5 h-5 mr-3 ${activeTab === 'profile' ? 'text-white' : 'text-blue-500'}`} />
               <span className="font-medium">Profile Settings</span>
+            </button>
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center px-4 py-3 rounded-xl transition-colors text-red-600 hover:bg-red-50"
+              data-testid="logout-button"
+            >
+              <LogOut className="w-5 h-5 mr-3 text-red-600" />
+              <span className="font-medium">Sign Out</span>
             </button>
           </nav>
           

@@ -223,6 +223,59 @@ const handleStripeWebhook = async (payload: Buffer, signature: string) => {
   return { received: true };
 };
 
+// Create a Stripe Connect account link for onboarding - server side only
+const createStripeConnectAccountLink = async (accountId: string, refreshUrl: string, returnUrl: string) => {
+  if (typeof window !== 'undefined' || !stripe) {
+    throw new Error('This function can only be called from the server');
+  }
+  
+  if (isNonSecureMode && isDev) {
+    console.warn('⚠️ Creating mock Stripe account link in non-secure mode');
+    return { 
+      url: `https://connect.stripe.com/mock-link/${accountId}`,
+      created: Date.now(),
+      expires_at: Date.now() + 1000 * 60 * 15 // 15 minutes
+    };
+  }
+  
+  return stripe.accountLinks.create({
+    account: accountId,
+    refresh_url: refreshUrl,
+    return_url: returnUrl,
+    type: 'account_onboarding',
+  });
+};
+
+// Create a Stripe Connect account - server side only
+const createStripeConnectAccount = async (email: string, name: string) => {
+  if (typeof window !== 'undefined' || !stripe) {
+    throw new Error('This function can only be called from the server');
+  }
+  
+  if (isNonSecureMode && isDev) {
+    console.warn('⚠️ Creating mock Stripe Connect account in non-secure mode');
+    return { 
+      id: `acct_mock_${Date.now()}`,
+      email,
+      business_profile: { name },
+      capabilities: { transfers: 'active' }
+    };
+  }
+  
+  return stripe.accounts.create({
+    type: 'express',
+    email,
+    capabilities: {
+      transfers: {
+        requested: true,
+      },
+    },
+    business_profile: {
+      name,
+    },
+  });
+};
+
 // Export server-side functions only when in a server context
 export {
   stripe,
@@ -231,4 +284,6 @@ export {
   createOneTimeCharge,
   cancelStripeSubscription,
   handleStripeWebhook,
+  createStripeConnectAccount,
+  createStripeConnectAccountLink
 }; 

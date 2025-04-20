@@ -1,97 +1,216 @@
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 
-interface PaymentCalculation {
-  subscriptionAmount: number;
+export interface PaymentCalculation {
+  totalAmount: number;
+  stripeFee: number;
   referralAmount: number;
+  amountAfterFees: number;
   employeeAmount: number;
   companyAmount: number;
 }
 
-export function calculatePaymentSplit(
-  subscriptionAmount: number,
-  hasReferral: boolean = false
+/**
+ * Calculate payment distribution according to business rules:
+ * - Stripe fees are deducted first
+ * - Referral fees come off the top (if applicable)
+ * - Employee gets 75% of the remaining amount
+ * - Company keeps 25% of the remaining amount
+ */
+export function calculatePaymentDistribution(
+  totalAmount: number,
+  stripeFeePercent: number = 2.9,
+  stripeFeeFixed: number = 0.30,
+  referralAmount: number = 0
 ): PaymentCalculation {
-  const referralAmount = hasReferral ? 5 : 0;
-  const netAmount = subscriptionAmount - referralAmount;
-  const employeeAmount = netAmount * 0.75;
-  const companyAmount = netAmount - employeeAmount;
-
+  // Calculate Stripe fee
+  const stripeFee = (totalAmount * (stripeFeePercent / 100)) + stripeFeeFixed;
+  
+  // Deduct Stripe fee
+  const amountAfterStripeFee = totalAmount - stripeFee;
+  
+  // Deduct referral amount if any
+  const amountAfterReferral = amountAfterStripeFee - referralAmount;
+  
+  // Calculate split (employee: 75%, company: 25%)
+  const employeeAmount = amountAfterReferral * 0.75;
+  const companyAmount = amountAfterReferral * 0.25;
+  
   return {
-    subscriptionAmount,
+    totalAmount,
+    stripeFee,
     referralAmount,
+    amountAfterFees: amountAfterReferral,
     employeeAmount,
-    companyAmount,
+    companyAmount
   };
 }
 
-export async function createPaymentDistribution(
-  subscriptionId: string,
+/**
+ * Process payment distribution for a service
+ * Handles creating payment records, earnings, and referral payments
+ */
+export async function processServicePayment(
+  serviceId: string,
   amount: number,
-  employeeId: string,
-  referralId?: string
-) {
-  const hasReferral = !!referralId;
-  const split = calculatePaymentSplit(amount, hasReferral);
-
-  // Create the main payment record
-  const payment = await prisma.payment.create({
-    data: {
-      subscriptionId,
-      amount: split.subscriptionAmount,
-      status: 'COMPLETED',
-      type: 'SUBSCRIPTION',
-      distributions: {
-        create: [
-          // Company share
-          {
-            amount: split.companyAmount,
-            type: 'COMPANY',
-            status: 'COMPLETED',
-          },
-          // Employee share
-          {
-            amount: split.employeeAmount,
-            type: 'EMPLOYEE',
-            status: 'PENDING',
-            employeeId,
-          },
-          // Referral share (if applicable)
-          ...(hasReferral
-            ? [
-                {
-                  amount: split.referralAmount,
-                  type: 'REFERRAL',
-                  status: 'PENDING',
-                  referralId,
-                },
-              ]
-            : []),
-        ],
+  stripeFee: number
+): Promise<any> {
+  // Get the service with related data
+  const service = await prisma.service.findUnique({
+    where: { id: serviceId },
+    include: {
+      customer: {
+        include: {
+          user: true
+        }
       },
+      employee: true
+    }
+  });
+
+  if (!service) {
+    throw new Error('Service not found');
+  }
+
+  if (!service.employee) {
+    throw new Error('Cannot process payment - no employee assigned to this service');
+  }
+
+  // Check for referral
+  const referral = await prisma.referral.findFirst({
+    where: {
+      referredId: service.customer.userId,
+      status: 'ACTIVE'
     },
     include: {
-      distributions: {
-        include: {
-          employee: true,
-          referral: true,
-        },
-      },
-    },
+      referrer: true
+    }
   });
 
-  // Create earnings record for employee
-  await prisma.earning.create({
+  const referralAmount = referral ? 5 : 0; // $5 fixed referral fee
+
+  // Calculate payment distribution
+  const distribution = calculatePaymentDistribution(
+    amount,
+    stripeFee > 0 ? (stripeFee / amount) * 100 : 2.9, // Use actual fee percent if provided
+    0.30,
+    referralAmount
+  );
+
+  // Create payment record
+  const payment = await prisma.payment.create({
     data: {
-      employeeId,
-      amount: split.employeeAmount,
-      status: 'PENDING',
-      paymentDistributionId: payment.distributions.find(
-        d => d.type === 'EMPLOYEE'
-      )?.id,
-    },
+      amount: distribution.totalAmount,
+      stripeFee: distribution.stripeFee,
+      status: 'COMPLETED',
+      type: 'SERVICE',
+      serviceId: service.id,
+      employeeId: service.employee.id,
+      customerId: service.customer.id
+    }
   });
 
-  return payment;
+  // Create employee earnings record
+  const earning = await prisma.earning.create({
+    data: {
+      amount: distribution.employeeAmount,
+      status: 'PENDING',
+      paymentId: payment.id,
+      employeeId: service.employee.id,
+      serviceId: service.id
+    }
+  });
+
+  // Process referral payment if applicable
+  let referralPayment = null;
+  if (referral) {
+    referralPayment = await prisma.payment.create({
+      data: {
+        amount: distribution.referralAmount,
+        status: 'COMPLETED',
+        type: 'REFERRAL',
+        customerId: referral.referrerId,
+        referredId: service.customer.userId
+      }
+    });
+  }
+
+  // Update service payment status
+  await prisma.service.update({
+    where: { id: serviceId },
+    data: {
+      paymentStatus: 'PAID'
+    }
+  });
+
+  return {
+    payment,
+    earning,
+    referralPayment,
+    distribution
+  };
+}
+
+/**
+ * Process monthly referral payments for all active referrals
+ * Gives $5 to each user for each customer they've referred that's still active
+ */
+export async function processMonthlyReferralPayments(): Promise<any> {
+  // Get all active referrals
+  const activeReferrals = await prisma.referral.findMany({
+    where: {
+      status: 'ACTIVE',
+      referred: {
+        subscription: {
+          status: 'ACTIVE'
+        }
+      }
+    },
+    include: {
+      referrer: true,
+      referred: {
+        include: {
+          subscription: true
+        }
+      }
+    }
+  });
+
+  const results = {
+    processedCount: 0,
+    totalAmount: 0,
+    referralPayments: [] as any[]
+  };
+
+  // Process $5 payment for each active referral
+  for (const referral of activeReferrals) {
+    try {
+      // Create payment record
+      const payment = await prisma.payment.create({
+        data: {
+          amount: 5, // $5 fixed monthly referral fee
+          status: 'COMPLETED',
+          type: 'MONTHLY_REFERRAL',
+          customerId: referral.referrerId,
+          referredId: referral.referredId,
+          notes: `Monthly referral payment for ${referral.referred.user?.name || 'customer'}`
+        }
+      });
+
+      results.processedCount++;
+      results.totalAmount += 5;
+      results.referralPayments.push({
+        referralId: referral.id,
+        paymentId: payment.id,
+        referrerId: referral.referrerId,
+        referrerName: referral.referrer.user?.name,
+        amount: 5
+      });
+    } catch (error) {
+      console.error(`Error processing referral payment for referral ${referral.id}:`, error);
+    }
+  }
+
+  return results;
 }
 
 export async function getEmployeeEarnings(employeeId: string) {

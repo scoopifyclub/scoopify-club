@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { withDatabase } from '@/middleware/db';
 import { requireAuth } from '@/lib/api-auth';
 import { stripe } from '@/lib/stripe';
