@@ -1,36 +1,66 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/auth'
 import { addMinutes } from 'date-fns'
 import { sendServiceNotificationEmail } from '@/lib/email'
 import { checkTimeConflict } from '@/lib/validations'
 
+// API endpoint for employee to claim a service
 export async function POST(
   request: Request,
   { params }: { params: { serviceId: string } }
 ) {
   try {
+    // Verify employee authorization
     const token = request.headers.get('Authorization')?.split(' ')[1]
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const decoded = verifyToken(token)
-    if (!decoded || !decoded.userId) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+    const payload = await verifyToken(token)
+    if (payload.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    // Get the employee record
+    const employee = await prisma.employee.findUnique({
+      where: { userId: payload.userId },
+    })
+
+    if (!employee) {
+      return NextResponse.json(
+        { error: 'Employee record not found' },
+        { status: 404 }
+      )
+    }
+
+    const { serviceId } = params
+
+    // Check if the service exists and is available to claim
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: serviceId },
       include: {
-        employee: true,
-        customer: true,
-        servicePlan: true
-      }
+        customer: {
+          include: {
+            user: true
+          }
+        },
+        servicePlan: true,
+      },
     })
 
     if (!service) {
-      return NextResponse.json({ error: 'Service not found' }, { status: 404 })
+      return NextResponse.json(
+        { error: 'Service not found' },
+        { status: 404 }
+      )
+    }
+
+    if (service.employeeId) {
+      return NextResponse.json(
+        { error: 'Service already claimed by another employee' },
+        { status: 409 }
+      )
     }
 
     if (service.status !== 'SCHEDULED') {
@@ -40,37 +70,77 @@ export async function POST(
       )
     }
 
-    // Check for time conflicts
-    const userServices = await prisma.service.findMany({
-      where: {
-        employeeId: decoded.userId,
-        status: {
-          in: ['CLAIMED', 'ARRIVED', 'IN_PROGRESS']
+    // Check if customer used a referral code when signing up
+    const customer = await prisma.customer.findUnique({
+      where: { id: service.customerId },
+      include: {
+        user: true,
+        referredBy: {
+          include: {
+            user: true
+          }
         }
       }
-    })
+    });
 
-    if (checkTimeConflict(userServices, service, decoded.userId)) {
-      return NextResponse.json(
-        { error: 'You already have a service in progress' },
-        { status: 400 }
-      )
-    }
+    // Calculate payment splits
+    const servicePrice = service.servicePlan.price;
+    
+    // Calculate stripe fees (approximately 2.9% + $0.30)
+    const stripeFees = (servicePrice * 0.029) + 0.30;
+    
+    // Calculate net amount after stripe fees
+    const netAmountAfterFees = servicePrice - stripeFees;
+    
+    // Base employee earnings: 75% of net amount after fees
+    let potentialEarnings = netAmountAfterFees * 0.75;
+    
+    // Note: Referral payments are not processed during service claims
+    // They are only processed during subscription payments
 
+    // Claim the service - update the service record
     const updatedService = await prisma.service.update({
-      where: { id: params.serviceId },
+      where: { id: serviceId },
       data: {
+        employeeId: employee.id,
         status: 'CLAIMED',
-        employeeId: decoded.userId
+        potentialEarnings,
+        stripeFees, // Store the stripe fees for accounting purposes
+        netAmount: netAmountAfterFees, // Store the net amount for accounting purposes
       },
       include: {
-        employee: true,
-        customer: true,
-        servicePlan: true
-      }
+        customer: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+            address: true,
+          },
+        },
+        servicePlan: true,
+      },
     })
 
-    return NextResponse.json(updatedService)
+    // Create a notification for the customer
+    await prisma.notification.create({
+      data: {
+        userId: service.customer.userId,
+        title: 'Service Claimed',
+        message: `Your service scheduled for ${new Date(service.scheduledDate).toLocaleDateString()} has been claimed by a service provider.`,
+        type: 'SERVICE_UPDATE',
+        read: false,
+      },
+    })
+
+    // Note: Referral payments are handled separately during subscription billing
+
+    return NextResponse.json({
+      message: 'Service claimed successfully',
+      service: updatedService,
+    })
   } catch (error) {
     console.error('Error claiming service:', error)
     return NextResponse.json(

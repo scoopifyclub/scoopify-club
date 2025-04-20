@@ -77,19 +77,25 @@ export default function EmployeeDashboardLayout({ children }: { children: React.
       }
 
       // Check authentication status
-      if (status === 'loading') return;
+      if (status === 'loading') {
+        return;
+      }
       
       if (status === 'unauthenticated') {
-        router.push('/login?callbackUrl=/employee/dashboard');
+        // Use replace instead of push to avoid adding to history stack
+        router.replace('/login?callbackUrl=/employee/dashboard');
         return;
       }
       
       if (status === 'authenticated') {
         // Check if user is an employee
-        if (session?.user?.role !== 'EMPLOYEE') {
-          router.push('/');
+        if (!session?.user?.role || session.user.role !== 'EMPLOYEE') {
+          console.log('User is not an employee:', session?.user?.role);
+          router.replace('/');
           return;
         }
+        
+        console.log('Employee authenticated:', session.user);
         fetchQuickStats();
         setIsLoading(false);
       }

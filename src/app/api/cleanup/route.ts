@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { stripe, createOneTimeCharge } from '@/lib/stripe';
 import { verifyToken } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 
 export async function POST(request: Request) {
   try {

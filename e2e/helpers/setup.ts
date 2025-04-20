@@ -1,5 +1,5 @@
 import { FullConfig } from '@playwright/test';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { testUsers } from './auth';
 import { hash } from 'bcryptjs';
 

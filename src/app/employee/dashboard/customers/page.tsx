@@ -1,11 +1,20 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
-import { Loader2, Search, Star, Phone, Mail, MapPin, Calendar, Users } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
+import { Search, User, MapPin, Phone, Mail, Star, Filter, ArrowUpDown } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface Customer {
   id: string;
@@ -13,175 +22,219 @@ interface Customer {
   email: string;
   phone: string;
   address: string;
-  serviceFrequency: string;
+  serviceType: string;
+  rating: number;
+  status: 'active' | 'inactive';
   lastService: string;
   nextService: string;
-  notes: string;
-  rating: number;
 }
 
-export default function EmployeeCustomersPage() {
+export default function CustomersPage() {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [sortBy, setSortBy] = useState<'name' | 'lastService'>('name');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   useEffect(() => {
+    // Redirect to login if not authenticated
+    if (status === 'unauthenticated') {
+      router.push('/auth/login?callbackUrl=/employee/dashboard');
+      return;
+    }
+    
+    // Verify user is an employee
+    if (status === 'authenticated' && session?.user?.role !== 'EMPLOYEE') {
+      router.push('/');
+      return;
+    }
+
+    // Fetch customers data
     const fetchCustomers = async () => {
-      if (status === 'authenticated' && session?.user?.email) {
-        try {
-          // In a real app, you would fetch this data from your API
-          // This is just mock data for demonstration
-          setTimeout(() => {
-            const mockCustomers: Customer[] = [];
-            
-            // Generate mock customers
-            for (let i = 0; i < 12; i++) {
-              mockCustomers.push({
-                id: `cust-${i}`,
-                name: `Customer ${i + 1}`,
-                email: `customer${i + 1}@example.com`,
-                phone: `(555) ${100 + i}-${1000 + i}`,
-                address: `${100 + i} Main St, Anytown, US`,
-                serviceFrequency: i % 3 === 0 ? 'Weekly' : i % 3 === 1 ? 'Bi-weekly' : 'Monthly',
-                lastService: new Date(Date.now() - (i * 3 + 2) * 24 * 60 * 60 * 1000).toLocaleDateString(),
-                nextService: new Date(Date.now() + (i * 2 + 2) * 24 * 60 * 60 * 1000).toLocaleDateString(),
-                notes: i % 2 === 0 ? 'Prefers service in the morning' : 'Has pets, use gate code 1234',
-                rating: 3 + (i % 3),
-              });
-            }
-            
-            setCustomers(mockCustomers);
-            setFilteredCustomers(mockCustomers);
-            setIsLoading(false);
-          }, 1000);
-        } catch (error) {
-          console.error('Error fetching customers data:', error);
-          setIsLoading(false);
-        }
+      try {
+        // In a real app, you would fetch this data from your API
+        // For now, using mock data
+        const mockCustomers: Customer[] = [
+          {
+            id: '1',
+            name: 'John Smith',
+            email: 'john.smith@example.com',
+            phone: '(555) 123-4567',
+            address: '123 Main St, Anytown, USA',
+            serviceType: 'Weekly Cleanup',
+            rating: 4.8,
+            status: 'active',
+            lastService: '2024-03-10',
+            nextService: '2024-03-17'
+          },
+          {
+            id: '2',
+            name: 'Jane Doe',
+            email: 'jane.doe@example.com',
+            phone: '(555) 234-5678',
+            address: '456 Oak Ave, Anytown, USA',
+            serviceType: 'Bi-Weekly Cleanup',
+            rating: 4.9,
+            status: 'active',
+            lastService: '2024-03-05',
+            nextService: '2024-03-19'
+          },
+          {
+            id: '3',
+            name: 'Bob Wilson',
+            email: 'bob.wilson@example.com',
+            phone: '(555) 345-6789',
+            address: '789 Pine Rd, Anytown, USA',
+            serviceType: 'Monthly Cleanup',
+            rating: 4.7,
+            status: 'inactive',
+            lastService: '2024-02-15',
+            nextService: '2024-03-15'
+          }
+        ];
+        setCustomers(mockCustomers);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error fetching customers:', error);
+        setIsLoading(false);
       }
     };
-    
-    fetchCustomers();
-  }, [session, status]);
 
-  useEffect(() => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const filtered = customers.filter(customer => 
-        customer.name.toLowerCase().includes(query) ||
-        customer.email.toLowerCase().includes(query) ||
-        customer.address.toLowerCase().includes(query)
-      );
-      setFilteredCustomers(filtered);
-    } else {
-      setFilteredCustomers(customers);
+    if (status === 'authenticated' && session?.user?.role === 'EMPLOYEE') {
+      fetchCustomers();
     }
-  }, [searchQuery, customers]);
+  }, [status, session, router]);
+
+  const filteredCustomers = customers
+    .filter(customer => {
+      const matchesSearch = customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        customer.address.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesStatus = statusFilter === 'all' || customer.status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      const aValue = sortBy === 'name' ? a.name : a.lastService;
+      const bValue = sortBy === 'name' ? b.name : b.lastService;
+      
+      if (sortOrder === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      } else {
+        return aValue < bValue ? 1 : -1;
+      }
+    });
 
   if (status === 'loading' || isLoading) {
     return (
       <div className="flex items-center justify-center h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-green-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">My Customers</h1>
         <p className="text-gray-500">
-          View and manage your assigned customers.
+          Manage your customer relationships and service schedules
         </p>
       </div>
-      
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
-        <Input 
-          placeholder="Search customers by name, email, or address..." 
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
+
+      {/* Filters and Search */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 h-4 w-4" />
+          <Input
+            placeholder="Search customers..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <div className="flex gap-2">
+          <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+            <SelectTrigger className="w-[130px]">
+              <Filter className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Customers</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="inactive">Inactive</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSortOrder(current => current === 'asc' ? 'desc' : 'asc');
+            }}
+          >
+            <ArrowUpDown className="h-4 w-4 mr-2" />
+            {sortOrder === 'asc' ? 'A-Z' : 'Z-A'}
+          </Button>
+        </div>
       </div>
-      
-      {/* Customers Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      {/* Customers List */}
+      <div className="space-y-4">
         {filteredCustomers.map(customer => (
-          <Card key={customer.id} className="overflow-hidden hover:shadow-md transition-shadow">
-            <CardHeader className="pb-2">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-lg">{customer.name}</CardTitle>
-                <div className="flex">
-                  {[...Array(5)].map((_, i) => (
-                    <Star 
-                      key={i} 
-                      className={`h-4 w-4 ${i < customer.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-300'}`} 
-                    />
-                  ))}
-                </div>
-              </div>
-              <CardDescription>
-                Service Frequency: {customer.serviceFrequency}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex items-center text-sm">
-                <Phone className="h-4 w-4 mr-2 text-gray-500" />
-                <span>{customer.phone}</span>
-              </div>
-              <div className="flex items-center text-sm">
-                <Mail className="h-4 w-4 mr-2 text-gray-500" />
-                <span>{customer.email}</span>
-              </div>
-              <div className="flex items-start text-sm">
-                <MapPin className="h-4 w-4 mr-2 text-gray-500 mt-1" />
-                <span>{customer.address}</span>
-              </div>
-              <div className="border-t pt-3 mt-2">
-                <div className="flex justify-between text-sm">
-                  <div>
-                    <Calendar className="h-4 w-4 inline mr-1 text-gray-500" />
-                    Last Service:
+          <Card key={customer.id} className="hover:shadow-md transition-shadow cursor-pointer">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row md:items-center gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-lg font-semibold">{customer.name}</h3>
+                    <Badge variant={customer.status === 'active' ? 'default' : 'secondary'}>
+                      {customer.status}
+                    </Badge>
                   </div>
-                  <span>{customer.lastService}</span>
-                </div>
-                <div className="flex justify-between text-sm mt-1">
-                  <div>
-                    <Calendar className="h-4 w-4 inline mr-1 text-gray-500" />
-                    Next Service:
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-500">
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      {customer.email}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      {customer.phone}
+                    </div>
+                    <div className="flex items-center gap-2 sm:col-span-2">
+                      <MapPin className="h-4 w-4" />
+                      {customer.address}
+                    </div>
                   </div>
-                  <span className="font-medium">{customer.nextService}</span>
                 </div>
-              </div>
-              {customer.notes && (
-                <div className="text-sm bg-yellow-50 p-2 rounded-md border border-yellow-100 mt-2">
-                  <p className="font-medium text-yellow-800">Notes:</p>
-                  <p className="text-yellow-700">{customer.notes}</p>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 md:w-auto">
+                  <div className="flex items-center gap-1">
+                    <Star className="h-4 w-4 text-yellow-400 fill-current" />
+                    <span className="font-medium">{customer.rating}</span>
+                  </div>
+                  <Badge variant="outline">{customer.serviceType}</Badge>
+                  <div className="text-sm">
+                    <div className="text-gray-500">Last Service: {customer.lastService}</div>
+                    <div className="text-gray-500">Next Service: {customer.nextService}</div>
+                  </div>
                 </div>
-              )}
-              <div className="flex justify-end gap-2 mt-2">
-                <Button size="sm" variant="outline">Contact</Button>
-                <Button size="sm" variant="outline">View Details</Button>
               </div>
             </CardContent>
           </Card>
         ))}
+
+        {filteredCustomers.length === 0 && (
+          <div className="text-center py-12">
+            <User className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900">No customers found</h3>
+            <p className="text-gray-500">
+              Try adjusting your search or filter to find what you're looking for.
+            </p>
+          </div>
+        )}
       </div>
-      
-      {filteredCustomers.length === 0 && (
-        <div className="text-center py-8 text-gray-500">
-          <Users className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-          {searchQuery ? (
-            <p>No customers match your search</p>
-          ) : (
-            <p>No customers assigned to you yet</p>
-          )}
-        </div>
-      )}
     </div>
   );
 } 

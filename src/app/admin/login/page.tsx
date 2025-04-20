@@ -75,7 +75,7 @@ export default function AdminLogin() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@scoopify.com"
+                placeholder="admin@scoopify.club"
                 required
               />
             </div>
@@ -103,7 +103,7 @@ export default function AdminLogin() {
 
           <div className="text-center text-sm text-neutral-600">
             <p>Demo credentials:</p>
-            <p>Email: admin@scoopify.com</p>
+            <p>Email: admin@scoopify.club</p>
             <p>Password: admin123</p>
           </div>
         </form>

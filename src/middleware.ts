@@ -3,7 +3,6 @@ import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { securityHeaders } from './middleware/security-headers'
-import { dbErrorHandler } from './middleware/db-error-handler'
 
 // Valid roles in the system
 const VALID_ROLES = ['ADMIN', 'EMPLOYEE', 'CUSTOMER'] as const;
@@ -36,6 +35,22 @@ export async function middleware(request: NextRequest) {
     method: request.method,
     timestamp: new Date().toISOString()
   });
+
+  // Skip middleware for login and public pages
+  if (pathname === '/login' || 
+      pathname === '/admin/login' || 
+      pathname === '/employee/login' ||
+      pathname === '/signup' ||
+      pathname === '/api/auth/login' ||
+      pathname === '/api/auth/customer-login' ||
+      pathname === '/api/auth/employee-login' ||
+      pathname === '/api/auth/logout' ||
+      pathname === '/api/auth/refresh' ||
+      pathname === '/api/auth/session' ||
+      pathname === '/api/admin/login' ||
+      pathname === '/api/admin/verify') {
+    return NextResponse.next();
+  }
 
   // Apply rate limiting for authentication endpoints
   if (pathname.includes('/login') || pathname.includes('/signup')) {

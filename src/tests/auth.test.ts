@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
-import { prisma } from '../lib/prisma';
+import prisma from "../lib/prisma";
 import { login, verifyToken, refreshToken, logout } from '../lib/auth';
 import { cleanupDatabase, setupTestDatabase } from './setup';
 import { testUsers, createTestUser, createTestRequest, createTestResponse } from './setup';

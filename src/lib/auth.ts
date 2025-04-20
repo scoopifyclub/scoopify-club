@@ -1,46 +1,51 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { compare } from 'bcryptjs';
-import { prisma } from './prisma';
 import { cookies } from 'next/headers';
-import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
 import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
+import prisma from '@/lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
-const TOKEN_EXPIRY = '24h';
-
-// Initialize Redis and rate limiter only in non-test environment
-let redis;
-let ratelimit;
-
-if (process.env.NODE_ENV !== 'test' && process.env.NODE_ENV !== 'development') {
-  if (!process.env.REDIS_URL || !process.env.REDIS_TOKEN) {
-    throw new Error('REDIS_URL and REDIS_TOKEN environment variables are required for rate limiting');
-  }
-
-  redis = new Redis({
-    url: process.env.REDIS_URL,
-    token: process.env.REDIS_TOKEN,
-  });
-
-  ratelimit = new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(5, '1 m'), // 5 requests per minute
-  });
-} else {
-  // Mock rate limiter for development
-  ratelimit = {
-    limit: async () => ({ success: true })
-  };
-}
 
 // Generate a device fingerprint
 function generateFingerprint() {
   return randomBytes(32).toString('hex');
+}
+
+// Generate admin token specifically for admin authentication
+export async function generateAdminToken(user: any) {
+  if (user.role !== 'ADMIN') {
+    throw new Error('Only admin users can generate admin tokens');
+  }
+  
+  // Generate admin token
+  const adminToken = await new SignJWT({
+    id: user.id,
+    email: user.email,
+    role: user.role,
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('1d') // 1 day
+    .sign(new TextEncoder().encode(JWT_SECRET));
+
+  return adminToken;
+}
+
+// Set admin cookie in response
+export function setAdminCookie(response: NextResponse, token: string) {
+  response.cookies.set('adminToken', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 24 * 60 * 60 // 24 hours
+  });
+  
+  return response;
 }
 
 export async function generateTokens(user: any, deviceFingerprint: string) {
@@ -68,53 +73,29 @@ export async function generateTokens(user: any, deviceFingerprint: string) {
     .setExpirationTime('7d')
     .sign(new TextEncoder().encode(REFRESH_SECRET));
 
-  // Store refresh token and fingerprint
-  await prisma.$transaction([
-    // Update user's device fingerprint
-    prisma.user.update({
-      where: { id: user.id },
-      data: { deviceFingerprint },
-    }),
-    // Create new refresh token
-    prisma.refreshToken.create({
-      data: {
-        token: refreshToken,
-        userId: user.id,
-        deviceFingerprint,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    }),
-  ]);
-
   return { accessToken, refreshToken };
 }
 
 export async function login(email: string, password: string, fingerprint?: string) {
-  // Check rate limit only in non-test environment
-  if (process.env.NODE_ENV !== 'test' && ratelimit) {
-    const { success } = await ratelimit.limit(email);
-    if (!success) {
-      throw new Error('Too many login attempts. Please try again later.');
-    }
-  }
-
+  console.log('Login attempt for email:', email);
+  
+  // Find user in database
   const user = await prisma.user.findUnique({
     where: { email },
     include: {
       customer: true,
-      employee: true,
-    },
+      employee: true
+    }
   });
 
   if (!user) {
     throw new Error('Invalid email or password');
   }
 
-  // In test mode, compare plain text passwords
-  const isValid = process.env.NODE_ENV === 'test'
-    ? password === user.password
-    : await compare(password, user.password);
-    
+  console.log('Found user during login:', { id: user.id, email: user.email, role: user.role });
+
+  // Compare password
+  const isValid = await compare(password, user.password);
   if (!isValid) {
     throw new Error('Invalid email or password');
   }
@@ -124,123 +105,62 @@ export async function login(email: string, password: string, fingerprint?: strin
 
   // Generate tokens
   const { accessToken, refreshToken } = await generateTokens(user, deviceFingerprint);
+  
+  console.log('Generated tokens for user:', { id: user.id, tokenPayload: await verifyToken(accessToken) });
 
   return { accessToken, refreshToken, user, deviceFingerprint };
 }
 
 export async function verifyToken(token: string) {
-    try {
-        console.log('Verifying token...');
-        const { payload } = await jwtVerify(
-            token,
-            new TextEncoder().encode(JWT_SECRET),
-            {
-                algorithms: ['HS256']
-            }
-        );
-        console.log('Token payload:', payload);
-        return payload;
-    } catch (error) {
-        console.error('Token verification failed:', error);
-        return null;
-    }
-}
-
-export async function generateAdminToken(user: any) {
-    const token = await new SignJWT({ 
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        type: 'admin'
-    })
-        .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
-        .setIssuedAt()
-        .setExpirationTime('24h')
-        .sign(new TextEncoder().encode(JWT_SECRET));
-    return token;
-}
-
-export async function setAdminCookie(token: string) {
-    const cookieStore = await cookies();
-    cookieStore.set('adminToken', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 24 * 60 * 60 // 24 hours
-    });
-}
-
-export async function clearAdminCookie() {
-    const cookieStore = await cookies();
-    cookieStore.delete('adminToken');
+  try {
+    const { payload } = await jwtVerify(
+      token,
+      new TextEncoder().encode(JWT_SECRET),
+      { algorithms: ['HS256'] }
+    );
+    return payload;
+  } catch (error) {
+    console.error('Token verification failed:', error);
+    return null;
+  }
 }
 
 export async function refreshToken(oldRefreshToken: string, fingerprint?: string) {
-  const payload = await verifyToken(oldRefreshToken);
-  if (!payload) {
-    throw new Error('Invalid refresh token');
-  }
+  try {
+    const { payload } = await jwtVerify(
+      oldRefreshToken,
+      new TextEncoder().encode(REFRESH_SECRET),
+      { algorithms: ['HS256'] }
+    );
 
-  // Find the refresh token in the database
-  const storedToken = await prisma.refreshToken.findFirst({
-    where: {
-      token: oldRefreshToken,
-      userId: payload.id,
-      isRevoked: false,
-      expiresAt: {
-        gt: new Date(),
-      },
-    },
-    include: {
-      user: {
-        include: {
-          customer: true,
-          employee: true,
-        },
-      },
-    },
-  });
+    if (!payload || !payload.id) {
+      throw new Error('Invalid refresh token');
+    }
 
-  if (!storedToken) {
-    throw new Error('Invalid refresh token');
-  }
-
-  // Validate device fingerprint
-  if (fingerprint && storedToken.deviceFingerprint !== fingerprint) {
-    // Revoke all refresh tokens for this user as a security measure
-    await prisma.refreshToken.updateMany({
-      where: { userId: payload.id },
-      data: { isRevoked: true },
+    // Find user in database
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      include: {
+        customer: true,
+        employee: true
+      }
     });
-    throw new Error('Device fingerprint mismatch');
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // Generate new tokens
+    const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
+      user,
+      fingerprint || generateFingerprint()
+    );
+
+    return { accessToken, refreshToken: newRefreshToken, user };
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    throw new Error('Invalid refresh token');
   }
-
-  // Generate new tokens
-  const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
-    storedToken.user,
-    storedToken.deviceFingerprint
-  );
-
-  // Revoke old token
-  await prisma.refreshToken.update({
-    where: { id: storedToken.id },
-    data: { isRevoked: true },
-  });
-
-  return { 
-    accessToken, 
-    refreshToken: newRefreshToken,
-    user: storedToken.user
-  };
-}
-
-export async function logout(userId: string) {
-  // Revoke all refresh tokens for the user
-  await prisma.refreshToken.updateMany({
-    where: { userId },
-    data: { isRevoked: true },
-  });
 }
 
 export async function validateUser(token: string, requiredRole?: string) {
@@ -249,16 +169,49 @@ export async function validateUser(token: string, requiredRole?: string) {
     throw new Error('Invalid token');
   }
 
+  console.log('Token payload:', payload);
+
+  // Verify user exists and get latest data with relationships
+  const user = await prisma.user.findUnique({
+    where: { id: payload.id },
+    include: {
+      customer: {
+        include: {
+          address: true
+        }
+      },
+      employee: true
+    }
+  });
+
+  console.log('Found user:', user ? { id: user.id, email: user.email, role: user.role } : 'null');
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // For customer role, ensure customer record exists
+  if (requiredRole === 'CUSTOMER' && !user.customer) {
+    throw new Error('Customer record not found');
+  }
+
+  // For employee role, ensure employee record exists
+  if (requiredRole === 'EMPLOYEE' && !user.employee) {
+    throw new Error('Employee record not found');
+  }
+
   // Allow admins to access everything, otherwise check specific role
-  if (requiredRole && payload.role !== 'ADMIN' && payload.role !== requiredRole) {
+  if (requiredRole && user.role !== 'ADMIN' && user.role !== requiredRole) {
     throw new Error('Insufficient permissions');
   }
 
   return {
-    userId: payload.id,
-    role: payload.role,
-    customerId: payload.customerId,
-    employeeId: payload.employeeId
+    userId: user.id,
+    role: user.role,
+    customerId: user.customer?.id,
+    employeeId: user.employee?.id,
+    customer: user.customer,
+    employee: user.employee
   };
 }
 
@@ -266,9 +219,8 @@ export async function verifyAuth(request: Request) {
   try {
     // Get tokens from cookies
     const cookieStore = await cookies();
-    const accessToken = await cookieStore.get('accessToken')?.value;
-    const refreshToken = await cookieStore.get('refreshToken')?.value;
-    const fingerprint = await cookieStore.get('fingerprint')?.value;
+    const accessToken = cookieStore.get('accessToken')?.value;
+    const refreshToken = cookieStore.get('refreshToken')?.value;
 
     if (!accessToken && !refreshToken) {
       return { success: false, error: 'No session found' };
@@ -278,13 +230,13 @@ export async function verifyAuth(request: Request) {
     if (accessToken) {
       const payload = await verifyToken(accessToken);
       if (payload) {
-        // Verify the user still exists and get their data
+        // Find user in database
         const user = await prisma.user.findUnique({
           where: { id: payload.id },
           include: {
             customer: true,
-            employee: true,
-          },
+            employee: true
+          }
         });
 
         if (user) {
@@ -307,7 +259,7 @@ export async function verifyAuth(request: Request) {
     // If access token is invalid or expired, try refresh token
     if (refreshToken) {
       try {
-        const { accessToken: newAccessToken, user } = await refreshToken(refreshToken, fingerprint);
+        const { accessToken: newAccessToken, user } = await refreshToken(refreshToken);
         
         // Set new access token cookie
         const response = new NextResponse();
@@ -344,7 +296,7 @@ export async function verifyAuth(request: Request) {
   }
 }
 
-// ============= NextAuth.js Configuration =============
+// NextAuth configuration
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -359,24 +311,27 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
+          console.log('NextAuth authorizing user:', credentials.email);
           const user = await prisma.user.findUnique({
             where: { email: credentials.email },
             include: {
               customer: true,
-              employee: true,
-            },
+              employee: true
+            }
           });
 
           if (!user) {
+            console.log('User not found in database');
             return null;
           }
 
-          // Compare password
           const isValidPassword = await compare(credentials.password, user.password);
           if (!isValidPassword) {
+            console.log('Invalid password for user');
             return null;
           }
 
+          console.log('User successfully authenticated:', user.email, user.role);
           return {
             id: user.id,
             email: user.email,
@@ -424,5 +379,6 @@ export const authOptions: NextAuthOptions = {
     signIn: '/login',
     error: '/login',
   },
-  secret: process.env.JWT_SECRET,
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === 'development',
 }; 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { cleanupDatabase, setupTestDatabase } from '@/tests/setup';
 import { testUsers, createTestUser } from '@/tests/setup';
 import { sendEmail } from '@/lib/email';

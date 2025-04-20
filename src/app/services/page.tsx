@@ -102,7 +102,7 @@ export default function ServicesPage() {
               </div>
               <div className="relative h-[400px] rounded-2xl overflow-hidden shadow-xl">
                 <Image
-                  src="/dog-hero.jpg"
+                  src="https://images.unsplash.com/photo-1585071550721-fdb362ae2b8d?q=80&w=2070&auto=format&fit=crop"
                   alt="Professional dog waste removal service"
                   fill
                   className="object-cover"

@@ -15,7 +15,7 @@ import { useAuth } from '@/hooks/useAuth';
 export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard' },
@@ -23,6 +23,22 @@ export function Navbar() {
     { name: 'Payments', href: '/payments' },
     { name: 'Settings', href: '/settings' },
   ];
+
+  if (loading) {
+    return (
+      <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between">
+            <div className="flex items-center">
+              <Link href="/" className="flex-shrink-0">
+                <span className="text-2xl font-bold text-primary">Scoopify</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </nav>
+    );
+  }
 
   return (
     <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
@@ -53,36 +69,49 @@ export function Navbar() {
 
           <div className="hidden md:block">
             <div className="ml-4 flex items-center md:ml-6">
-              <button
-                type="button"
-                className="relative rounded-full p-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:outline-none"
-              >
-                <span className="absolute -inset-1.5" />
-                <span className="sr-only">View notifications</span>
-                <Bell className="h-6 w-6" />
-              </button>
+              {user ? (
+                <>
+                  <button
+                    type="button"
+                    className="relative rounded-full p-1 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:outline-none"
+                  >
+                    <span className="absolute -inset-1.5" />
+                    <span className="sr-only">View notifications</span>
+                    <Bell className="h-6 w-6" />
+                  </button>
 
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={user?.image || ''} alt={user?.name || ''} />
-                      <AvatarFallback>{user?.name?.[0] || 'U'}</AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>
-                    <Link href="/profile">Profile</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Link href="/settings">Settings</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => logout()}>
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={user?.image || ''} alt={user?.name || ''} />
+                          <AvatarFallback>{user?.name?.[0] || 'U'}</AvatarFallback>
+                        </Avatar>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem>
+                        <Link href="/profile">Profile</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Link href="/settings">Settings</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={logout}>
+                        Sign out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : (
+                <div className="flex items-center space-x-4">
+                  <Link href="/login">
+                    <Button variant="ghost">Sign in</Button>
+                  </Link>
+                  <Link href="/signup">
+                    <Button>Sign up</Button>
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 
@@ -122,44 +151,63 @@ export function Navbar() {
               </Link>
             ))}
           </div>
-          <div className="border-t border-gray-200 dark:border-gray-700 pb-3 pt-4">
-            <div className="flex items-center px-5">
-              <div className="flex-shrink-0">
-                <Avatar className="h-10 w-10">
-                  <AvatarImage src={user?.image || ''} alt={user?.name || ''} />
-                  <AvatarFallback>{user?.name?.[0] || 'U'}</AvatarFallback>
-                </Avatar>
+          {user ? (
+            <div className="border-t border-gray-200 dark:border-gray-700 pb-3 pt-4">
+              <div className="flex items-center px-5">
+                <div className="flex-shrink-0">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={user?.image || ''} alt={user?.name || ''} />
+                    <AvatarFallback>{user?.name?.[0] || 'U'}</AvatarFallback>
+                  </Avatar>
+                </div>
+                <div className="ml-3">
+                  <div className="text-base font-medium text-gray-800 dark:text-gray-200">
+                    {user?.name}
+                  </div>
+                  <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    {user?.email}
+                  </div>
+                </div>
               </div>
-              <div className="ml-3">
-                <div className="text-base font-medium text-gray-800 dark:text-gray-200">
-                  {user?.name}
-                </div>
-                <div className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  {user?.email}
-                </div>
+              <div className="mt-3 space-y-1 px-2">
+                <Link
+                  href="/profile"
+                  className="block rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Profile
+                </Link>
+                <Link
+                  href="/settings"
+                  className="block rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Settings
+                </Link>
+                <button
+                  onClick={logout}
+                  className="block w-full rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
+                >
+                  Sign out
+                </button>
               </div>
             </div>
-            <div className="mt-3 space-y-1 px-2">
-              <Link
-                href="/profile"
-                className="block rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Profile
-              </Link>
-              <Link
-                href="/settings"
-                className="block rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              >
-                Settings
-              </Link>
-              <button
-                onClick={() => logout()}
-                className="block w-full rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
-              >
-                Sign out
-              </button>
+          ) : (
+            <div className="border-t border-gray-200 dark:border-gray-700 pb-3 pt-4">
+              <div className="space-y-1 px-2">
+                <Link
+                  href="/login"
+                  className="block rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Sign in
+                </Link>
+                <Link
+                  href="/signup"
+                  className="block rounded-md px-3 py-2 text-base font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Sign up
+                </Link>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </nav>

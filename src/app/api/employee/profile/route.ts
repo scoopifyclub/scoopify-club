@@ -126,6 +126,11 @@ export async function PUT(request: NextRequest) {
     if (updateData.paymentInfo) employeeUpdateData.paymentInfo = updateData.paymentInfo
     if (updateData.availabilityHours) employeeUpdateData.availabilityHours = updateData.availabilityHours
     if (updateData.preferredServiceAreas) employeeUpdateData.preferredServiceAreas = updateData.preferredServiceAreas
+    
+    // Payment related fields
+    if (updateData.cashAppUsername !== undefined) employeeUpdateData.cashAppUsername = updateData.cashAppUsername
+    if (updateData.stripeAccountId !== undefined) employeeUpdateData.stripeAccountId = updateData.stripeAccountId
+    if (updateData.preferredPaymentMethod !== undefined) employeeUpdateData.preferredPaymentMethod = updateData.preferredPaymentMethod
 
     // Update user and employee data in a transaction
     const [updatedUser, updatedEmployee] = await prisma.$transaction([

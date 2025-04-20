@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { sign } from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET!;

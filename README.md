@@ -41,6 +41,54 @@ A web application for managing pet waste removal services.
 - Test helpers and mocks
 - Database seeding
 
+## Referral System and Payment Distribution
+
+### Customer Referrals
+- Each customer has a unique referral code generated automatically
+- Customers can share their referral code with friends through direct sharing or copy-paste
+- When new users sign up using a referral code, the referrer is automatically linked
+- Referrers earn $5 per month for each active customer they refer
+- Referral earnings are tracked and displayed in the customer dashboard
+- Monthly payments are processed automatically via a scheduled cron job
+
+### Service Scheduling
+- Customers select their preferred service day (Monday-Sunday) during signup
+- Customers can modify their preferred day in their dashboard settings
+- Services are automatically scheduled based on the customer's preferred day
+- If a service is not claimed by an employee by the end of the day, it's automatically rescheduled
+
+### Payment Distribution
+The payment flow follows this distribution model:
+1. Stripe processing fees are deducted first (typically 2.9% + $0.30)
+2. Referral fees ($5 per referral) are deducted from the top
+3. Employee scoopers receive 75% of the remaining amount
+4. The company keeps 25% of the remaining amount
+
+Example calculation:
+```
+Customer payment: $100.00
+- Stripe fee: -$3.20 (2.9% + $0.30)
+- Referral fee: -$5.00
+= Remaining amount: $91.80
+  - Employee share: $68.85 (75%)
+  - Company share: $22.95 (25%)
+```
+
+### Payment Batch System
+- Administrators can manage employee and referral payments in batches
+- Batches can be created, reviewed, and processed together
+- Multiple payment methods supported (Stripe, Cash App, Cash, Check)
+- Batch status tracking (Draft, Processing, Completed, Partial, Failed)
+- Detailed audit logging of all payment batch activities
+- See [payment-batches.md](docs/payment-batches.md) for detailed documentation
+
+### Employee Job Claiming
+- Available jobs appear in the employee dashboard from 7am to 7pm on the scheduled day
+- Jobs are sorted by proximity to the employee's current location
+- Each job displays the potential earnings (75% of the service price after fees)
+- Employees can claim jobs through the dashboard, which updates the status and assigns them
+- Claimed jobs appear in the employee's schedule
+
 ## Getting Started
 
 1. Clone the repository:

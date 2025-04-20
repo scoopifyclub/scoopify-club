@@ -9,6 +9,29 @@ export default function LogoutButton() {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
+  const clearClientStorage = () => {
+    // Clear localStorage
+    try {
+      localStorage.clear()
+    } catch (e) {
+      console.error('Error clearing localStorage:', e)
+    }
+
+    // Clear sessionStorage
+    try {
+      sessionStorage.clear()
+    } catch (e) {
+      console.error('Error clearing sessionStorage:', e)
+    }
+
+    // Clear all cookies
+    document.cookie.split(';').forEach(cookie => {
+      document.cookie = cookie
+        .replace(/^ +/, '')
+        .replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`)
+    })
+  }
+
   const handleLogout = async () => {
     try {
       setIsLoading(true)
@@ -20,15 +43,26 @@ export default function LogoutButton() {
         },
       })
 
+      // Clear client-side storage regardless of server response
+      clearClientStorage()
+
       if (response.ok) {
-        // Clear any client-side state if needed
-        router.push('/login')
-        router.refresh()
+        // Set flag to indicate successful logout
+        sessionStorage.setItem('justLoggedOut', 'true');
+        // Force reload to clear any remaining state
+        window.location.href = '/login'
       } else {
         console.error('Logout failed')
+        // Still redirect even if server logout fails
+        sessionStorage.setItem('justLoggedOut', 'true');
+        window.location.href = '/login'
       }
     } catch (error) {
       console.error('Error during logout:', error)
+      // Still clear storage and redirect on error
+      clearClientStorage()
+      sessionStorage.setItem('justLoggedOut', 'true');
+      window.location.href = '/login'
     } finally {
       setIsLoading(false)
     }

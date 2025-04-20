@@ -1,38 +1,15 @@
 import { PrismaClient } from '../../prisma/generated/client'
 
-declare global {
-  var prisma: PrismaClient | undefined
+const globalForPrisma = global as unknown as {
+  prisma: PrismaClient | undefined
 }
 
-function createPrismaClient() {
-  const client = new PrismaClient({
-    log: ['error', 'warn'],
-    errorFormat: 'pretty',
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ['query', 'error', 'warn'],
   })
 
-  // Add middleware for logging
-  client.$use(async (params, next) => {
-    const before = Date.now()
-    const result = await next(params)
-    const after = Date.now()
-    console.log(`Query ${params.model}.${params.action} took ${after - before}ms`)
-    return result
-  })
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
-  // Test the connection
-  client.$connect()
-    .then(() => {
-      console.log('Successfully connected to the database')
-    })
-    .catch((error) => {
-      console.error('Failed to connect to the database:', error)
-    })
-
-  return client
-}
-
-export const prisma = globalThis.prisma || createPrismaClient()
-
-if (process.env.NODE_ENV !== 'production') {
-  globalThis.prisma = prisma
-} 
+export default prisma 

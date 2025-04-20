@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { jwtVerify } from 'jose';
-import { prisma } from '@/lib/prisma';
+import prisma from "@/lib/prisma";
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { verifyToken, refreshToken } from '@/lib/auth';

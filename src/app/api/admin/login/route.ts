@@ -1,13 +1,16 @@
-import { NextResponse } from 'next/response'
-import { prisma } from '@/lib/prisma'
+import { NextResponse } from 'next/server'
+import prisma from "@/lib/prisma";
 import bcrypt from 'bcryptjs'
 import { generateAdminToken, setAdminCookie } from '@/lib/auth'
 
 export async function POST(request: Request) {
   try {
+    console.log('Admin login request received');
     const { email, password } = await request.json()
+    console.log('Login attempt for:', email);
 
     if (!email || !password) {
+      console.log('Missing email or password');
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
@@ -18,7 +21,16 @@ export async function POST(request: Request) {
       where: { email }
     })
 
-    if (!user || user.role !== 'ADMIN') {
+    if (!user) {
+      console.log('User not found:', email);
+      return NextResponse.json(
+        { error: 'Invalid credentials' },
+        { status: 401 }
+      )
+    }
+
+    if (user.role !== 'ADMIN') {
+      console.log('User is not an admin. Role:', user.role);
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }
@@ -27,12 +39,14 @@ export async function POST(request: Request) {
 
     const isValidPassword = await bcrypt.compare(password, user.password)
     if (!isValidPassword) {
+      console.log('Invalid password for user:', email);
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }
       )
     }
 
+    console.log('Admin login successful for:', email);
     const token = await generateAdminToken(user)
     
     // Create response with user data and token
@@ -49,8 +63,17 @@ export async function POST(request: Request) {
       { status: 200 }
     )
 
-    // Set HTTP-only cookie
+    // Set HTTP-only adminToken cookie
     response.cookies.set('adminToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60 // 24 hours
+    })
+
+    // Set accessToken cookie for middleware compatibility
+    response.cookies.set('accessToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -67,6 +90,7 @@ export async function POST(request: Request) {
       maxAge: 24 * 60 * 60 // 24 hours
     })
 
+    console.log('Admin login cookies set, returning response');
     return response
   } catch (error) {
     console.error('Login error:', error)

@@ -2,6 +2,7 @@
 
 import { Button } from '@/components/ui/button'
 import { Dog, Users, Heart, Shield } from 'lucide-react'
+import Image from 'next/image'
 
 export default function AboutPage() {
   return (
@@ -37,10 +38,12 @@ export default function AboutPage() {
             </div>
             <div className="relative">
               <div className="aspect-w-16 aspect-h-9 rounded-2xl overflow-hidden">
-                <img
-                  src="/images/about-hero.jpg"
-                  alt="Happy dog in clean yard"
-                  className="object-cover w-full h-full"
+                <Image
+                  src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=2070&auto=format&fit=crop"
+                  alt="Our team at work"
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 50vw"
                 />
               </div>
             </div>

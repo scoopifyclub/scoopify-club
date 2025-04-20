@@ -1,8 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  transpilePackages: ['@prisma/client'],
   images: {
-    domains: ['localhost'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/photo-**',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+      }
+    ],
     formats: ['image/avif', 'image/webp'],
   },
   webpack: (config, { isServer }) => {
@@ -21,14 +32,24 @@ const nextConfig = {
       },
     };
 
+    // Handle Prisma in Edge Runtime
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+        child_process: false,
+        readline: false,
+      };
+    }
+
     return config;
   },
   // Configure build output
   distDir: '.next',
   // Configure static file serving
   staticPageGenerationTimeout: 1000,
-  // Configure API routes
-  serverExternalPackages: ['@prisma/client'],
   async headers() {
     return [
       {
