@@ -26,7 +26,7 @@
   "outputDirectory": ".next",
   "framework": "nextjs",
   "env": {
-    "DATABASE_URL": "postgres://neondb_owner:npg_4Jp1QuMdbHzw@ep-wispy-firefly-a6dll41z-pooler.us-west-2.aws.neon.tech/neondb?sslmode=require",
+    "DATABASE_URL": "postgres://neondb_owner:npg_4Jp1QuMdbHzw@ep-wispy-firefly-a6dll41z-pooler.us-west-2.aws.neon.tech/neondb?sslmode=require&connection_limit=1&pool_timeout=0",
     "DIRECT_URL": "postgres://neondb_owner:npg_4Jp1QuMdbHzw@ep-wispy-firefly-a6dll41z.us-west-2.aws.neon.tech/neondb?sslmode=require",
     "NEXT_PUBLIC_APP_URL": "https://scoopify-club.vercel.app",
     "NEXTAUTH_URL": "https://scoopify-club.vercel.app",
