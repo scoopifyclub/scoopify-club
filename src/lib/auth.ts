@@ -3,8 +3,6 @@ import { compare } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
-import { NextAuthOptions } from 'next-auth';
-import CredentialsProvider from 'next-auth/providers/credentials';
 import prisma from '@/lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
@@ -296,89 +294,19 @@ export async function verifyAuth(request: Request) {
   }
 }
 
-// NextAuth configuration
-export const authOptions: NextAuthOptions = {
-  providers: [
-    CredentialsProvider({
-      name: 'Credentials',
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+// Helper functions for role-based authorization
+export async function requireAuth(request: Request) {
+  const { success, session, error } = await verifyAuth(request);
+  if (!success || !session) {
+    throw new Error(error || 'Unauthorized');
+  }
+  return session;
+}
 
-        try {
-          console.log('NextAuth authorizing user:', credentials.email);
-          const user = await prisma.user.findUnique({
-            where: { email: credentials.email },
-            include: {
-              customer: true,
-              employee: true
-            }
-          });
-
-          if (!user) {
-            console.log('User not found in database');
-            return null;
-          }
-
-          const isValidPassword = await compare(credentials.password, user.password);
-          if (!isValidPassword) {
-            console.log('Invalid password for user');
-            return null;
-          }
-
-          console.log('User successfully authenticated:', user.email, user.role);
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            customerId: user.customer?.id,
-            employeeId: user.employee?.id,
-          };
-        } catch (error) {
-          console.error('NextAuth authorize error:', error);
-          return null;
-        }
-      }
-    })
-  ],
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.email = user.email;
-        token.name = user.name;
-        token.role = user.role;
-        token.customerId = user.customerId;
-        token.employeeId = user.employeeId;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.id as string;
-        session.user.email = token.email as string;
-        session.user.name = token.name as string;
-        session.user.role = token.role as string;
-        session.user.customerId = token.customerId as string;
-        session.user.employeeId = token.employeeId as string;
-      }
-      return session;
-    }
-  },
-  pages: {
-    signIn: '/login',
-    error: '/login',
-  },
-  secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === 'development',
-}; 
+export async function requireRole(request: Request, role: string) {
+  const session = await requireAuth(request);
+  if (session.role !== role && session.role !== 'ADMIN') {
+    throw new Error('Insufficient permissions');
+  }
+  return session;
+} 

@@ -24,6 +24,13 @@
   ],
   "buildCommand": "npm run vercel-build",
   "env": {
-    "DATABASE_PROVIDER": "postgresql"
+    "DATABASE_PROVIDER": "postgresql",
+    "DATABASE_URL": "postgres://neondb_owner:npg_4Jp1QuMdbHzw@ep-wispy-firefly-a6dll41z-pooler.us-west-2.aws.neon.tech/neondb?sslmode=require",
+    "DIRECT_URL": "postgres://neondb_owner:npg_4Jp1QuMdbHzw@ep-wispy-firefly-a6dll41z-pooler.us-west-2.aws.neon.tech/neondb?sslmode=require",
+    "NEXT_PUBLIC_APP_URL": "https://scoopify-club.vercel.app",
+    "NEXTAUTH_URL": "https://scoopify-club.vercel.app",
+    "NEXTAUTH_SECRET": "scoopifyclub_secure_secret_key_2024_!@#$%^&*()",
+    "JWT_SECRET": "2e2806763fd26af77b3b0fb484b7f631d404f4db4d6c960188069250adbb87d26a0a137349eb77aa1966390f159e20612ab09715b71c0dbb9bc3f3a298c05a44",
+    "REFRESH_SECRET": "106ab6fa744d76903362930103c6a69ce52d5e8414aac11982225ebb6f270fb00d1622c5eaee66320a7a486f05a2736946ffb880bf187b2b0c6581121790630c"
   }
 } 

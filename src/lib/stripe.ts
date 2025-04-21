@@ -276,14 +276,14 @@ const createStripeConnectAccount = async (email: string, name: string) => {
   });
 };
 
-// Export server-side functions only when in a server context
+// Export server-side functions
 export {
-  stripe,
   createStripeCustomer,
   createStripeSubscription,
   createOneTimeCharge,
   cancelStripeSubscription,
   handleStripeWebhook,
+  createStripeConnectAccountLink,
   createStripeConnectAccount,
-  createStripeConnectAccountLink
+  stripe
 }; 

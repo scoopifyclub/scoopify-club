@@ -1,12 +1,12 @@
 import { ReactNode } from 'react';
-import Navbar from '@/components/Navbar';
+import { Navbar } from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-export default function DashboardLayout({ children }: DashboardLayoutProps) {
+const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   return (
     <div className="min-h-screen bg-neutral-50">
       <Navbar />
@@ -16,4 +16,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <Footer />
     </div>
   );
-} 
+}
+
+export { DashboardLayout }; 

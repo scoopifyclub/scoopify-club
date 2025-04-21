@@ -75,17 +75,17 @@ export async function GET(request: Request) {
       });
       
       // Generate service data for this day
-      const dailyTotal = randomInRange(10, 30);
-      const dailyCompleted = randomInRange(Math.floor(dailyTotal * 0.7), dailyTotal);
-      const dailyCancelled = randomInRange(0, dailyTotal - dailyCompleted);
+      const serviceDailyTotal = randomInRange(10, 30);
+      const dailyCompleted = randomInRange(Math.floor(serviceDailyTotal * 0.7), serviceDailyTotal);
+      const dailyCancelled = randomInRange(0, serviceDailyTotal - dailyCompleted);
       
-      totalServices += dailyTotal;
+      totalServices += serviceDailyTotal;
       completedServices += dailyCompleted;
       cancelledServices += dailyCancelled;
       
       dailyServiceData.push({
         date: dateStr,
-        total: dailyTotal,
+        total: serviceDailyTotal,
         completed: dailyCompleted,
         cancelled: dailyCancelled,
         avgDuration: randomInRange(30, 60)
