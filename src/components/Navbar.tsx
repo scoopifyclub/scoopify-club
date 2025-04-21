@@ -192,7 +192,7 @@ export function Navbar() {
                   <span className="ml-2">Join the Club</span>
                 </Link>
                 <Link 
-                  href="/scooper-signup"
+                  href="/auth/scooper-signup"
                   className="border-2 border-primary text-primary font-medium px-4 py-2 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200 flex items-center"
                 >
                   <span className="inline-flex items-center justify-center w-5 h-5">
@@ -313,7 +313,7 @@ export function Navbar() {
                     </div>
                   </Link>
                   <Link
-                    href="/scooper-signup"
+                    href="/auth/scooper-signup"
                     className="block px-3 py-2 rounded-md text-base font-medium text-neutral-700 hover:text-primary-500 hover:bg-neutral-100"
                   >
                     <div className="flex items-center">
