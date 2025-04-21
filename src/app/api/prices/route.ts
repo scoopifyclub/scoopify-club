@@ -77,7 +77,7 @@ const defaultPlans = [
     features: [
       'Single yard cleaning',
       '1 dog',
-      'Flexible scheduling',
+      'Choose your preferred day',
       'Email confirmation',
       'Photo verification',
       'No subscription required',
@@ -95,7 +95,7 @@ const defaultPlans = [
     features: [
       'Single yard cleaning',
       '2 dogs',
-      'Flexible scheduling',
+      'Choose your preferred day',
       'Email confirmation',
       'Photo verification',
       'No subscription required',
@@ -113,7 +113,7 @@ const defaultPlans = [
     features: [
       'Single yard cleaning',
       '3 or more dogs',
-      'Flexible scheduling',
+      'Choose your preferred day',
       'Email confirmation',
       'Photo verification',
       'No subscription required',

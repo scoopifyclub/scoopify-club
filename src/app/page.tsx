@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPaw, faCircleInfo, faBroom, faCalendar, faStar, faCircleCheck, faTags } from '@fortawesome/free-solid-svg-icons';
+import { faPaw, faCircleInfo, faBroom, faCalendar, faStar, faCircleCheck, faTags, faMobileScreen, faCamera, faThumbsUp } from '@fortawesome/free-solid-svg-icons';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -39,7 +39,7 @@ export default function Home() {
               </h1>
               <p className="text-xl text-neutral-600 leading-relaxed">
                 We keep your yard clean so you can enjoy more time with your pets.
-                Join the club and experience hassle-free yard maintenance.
+                Join the club and experience hassle-free pet waste clean up.
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link 
@@ -67,11 +67,16 @@ export default function Home() {
             </div>
             <div className="relative h-[500px] rounded-2xl overflow-hidden shadow-2xl">
               <Image
-                src="https://images.unsplash.com/photo-1585071550721-fdb362ae2b8d?q=80&w=2070&auto=format&fit=crop"
-                alt="Happy dog in clean yard"
+                src="/images/dogs-backyard.jpg"
+                alt="Happy dogs playing in a clean backyard"
                 fill
                 className="object-cover"
                 priority
+                onError={(e) => {
+                  // Fallback to another image if the first one fails
+                  const target = e.target as HTMLImageElement;
+                  target.src = "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1";
+                }}
               />
             </div>
           </div>
@@ -86,7 +91,7 @@ export default function Home() {
               Why Choose Scoopify Club?
             </h2>
             <p className="text-xl text-neutral-600">
-              We make yard maintenance easy with our professional waste removal service.
+              Our app-powered waste removal service takes the hassle out of maintaining a clean yard for your pets, with real-time tracking and complete control over your service schedule.
             </p>
           </div>
 
@@ -100,7 +105,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold mb-2 text-neutral-900">Professional Service</h3>
-                  <p className="text-neutral-600">Our trained technicians ensure your yard stays clean and healthy.</p>
+                  <p className="text-neutral-600">Never wonder if your yard has been cleaned - receive email updates and view completion photos directly in your customer dashboard.</p>
                 </div>
               </div>
             </div>
@@ -114,7 +119,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold mb-2 text-neutral-900">Flexible Scheduling</h3>
-                  <p className="text-neutral-600">Choose weekly, bi-weekly, or monthly service plans.</p>
+                  <p className="text-neutral-600">Select your preferred service day and manage your entire schedule through your personalized dashboard - complete control at your fingertips.</p>
                 </div>
               </div>
             </div>
@@ -128,8 +133,88 @@ export default function Home() {
                 </div>
                 <div>
                   <h3 className="text-xl font-semibold mb-2 text-neutral-900">Quality Guaranteed</h3>
-                  <p className="text-neutral-600">100% satisfaction guarantee on all our services.</p>
+                  <p className="text-neutral-600">View before and after photos of each service in your dashboard, ensuring you always get the quality results you deserve.</p>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Modern Features Section */}
+      <section className="py-20 bg-white">
+        <div className="container mx-auto px-4">
+          <div className="max-w-3xl mx-auto text-center mb-16">
+            <h2 className="text-4xl font-bold mb-6 text-neutral-900">
+              Smart Pet Waste Management
+            </h2>
+            <p className="text-xl text-neutral-600">
+              Our innovative app-powered platform provides a modern solution to pet waste removal.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="bg-neutral-50 rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow duration-200">
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-2">
+                  <FontAwesomeIcon icon={faMobileScreen} className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold text-neutral-900">Digital Dashboard</h3>
+                <p className="text-neutral-600">Manage your services, view your cleaning history, and control your schedule all from one easy-to-use dashboard.</p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-50 rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow duration-200">
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-2">
+                  <FontAwesomeIcon icon={faCamera} className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold text-neutral-900">Photo Verification</h3>
+                <p className="text-neutral-600">Every service is documented with before and after photos, so you can see the results without stepping outside.</p>
+              </div>
+            </div>
+
+            <div className="bg-neutral-50 rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow duration-200">
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-2">
+                  <FontAwesomeIcon icon={faThumbsUp} className="w-8 h-8 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold text-neutral-900">Satisfaction Tracking</h3>
+                <p className="text-neutral-600">Rate each service and provide feedback directly through your dashboard to ensure continued quality.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Testimonial Section */}
+      <section className="py-20 bg-neutral-50">
+        <div className="container mx-auto px-4">
+          <div className="max-w-5xl mx-auto">
+            <div className="grid md:grid-cols-2 gap-12 items-center">
+              <div className="relative h-[400px] rounded-2xl overflow-hidden shadow-xl">
+                <Image
+                  src="https://images.unsplash.com/photo-1568393691622-c7ba131d63b4?q=80&w=2031&auto=format&fit=crop"
+                  alt="Golden retriever relaxing in pristine backyard"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div className="space-y-6">
+                <div className="flex gap-1">
+                  {[...Array(5)].map((_, i) => (
+                    <FontAwesomeIcon key={i} icon={faStar} className="h-5 w-5 text-yellow-500" />
+                  ))}
+                </div>
+                <blockquote className="text-2xl font-medium text-neutral-700 italic">
+                  "Since using Scoopify Club, our backyard has become a clean, safe haven for our family and pets. The photo updates after each service give us complete peace of mind!"
+                </blockquote>
+                <div className="font-semibold text-neutral-900">
+                  Jessica L. • Dog parent to Max & Bella
+                </div>
+                <p className="text-neutral-600">
+                  Weekly service subscriber for 8 months
+                </p>
               </div>
             </div>
           </div>
@@ -139,13 +224,41 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-20 bg-gradient-to-br from-primary to-primary-dark">
         <div className="container mx-auto px-4">
+          <div className="mb-12 flex justify-center">
+            <div className="grid grid-cols-3 gap-4 max-w-3xl">
+              <div className="relative h-32 rounded-lg overflow-hidden">
+                <Image
+                  src="https://images.unsplash.com/photo-1596152703677-833b38d2dd2c?q=80&w=2069&auto=format&fit=crop"
+                  alt="Dog playing in clean backyard"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div className="relative h-32 rounded-lg overflow-hidden">
+                <Image
+                  src="https://images.unsplash.com/photo-1559190394-df5a28aab5c5?q=80&w=1936&auto=format&fit=crop"
+                  alt="Manicured backyard perfect for pets"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div className="relative h-32 rounded-lg overflow-hidden">
+                <Image
+                  src="https://images.unsplash.com/photo-1549740425-5e9ed4d8cd34?q=80&w=2070&auto=format&fit=crop"
+                  alt="Beautiful pet-friendly yard"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="max-w-4xl mx-auto text-center text-white">
             <h2 className="text-4xl font-bold mb-6">
               Ready for a Cleaner Yard?
             </h2>
             <p className="text-xl text-white/90 mb-10">
-              Join Scoopify Club today and enjoy a clean, poop-free yard all year round.
-              No contracts, cancel anytime.
+              Join Scoopify Club today and enjoy a clean, pet waste-free yard with full visibility and control through our innovative app. Spend less time cleaning and more time enjoying your outdoor space with your pets.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link 

@@ -1,12 +1,31 @@
 import { Redis } from '@upstash/redis';
 
-// Initialize Redis only if configured
-const redis = process.env.REDIS_URL && process.env.REDIS_TOKEN
-  ? new Redis({
-      url: process.env.REDIS_URL,
-      token: process.env.REDIS_TOKEN,
-    })
-  : null;
+// Initialize Redis based on environment
+let redis: Redis | null = null;
+// Flag to track if Redis connection has failed
+let redisConnectionFailed = false;
+
+// Check if Redis URL is configured
+if (process.env.REDIS_URL && process.env.REDIS_TOKEN) {
+  try {
+    // For Upstash Redis (https://...)
+    if (process.env.REDIS_URL.startsWith('https://')) {
+      redis = new Redis({
+        url: process.env.REDIS_URL,
+        token: process.env.REDIS_TOKEN,
+      });
+    } 
+    // Skip Redis initialization if using local URL format
+    else {
+      console.log('Local Redis URL detected. Skipping Upstash Redis initialization.');
+      redis = null;
+    }
+  } catch (error) {
+    console.error('Redis initialization error:', error);
+    redis = null;
+    redisConnectionFailed = true;
+  }
+}
 
 export interface CacheOptions {
   ttl?: number; // Time to live in seconds
@@ -14,13 +33,15 @@ export interface CacheOptions {
 }
 
 export async function getCache<T>(key: string): Promise<T | null> {
-  if (!redis) return null;
+  if (!redis || redisConnectionFailed) return null;
   
   try {
     const data = await redis.get(key);
     return data as T;
   } catch (error) {
     console.error('Cache get error:', error);
+    // Mark the Redis connection as failed for future calls
+    redisConnectionFailed = true;
     return null;
   }
 }
@@ -30,7 +51,7 @@ export async function setCache<T>(
   value: T,
   options: CacheOptions = {}
 ): Promise<void> {
-  if (!redis) return;
+  if (!redis || redisConnectionFailed) return;
   
   try {
     const { ttl = 3600, tags = [] } = options;
@@ -52,11 +73,13 @@ export async function setCache<T>(
     }
   } catch (error) {
     console.error('Cache set error:', error);
+    // Mark the Redis connection as failed for future calls
+    redisConnectionFailed = true;
   }
 }
 
 export async function invalidateCache(tags: string[]): Promise<void> {
-  if (!redis) return;
+  if (!redis || redisConnectionFailed) return;
   
   try {
     const tagKeys = tags.map(tag => `tag:${tag}`);
@@ -75,16 +98,20 @@ export async function invalidateCache(tags: string[]): Promise<void> {
     ]);
   } catch (error) {
     console.error('Cache invalidation error:', error);
+    // Mark the Redis connection as failed for future calls
+    redisConnectionFailed = true;
   }
 }
 
 export async function clearCache(): Promise<void> {
-  if (!redis) return;
+  if (!redis || redisConnectionFailed) return;
   
   try {
     await redis.flushall();
   } catch (error) {
     console.error('Cache clear error:', error);
+    // Mark the Redis connection as failed for future calls
+    redisConnectionFailed = true;
   }
 }
 

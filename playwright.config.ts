@@ -1,36 +1,61 @@
-import { PlaywrightTestConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
+import dotenv from 'dotenv';
 
-const config: PlaywrightTestConfig = {
+// Load test environment variables
+dotenv.config({ path: '.env.test' });
+
+export default defineConfig({
   testDir: './e2e',
   timeout: 30000,
-  retries: 2,
-  workers: 1,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 1,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: [
+    ['html', { open: 'never' }],
+    ['list']
+  ],
   use: {
-    baseURL: 'http://localhost:3000',
-    headless: true,
-    viewport: { width: 1280, height: 720 },
+    baseURL: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+    trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
-    trace: 'retain-on-failure',
+    video: 'on-first-retry',
   },
   projects: [
     {
-      name: 'Chrome',
+      name: 'chromium',
       use: { 
-        browserName: 'chromium',
-        env: {
-          NODE_ENV: 'test',
-          DATABASE_URL: 'file:./prisma/test.db',
-          JWT_SECRET: 'test-secret',
-          STRIPE_SECRET_KEY: 'test-stripe-key',
-          REDIS_URL: 'redis://localhost:6379',
-          REDIS_TOKEN: 'test-redis-token',
-        },
+        ...devices['Desktop Chrome'],
+      },
+    },
+    {
+      name: 'firefox',
+      use: { 
+        ...devices['Desktop Firefox'],
+      },
+    },
+    {
+      name: 'webkit',
+      use: { 
+        ...devices['Desktop Safari'],
+      },
+    },
+    {
+      name: 'Mobile Chrome',
+      use: { 
+        ...devices['Pixel 7'],
+      },
+    },
+    {
+      name: 'Mobile Safari',
+      use: { 
+        ...devices['iPhone 14'],
       },
     },
   ],
-  globalSetup: './e2e/helpers/setup.ts',
-  globalTeardown: './e2e/helpers/teardown.ts',
-};
-
-export default config; 
+  webServer: process.env.CI ? {
+    command: 'npm run build && npm run start',
+    url: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 60000,
+  } : undefined,
+}); 

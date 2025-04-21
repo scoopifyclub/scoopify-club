@@ -1,321 +1,339 @@
 # ScoopifyClub
 
-A web application for managing pet waste removal services.
+A comprehensive web application for managing dog waste removal services, employee scheduling, and customer subscriptions.
 
-## Tech Stack
+![ScoopifyClub Logo](public/logo.png)
 
-- Next.js 14 (App Router)
-- TypeScript
-- Prisma (ORM)
-- PostgreSQL (Neon)
-- TailwindCSS
-- NextAuth.js
-- Stripe Integration
-- Playwright (Testing)
+## 📋 Table of Contents
 
-## Features
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Environment Setup](#environment-setup)
+  - [Running Locally](#running-locally)
+- [Database Configuration](#database-configuration)
+- [Authentication System](#authentication-system)
+- [Payment System](#payment-system)
+- [Testing](#testing)
+  - [Unit and Integration Tests](#unit-and-integration-tests)
+  - [E2E Testing](#e2e-testing)
+- [Deployment](#deployment)
+  - [Vercel Deployment](#vercel-deployment)
+  - [Environment Variables for Production](#environment-variables-for-production)
+- [API Documentation](#api-documentation)
+- [Contributing](#contributing)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
 
-### Authentication
-- Role-based access control (Admin, Customer, Employee)
-- Secure password reset flow
-- Email verification
-- Session management
-- Cookie-based authentication
+## 🔍 Overview
 
-### Error Handling
-- Global error boundary
-- Component-level error boundaries
-- Consistent error messages
-- Error recovery options
+ScoopifyClub is a platform that connects pet owners with professional dog waste removal services. The app manages customer subscriptions, employee scheduling, service tracking, and payment processing, offering a seamless experience for all users.
 
-### Loading States
-- Page loading indicators
-- Data loading states
-- Skeleton loading
-- Progress indicators
+## 🌟 Key Features
 
-### Testing
-- Unit tests
-- Integration tests
-- E2E tests with Playwright
-- Test helpers and mocks
-- Database seeding
+### Multi-Role Authentication
+- **Customer Portal**: Subscription management, service scheduling, billing history
+- **Employee Dashboard**: Service claiming, scheduling, route optimization, earnings tracking
+- **Admin Console**: User management, payment approvals, analytics, service monitoring
 
-## Referral System and Payment Distribution
+### Business Operations
+- **Subscription Management**: Weekly, bi-weekly, and one-time service options
+- **Service Scheduling**: Automatic scheduling based on customer preferences
+- **Referral System**: Customers earn rewards for referring others
+- **Payment Processing**: Integration with Stripe for secure payments
+- **Earning Distribution**: Automated payment distribution to employees
 
-### Customer Referrals
-- Each customer has a unique referral code generated automatically
-- Customers can share their referral code with friends through direct sharing or copy-paste
-- When new users sign up using a referral code, the referrer is automatically linked
-- Referrers earn $5 per month for each active customer they refer
-- Referral earnings are tracked and displayed in the customer dashboard
-- Referral payments are only processed after a subscription payment is made
-- Any fees for sending the $5 referral payment are borne by the recipient
-- Monthly payments are processed automatically via the payment batch system
+### Technical Features
+- **Responsive Design**: Mobile and desktop optimized interfaces
+- **Real-time Updates**: Instant notifications for service status changes
+- **Location Services**: Service area mapping and route optimization
+- **Photo Documentation**: Before/after service photos
+- **Audit System**: Complete payment and service tracking
 
-### Service Scheduling
-- Customers select their preferred service day (Monday-Sunday) during signup
-- Customers can modify their preferred day in their dashboard settings
-- Services are automatically scheduled based on the customer's preferred day
-- If a service is not claimed by an employee by the end of the day, it's automatically rescheduled
+## 💻 Tech Stack
 
-### Payment Distribution
-The payment flow follows this distribution model:
-1. Stripe processing fees are deducted first (typically 2.9% + $0.30)
-2. Referral fees ($5 per referral) are deducted from the top
-3. Employee scoopers receive 75% of the remaining amount
-4. The company keeps 25% of the remaining amount
+### Frontend
+- **Framework**: Next.js 15 (App Router)
+- **UI Library**: React 18
+- **Styling**: TailwindCSS with custom theme
+- **Forms**: React Hook Form with Zod validation
+- **Maps Integration**: Google Maps API
+- **State Management**: React Context and Hooks
 
-Example calculation:
+### Backend
+- **API Routes**: Next.js API routes with route handlers
+- **Authentication**: Custom JWT-based auth with cookie storage
+- **Database ORM**: Prisma 6
+- **Payment Processing**: Stripe API
+- **Email**: Resend for transactional emails
+- **File Storage**: AWS S3 for photo uploads
+
+### Database
+- **Primary Database**: PostgreSQL (Neon)
+- **Caching**: Vercel KV (Redis)
+- **Connection Pooling**: Enabled via Neon
+
+### Testing & Quality
+- **Unit Testing**: Jest
+- **E2E Testing**: Playwright
+- **Linting**: ESLint with Next.js config
+- **Type Safety**: TypeScript
+
+### Deployment
+- **Platform**: Vercel
+- **CI/CD**: GitHub Actions
+- **Monitoring**: Vercel Analytics
+
+## 📁 Project Structure
+
 ```
-Customer payment: $100.00
-- Stripe fee: -$3.20 (2.9% + $0.30)
-- Referral fee: -$5.00
-= Remaining amount: $91.80
-  - Employee share: $68.85 (75%)
-  - Company share: $22.95 (25%)
+├── prisma/                # Database schema and migrations
+├── public/                # Static assets
+├── scripts/               # Utility scripts for development and deployment
+├── src/
+│   ├── app/               # Next.js App Router pages
+│   │   ├── api/           # API route handlers
+│   │   ├── admin/         # Admin dashboard pages
+│   │   ├── customer/      # Customer dashboard pages
+│   │   ├── employee/      # Employee dashboard pages
+│   │   └── auth/          # Authentication pages
+│   ├── components/        # React components
+│   │   ├── ui/            # UI components (buttons, cards, etc.)
+│   │   ├── forms/         # Form components
+│   │   └── shared/        # Shared components across roles
+│   ├── lib/               # Utility functions and services
+│   ├── hooks/             # Custom React hooks
+│   ├── middleware/        # Next.js middleware
+│   └── types/             # TypeScript type definitions
+├── tests/                 # Test files and mocks
+│   ├── unit/              # Unit tests
+│   ├── integration/       # Integration tests
+│   └── e2e/               # End-to-end tests
+└── docs/                  # Documentation files
 ```
 
-### Payment Batch System
-- Administrators can manage employee and referral payments in batches
-- Batches can be created, reviewed, and processed together
-- Batch approval workflow ensures proper oversight before payments are sent
-- Multiple payment methods supported (Stripe, Cash App, Cash, Check)
-- Batch status tracking (Draft, Processing, Completed, Partially Completed, Failed)
-- Payment history and audit logging for all batch activities
-- Failed payment handling with retry options
-- Manual payment entry for special cases
-- See [payment-batches.md](docs/payment-batches.md) for detailed documentation
+## 🚀 Getting Started
 
-### Employee Job Claiming
-- Available jobs appear in the employee dashboard from 7am to 7pm on the scheduled day
-- Jobs are sorted by proximity to the employee's current location
-- Each job displays the potential earnings (75% of the service price after fees)
-- Employees can claim jobs through the dashboard, which updates the status and assigns them
-- Claimed jobs appear in the employee's schedule
+### Prerequisites
 
-## Getting Started
+- Node.js 18.x or later
+- npm 9.x or later
+- Git
+- PostgreSQL database (or Neon account)
+- Stripe account for payment processing
+- Google Maps API key for location services
+- AWS account for S3 storage (optional)
+
+### Installation
 
 1. Clone the repository:
-```bash
-git clone <your-repo-url>
-cd ScoopifyClub
-```
+   ```bash
+   git clone https://github.com/your-username/scoopify-club.git
+   cd scoopify-club
+   ```
 
 2. Install dependencies:
-```bash
-npm install
-```
+   ```bash
+   npm install
+   ```
 
-3. Set up your environment:
-   - Copy `.env.example` to `.env.local`
-   - Copy `.env.local.example` to `.env.local` (overwriting the previous step)
-   - Update the API keys and secrets in your `.env.local` file
-   - Never commit your `.env.local` file to version control
+### Environment Setup
 
-4. Configure essential API keys:
-   - **Stripe**: Create a Stripe account and add your API keys
-     - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: Your Stripe publishable key
-     - `STRIPE_SECRET_KEY`: Your Stripe secret key
-     - `STRIPE_WEBHOOK_SECRET`: Create a webhook in Stripe dashboard and add the secret
-   - **Google Maps**: Get a Google Maps API key from Google Cloud Console
-     - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: Your Google Maps API key
-   - **Resend**: Sign up for Resend (email service) and add your API key
-     - `RESEND_API_KEY`: Your Resend API key for sending emails
-   - **AWS S3**: (Optional) For photo uploads
-     - `AWS_ACCESS_KEY_ID`: Your AWS access key
-     - `AWS_SECRET_ACCESS_KEY`: Your AWS secret key
-     - `AWS_REGION`: AWS region for your S3 bucket
-     - `AWS_BUCKET_NAME`: Name of your S3 bucket
+1. Copy the example environment files:
+   ```bash
+   cp .env.example .env
+   cp .env.local.example .env.local
+   ```
 
-5. Set up your database:
-   - Sign up for a free Neon PostgreSQL database at https://neon.tech
-   - Create a new project and database
-   - Copy the connection string from your Neon dashboard
-   - Update `DATABASE_URL` in your `.env.local` file with the connection string
-   - Run database migrations:
-     ```bash
-     npx prisma migrate dev
-     ```
+2. Update the environment variables in `.env.local` with your API keys and credentials:
 
-6. Start the development server:
-```bash
-npm run dev
-```
-
-## Environment Variables
-
-The application uses various environment variables for configuration. These are organized in several files:
-
-- `.env`: Default values and non-sensitive configuration (safe to commit)
-- `.env.local`: Your local overrides with real API keys (never commit)
-- `.env.example`: Template showing all required variables
-- `.env.local.example`: Template for sensitive variables that should be in `.env.local`
-
-### Key Environment Variables
-
-#### Authentication
-- `NEXTAUTH_SECRET`: Secret used to encrypt sessions (generate with `openssl rand -base64 32`)
-- `NEXTAUTH_URL`: Your application URL (http://localhost:3000 for development)
-- `JWT_SECRET`: Secret for JWT token generation
-- `JWT_REFRESH_SECRET`: Secret for refresh token generation
-
-#### Database
-- `DATABASE_URL`: Your Neon PostgreSQL connection string
-- `NEON_POOL_SIZE`: Connection pool size (default: 20)
-- `NEON_IDLE_TIMEOUT`: Connection idle timeout in milliseconds (default: 30000)
-- `NEON_CONNECTION_TIMEOUT`: Connection timeout in milliseconds (default: 2000)
-
-#### Payments
+#### Required Environment Variables:
+- `DATABASE_URL`: Your PostgreSQL connection string
+- `NEXTAUTH_SECRET`: Random string for session encryption
+- `NEXTAUTH_URL`: Your app URL (http://localhost:3000 for development)
+- `STRIPE_SECRET_KEY`: Stripe API secret key
 - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: Stripe publishable key
-- `STRIPE_SECRET_KEY`: Stripe secret key
-- `STRIPE_WEBHOOK_SECRET`: Stripe webhook secret
-- `STRIPE_WEEKLY_PRICE_ID`: Price ID for weekly service plan
-- `STRIPE_BIWEEKLY_PRICE_ID`: Price ID for biweekly service plan
-- `STRIPE_MONTHLY_PRICE_ID`: Price ID for monthly service plan
-
-#### External Services
 - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: Google Maps API key
-- `RESEND_API_KEY`: Resend API key for email
-- `AWS_ACCESS_KEY_ID`: AWS access key
-- `AWS_SECRET_ACCESS_KEY`: AWS secret key
-- `AWS_REGION`: AWS region
-- `AWS_BUCKET_NAME`: S3 bucket name
 
-#### Other Settings
-- `REDIS_URL`: Redis connection URL (for caching)
-- `REDIS_TOKEN`: Redis authentication token
-- `ADMIN_EMAIL`: Admin notification email
-- `CRON_SECRET` and `CRON_API_KEY`: For scheduled jobs authentication
+3. Set up your database:
+   ```bash
+   npx prisma generate
+   npx prisma migrate dev
+   ```
 
-### Setting Up API Keys
+4. Seed the database with initial data:
+   ```bash
+   npx prisma db seed
+   ```
 
-1. **Stripe**:
-   - Create a Stripe account at https://stripe.com
-   - Get API keys from Dashboard → Developers → API keys
-   - Create webhook endpoint in Dashboard → Developers → Webhooks
-   
-2. **Google Maps**:
-   - Create a project in Google Cloud Console
-   - Enable Maps JavaScript API and Geocoding API
-   - Create API key with appropriate restrictions
-   
-3. **Resend**:
-   - Sign up at https://resend.com
-   - Create API key from dashboard
-   
-4. **AWS S3**:
-   - Create AWS account
-   - Create S3 bucket with proper CORS configuration
-   - Create IAM user with S3 access
-   - Get access key and secret key
+### Running Locally
 
-## Database Configuration
+1. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-The application uses Neon PostgreSQL for all environments. Key points:
+2. For secure local development with HTTPS:
+   ```bash
+   npm run dev:secure
+   ```
 
-- Development: Use your Neon PostgreSQL database
-- Production: Use your Neon PostgreSQL database
-- Testing: Use a separate Neon PostgreSQL database or local PostgreSQL instance
+3. Access the application at http://localhost:3000 (or https://localhost:3000 for secure mode)
 
-### Connection Pooling
+## 🗄️ Database Configuration
 
-The application uses Neon's built-in connection pooling. Your connection string should include:
-- `pgbouncer=true` for connection pooling
-- `connect_timeout=10` for connection timeout settings
+ScoopifyClub uses PostgreSQL through Neon, a serverless Postgres provider. Our schema is defined in Prisma and includes models for:
 
-### Environment Variables
+- Users, Customers, and Employees
+- Subscriptions and Service Plans
+- Services and Service Photos
+- Payments and Earnings
+- Referrals and Notifications
 
-See `.env.example` for all required environment variables. Key database-related variables:
+### Schema Management
 
-- `DATABASE_URL`: Your Neon PostgreSQL connection string
-- `NEON_POOL_SIZE`: Connection pool size (default: 20)
-- `NEON_IDLE_TIMEOUT`: Connection idle timeout in milliseconds (default: 30000)
-- `NEON_CONNECTION_TIMEOUT`: Connection timeout in milliseconds (default: 2000)
+The database schema is managed through Prisma. Key files:
+- `prisma/schema.prisma`: Database schema definition
+- `prisma/seed.ts`: Initial data seeding
 
-## Project Structure
+### Database Connection
 
+For optimal performance, we use connection pooling through Neon:
 ```
-src/
-├── app/                    # Next.js app router
-│   ├── api/               # API routes
-│   ├── auth/              # Authentication pages
-│   ├── admin/             # Admin dashboard
-│   ├── employee/          # Employee dashboard
-│   └── dashboard/         # Customer dashboard
-├── components/            # React components
-│   ├── ui/               # UI components
-│   ├── auth/             # Auth components
-│   └── shared/           # Shared components
-├── lib/                  # Utility functions
-├── middleware/           # Next.js middleware
-├── types/               # TypeScript types
-└── tests/               # Test files
+DATABASE_URL="postgres://user:password@db.neon.tech/neondb?pgbouncer=true&connect_timeout=10"
 ```
 
-## Test Users
+## 🔐 Authentication System
 
-The following test users are available after running the seed script:
+ScoopifyClub implements a custom JWT-based authentication system:
 
-- Customer:
-  - Email: customer@scoopify.com
-  - Password: Customer123!
+1. **Login/Registration**: Email and password authentication
+2. **Session Management**: JWT with refresh tokens
+3. **Role-Based Access**: Different routes for customers, employees, and admins
+4. **Security Features**:
+   - CSRF protection
+   - HTTP-only cookies
+   - Token refresh mechanism
+   - Device fingerprinting for multi-device support
 
-- Employee:
-  - Email: employee@scoopify.com
-  - Password: Employee123!
+Authentication flow is managed through middleware and API routes in the `src/app/api/auth` directory.
 
-- Admin:
-  - Email: admin@scoopify.com
-  - Password: admin123
+## 💳 Payment System
 
-## Running Tests
+### Subscription Plans
 
+- **Weekly**: Regular weekly service
+- **Bi-weekly**: Service every two weeks
+- **One-time**: Single service booking
+
+### Payment Processing
+
+1. **Customer Payments**:
+   - Automatic billing through Stripe
+   - Service-based one-time charges
+   - Subscription management and proration
+
+2. **Employee Payments**:
+   - Earnings calculated per service (75% of service value after fees)
+   - Batch processing for efficiency
+   - Multiple payout methods (Stripe, Cash App)
+
+3. **Referral System**:
+   - $5 monthly payment for each active referred customer
+   - Automatic tracking and processing
+
+### Payment Flow
+
+```
+Customer payment → Stripe fees deducted → Referral fees → Employee share (75%) → Company share (25%)
+```
+
+## 🧪 Testing
+
+### Unit and Integration Tests
+
+Run unit and integration tests with Jest:
 ```bash
-# Run all tests
-npm test
-
-# Run specific test file
-npx playwright test tests/login.spec.ts
-
-# Run tests in UI mode
-npx playwright test --ui
+npm test                # Run all tests
+npm run test:watch      # Run tests in watch mode
+npm run test:coverage   # Generate coverage report
 ```
 
-## Error Handling
+### E2E Testing
 
-The application includes comprehensive error handling:
+End-to-end tests are implemented with Playwright:
 
-1. **Global Error Boundary**
-   - Catches unhandled errors
-   - Provides recovery options
-   - Logs errors to console
+1. Set up the test environment:
+   ```bash
+   npm run test:e2e:setup
+   ```
 
-2. **Component Error Boundaries**
-   - Isolates component errors
-   - Prevents app crashes
-   - Shows fallback UI
+2. Run all E2E tests:
+   ```bash
+   npm run test:e2e
+   ```
 
-3. **API Error Handling**
-   - Consistent error responses
-   - Proper status codes
-   - Error logging
+3. Run tests with UI mode:
+   ```bash
+   npm run test:e2e:ui
+   ```
 
-## Loading States
+4. View test report:
+   ```bash
+   npm run test:e2e:report
+   ```
 
-The application provides various loading states:
+## 🚢 Deployment
 
-1. **Page Loading**
-   - Full-page loading indicator
-   - Progress bar
-   - Skeleton loading
+### Vercel Deployment
 
-2. **Data Loading**
-   - Inline loading indicators
-   - Skeleton UI
-   - Progress indicators
+ScoopifyClub is optimized for deployment on Vercel:
 
-## Contributing
+1. Prepare your PostgreSQL migrations:
+   ```bash
+   npm run prepare:vercel
+   ```
+
+2. Set up environment variables:
+   ```bash
+   npm run setup:vercel
+   ```
+
+3. Deploy to Vercel:
+   ```bash
+   npm run vercel:production
+   ```
+
+### Environment Variables for Production
+
+For production deployment, ensure these variables are set in Vercel:
+
+- `DATABASE_URL`: Production PostgreSQL connection string
+- `DATABASE_PROVIDER`: Set to "postgresql"
+- `NEXTAUTH_URL`: Your production domain
+- `NEXTAUTH_SECRET`: Strong random string
+- `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`: Production Stripe keys
+- All other API keys and secrets from your `.env.production` file
+
+See [VERCEL_DEPLOYMENT.md](VERCEL_DEPLOYMENT.md) for detailed deployment instructions.
+
+## 📚 API Documentation
+
+API routes are documented with appropriate JSDoc comments and follow RESTful design principles. Key endpoints include:
+
+- **Authentication**: `/api/auth/*`
+- **Customer Services**: `/api/customer/*`
+- **Employee Management**: `/api/employee/*`
+- **Admin Operations**: `/api/admin/*`
+- **Payment Processing**: `/api/payments/*`
+- **Stripe Webhooks**: `/api/webhooks/stripe`
+- **Cron Jobs**: `/api/cron/*`
+
+## 🤝 Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -323,88 +341,38 @@ The application provides various loading states:
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## Recent Updates
-- Added payment batch system for efficient processing of multiple payments
-- Enhanced referral payment workflow to ensure payments are only processed after subscription payments
-- Improved payment audit logging with detailed tracking of all payment activities
-- Added multiple payment method support for different recipient preferences
-- Implemented validation to ensure proper payment approval and processing
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed contribution guidelines.
 
-## Current Issues
+## ❓ Troubleshooting
 
-1. Database connection issues with PostgreSQL
-2. Login tests failing due to authentication flow
-3. Rate limiting needs Redis in production
-4. Email verification flow needs implementation
-5. Password strength validation needed
+### Common Issues
 
-## Database Setup with Vercel PostgreSQL
+1. **Database Connection Errors**:
+   - Check your DATABASE_URL format
+   - Ensure network connectivity to your database
+   - Verify PostgreSQL credentials
 
-### Local Development
-1. Create a local PostgreSQL database:
-   ```bash
-   createdb scoopifyclub
-   ```
+2. **Authentication Issues**:
+   - Check JWT_SECRET is properly set
+   - Ensure cookies are being properly stored
+   - Verify NEXTAUTH_URL matches your domain
 
-2. Update your `.env.local` file with the local database URL:
-   ```
-   DATABASE_URL="postgres://default:your-password@localhost:5432/scoopifyclub"
-   ```
+3. **Stripe Integration Problems**:
+   - Confirm Stripe API keys are correct
+   - Check webhook configuration
+   - Ensure test mode vs live mode consistency
 
-3. Run database migrations:
-   ```bash
-   npx prisma migrate dev
-   ```
+### Getting Help
 
-### Vercel Deployment
-1. In your Vercel project dashboard:
-   - Go to "Storage" tab
-   - Click "Create Database"
-   - Select "PostgreSQL Database"
-   - Choose your preferred region
-   - Click "Create"
+If you encounter issues not covered here, please:
+1. Check existing GitHub issues
+2. Review the error logs in your console
+3. Create a new issue with detailed reproduction steps
 
-2. After creation, Vercel will automatically:
-   - Add the `DATABASE_URL` to your project's environment variables
-   - Configure the connection pooling
-   - Set up automatic backups
+## 📄 License
 
-3. Deploy your project:
-   ```bash
-   vercel deploy
-   ```
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-4. Run production migrations:
-   ```bash
-   npx prisma migrate deploy
-   ```
+---
 
-### Environment Variables
-Make sure these variables are set in your Vercel project settings:
-
-```env
-# Database
-DATABASE_URL="postgres://..."  # Added automatically by Vercel
-
-# Auth
-NEXTAUTH_URL="https://your-domain.com"
-NEXTAUTH_SECRET="your-secret-key"
-
-# Stripe
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="pk_..."
-STRIPE_SECRET_KEY="sk_..."
-STRIPE_WEBHOOK_SECRET="whsec_..."
-
-# Email
-SMTP_HOST="smtp.example.com"
-SMTP_PORT=587
-SMTP_USER="your-email@example.com"
-SMTP_PASSWORD="your-email-password"
-SMTP_FROM="noreply@scoopify.com"
-```
-
-### Security Notes
-- Never commit `.env.local` or any files containing sensitive credentials
-- Use strong, unique passwords for database access
-- Regularly rotate security keys and credentials
-- Enable SSL/TLS for database connections in production 
+© 2024 ScoopifyClub. All Rights Reserved. 

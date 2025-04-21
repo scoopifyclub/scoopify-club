@@ -6,25 +6,50 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { verifyToken, refreshToken } from '@/lib/auth';
 
-// Initialize rate limiter only if Redis is configured
-const ratelimit = process.env.REDIS_URL && process.env.REDIS_TOKEN
-  ? new Ratelimit({
-      redis: new Redis({
+// Initialize rate limiter only if Redis is properly configured
+let ratelimit = null;
+// Flag to track Redis connection failures
+let redisConnectionFailed = false;
+
+// Check if Redis URL is configured correctly and no previous connection failure
+if (!redisConnectionFailed && process.env.REDIS_URL && process.env.REDIS_TOKEN) {
+  try {
+    // Only initialize Upstash Redis with HTTPS URLs
+    if (process.env.REDIS_URL.startsWith('https://')) {
+      const redis = new Redis({
         url: process.env.REDIS_URL,
         token: process.env.REDIS_TOKEN,
-      }),
-      limiter: Ratelimit.slidingWindow(10, '1 m'),
-    })
-  : null;
+      });
+      
+      ratelimit = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '1 m'),
+      });
+    } else {
+      console.log('Local Redis URL detected. Skipping Upstash Redis initialization.');
+    }
+  } catch (error) {
+    console.error('Redis initialization error:', error);
+    redisConnectionFailed = true;
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
-    // Rate limiting only if configured
-    if (ratelimit) {
-      const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
-      const { success } = await ratelimit.limit(ip);
-      if (!success) {
-        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    // Rate limiting only if configured and not previously failed
+    if (ratelimit && !redisConnectionFailed) {
+      try {
+        const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
+        const { success } = await ratelimit.limit(ip);
+        if (!success) {
+          return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+        }
+      } catch (error) {
+        // Log error but continue processing the request
+        console.error('Rate limiting error:', error);
+        // Mark as failed to prevent future attempts
+        redisConnectionFailed = true;
+        // Don't return - let the request proceed without rate limiting
       }
     }
 

@@ -417,7 +417,7 @@ export default function AdminOverviewPage() {
               onClick={() => router.push('/admin/dashboard/payments')}
             >
               <CircleDollarSign className="h-6 w-6 mb-2" />
-              <span>Process Payments</span>
+              <span>View Payments</span>
             </Button>
           </div>
         </CardContent>

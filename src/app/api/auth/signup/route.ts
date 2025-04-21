@@ -274,7 +274,8 @@ export async function POST(request: Request) {
       .sign(secret);
 
     // Set cookie
-    cookies().set({
+    const cookieStore = await cookies();
+    cookieStore.set({
       name: 'accessToken',
       value: token,
       httpOnly: true,

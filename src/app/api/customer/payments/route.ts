@@ -7,25 +7,45 @@ import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { getCache, setCache, generateCacheKey, invalidateCache } from '@/lib/cache';
 
-// Initialize rate limiter only if Redis is configured
-const ratelimit = process.env.REDIS_URL && process.env.REDIS_TOKEN
-  ? new Ratelimit({
-      redis: new Redis({
+// Initialize rate limiter only if Redis is properly configured
+let ratelimit = null;
+
+// Check if Redis URL is configured correctly
+if (process.env.REDIS_URL && process.env.REDIS_TOKEN) {
+  try {
+    // Only initialize Upstash Redis with HTTPS URLs
+    if (process.env.REDIS_URL.startsWith('https://')) {
+      const redis = new Redis({
         url: process.env.REDIS_URL,
         token: process.env.REDIS_TOKEN,
-      }),
-      limiter: Ratelimit.slidingWindow(10, '1 m'),
-    })
-  : null;
+      });
+      
+      ratelimit = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(10, '1 m'),
+      });
+    } else {
+      console.log('Local Redis URL detected. Skipping Upstash Redis initialization for payments rate limiting.');
+    }
+  } catch (error) {
+    console.error('Redis initialization error in payments route:', error);
+  }
+}
 
 export async function GET(request: Request) {
   try {
     // Rate limiting only if configured
     if (ratelimit) {
-      const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
-      const { success } = await ratelimit.limit(ip);
-      if (!success) {
-        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+      try {
+        const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
+        const { success } = await ratelimit.limit(ip);
+        if (!success) {
+          return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+        }
+      } catch (error) {
+        // Log error but continue processing the request
+        console.error('Rate limiting error in payments GET endpoint:', error);
+        // Don't return - let the request proceed without rate limiting
       }
     }
 
@@ -156,10 +176,16 @@ export async function POST(request: Request) {
   try {
     // Rate limiting
     if (ratelimit) {
-      const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
-      const { success } = await ratelimit.limit(ip);
-      if (!success) {
-        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+      try {
+        const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
+        const { success } = await ratelimit.limit(ip);
+        if (!success) {
+          return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+        }
+      } catch (error) {
+        // Log error but continue processing the request
+        console.error('Rate limiting error in payments POST endpoint:', error);
+        // Don't return - let the request proceed without rate limiting
       }
     }
 

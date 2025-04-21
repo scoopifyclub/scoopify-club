@@ -4,8 +4,9 @@ import { cookies } from 'next/headers'
 
 export async function POST(request: Request) {
   try {
-    const refreshTokenCookie = cookies().get('refreshToken')?.value
-    const fingerprint = cookies().get('fingerprint')?.value
+    const cookieStore = await cookies()
+    const refreshTokenCookie = cookieStore.get('refreshToken')?.value
+    const fingerprint = cookieStore.get('fingerprint')?.value
 
     if (!refreshTokenCookie) {
       return NextResponse.json(
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
     const { accessToken, refreshToken: newRefreshToken, user } = await refreshToken(refreshTokenCookie, fingerprint)
 
     // Set new access token cookie
-    cookies().set('accessToken', accessToken, {
+    cookieStore.set('accessToken', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
     })
 
     // Set new refresh token cookie
-    cookies().set('refreshToken', newRefreshToken, {
+    cookieStore.set('refreshToken', newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
 
     // Set fingerprint cookie if not already set
     if (!fingerprint) {
-      cookies().set('fingerprint', user.deviceFingerprint!, {
+      cookieStore.set('fingerprint', user.deviceFingerprint!, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
@@ -59,9 +60,10 @@ export async function POST(request: Request) {
       if (error.message.includes('Invalid refresh token') || 
           error.message.includes('Device fingerprint mismatch')) {
         // Clear cookies if refresh token is invalid or fingerprint mismatch
-        cookies().delete('accessToken')
-        cookies().delete('refreshToken')
-        cookies().delete('fingerprint')
+        const cookieStore = await cookies()
+        cookieStore.delete('accessToken')
+        cookieStore.delete('refreshToken')
+        cookieStore.delete('fingerprint')
         return NextResponse.json(
           { error: 'Session expired. Please login again.' },
           { status: 401 }

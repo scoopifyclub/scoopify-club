@@ -1,0 +1,65 @@
+{
+  "cookies": [
+    {
+      "name": "accessToken",
+      "value": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImNtOXFjdTF5cTAwMDB0ZTd3OGxsNjZ3NDIiLCJlbWFpbCI6ImN1c3RvbWVyQHNjb29waWZ5Y2x1Yi5jb20iLCJyb2xlIjoiQ1VTVE9NRVIiLCJjdXN0b21lcklkIjoiY205cWN1MXoxMDAwMnRlN3dsb2NiaTVwciIsImZpbmdlcnByaW50IjoiIiwiaWF0IjoxNzQ1MTk2MzMyLCJleHAiOjE3NDUxOTcyMzJ9.wlxyQfzxELqDTDdJG9qlJHRPaMQ8uo1aSfENxIRPqBg",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1745801132.694381,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "refreshToken",
+      "value": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImNtOXFjdTF5cTAwMDB0ZTd3OGxsNjZ3NDIiLCJmaW5nZXJwcmludCI6IiIsImlhdCI6MTc0NTE5NjMzMiwiZXhwIjoxNzQ1ODAxMTMyfQ.3GZtkmVvgROH_yYAu6EPVLlHwBwIbjBZThT_ZQlV3Gk",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1745801132.694472,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "accessToken_client",
+      "value": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImNtOXFjdTF5cTAwMDB0ZTd3OGxsNjZ3NDIiLCJlbWFpbCI6ImN1c3RvbWVyQHNjb29waWZ5Y2x1Yi5jb20iLCJyb2xlIjoiQ1VTVE9NRVIiLCJjdXN0b21lcklkIjoiY205cWN1MXoxMDAwMnRlN3dsb2NiaTVwciIsImZpbmdlcnByaW50IjoiIiwiaWF0IjoxNzQ1MTk2MzMyLCJleHAiOjE3NDUxOTcyMzJ9.wlxyQfzxELqDTDdJG9qlJHRPaMQ8uo1aSfENxIRPqBg",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1745801132.694487,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "refreshToken_client",
+      "value": "eyJhbGciOiJIUzI1NiJ9.eyJpZCI6ImNtOXFjdTF5cTAwMDB0ZTd3OGxsNjZ3NDIiLCJmaW5nZXJwcmludCI6IiIsImlhdCI6MTc0NTE5NjMzMiwiZXhwIjoxNzQ1ODAxMTMyfQ.3GZtkmVvgROH_yYAu6EPVLlHwBwIbjBZThT_ZQlV3Gk",
+      "domain": "localhost",
+      "path": "/",
+      "expires": 1745801132.694504,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__next_hmr_refresh_hash__",
+      "value": "7b6d90c3dbb73abd3c4bc1ca4fa4b84d7565f3fb246289e7",
+      "domain": "localhost",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://localhost:3000",
+      "localStorage": [
+        {
+          "name": "nextauth.message",
+          "value": "{\"event\":\"session\",\"data\":{\"trigger\":\"getSession\"},\"timestamp\":1745196336}"
+        }
+      ]
+    }
+  ]
+}
