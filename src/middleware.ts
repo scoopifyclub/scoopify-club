@@ -47,68 +47,50 @@ export async function middleware(request: NextRequest) {
       pathname === '/api/auth/logout' ||
       pathname === '/api/auth/refresh' ||
       pathname === '/api/auth/session' ||
-      pathname === '/api/admin/login' ||
-      pathname === '/api/admin/verify') {
+      pathname === '/api/admin/login') {
     return NextResponse.next();
   }
 
-  // Apply rate limiting for authentication endpoints
-  if (pathname.includes('/login') || pathname.includes('/signup')) {
-    const rateLimitResponse = await rateLimit(request);
-    if (rateLimitResponse) {
-      return rateLimitResponse;
-    }
+  // Get token from cookies
+  const token = request.cookies.get('accessToken')?.value;
+  console.log('Token found:', !!token);
+
+  if (!token) {
+    console.log('No token found, redirecting to login');
+    return createRedirectResponse(request, getLoginPath(pathname), 'no_token');
   }
 
-  // Check if the path requires authentication
-  if (pathname.startsWith('/admin') || 
-      pathname.startsWith('/employee') || 
-      pathname.startsWith('/customer') ||
-      pathname.startsWith('/dashboard') ||
-      pathname.startsWith('/api/admin') ||
-      pathname.startsWith('/api/employee') ||
-      pathname.startsWith('/api/customer')) {
-    
-    // Use only our custom JWT token
-    const customToken = request.cookies.get('accessToken')?.value;
-    console.log('Token from cookie:', customToken ? 'Present' : 'Missing');
-    
-    if (!customToken) {
-      return createRedirectResponse(request, getLoginPath(pathname), 'No authentication token');
-    }
+  try {
+    // Verify token
+    const payload = await verifyToken(token);
+    console.log('Token payload:', payload);
 
-    const payload = await verifyToken(customToken);
-    console.log('Token verification result:', payload ? 'Valid' : 'Invalid');
-    
     if (!payload) {
-      console.log('Token verification failed', { token: customToken });
-      return createRedirectResponse(request, getLoginPath(pathname), 'Invalid authentication token');
+      console.log('Invalid token, redirecting to login');
+      return createRedirectResponse(request, getLoginPath(pathname), 'invalid_token');
     }
 
-    // Verify role is a valid role
-    if (!payload.role || !VALID_ROLES.includes(payload.role as any)) {
-      console.log('Invalid role in token', { role: payload.role });
-      return createRedirectResponse(request, '/', 'Invalid role in token');
+    // Check if user has required role for the path
+    if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
+      console.log('Insufficient permissions for admin route');
+      return createRedirectResponse(request, '/', 'insufficient_permissions');
     }
 
-    // Check role-based access
-    if ((pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) && payload.role !== 'ADMIN') {
-      return createRedirectResponse(request, '/', 'Insufficient permissions');
+    if (pathname.startsWith('/employee') && payload.role !== 'EMPLOYEE') {
+      console.log('Insufficient permissions for employee route');
+      return createRedirectResponse(request, '/', 'insufficient_permissions');
     }
 
-    if ((pathname.startsWith('/employee') || pathname.startsWith('/api/employee')) && 
-        payload.role !== 'EMPLOYEE' && payload.role !== 'ADMIN') {
-      return createRedirectResponse(request, '/', 'Insufficient permissions');
-    }
+    // Add user info to request headers
+    const response = NextResponse.next();
+    response.headers.set('x-user-id', payload.id);
+    response.headers.set('x-user-role', payload.role);
 
-    if ((pathname.startsWith('/customer') || pathname.startsWith('/api/customer')) && 
-        payload.role !== 'CUSTOMER' && payload.role !== 'ADMIN') {
-      return createRedirectResponse(request, '/', 'Insufficient permissions');
-    }
+    return response;
+  } catch (error) {
+    console.error('Error in middleware:', error);
+    return createRedirectResponse(request, getLoginPath(pathname), 'token_verification_error');
   }
-
-  // Add security headers to all responses
-  return securityHeaders(request);
 }
 
 export const config = {

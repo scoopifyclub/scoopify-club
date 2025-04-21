@@ -4,6 +4,8 @@ import { requireAuth } from '@/lib/auth'
 
 export const GET = requireAuth(async (request: NextRequest, user) => {
   try {
+    console.log('Fetching profile for user:', user.id);
+
     const userProfile = await prisma.user.findUnique({
       where: { id: user.id },
       select: {
@@ -34,7 +36,10 @@ export const GET = requireAuth(async (request: NextRequest, user) => {
       }
     })
 
+    console.log('Found user profile:', userProfile ? { id: userProfile.id, role: userProfile.role } : 'null');
+
     if (!userProfile) {
+      console.log('User profile not found for ID:', user.id);
       return NextResponse.json(
         { message: 'User profile not found' },
         { status: 404 }
@@ -43,9 +48,9 @@ export const GET = requireAuth(async (request: NextRequest, user) => {
 
     return NextResponse.json(userProfile)
   } catch (error) {
-    console.error('Error fetching user profile:', error)
+    console.error('Error in profile API:', error);
     return NextResponse.json(
-      { message: 'Failed to fetch user profile' },
+      { message: 'Failed to fetch user profile', error: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     )
   }

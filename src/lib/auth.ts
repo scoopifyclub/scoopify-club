@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key';
+const REFRESH_SECRET = process.env.REFRESH_SECRET || 'your-refresh-secret-key';
 
 // Generate a device fingerprint
 function generateFingerprint() {
@@ -111,11 +111,19 @@ export async function login(email: string, password: string, fingerprint?: strin
 
 export async function verifyToken(token: string) {
   try {
+    console.log('Verifying token with secret:', JWT_SECRET.substring(0, 10) + '...');
     const { payload } = await jwtVerify(
       token,
       new TextEncoder().encode(JWT_SECRET),
       { algorithms: ['HS256'] }
     );
+    
+    console.log('Token verified successfully:', {
+      id: payload.id,
+      role: payload.role,
+      exp: payload.exp
+    });
+    
     return payload;
   } catch (error) {
     console.error('Token verification failed:', error);
@@ -162,55 +170,63 @@ export async function refreshToken(oldRefreshToken: string, fingerprint?: string
 }
 
 export async function validateUser(token: string, requiredRole?: string) {
-  const payload = await verifyToken(token);
-  if (!payload) {
-    throw new Error('Invalid token');
-  }
-
-  console.log('Token payload:', payload);
-
-  // Verify user exists and get latest data with relationships
-  const user = await prisma.user.findUnique({
-    where: { id: payload.id },
-    include: {
-      customer: {
-        include: {
-          address: true
-        }
-      },
-      employee: true
+  try {
+    console.log('Validating user with token:', token.substring(0, 10) + '...');
+    const payload = await verifyToken(token);
+    
+    if (!payload) {
+      console.log('Token verification failed in validateUser');
+      throw new Error('Invalid token');
     }
-  });
 
-  console.log('Found user:', user ? { id: user.id, email: user.email, role: user.role } : 'null');
+    console.log('Token payload in validateUser:', payload);
 
-  if (!user) {
-    throw new Error('User not found');
+    // Verify user exists and get latest data with relationships
+    const user = await prisma.user.findUnique({
+      where: { id: payload.id },
+      include: {
+        customer: {
+          include: {
+            address: true
+          }
+        },
+        employee: true
+      }
+    });
+
+    console.log('Found user in validateUser:', user ? { id: user.id, email: user.email, role: user.role } : 'null');
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    // For customer role, ensure customer record exists
+    if (requiredRole === 'CUSTOMER' && !user.customer) {
+      throw new Error('Customer record not found');
+    }
+
+    // For employee role, ensure employee record exists
+    if (requiredRole === 'EMPLOYEE' && !user.employee) {
+      throw new Error('Employee record not found');
+    }
+
+    // Allow admins to access everything, otherwise check specific role
+    if (requiredRole && user.role !== 'ADMIN' && user.role !== requiredRole) {
+      throw new Error('Insufficient permissions');
+    }
+
+    return {
+      userId: user.id,
+      role: user.role,
+      customerId: user.customer?.id,
+      employeeId: user.employee?.id,
+      customer: user.customer,
+      employee: user.employee
+    };
+  } catch (error) {
+    console.error('Error in validateUser:', error);
+    throw error;
   }
-
-  // For customer role, ensure customer record exists
-  if (requiredRole === 'CUSTOMER' && !user.customer) {
-    throw new Error('Customer record not found');
-  }
-
-  // For employee role, ensure employee record exists
-  if (requiredRole === 'EMPLOYEE' && !user.employee) {
-    throw new Error('Employee record not found');
-  }
-
-  // Allow admins to access everything, otherwise check specific role
-  if (requiredRole && user.role !== 'ADMIN' && user.role !== requiredRole) {
-    throw new Error('Insufficient permissions');
-  }
-
-  return {
-    userId: user.id,
-    role: user.role,
-    customerId: user.customer?.id,
-    employeeId: user.employee?.id,
-    customer: user.customer,
-    employee: user.employee
-  };
 }
 
 export async function verifyAuth(request: Request) {
