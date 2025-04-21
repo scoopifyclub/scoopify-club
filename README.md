@@ -109,13 +109,26 @@ npm install
 
 3. Set up your environment:
    - Copy `.env.example` to `.env.local`
-   - Update the following variables in `.env.local`:
-     - `DATABASE_URL`: Your Neon PostgreSQL connection string
-     - `NEXTAUTH_SECRET`: Generate a secure secret (e.g., using `openssl rand -base64 32`)
-     - `NEXTAUTH_URL`: Your application URL (http://localhost:3000 for development)
-     - Other required environment variables as listed in `.env.example`
+   - Copy `.env.local.example` to `.env.local` (overwriting the previous step)
+   - Update the API keys and secrets in your `.env.local` file
+   - Never commit your `.env.local` file to version control
 
-4. Set up your database:
+4. Configure essential API keys:
+   - **Stripe**: Create a Stripe account and add your API keys
+     - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: Your Stripe publishable key
+     - `STRIPE_SECRET_KEY`: Your Stripe secret key
+     - `STRIPE_WEBHOOK_SECRET`: Create a webhook in Stripe dashboard and add the secret
+   - **Google Maps**: Get a Google Maps API key from Google Cloud Console
+     - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: Your Google Maps API key
+   - **Resend**: Sign up for Resend (email service) and add your API key
+     - `RESEND_API_KEY`: Your Resend API key for sending emails
+   - **AWS S3**: (Optional) For photo uploads
+     - `AWS_ACCESS_KEY_ID`: Your AWS access key
+     - `AWS_SECRET_ACCESS_KEY`: Your AWS secret key
+     - `AWS_REGION`: AWS region for your S3 bucket
+     - `AWS_BUCKET_NAME`: Name of your S3 bucket
+
+5. Set up your database:
    - Sign up for a free Neon PostgreSQL database at https://neon.tech
    - Create a new project and database
    - Copy the connection string from your Neon dashboard
@@ -125,10 +138,77 @@ npm install
      npx prisma migrate dev
      ```
 
-5. Start the development server:
+6. Start the development server:
 ```bash
 npm run dev
 ```
+
+## Environment Variables
+
+The application uses various environment variables for configuration. These are organized in several files:
+
+- `.env`: Default values and non-sensitive configuration (safe to commit)
+- `.env.local`: Your local overrides with real API keys (never commit)
+- `.env.example`: Template showing all required variables
+- `.env.local.example`: Template for sensitive variables that should be in `.env.local`
+
+### Key Environment Variables
+
+#### Authentication
+- `NEXTAUTH_SECRET`: Secret used to encrypt sessions (generate with `openssl rand -base64 32`)
+- `NEXTAUTH_URL`: Your application URL (http://localhost:3000 for development)
+- `JWT_SECRET`: Secret for JWT token generation
+- `JWT_REFRESH_SECRET`: Secret for refresh token generation
+
+#### Database
+- `DATABASE_URL`: Your Neon PostgreSQL connection string
+- `NEON_POOL_SIZE`: Connection pool size (default: 20)
+- `NEON_IDLE_TIMEOUT`: Connection idle timeout in milliseconds (default: 30000)
+- `NEON_CONNECTION_TIMEOUT`: Connection timeout in milliseconds (default: 2000)
+
+#### Payments
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`: Stripe publishable key
+- `STRIPE_SECRET_KEY`: Stripe secret key
+- `STRIPE_WEBHOOK_SECRET`: Stripe webhook secret
+- `STRIPE_WEEKLY_PRICE_ID`: Price ID for weekly service plan
+- `STRIPE_BIWEEKLY_PRICE_ID`: Price ID for biweekly service plan
+- `STRIPE_MONTHLY_PRICE_ID`: Price ID for monthly service plan
+
+#### External Services
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`: Google Maps API key
+- `RESEND_API_KEY`: Resend API key for email
+- `AWS_ACCESS_KEY_ID`: AWS access key
+- `AWS_SECRET_ACCESS_KEY`: AWS secret key
+- `AWS_REGION`: AWS region
+- `AWS_BUCKET_NAME`: S3 bucket name
+
+#### Other Settings
+- `REDIS_URL`: Redis connection URL (for caching)
+- `REDIS_TOKEN`: Redis authentication token
+- `ADMIN_EMAIL`: Admin notification email
+- `CRON_SECRET` and `CRON_API_KEY`: For scheduled jobs authentication
+
+### Setting Up API Keys
+
+1. **Stripe**:
+   - Create a Stripe account at https://stripe.com
+   - Get API keys from Dashboard → Developers → API keys
+   - Create webhook endpoint in Dashboard → Developers → Webhooks
+   
+2. **Google Maps**:
+   - Create a project in Google Cloud Console
+   - Enable Maps JavaScript API and Geocoding API
+   - Create API key with appropriate restrictions
+   
+3. **Resend**:
+   - Sign up at https://resend.com
+   - Create API key from dashboard
+   
+4. **AWS S3**:
+   - Create AWS account
+   - Create S3 bucket with proper CORS configuration
+   - Create IAM user with S3 access
+   - Get access key and secret key
 
 ## Database Configuration
 
