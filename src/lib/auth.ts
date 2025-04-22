@@ -5,8 +5,13 @@ import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const REFRESH_SECRET = process.env.REFRESH_SECRET || 'your-refresh-secret-key';
+// Ensure these environment variables are set
+const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
+
+if (!JWT_SECRET || !REFRESH_SECRET) {
+  throw new Error('JWT_SECRET and REFRESH_SECRET must be set in environment variables');
+}
 
 // Generate a device fingerprint
 function generateFingerprint() {
@@ -109,21 +114,14 @@ export async function login(email: string, password: string, fingerprint?: strin
   return { accessToken, refreshToken, user, deviceFingerprint };
 }
 
+// Safe to use in Edge environment
 export async function verifyToken(token: string) {
+  if (!token) return null;
+  
   try {
-    console.log('Verifying token with secret:', JWT_SECRET.substring(0, 10) + '...');
-    const { payload } = await jwtVerify(
-      token,
-      new TextEncoder().encode(JWT_SECRET),
-      { algorithms: ['HS256'] }
-    );
-    
-    console.log('Token verified successfully:', {
-      id: payload.id,
-      role: payload.role,
-      exp: payload.exp
-    });
-    
+    // Use TextEncoder for compatibility with all environments
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret, { algorithms: ['HS256'] });
     return payload;
   } catch (error) {
     console.error('Token verification failed:', error);

@@ -10,41 +10,52 @@ const WINDOW_MS = process.env.NODE_ENV === 'development'
   ? 10 * 1000 // 10 seconds in development
   : process.env.RATE_LIMIT_WINDOW ? parseInt(process.env.RATE_LIMIT_WINDOW) : 60 * 1000 // 1 minute
 
-// In-memory store for rate limiting
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
+// In-memory store for rate limiting that works in Edge Runtime
+// Note: This is per-instance memory, so it will reset on deployments
+// and won't be shared across multiple instances
+const rateLimitMap = new Map<string, { count: number; resetTime: number }>()
 
-export async function rateLimit(req: NextRequest) {
-  const ip = req.ip || 'unknown'
-  const now = Date.now()
-
-  // Get or initialize rate limit data
-  const rateLimitData = rateLimitStore.get(ip) || { count: 0, resetTime: now + WINDOW_MS }
-
-  // Reset if window has passed
-  if (now > rateLimitData.resetTime) {
-    rateLimitData.count = 0
-    rateLimitData.resetTime = now + WINDOW_MS
-  }
-
-  // Increment count
-  rateLimitData.count++
-  rateLimitStore.set(ip, rateLimitData)
-
-  // Check if limit exceeded
-  if (rateLimitData.count > RATE_LIMIT) {
+export const rateLimit = {
+  async limit(ip: string): Promise<{ success: boolean; limit: number; remaining: number }> {
+    const now = Date.now()
+    
+    // Get or initialize rate limit data
+    const rateLimitData = rateLimitMap.get(ip) || { count: 0, resetTime: now + WINDOW_MS }
+    
+    // Reset if window has passed
+    if (now > rateLimitData.resetTime) {
+      rateLimitData.count = 0
+      rateLimitData.resetTime = now + WINDOW_MS
+    }
+    
+    // Increment count
+    rateLimitData.count++
+    rateLimitMap.set(ip, rateLimitData)
+    
+    // Check if limit exceeded
+    const success = rateLimitData.count <= RATE_LIMIT
+    const remaining = Math.max(0, RATE_LIMIT - rateLimitData.count)
+    
+    return { 
+      success, 
+      limit: RATE_LIMIT, 
+      remaining 
+    }
+  },
+  
+  // Helper to generate a standard rate limit response
+  createLimitExceededResponse(retryAfter: number) {
     return NextResponse.json(
       { 
         error: 'Too many requests',
-        retryAfter: Math.ceil((rateLimitData.resetTime - now) / 1000)
+        retryAfter: retryAfter
       },
       { 
         status: 429,
         headers: {
-          'Retry-After': Math.ceil((rateLimitData.resetTime - now) / 1000).toString()
+          'Retry-After': retryAfter.toString()
         }
       }
     )
   }
-
-  return null
 } 

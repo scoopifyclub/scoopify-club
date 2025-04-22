@@ -3,13 +3,7 @@ import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { securityHeaders } from './middleware/security-headers'
-
-// Define enum directly to avoid Prisma Edge Runtime issues
-const ROLES = {
-  ADMIN: 'ADMIN',
-  EMPLOYEE: 'EMPLOYEE',
-  CUSTOMER: 'CUSTOMER'
-};
+import { UserRole } from '@prisma/client'
 
 // Valid roles in the system
 const VALID_ROLES = ['ADMIN', 'EMPLOYEE', 'CUSTOMER'] as const;
@@ -65,11 +59,8 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    // Get token from cookies - check all possible token cookie names
-    const accessToken = request.cookies.get('accessToken')?.value;
-    const adminToken = request.cookies.get('adminToken')?.value;
-    const token = accessToken || adminToken;
-    
+    // Get token from cookies
+    const token = request.cookies.get('token')?.value;
     console.log('Token found:', !!token);
 
     if (!token) {
@@ -82,44 +73,39 @@ export async function middleware(request: NextRequest) {
     if (!payload) {
       console.log('Token verification failed');
       const response = createRedirectResponse(request, getLoginPath(pathname), 'Token verification failed');
-      if (accessToken) response.cookies.delete('accessToken');
-      if (adminToken) response.cookies.delete('adminToken');
+      response.cookies.delete('token');
       return response;
     }
 
     // Extract user role from token payload
-    const userRole = payload.role as string;
+    const userRole = payload.role;
     if (!userRole || !VALID_ROLES.includes(userRole as any)) {
       console.log('Invalid role in token');
       return createRedirectResponse(request, getLoginPath(pathname), 'Invalid role');
     }
 
     // Check if user has access to the requested path
-    if (pathname.startsWith('/admin') && userRole !== ROLES.ADMIN) {
+    if (pathname.startsWith('/admin') && userRole !== UserRole.ADMIN) {
       console.log('Unauthorized access to admin area');
       return createRedirectResponse(request, getLoginPath(pathname), 'Unauthorized access');
     }
 
-    if (pathname.startsWith('/employee') && userRole !== ROLES.EMPLOYEE) {
+    if (pathname.startsWith('/employee') && userRole !== UserRole.EMPLOYEE) {
       console.log('Unauthorized access to employee area');
       return createRedirectResponse(request, getLoginPath(pathname), 'Unauthorized access');
     }
 
-    if (pathname.startsWith('/customer') && userRole !== ROLES.CUSTOMER) {
+    if (pathname.startsWith('/customer') && userRole !== UserRole.CUSTOMER) {
       console.log('Unauthorized access to customer area');
       return createRedirectResponse(request, getLoginPath(pathname), 'Unauthorized access');
     }
 
     // Apply rate limiting
-    // Get client IP address from headers
-    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0] ||
-                    request.headers.get('x-real-ip') ||
-                    '127.0.0.1';
-    
-    const { success, remaining } = await rateLimit.limit(clientIp);
+    const ip = request.ip ?? '127.0.0.1';
+    const { success, remaining } = await rateLimit.limit(ip);
     
     if (!success) {
-      console.log('Rate limit exceeded for IP:', clientIp);
+      console.log('Rate limit exceeded for IP:', ip);
       // Calculate retry after in seconds (1 minute)
       const retryAfter = 60;
       return rateLimit.createLimitExceededResponse(retryAfter);
@@ -128,7 +114,7 @@ export async function middleware(request: NextRequest) {
     // Apply security headers
     const response = NextResponse.next();
     Object.entries(securityHeaders).forEach(([key, value]) => {
-      response.headers.set(key, String(value));
+      response.headers.set(key, value);
     });
 
     return response;
@@ -148,4 +134,4 @@ export const config = {
     '/api/employee/:path*',
     '/api/customer/:path*',
   ],
-} 
+}
