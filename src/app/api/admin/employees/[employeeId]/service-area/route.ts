@@ -1,16 +1,19 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 
 // Define the PATCH handler with proper Next.js API route typing
-export async function PATCH(request, context) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { employeeId: string } }
+) {
   try {
-    // Extract the employeeId from context.params
-    const { employeeId } = context.params;
+    // Extract the employeeId from params
+    const { employeeId } = params;
 
     // Get access token from cookies
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const accessToken = cookieStore.get('accessToken')?.value;
 
     if (!accessToken) {
