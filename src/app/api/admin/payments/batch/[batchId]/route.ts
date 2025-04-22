@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 
 // GET - Retrieve a specific payment batch by ID
@@ -8,12 +8,20 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { batchId: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { role } = await validateUser(accessToken, 'ADMIN');
+    
+    if (role !== 'ADMIN') {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const batchId = params.batchId;
 
     const batch = await prisma.paymentBatch.findUnique({
@@ -82,12 +90,20 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { batchId: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { role } = await validateUser(accessToken, 'ADMIN');
+    
+    if (role !== 'ADMIN') {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const batchId = params.batchId;
     const body = await request.json();
 
@@ -133,12 +149,20 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { batchId: string } }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { role } = await validateUser(accessToken, 'ADMIN');
+    
+    if (role !== 'ADMIN') {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const batchId = params.batchId;
     const releasePayments = request.nextUrl.searchParams.get("releasePayments") === "true";
 

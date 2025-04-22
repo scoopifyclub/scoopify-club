@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { logPaymentEvent } from '@/lib/payment-audit';
 import { logger } from '@/lib/logger';
@@ -8,25 +8,33 @@ import { logger } from '@/lib/logger';
 // GET /api/admin/payments/batch
 // Get all payment batches with optional filters
 export async function GET(request: Request) {
-  // Verify user is admin
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const status = searchParams.get("status");
-  const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "10");
-  const skip = (page - 1) * limit;
-
-  // Build the query
-  const query: any = {};
-  if (status) {
-    query.status = status;
-  }
-
   try {
+    // Verify user is admin
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { userId, role } = await validateUser(accessToken, 'ADMIN');
+    
+    if (role !== 'ADMIN') {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get("status");
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const skip = (page - 1) * limit;
+
+    // Build the query
+    const query: any = {};
+    if (status) {
+      query.status = status;
+    }
+
     // Get total count for pagination
     const totalCount = await prisma.paymentBatch.count({
       where: query
@@ -93,13 +101,21 @@ export async function GET(request: Request) {
 // POST /api/admin/payments/batch
 // Create a new payment batch
 export async function POST(request: Request) {
-  // Verify user is admin
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "ADMIN") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   try {
+    // Verify user is admin
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { userId, role } = await validateUser(accessToken, 'ADMIN');
+    
+    if (role !== 'ADMIN') {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const data = await request.json();
     const { name, description } = data;
 
@@ -116,7 +132,7 @@ export async function POST(request: Request) {
         name,
         description,
         status: "DRAFT",
-        createdById: session.user.id
+        createdById: userId
       }
     });
 
@@ -134,12 +150,17 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     // Verify admin permission
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { userId, role } = await validateUser(accessToken, 'ADMIN');
+    
+    if (role !== 'ADMIN') {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { batchId, scheduledDate, addPaymentIds, removePaymentIds, status, notes } = await request.json();
@@ -229,9 +250,9 @@ export async function PUT(request: Request) {
             {
               batchId,
               scheduledDate: updatedBatch.scheduledDate,
-              adminId: session.user.id
+              adminId: userId
             },
-            session.user.id
+            userId
           );
         }
       }
@@ -256,9 +277,9 @@ export async function PUT(request: Request) {
             'BATCH_REMOVED',
             {
               batchId,
-              adminId: session.user.id
+              adminId: userId
             },
-            session.user.id
+            userId
           );
         }
       }

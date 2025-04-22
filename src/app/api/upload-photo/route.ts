@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import prisma from "@/lib/prisma";
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION!,
@@ -14,13 +14,20 @@ const s3Client = new S3Client({
 });
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  
-  if (!session || session.user.role !== 'EMPLOYEE') {
-    return new NextResponse('Unauthorized', { status: 401 });
-  }
-
   try {
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    const { role } = await validateUser(accessToken, 'EMPLOYEE');
+    
+    if (role !== 'EMPLOYEE' && role !== 'ADMIN') {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const type = formData.get('type') as string;
