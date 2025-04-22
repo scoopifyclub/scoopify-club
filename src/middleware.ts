@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
-import { edgeRateLimit } from '@/lib/edge-rate-limit'
 import { securityHeaders } from './middleware/security-headers'
-import { getToken } from 'next-auth/jwt'
 
 // Define enum directly to avoid Prisma Edge Runtime issues
 const ROLES = {
@@ -61,11 +59,6 @@ const SKIP_PATHS = [
   '/scripts'
 ];
 
-// Mock next-auth/jwt for testing
-if (process.env.NODE_ENV === 'test') {
-  jest.mock('next-auth/jwt')
-}
-
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
   
@@ -94,17 +87,13 @@ export async function middleware(request: NextRequest) {
   // Skip rate limiting for auth-related paths
   if (!path.includes('/auth/') && !path.includes('/session')) {
     // For API routes, we can safely use the database-backed rate limiter
-    // For other routes that run in Edge Runtime, use the in-memory limiter
     if (path.startsWith('/api/')) {
       try {
         rateLimitResult = await rateLimit.limit(request)
       } catch (error) {
-        console.error('Error with DB rate limiter, falling back to in-memory', error)
-        rateLimitResult = await edgeRateLimit.limit(request)
+        console.error('Error with rate limiter', error)
+        // If rate limiting fails, we'll just continue without it
       }
-    } else {
-      // For non-API routes that run in Edge Runtime
-      rateLimitResult = await edgeRateLimit.limit(request)
     }
     
     if (rateLimitResult) {
