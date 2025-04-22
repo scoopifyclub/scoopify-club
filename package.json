@@ -1,6 +1,6 @@
 {
   "name": "scoopify-club",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A comprehensive system for managing dog waste removal services, employee scheduling, and customer subscriptions.",
   "private": true,
   "prisma": {
@@ -89,8 +89,6 @@
     "@types/leaflet": "^1.9.17",
     "@types/pdfkit": "^0.13.9",
     "@types/uuid": "^10.0.0",
-    "@upstash/ratelimit": "^2.0.5",
-    "@upstash/redis": "^1.34.8",
     "@vercel/kv": "^3.0.0",
     "@vercel/postgres": "^0.10.0",
     "bcrypt": "^5.1.1",
