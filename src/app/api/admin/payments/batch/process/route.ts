@@ -6,7 +6,7 @@ import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { logPaymentEvent } from '@/lib/payment-audit';
 import { logger } from '@/lib/logger';
-import stripe from '@/lib/stripe';
+import { stripe } from '@/lib/stripe';
 
 // POST: Process a batch of payments
 export async function POST(request: Request) {

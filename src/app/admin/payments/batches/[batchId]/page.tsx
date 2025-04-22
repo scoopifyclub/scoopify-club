@@ -47,7 +47,13 @@ const typeColors = {
   REFUND: "bg-orange-100 text-orange-800",
 };
 
-export default function BatchDetailPage({ params }: { params: { batchId: string } }) {
+interface BatchDetailPageProps {
+  params: {
+    batchId: string;
+  };
+}
+
+export default function BatchDetailPage({ params }: BatchDetailPageProps) {
   const [batch, setBatch] = useState(null);
   const [payments, setPayments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);

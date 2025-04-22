@@ -48,4 +48,31 @@ const Breadcrumbs = React.forwardRef<HTMLDivElement, BreadcrumbsProps>(
 )
 Breadcrumbs.displayName = "Breadcrumbs"
 
-export { Breadcrumbs } 
+// Add BreadcrumbItem component that's used in the pages
+interface BreadcrumbItemProps extends React.HTMLAttributes<HTMLLIElement> {
+  href?: string;
+  children: React.ReactNode;
+}
+
+const BreadcrumbItem = React.forwardRef<HTMLLIElement, BreadcrumbItemProps>(
+  ({ className, href, children, ...props }, ref) => {
+    return (
+      <li
+        ref={ref}
+        className={cn("inline-flex items-center", className)}
+        {...props}
+      >
+        {href ? (
+          <Link href={href} className="hover:text-foreground transition-colors">
+            {children}
+          </Link>
+        ) : (
+          <span className="text-foreground font-medium">{children}</span>
+        )}
+      </li>
+    )
+  }
+)
+BreadcrumbItem.displayName = "BreadcrumbItem"
+
+export { Breadcrumbs, BreadcrumbItem } 
