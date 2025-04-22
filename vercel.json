@@ -22,19 +22,13 @@
       "schedule": "0 4 * * *"
     }
   ],
-  "buildCommand": "prisma generate && next build",
+  "buildCommand": "prisma generate && prisma migrate deploy && next build",
   "installCommand": "npm install",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "regions": ["iad1"],
-  "env": {
-    "DATABASE_URL": "@database_url",
-    "DIRECT_URL": "@direct_url",
-    "NEXT_PUBLIC_APP_URL": "https://scoopify-club.vercel.app",
-    "NEXTAUTH_URL": "https://scoopify-club.vercel.app",
-    "NEXTAUTH_SECRET": "@nextauth_secret",
-    "JWT_SECRET": "@jwt_secret",
-    "REFRESH_SECRET": "106ab6fa744d76903362930103c6a69ce52d5e8414aac11982225ebb6f270fb00d1622c5eaee66320a7a486f05a2736946ffb880bf187b2b0c6581121790630c",
-    "JWT_REFRESH_SECRET": "@jwt_refresh_secret"
+  "github": {
+    "enabled": true,
+    "silent": false
   }
 } 
