@@ -3,10 +3,17 @@ import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 
+// Define a type alias for the params
+interface Params {
+  params: {
+    employeeId: string;
+  };
+}
+
 // Define the PATCH handler with proper Next.js API route typing
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { employeeId: string } }
+  { params }: Params
 ) {
   try {
     // Extract the employeeId from params
