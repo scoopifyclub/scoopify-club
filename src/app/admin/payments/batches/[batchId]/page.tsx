@@ -2,12 +2,10 @@ import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import BatchDetailClient from './BatchDetailClient';
 
-// Define the component with direct type annotation instead of a separate interface
-export default function BatchDetailPage({ 
-  params 
-}: { 
-  params: { batchId: string } 
-}) {
+export default function BatchDetailPage(props) {
+  // Extract batchId from props
+  const { batchId } = props.params;
+  
   return (
     <Suspense fallback={
       <div className="container py-6">
@@ -16,7 +14,7 @@ export default function BatchDetailPage({
         </div>
       </div>
     }>
-      <BatchDetailClient batchId={params.batchId} />
+      <BatchDetailClient batchId={batchId} />
     </Suspense>
   );
 } 

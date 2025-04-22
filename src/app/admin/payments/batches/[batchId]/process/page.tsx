@@ -1,15 +1,13 @@
 import { Suspense } from "react";
 import BatchProcessClient from "./BatchProcessClient";
 
-// Define the component with direct type annotation
-export default function ProcessBatchPage({ 
-  params 
-}: { 
-  params: { batchId: string } 
-}) {
+export default function ProcessBatchPage(props) {
+  // Extract batchId from props
+  const { batchId } = props.params;
+  
   return (
     <Suspense fallback={<div className="container py-6">Loading...</div>}>
-      <BatchProcessClient batchId={params.batchId} />
+      <BatchProcessClient batchId={batchId} />
     </Suspense>
   );
 } 
