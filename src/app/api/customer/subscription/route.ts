@@ -2,9 +2,20 @@ import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function GET(request: Request) {
   try {
+    // Only apply rate limiting in production
+    if (process.env.NODE_ENV === 'production') {
+      const rateLimitResult = await rateLimit.limit(request);
+      if (rateLimitResult) {
+        return rateLimitResult;
+      }
+    } else {
+      console.log('Rate limiting disabled for subscription endpoint in development mode');
+    }
+
     const cookieStore = await cookies();
     const token = cookieStore.get('accessToken')?.value;
     if (!token) {

@@ -8,6 +8,21 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertCircle } from 'lucide-react'
 
+// Helper function to generate a stable fingerprint for the device
+function getDeviceFingerprint() {
+  // Check if we already have a fingerprint in localStorage
+  const existingFingerprint = localStorage.getItem('deviceFingerprint');
+  if (existingFingerprint) {
+    return existingFingerprint;
+  }
+  
+  // Generate a new fingerprint and save it
+  const newFingerprint = 'web-' + Math.random().toString(36).substring(2, 15) + 
+                        Math.random().toString(36).substring(2, 15);
+  localStorage.setItem('deviceFingerprint', newFingerprint);
+  return newFingerprint;
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -20,84 +35,72 @@ export default function LoginPage() {
   })
 
   useEffect(() => {
-    // Add debug info to check existing cookies
-    const checkAuth = async () => {
-      // Check if we're coming from a logout
-      const isFromLogout = sessionStorage.getItem('justLoggedOut');
-      if (isFromLogout) {
-        // Clear the flag
-        sessionStorage.removeItem('justLoggedOut');
-        setDebugInfo('Just logged out, showing login form');
-        return;
-      }
+    // Check if we're coming from a logout
+    const isFromLogout = sessionStorage.getItem('justLoggedOut');
+    if (isFromLogout) {
+      sessionStorage.removeItem('justLoggedOut');
+      setDebugInfo('Just logged out, showing login form');
+      return;
+    }
 
-      const cookies = document.cookie.split(';');
-      const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken=')) || 
-                              cookies.find(cookie => cookie.trim().startsWith('accessToken_client='));
-      
-      if (accessTokenCookie) {
-        // Verify the token is still valid
-        try {
-          console.log('Checking existing token validity...');
-          const response = await fetch('/api/auth/session', {
-            credentials: 'include'
-          });
+    // Check for existing session
+    const checkSession = async () => {
+      try {
+        setDebugInfo('Checking for existing session...');
+        const response = await fetch('/api/auth/session', {
+          credentials: 'include'
+        });
+        
+        setDebugInfo(`Session check response status: ${response.status}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setDebugInfo(`Session data: ${JSON.stringify(data)}`);
           
-          if (!response.ok) {
-            console.log('Token invalid, showing login form');
-            setDebugInfo('Token invalid, please log in');
-            return;
+          if (data.user) {
+            // Don't redirect automatically if we have a callbackUrl query param
+            // This prevents redirect loops if the destination page has auth issues
+            const callbackUrl = searchParams.get('callbackUrl');
+            
+            if (callbackUrl) {
+              setDebugInfo(`Found active session, but not redirecting automatically because callbackUrl=${callbackUrl} is present. This prevents redirect loops.`);
+              return;
+            }
+            
+            // Determine redirect path based on user role
+            let redirectPath = '/customer/dashboard';
+            if (data.user.role === 'EMPLOYEE') {
+              redirectPath = '/employee/dashboard';
+            } else if (data.user.role === 'ADMIN') {
+              redirectPath = '/admin/dashboard';
+            }
+            
+            // Create a debugging button instead of automatic redirect
+            setDebugInfo(`Found active session for ${data.user.email} (${data.user.role}). You can click "Continue to Dashboard" to proceed.`);
+            
+            // Add a continue button that users can click
+            document.getElementById('continue-button')?.classList.remove('hidden');
+            
+            // Store the redirect path for the continue button to use
+            sessionStorage.setItem('dashboardRedirectPath', redirectPath);
+          } else {
+            setDebugInfo('Session exists but no user data found, showing login form');
           }
-
-          // Safely parse the JSON response
-          let data;
-          try {
-            const text = await response.text();
-            data = text ? JSON.parse(text) : {};
-            console.log('Session data:', data);
-          } catch (parseError) {
-            console.error('Error parsing session response:', parseError);
-            setDebugInfo('Error parsing session data, please log in');
-            return;
-          }
-
-          console.log('User already has a valid token, redirecting to dashboard');
-          
-          // Determine redirect path based on user role
-          let redirectPath = '/customer/dashboard'; // default
-          if (data?.user?.role === 'EMPLOYEE') {
-            redirectPath = '/employee/dashboard';
-          } else if (data?.user?.role === 'ADMIN') {
-            redirectPath = '/admin/dashboard';
-          }
-          
-          setDebugInfo(`Found valid token for ${data?.user?.role || 'user'}, redirecting to ${redirectPath}`);
-          
-          // Store token in sessionStorage as a backup
-          try {
-            const tokenValue = accessTokenCookie.split('=')[1].trim();
-            sessionStorage.setItem('accessToken', tokenValue);
-          } catch (err) {
-            console.error('Failed to store token in sessionStorage:', err);
-          }
-          
-          // Use window location for hard redirect instead of router
-          window.location.href = redirectPath;
-        } catch (error) {
-          console.error('Error verifying token:', error);
-          setDebugInfo('Error verifying token, please log in');
+        } else {
+          setDebugInfo(`Session check failed with status ${response.status}, showing login form`);
         }
-      } else {
-        setDebugInfo('No access token found, showing login form');
+      } catch (error) {
+        console.error('Error checking session:', error);
+        setDebugInfo(`Error checking session: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     };
-    
-    checkAuth();
+
+    checkSession();
 
     if (searchParams.get('signup') === 'success') {
       setError('Account created successfully! Please log in.')
     }
-  }, [searchParams, router]);
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -106,222 +109,93 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('Form submitted with data:', formData)
     setLoading(true)
     setError(null)
     setDebugInfo('Attempting login...')
 
     try {
-      // For admin login, only use NextAuth
+      // Get consistent device fingerprint
+      const deviceFingerprint = getDeviceFingerprint();
+      setDebugInfo(`Using device fingerprint: ${deviceFingerprint.substring(0, 8)}...`);
+      
+      // For admin login, use NextAuth
       if (formData.email === 'admin@scoopify.club') {
-        console.log('Admin login detected, attempting login')
-        setDebugInfo('Admin login detected, attempting login')
-        
-        try {
-          // First try the dedicated admin login endpoint
-          const adminResponse = await fetch('/api/admin/login', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(formData),
-            credentials: 'include',
-          });
-          
-          if (adminResponse.ok) {
-            const data = await adminResponse.json();
-            console.log('Admin login successful via admin endpoint:', data);
-            setDebugInfo('Admin login successful via admin endpoint');
-            
-            // Redirect to admin dashboard
-            window.location.href = '/admin/dashboard';
-            return;
-          }
-          
-          console.log('Admin endpoint login failed, trying NextAuth');
-          setDebugInfo('Admin endpoint login failed, trying NextAuth');
-          
-          // Fallback to NextAuth if admin login fails
-          const callbackUrl = searchParams.get('callbackUrl') || '/admin/dashboard'
-          const { signIn } = await import('next-auth/react')
-          
-          setDebugInfo('Signing in with NextAuth credentials provider...')
-          const result = await signIn('credentials', {
-            redirect: false,
-            email: formData.email,
-            password: formData.password,
-            callbackUrl
-          })
-          
-          console.log('NextAuth login result for admin:', result)
-          
-          if (result?.error) {
-            console.error('Admin login failed:', result.error)
-            setError('Invalid admin credentials')
-            return
-          }
-          
-          // Admin login successful
-          console.log('Admin login successful, redirecting to:', result?.url)
-          setDebugInfo('Admin login successful, redirecting to admin dashboard')
-          
-          // Use a slight delay to ensure NextAuth has time to set cookies
-          setTimeout(() => {
-            // Force a hard navigation to the admin dashboard
-            window.location.href = result?.url || '/admin/dashboard'
-          }, 500)
-          return
-        } catch (error) {
-          console.error('Error during admin login:', error)
-          setError('An error occurred during admin login. Please try again.')
+        setDebugInfo('Admin login detected, using NextAuth...');
+        const { signIn } = await import('next-auth/react')
+        const result = await signIn('credentials', {
+          redirect: false,
+          email: formData.email,
+          password: formData.password,
+          callbackUrl: '/admin/dashboard'
+        })
+
+        if (result?.error) {
+          setError('Invalid admin credentials')
+          setDebugInfo(`Admin login failed: ${result.error}`);
           return
         }
+
+        setDebugInfo('Admin login successful, redirecting...');
+        window.location.href = '/admin/dashboard'
+        return
       }
-      
-      // For non-admin users, first try custom endpoints
-      console.log('Attempting customer login...')
-      // Try customer login first
-      let response = await fetch('/api/auth/customer-login', {
+
+      // For regular users, use the signin endpoint
+      setDebugInfo(`Regular login for ${formData.email}, using signin endpoint...`);
+      const response = await fetch('/api/auth/signin', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
-        credentials: 'include', // Important for cookies
-      }).catch(err => {
-        console.error('Fetch error:', err)
-        throw new Error('Network error occurred')
+        body: JSON.stringify({
+          ...formData,
+          deviceFingerprint
+        }),
+        credentials: 'include',
       })
 
-      if (!response) {
-        throw new Error('No response from server')
-      }
-
-      let data = await response.json().catch(err => {
-        console.error('JSON parse error:', err)
-        throw new Error('Failed to parse server response')
-      })
+      setDebugInfo(`Signin response status: ${response.status}`);
       
-      console.log('Customer login response:', { status: response.status, data })
-      setDebugInfo(`Login response: ${response.status}, checking cookies...`)
-
-      // If customer login fails with 403, try employee login
-      if (response.status === 403) {
-        console.log('Not a customer, trying employee login...')
-        response = await fetch('/api/auth/employee-login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(formData),
-          credentials: 'include', // Important for cookies
-        }).catch(err => {
-          console.error('Employee login fetch error:', err)
-          throw new Error('Network error occurred during employee login')
-        })
-
-        if (!response) {
-          throw new Error('No response from server during employee login')
-        }
-
-        data = await response.json().catch(err => {
-          console.error('Employee login JSON parse error:', err)
-          throw new Error('Failed to parse server response during employee login')
-        })
-        console.log('Employee login response:', { status: response.status, data })
-      }
-
       if (!response.ok) {
-        console.error('Login failed:', data)
+        const data = await response.json()
         if (response.status === 429) {
           setError('Too many login attempts. Please try again later.')
+          setDebugInfo('Rate limit exceeded');
         } else {
-          setError(data.message || data.error || 'Invalid email or password')
+          setError(data.error || 'Invalid email or password')
+          setDebugInfo(`Login error: ${data.error || 'Unknown error'}`);
         }
         return
       }
 
-      console.log('Login successful, response data:', data)
+      const data = await response.json()
+      setDebugInfo(`Login successful for user: ${data.user.email} (${data.user.role})`);
       
-      // Display cookie info for debugging
-      const cookies = document.cookie.split(';');
-      const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken=')) ||
-                              cookies.find(cookie => cookie.trim().startsWith('accessToken_client='));
-      const refreshTokenCookie = cookies.find(cookie => cookie.trim().startsWith('refreshToken=')) ||
-                              cookies.find(cookie => cookie.trim().startsWith('refreshToken_client='));
-      
-      setDebugInfo(`Login successful. Token present: ${!!accessTokenCookie}. Cookie values: ${cookies.map(c => c.trim()).join(', ')}. Setting redirect...`)
-
-      // Check if we have the necessary data
-      if (!data.user || !data.user.role) {
-        console.error('Missing user data or role:', data)
-        setError('Invalid server response')
-        return
-      }
-
-      console.log('User role:', data.user.role)
-      
-      // Manually set cookies if they're in the response but not set automatically
-      if (data.accessToken && !accessTokenCookie) {
-        console.log('Manually setting accessToken cookie');
-        document.cookie = `accessToken_client=${data.accessToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
-        
-        // Also store in sessionStorage as a fallback
-        try {
-          sessionStorage.setItem('accessToken', data.accessToken);
-          console.log('Token stored in sessionStorage');
-        } catch (err) {
-          console.error('Failed to store token in sessionStorage:', err);
-        }
-      }
-      
-      if (data.refreshToken && !refreshTokenCookie) {
-        console.log('Manually setting refreshToken cookie');
-        document.cookie = `refreshToken_client=${data.refreshToken}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`;
-        
-        // Also store in sessionStorage as a fallback
-        try {
-          sessionStorage.setItem('refreshToken', data.refreshToken);
-          console.log('Refresh token stored in sessionStorage');
-        } catch (err) {
-          console.error('Failed to store refresh token in sessionStorage:', err);
-        }
-      }
-      
-      // Determine redirect path with updated paths
-      let redirectPath = '/customer/dashboard' // default for customers
+      // Determine redirect path based on user role
+      let redirectPath = '/customer/dashboard'
       if (data.user.role === 'EMPLOYEE') {
         redirectPath = '/employee/dashboard'
       } else if (data.user.role === 'ADMIN') {
-        // For admin users that somehow made it here instead of the NextAuth flow
-        // Initialize NextAuth session before redirecting
-        try {
-          console.log('Admin user detected, initializing NextAuth session');
-          const { signIn } = await import('next-auth/react');
-          await signIn('credentials', {
-            redirect: false,
-            email: formData.email,
-            password: formData.password
-          });
-        } catch (err) {
-          console.error('Error initializing NextAuth session for admin:', err);
-        }
         redirectPath = '/admin/dashboard'
       }
-      
-      console.log('Redirecting to:', redirectPath)
-      
-      // Force a hard navigation immediately
-      window.location.href = redirectPath;
-      
+
+      setDebugInfo(`Redirecting to ${redirectPath}...`);
+      window.location.href = redirectPath
     } catch (error) {
       console.error('Login error:', error)
-      setError(error instanceof Error ? error.message : 'An error occurred during login')
-      setDebugInfo(`Login error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      setError('An error occurred during login. Please try again.')
+      setDebugInfo(`Login exception: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false)
     }
   }
+
+  // Add a continue to dashboard handler 
+  const continueToDashboard = () => {
+    const redirectPath = sessionStorage.getItem('dashboardRedirectPath') || '/customer/dashboard';
+    setDebugInfo(`Manually continuing to ${redirectPath}...`);
+    window.location.href = redirectPath;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
@@ -357,6 +231,16 @@ export default function LoginPage() {
                 <span className="block sm:inline">Debug: {debugInfo}</span>
               </div>
             )}
+
+            <div id="continue-button" className="hidden">
+              <Button
+                type="button"
+                onClick={continueToDashboard}
+                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              >
+                Continue to Dashboard
+              </Button>
+            </div>
 
             <div>
               <Label htmlFor="email">Email address</Label>
@@ -400,7 +284,7 @@ export default function LoginPage() {
               </Button>
             </div>
 
-            <div className="text-sm text-center mt-4">
+            <div className="text-sm text-gray-500">
               <p>Test Accounts:</p>
               <p>Admin: admin@scoopify.club / admin123</p>
               <p>Customer: demo@example.com / demo123</p>

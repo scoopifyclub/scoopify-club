@@ -3,161 +3,80 @@ import prisma from "@/lib/prisma";
 import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
-import { Ratelimit } from '@upstash/ratelimit';
-import { Redis } from '@upstash/redis';
 import { getCache, setCache, generateCacheKey, invalidateCache } from '@/lib/cache';
+import { rateLimit } from '@/lib/rate-limit';
 
-// Initialize rate limiter only if Redis is properly configured
-let ratelimit = null;
-
-// Check if Redis URL is configured correctly
-if (process.env.REDIS_URL && process.env.REDIS_TOKEN) {
+// Helper function to get token and validate
+async function getTokenAndValidate(request: Request, role = 'CUSTOMER') {
+  // Try header first
+  let token = request.headers.get('authorization')?.split(' ')[1];
+  
+  // If no token in header, try cookies
+  if (!token) {
+    const cookieStore = await cookies();
+    token = cookieStore.get('accessToken')?.value || cookieStore.get('accessToken_client')?.value;
+  }
+  
+  // Still no token
+  if (!token) {
+    console.log('No token found in request headers or cookies');
+    throw new Error('Unauthorized');
+  }
+  
+  // Validate the token
   try {
-    // Only initialize Upstash Redis with HTTPS URLs
-    if (process.env.REDIS_URL.startsWith('https://')) {
-      const redis = new Redis({
-        url: process.env.REDIS_URL,
-        token: process.env.REDIS_TOKEN,
-      });
-      
-      ratelimit = new Ratelimit({
-        redis,
-        limiter: Ratelimit.slidingWindow(10, '1 m'),
-      });
-    } else {
-      console.log('Local Redis URL detected. Skipping Upstash Redis initialization for payments rate limiting.');
-    }
+    return await validateUser(token, role);
   } catch (error) {
-    console.error('Redis initialization error in payments route:', error);
+    console.error('Token validation error:', error);
+    throw error;
   }
 }
 
 export async function GET(request: Request) {
   try {
-    // Rate limiting only if configured
-    if (ratelimit) {
-      try {
-        const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
-        const { success } = await ratelimit.limit(ip);
-        if (!success) {
-          return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-        }
-      } catch (error) {
-        // Log error but continue processing the request
-        console.error('Rate limiting error in payments GET endpoint:', error);
-        // Don't return - let the request proceed without rate limiting
-      }
-    }
-
-    const cookieStore = await cookies();
-    const accessToken = await cookieStore.get('accessToken')?.value;
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { userId, role } = await validateUser(accessToken);
-
-    // If admin, get customerId from query params
-    let customerId;
-    if (role === 'ADMIN') {
-      const { searchParams } = new URL(request.url);
-      customerId = searchParams.get('customerId');
-      if (!customerId) {
-        return NextResponse.json({ error: 'Customer ID required for admin access' }, { status: 400 });
+    // Only apply rate limiting in production
+    if (process.env.NODE_ENV === 'production') {
+      const rateLimitResult = await rateLimit.limit(request);
+      if (rateLimitResult) {
+        return rateLimitResult;
       }
     } else {
-      // For regular customers, get their own customer record
-      const customer = await prisma.customer.findFirst({
-        where: { userId },
-        select: { id: true }
-      });
+      console.log('Rate limiting disabled for payments endpoint in development mode');
+    }
 
-      if (!customer) {
-        return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-      }
-      customerId = customer.id;
+    // Get and validate token
+    const { userId, customerId, customer } = await getTokenAndValidate(request, 'CUSTOMER');
+    console.log('Token validated, userId:', userId, 'customerId:', customerId);
+
+    if (!customer) {
+      return NextResponse.json({ error: 'Customer record not found' }, { status: 404 });
     }
 
     // Get query parameters
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const status = searchParams.get('status');
-    const startDate = searchParams.get('startDate');
-    const endDate = searchParams.get('endDate');
+    const url = new URL(request.url);
+    const limit = parseInt(url.searchParams.get('limit') || '50');
 
-    // Generate cache key
-    const cacheKey = generateCacheKey('payments', {
-      customerId,
-      page,
-      limit,
-      status,
-      startDate,
-      endDate,
+    // Fetch the payments
+    console.log('Fetching payments for customer:', customer.id);
+    const payments = await prisma.payment.findMany({
+      where: {
+        customerId: customer.id,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      take: limit,
     });
+    console.log(`Found ${payments.length} payments`);
 
-    // Try to get from cache
-    const cachedData = await getCache(cacheKey);
-    if (cachedData) {
-      return NextResponse.json(cachedData);
-    }
-
-    // Build where clause
-    const where: any = { customerId };
-    if (status) where.status = status;
-    if (startDate && endDate) {
-      where.createdAt = {
-        gte: new Date(startDate),
-        lte: new Date(endDate)
-      };
-    }
-
-    const [payments, total] = await Promise.all([
-      prisma.payment.findMany({
-        where,
-        include: {
-          service: {
-            select: {
-              id: true,
-              status: true,
-              scheduledDate: true,
-              servicePlan: {
-                select: {
-                  name: true,
-                  price: true
-                }
-              }
-            }
-          }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        },
-        skip: (page - 1) * limit,
-        take: limit
-      }),
-      prisma.payment.count({ where })
-    ]);
-
-    const response = {
-      payments,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
-    };
-
-    // Cache the response
-    await setCache(cacheKey, response, {
-      ttl: 300, // 5 minutes
-      tags: [`customer:${customerId}`, 'payments'],
-    });
-
-    return NextResponse.json(response);
+    return NextResponse.json(payments);
   } catch (error) {
-    console.error('Payments error:', error);
+    console.error('Error fetching payments:', error);
+    
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch payments' },
       { status: 500 }
@@ -174,21 +93,6 @@ const createPaymentSchema = z.object({
 
 export async function POST(request: Request) {
   try {
-    // Rate limiting
-    if (ratelimit) {
-      try {
-        const ip = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
-        const { success } = await ratelimit.limit(ip);
-        if (!success) {
-          return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
-        }
-      } catch (error) {
-        // Log error but continue processing the request
-        console.error('Rate limiting error in payments POST endpoint:', error);
-        // Don't return - let the request proceed without rate limiting
-      }
-    }
-
     const cookieStore = await cookies();
     const accessToken = await cookieStore.get('accessToken')?.value;
     if (!accessToken) {
