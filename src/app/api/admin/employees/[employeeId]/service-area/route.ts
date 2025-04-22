@@ -3,16 +3,10 @@ import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 
-type RouteContext = {
-  params: {
-    employeeId: string;
-  };
-};
-
 // Define the PATCH handler with proper Next.js API route typing
 export async function PATCH(
   request: NextRequest,
-  { params }: RouteContext
+  { params }: { params: { employeeId: string } }
 ) {
   try {
     // Extract the employeeId from params
