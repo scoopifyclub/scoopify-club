@@ -1,13 +1,24 @@
 import { NextResponse } from 'next/server';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { stripe } from '@/lib/stripe';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
     if (!session?.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
@@ -30,7 +41,7 @@ export async function POST(request: Request) {
 
     // Get the customer
     const customer = await prisma.customer.findUnique({
-      where: { userId: session.user.id },
+      where: { userId: userId },
       include: { subscription: true }
     });
 
@@ -93,7 +104,7 @@ export async function POST(request: Request) {
     });
 
     // Log the action
-    logger.info(`Subscription ${customer.subscription.id} paused by user ${session.user.id}`);
+    logger.info(`Subscription ${customer.subscription.id} paused by user ${userId}`);
 
     return NextResponse.json({
       success: true,

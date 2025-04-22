@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { stripe } from '@/lib/stripe';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { UserRole } from '@prisma/client';
 
 export async function POST(
@@ -10,7 +12,16 @@ export async function POST(
   { params }: { params: { paymentId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -33,7 +44,7 @@ export async function POST(
 
     // Only allow customer or admin to retry their own payments
     if (
-      session.user.role !== UserRole.ADMIN &&
+      role !== UserRole.ADMIN &&
       payment.customerId !== session.user.customerId
     ) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

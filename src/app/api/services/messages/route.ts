@@ -1,13 +1,24 @@
 import { NextResponse } from 'next/server';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 
 // GET endpoint to retrieve messages for a service
 export async function GET(request: Request) {
   try {
     // Check authorization
-    const session = await getServerSession(authOptions);
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -38,9 +49,9 @@ export async function GET(request: Request) {
     }
     
     // Check if user is authorized to access this service's messages
-    const isCustomer = service.customer?.user?.id === session.user.id;
-    const isEmployee = service.employee?.user?.id === session.user.id;
-    const isAdmin = session.user.role === 'ADMIN';
+    const isCustomer = service.customer?.user?.id === userId;
+    const isEmployee = service.employee?.user?.id === userId;
+    const isAdmin = role === 'ADMIN';
     
     if (!isCustomer && !isEmployee && !isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -109,9 +120,9 @@ export async function POST(request: Request) {
     }
     
     // Check if user is authorized to send messages for this service
-    const isCustomer = service.customer?.user?.id === session.user.id;
-    const isEmployee = service.employee?.user?.id === session.user.id;
-    const isAdmin = session.user.role === 'ADMIN';
+    const isCustomer = service.customer?.user?.id === userId;
+    const isEmployee = service.employee?.user?.id === userId;
+    const isAdmin = role === 'ADMIN';
     
     if (!isCustomer && !isEmployee && !isAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

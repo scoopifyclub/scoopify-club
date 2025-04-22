@@ -1,14 +1,25 @@
 import { NextResponse } from 'next/server';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
 import prisma from '@/lib/prisma';
 import { createStripeConnectAccount, createStripeConnectAccountLink } from '@/lib/stripe';
 
 export async function POST(request: Request) {
   try {
     // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user || session.user.role !== 'EMPLOYEE') {
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
+    if (!session || !session.user || role !== 'EMPLOYEE') {
       return NextResponse.json(
         { message: 'Unauthorized' },
         { status: 401 }

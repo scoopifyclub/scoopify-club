@@ -1,20 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { requireRole } from '@/lib/auth'
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 
 export const GET = requireRole(['EMPLOYEE'])(async (request: NextRequest, user) => {
   try {
     // Verify scooper authorization
-    const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'EMPLOYEE') {
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
+    if (!session?.user || role !== 'EMPLOYEE') {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
     // Get employee details to check service areas
     const employee = await prisma.employee.findUnique({
-      where: { userId: session.user.id },
+      where: { userId: userId },
       include: {
         serviceAreas: true
       }

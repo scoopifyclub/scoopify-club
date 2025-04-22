@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 
 export async function GET(
@@ -8,7 +10,16 @@ export async function GET(
   { params }: { params: { customerId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
     if (!session) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
@@ -16,8 +27,8 @@ export async function GET(
     const { customerId } = params;
 
     // Check if user is authorized to view this customer's data
-    const isAdmin = session.user.role === 'ADMIN';
-    const isCustomerOwner = session.user.id === customerId;
+    const isAdmin = role === 'ADMIN';
+    const isCustomerOwner = userId === customerId;
 
     if (!isAdmin && !isCustomerOwner) {
       return new NextResponse('Forbidden', { status: 403 });
@@ -65,7 +76,7 @@ export async function PATCH(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
+    if (role !== 'ADMIN') {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 

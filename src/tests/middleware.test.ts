@@ -1,14 +1,24 @@
-import { NextResponse } from 'next/server'
-import { middleware } from '@/middleware'
+import { NextRequest, NextResponse } from 'next/server'
+import { middleware } from '../middleware'
 import { getToken } from 'next-auth/jwt'
 import { rateLimit } from '../middleware/rate-limit'
+import prisma from '@/lib/prisma'
 
 // Mock next-auth/jwt
 jest.mock('next-auth/jwt', () => ({
   getToken: jest.fn(),
 }))
 
-// Mock rate limiter
+// Mock Prisma
+jest.mock('@/lib/prisma', () => ({
+  rateLimit: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+}))
+
+// Mock rate limiting
 jest.mock('../middleware/rate-limit', () => ({
   rateLimit: jest.fn(),
 }))

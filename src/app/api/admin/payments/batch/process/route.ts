@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 import { logPaymentEvent } from '@/lib/payment-audit';
 import { logger } from '@/lib/logger';
@@ -10,8 +12,17 @@ import stripe from '@/lib/stripe';
 export async function POST(request: Request) {
   try {
     // Verify admin permission
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
+    if (role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -66,7 +77,7 @@ export async function POST(request: Request) {
         data: {
           status: 'PROCESSING',
           processedDate: new Date(),
-          processedBy: session.user.id
+          processedBy: userId
         }
       });
       
@@ -163,10 +174,10 @@ export async function POST(request: Request) {
               {
                 batchId,
                 method: paymentMethod,
-                adminId: session.user.id,
+                adminId: userId,
                 stripeTransferId
               },
-              session.user.id
+              userId
             );
             
             results.successful++;
@@ -199,10 +210,10 @@ export async function POST(request: Request) {
             {
               batchId,
               method: paymentMethod,
-              adminId: session.user.id,
+              adminId: userId,
               error: errorMessage
             },
-            session.user.id
+            userId
           );
           
           results.failed++;

@@ -10,8 +10,6 @@ async function globalSetup(config: FullConfig) {
   process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'test-secret';
   process.env.STRIPE_SECRET_KEY = 'test-stripe-key';
-  process.env.REDIS_URL = 'redis://localhost:6379';
-  process.env.REDIS_TOKEN = 'test-redis-token';
 
   try {
     console.log('\n=== Setting up Test Users ===');

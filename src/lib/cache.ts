@@ -1,125 +1,81 @@
-import { Redis } from '@upstash/redis';
+import prisma from '@/lib/prisma';
 
-// Initialize Redis based on environment
-let redis: Redis | null = null;
-// Flag to track if Redis connection has failed
-let redisConnectionFailed = false;
+// Cache interface
+interface CacheData {
+  value: any;
+  expiresAt: Date;
+  tags?: string[];
+}
 
-// Check if Redis URL is configured
-if (process.env.REDIS_URL && process.env.REDIS_TOKEN) {
+// Cache operations
+export async function getCache(key: string): Promise<any> {
   try {
-    // For Upstash Redis (https://...)
-    if (process.env.REDIS_URL.startsWith('https://')) {
-      redis = new Redis({
-        url: process.env.REDIS_URL,
-        token: process.env.REDIS_TOKEN,
+    const cache = await prisma.cache.findUnique({
+      where: { key }
+    });
+
+    if (!cache) return null;
+
+    // Check if cache has expired
+    if (cache.expiresAt < new Date()) {
+      await prisma.cache.delete({
+        where: { key }
       });
-    } 
-    // Skip Redis initialization if using local URL format
-    else {
-      console.log('Local Redis URL detected. Skipping Upstash Redis initialization.');
-      redis = null;
+      return null;
     }
-  } catch (error) {
-    console.error('Redis initialization error:', error);
-    redis = null;
-    redisConnectionFailed = true;
-  }
-}
 
-export interface CacheOptions {
-  ttl?: number; // Time to live in seconds
-  tags?: string[]; // Cache tags for invalidation
-}
-
-export async function getCache<T>(key: string): Promise<T | null> {
-  if (!redis || redisConnectionFailed) return null;
-  
-  try {
-    const data = await redis.get(key);
-    return data as T;
+    return cache.value;
   } catch (error) {
     console.error('Cache get error:', error);
-    // Mark the Redis connection as failed for future calls
-    redisConnectionFailed = true;
     return null;
   }
 }
 
-export async function setCache<T>(
-  key: string,
-  value: T,
-  options: CacheOptions = {}
-): Promise<void> {
-  if (!redis || redisConnectionFailed) return;
-  
+export async function setCache(key: string, value: any, ttl: number = 3600, tags: string[] = []): Promise<void> {
   try {
-    const { ttl = 3600, tags = [] } = options;
-    
-    // Store the data
-    await redis.set(key, value, {
-      ex: ttl,
-    });
+    const expiresAt = new Date(Date.now() + ttl * 1000);
 
-    // Store tags if provided
-    if (tags.length > 0) {
-      const tagKeys = tags.map(tag => `tag:${tag}`);
-      await Promise.all([
-        // Add key to each tag's set
-        ...tagKeys.map(tagKey => redis.sadd(tagKey, key)),
-        // Set expiration for tag sets
-        ...tagKeys.map(tagKey => redis.expire(tagKey, ttl)),
-      ]);
-    }
+    await prisma.cache.upsert({
+      where: { key },
+      update: {
+        value,
+        expiresAt,
+        tags
+      },
+      create: {
+        key,
+        value,
+        expiresAt,
+        tags
+      }
+    });
   } catch (error) {
     console.error('Cache set error:', error);
-    // Mark the Redis connection as failed for future calls
-    redisConnectionFailed = true;
   }
 }
 
 export async function invalidateCache(tags: string[]): Promise<void> {
-  if (!redis || redisConnectionFailed) return;
-  
   try {
-    const tagKeys = tags.map(tag => `tag:${tag}`);
-    const keysToDelete = new Set<string>();
-    
-    // Get all keys associated with the tags
-    for (const tagKey of tagKeys) {
-      const keys = await redis.smembers(tagKey);
-      keys.forEach(key => keysToDelete.add(key));
-    }
-    
-    // Delete all keys and their tag associations
-    await Promise.all([
-      ...Array.from(keysToDelete).map(key => redis.del(key)),
-      ...tagKeys.map(tagKey => redis.del(tagKey)),
-    ]);
+    await prisma.cache.deleteMany({
+      where: {
+        tags: {
+          hasSome: tags
+        }
+      }
+    });
   } catch (error) {
     console.error('Cache invalidation error:', error);
-    // Mark the Redis connection as failed for future calls
-    redisConnectionFailed = true;
   }
 }
 
 export async function clearCache(): Promise<void> {
-  if (!redis || redisConnectionFailed) return;
-  
   try {
-    await redis.flushall();
+    await prisma.cache.deleteMany({});
   } catch (error) {
     console.error('Cache clear error:', error);
-    // Mark the Redis connection as failed for future calls
-    redisConnectionFailed = true;
   }
 }
 
-export function generateCacheKey(prefix: string, params: Record<string, any>): string {
-  const sortedParams = Object.keys(params)
-    .sort()
-    .map(key => `${key}:${params[key]}`)
-    .join('|');
-  
-  return `${prefix}:${sortedParams}`;
+export function generateCacheKey(prefix: string, ...args: any[]): string {
+  return `${prefix}:${args.join(':')}`;
 } 

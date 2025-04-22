@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { geocodeZipCode } from '@/lib/geocoding';
 
 export async function POST(
@@ -9,8 +11,17 @@ export async function POST(
   { params }: { params: { employeeId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
+    if (!session?.user || role !== 'ADMIN') {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
@@ -70,7 +81,7 @@ export async function GET(
 ) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    if (!session?.user || role !== 'ADMIN') {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 

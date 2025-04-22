@@ -74,7 +74,7 @@ ScoopifyClub is a platform that connects pet owners with professional dog waste 
 
 ### Database
 - **Primary Database**: PostgreSQL (Neon)
-- **Caching**: Vercel KV (Redis)
+- **Caching**: PostgreSQL-based caching system
 - **Connection Pooling**: Enabled via Neon
 
 ### Testing & Quality

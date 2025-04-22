@@ -172,29 +172,11 @@ export default function CustomerDashboard() {
   const getAccessToken = () => {
     // Try to get token from cookies first
     const cookies = document.cookie.split(';');
-    const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken=')) || 
-                            cookies.find(cookie => cookie.trim().startsWith('accessToken_client='));
+    const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken='));
     let token = accessTokenCookie ? accessTokenCookie.split('=')[1].trim() : '';
     
-    // If token not found in cookies, try sessionStorage as a fallback
-    if (!token) {
-      try {
-        token = sessionStorage.getItem('accessToken') || '';
-        setAuthDebug(prev => `${prev}\nToken not found in cookies, checking sessionStorage: ${!!token}`);
-      } catch (err) {
-        setAuthDebug(prev => `${prev}\nError accessing sessionStorage: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      }
-    } else {
-      // Store found token in sessionStorage for future use
-      try {
-        sessionStorage.setItem('accessToken', token);
-      } catch (err) {
-        console.error('Error storing token in sessionStorage', err);
-      }
-    }
-    
     // Log token status for debugging
-    setAuthDebug(prev => `${prev}\nToken found: ${!!token}`);
+    setAuthDebug(prev => `${prev}\nToken found in cookies: ${!!token}`);
     
     // If still no token, make a session check request
     if (!token) {
@@ -211,61 +193,74 @@ export default function CustomerDashboard() {
     const fetchData = async () => {
       try {
         console.log('Starting fetchData function');
-        const accessToken = getAccessToken();
-        console.log('Access token retrieved:', !!accessToken);
+        setAuthDebug(prev => `${prev}\nStarting authentication check...`);
         
-        if (!accessToken) {
-          setAuthDebug(prev => `${prev}\nNo access token found in client, trying session check API...`);
+        // First check the session directly from the server
+        console.log('Making session check request...');
+        const sessionResponse = await fetch('/api/auth/session', {
+          credentials: 'include' // Important for sending cookies
+        }).catch(err => {
+          console.error('Fetch error for session check:', err);
+          throw new Error('Network error during session check');
+        });
+        
+        console.log('Session check response status:', sessionResponse.status);
+        setAuthDebug(prev => `${prev}\nSession check response: ${sessionResponse.status}`);
+        
+        if (sessionResponse.ok) {
+          const sessionData = await sessionResponse.json();
+          console.log('Session data:', sessionData);
+          setAuthDebug(prev => `${prev}\nSession valid, user: ${JSON.stringify(sessionData.user || {})}`);
           
-          try {
-            console.log('Making session check request...');
-            // Try server-side session check since HTTP-only cookies won't be visible to client JS
-            const sessionResponse = await fetch('/api/auth/session', {
-              credentials: 'include' // Important for sending cookies
-            }).catch(err => {
-              console.error('Fetch error for session check:', err);
-              throw new Error('Network error during session check');
-            });
-            
-            console.log('Session check response status:', sessionResponse.status);
-            setAuthDebug(prev => `${prev}\nSession check response: ${sessionResponse.status}`);
-            
-            if (sessionResponse.ok) {
-              const sessionData = await sessionResponse.json();
-              console.log('Session data:', sessionData);
-              setAuthDebug(prev => `${prev}\nSession valid, user: ${JSON.stringify(sessionData)}`);
-              
-              // If we get a valid session response, continue with requests
-              await loadDashboardData();
-              setLoading(false); // Ensure loading is set to false after data is loaded
-              return;
-            } else {
-              try {
-                const errorData = await sessionResponse.json();
-                console.error('Session check error data:', errorData);
-                setAuthDebug(prev => `${prev}\nSession invalid, error: ${JSON.stringify(errorData)}`);
-              } catch (e) {
-                console.error('Failed to parse error response');
-              }
-              
-              // Display error but don't redirect automatically
-              setError('Session validation failed. Please check your login credentials.');
-              setLoading(false);
-              return;
-            }
-          } catch (err) {
-            console.error('Error checking session:', err);
-            setAuthDebug(prev => `${prev}\nError checking session: ${err instanceof Error ? err.message : 'Unknown error'}`);
-            setError('Error validating your session. Please try logging in again.');
-            setLoading(false);
-            return;
+          if (!sessionData.user) {
+            throw new Error('Session is valid but no user data returned');
           }
+          
+          if (sessionData.user.role !== 'CUSTOMER') {
+            setAuthDebug(prev => `${prev}\nUser role is not CUSTOMER: ${sessionData.user.role}`);
+            throw new Error(`You don't have permission to access the customer dashboard. Your role is: ${sessionData.user.role}`);
+          }
+          
+          // If we get a valid session response, continue with requests
+          await loadDashboardData();
+          console.log('Dashboard data loaded successfully');
+          setLoading(false); // Ensure loading is set to false after data is loaded
+        } else {
+          // Try to get error details
+          try {
+            const errorData = await sessionResponse.json();
+            console.error('Session check error data:', errorData);
+            setAuthDebug(prev => `${prev}\nSession invalid, error: ${JSON.stringify(errorData)}`);
+            
+            // If we get a 401, try to refresh the token
+            if (sessionResponse.status === 401) {
+              setAuthDebug(prev => `${prev}\nAttempting to refresh token...`);
+              const refreshResponse = await fetch('/api/auth/refresh', {
+                method: 'POST',
+                credentials: 'include'
+              });
+              
+              if (refreshResponse.ok) {
+                setAuthDebug(prev => `${prev}\nToken refresh successful, retrying...`);
+                // Retry the dashboard load after refreshing token
+                await loadDashboardData();
+                setLoading(false);
+                return;
+              } else {
+                setAuthDebug(prev => `${prev}\nToken refresh failed.`);
+                // Redirect to login if refresh fails
+                router.push('/login');
+                return;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to parse error response');
+          }
+          
+          // Display error but don't redirect automatically
+          setError('Session validation failed. Please check your login credentials.');
+          setLoading(false);
         }
-
-        console.log('About to load dashboard data with token');
-        await loadDashboardData(accessToken);
-        console.log('Dashboard data loaded successfully');
-        setLoading(false); // Make sure to set loading to false after data is loaded
       } catch (err) {
         console.error('Error fetching dashboard data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load data');
@@ -275,18 +270,18 @@ export default function CustomerDashboard() {
       }
     };
     
-    const loadDashboardData = async (token?: string) => {
-      console.log('loadDashboardData started with token:', !!token);
-      setAuthDebug(prev => `${prev}\nMaking API requests with${token ? '' : 'out'} token`);
-      const headers: HeadersInit = {};
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
+    const loadDashboardData = async () => {
+      console.log('loadDashboardData started');
+      setAuthDebug(prev => `${prev}\nMaking API requests with credentials...`);
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
 
       try {
         // Fetch customer profile first to get address info
         console.log('About to fetch customer profile');
+        setAuthDebug(prev => `${prev}\nAttempting to fetch customer profile...`);
+        
         const customerRes = await fetch('/api/customer/profile', { 
           headers,
           credentials: 'include'
@@ -299,68 +294,60 @@ export default function CustomerDashboard() {
           console.log('Fetched customer data:', customerData);
           setCustomer(customerData);
           
-          // Update form data with customer information, handling null values
-          setFormData({
-            phone: customerData.phone || '',
-            gateCode: customerData.gateCode || '',
-            serviceDay: customerData.serviceDay || '',
-            address: customerData.address ? {
-              street: customerData.address.street || '',
-              city: customerData.address.city || '',
-              state: customerData.address.state || '',
-              zipCode: customerData.address.zipCode || '',
-            } : {
-              street: '',
-              city: '',
-              state: '',
-              zipCode: '',
-            },
-            preferences: customerData.preferences ? {
-              specialInstructions: customerData.preferences.specialInstructions || '',
-              gateLocation: customerData.preferences.gateLocation || '',
-            } : {
-              specialInstructions: '',
-              gateLocation: '',
-            },
-          });
+          // Update form data with customer profile
+          if (customerData) {
+            setFormData({
+              phone: customerData.phone || '',
+              gateCode: customerData.gateCode || '',
+              serviceDay: customerData.serviceDay || '',
+              address: customerData.address || {
+                street: '',
+                city: '',
+                state: '',
+                zipCode: '',
+              },
+              preferences: customerData.preferences || {
+                specialInstructions: '',
+                gateLocation: '',
+              },
+            });
+          }
           
           // Save fetch timestamp
           setFetchedAt(new Date().toLocaleString());
-
-          // Check if the customer has set up their Cash App information
-          const hasPaymentInfo = !!customerData.cashAppName;
-          
-          setCustomer({
-            ...customerData,
-            hasPaymentInfo
-          });
         } else {
-          const errorData = await customerRes.json().catch(() => ({}));
-          console.error('Profile API error:', errorData);
-          setAuthDebug(prev => `${prev}\nProfile API error: ${JSON.stringify(errorData)}`);
+          console.error('Failed to fetch customer profile:', customerRes.status);
+          setAuthDebug(prev => `${prev}\nFailed to fetch customer profile: ${customerRes.status}`);
+          
+          // Try to get error details
+          try {
+            const errorData = await customerRes.json();
+            setAuthDebug(prev => `${prev}\nProfile error: ${JSON.stringify(errorData)}`);
+          } catch (e) {
+            setAuthDebug(prev => `${prev}\nCouldn't parse profile error response`);
+          }
+          
+          // If it's a 401, try to refresh the token
           if (customerRes.status === 401) {
-            // Try to refresh token
-            console.log('Attempting token refresh');
-            const refreshResult = await fetch('/api/auth/refresh', { 
+            setAuthDebug(prev => `${prev}\nAttempting to refresh token...`);
+            const refreshResponse = await fetch('/api/auth/refresh', {
               method: 'POST',
               credentials: 'include'
             });
-            console.log('Refresh attempt status:', refreshResult.status);
-            setAuthDebug(prev => `${prev}\nRefresh attempt status: ${refreshResult.status}`);
             
-            if (refreshResult.ok) {
-              // Successfully refreshed, try to load data again
-              console.log('Token refresh successful, reloading page');
+            if (refreshResponse.ok) {
+              setAuthDebug(prev => `${prev}\nToken refresh successful, reloading page...`);
               window.location.reload();
               return;
             } else {
-              // Redirect to login if refresh fails
-              console.log('Token refresh failed, redirecting to login');
+              setAuthDebug(prev => `${prev}\nToken refresh failed, redirecting to login...`);
               router.push('/login');
               return;
             }
           }
-          throw new Error(`Failed to fetch profile: ${customerRes.status}`);
+          
+          // For other errors, continue loading what we can
+          setAuthDebug(prev => `${prev}\nContinuing to load other data despite profile error`);
         }
 
         // Fetch services

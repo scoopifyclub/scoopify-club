@@ -5,12 +5,16 @@ import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-// Ensure these environment variables are set
-const JWT_SECRET = process.env.JWT_SECRET;
-const REFRESH_SECRET = process.env.REFRESH_SECRET;
+// Ensure these environment variables are set, provide fallbacks for development
+const isDev = process.env.NODE_ENV === 'development';
+const JWT_SECRET = process.env.JWT_SECRET || (isDev ? '2e2806763fd26af77b3b0fb484b7f631d404f4db4d6c960188069250adbb87d26a0a137349eb77aa1966390f159e20612ab09715b71c0dbb9bc3f3a298c05a44' : undefined);
+const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || (isDev ? '106ab6fa744d76903362930103c6a69ce52d5e8414aac11982225ebb6f270fb00d1622c5eaee66320a7a486f05a2736946ffb880bf187b2b0c6581121790630c' : undefined);
+
+// Log current environment and secrets availability for debugging (not the actual secrets)
+console.log(`Auth setup: Environment=${process.env.NODE_ENV}, JWT_SECRET=${JWT_SECRET ? 'set' : 'missing'}, REFRESH_SECRET=${REFRESH_SECRET ? 'set' : 'missing'}`);
 
 if (!JWT_SECRET || !REFRESH_SECRET) {
-  throw new Error('JWT_SECRET and REFRESH_SECRET must be set in environment variables');
+  throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be set in environment variables');
 }
 
 // Generate a device fingerprint
@@ -52,31 +56,39 @@ export function setAdminCookie(response: NextResponse, token: string) {
 }
 
 export async function generateTokens(user: any, deviceFingerprint: string) {
-  // Generate access token
-  const accessToken = await new SignJWT({
-    id: user.id,
-    email: user.email,
-    role: user.role,
-    customerId: user.customer?.id,
-    employeeId: user.employee?.id,
-    fingerprint: deviceFingerprint,
-  })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime('15m') // 15 minutes
-    .sign(new TextEncoder().encode(JWT_SECRET));
+  try {
+    console.log(`Generating tokens for user:`, { id: user.id, role: user.role, fingerprint: deviceFingerprint.substring(0, 8) + '...' });
+    
+    // Generate access token
+    const accessToken = await new SignJWT({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      customerId: user.customer?.id,
+      employeeId: user.employee?.id,
+      fingerprint: deviceFingerprint,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('15m') // 15 minutes
+      .sign(new TextEncoder().encode(JWT_SECRET));
 
-  // Generate refresh token
-  const refreshToken = await new SignJWT({
-    id: user.id,
-    fingerprint: deviceFingerprint,
-  })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime('7d')
-    .sign(new TextEncoder().encode(REFRESH_SECRET));
+    // Generate refresh token
+    const refreshToken = await new SignJWT({
+      id: user.id,
+      fingerprint: deviceFingerprint,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime('7d')
+      .sign(new TextEncoder().encode(REFRESH_SECRET));
 
-  return { accessToken, refreshToken };
+    console.log('Tokens generated successfully');
+    return { accessToken, refreshToken };
+  } catch (error) {
+    console.error('Error generating tokens:', error);
+    throw error;
+  }
 }
 
 export async function login(email: string, password: string, fingerprint?: string) {
@@ -323,4 +335,42 @@ export async function requireRole(request: Request, role: string) {
     throw new Error('Insufficient permissions');
   }
   return session;
-} 
+}
+
+// Add authOptions for compatibility with files that expect it
+export const authOptions = {
+  // This is a compatibility layer to help transition from NextAuth
+  // It provides properties that NextAuth's getServerSession would expect
+  adapter: null,
+  providers: [],
+  callbacks: {
+    async session({ session, token }) {
+      return session;
+    },
+    async jwt({ token, user }) {
+      return token;
+    }
+  },
+  // Custom method to get user from our JWT token
+  async getUserFromToken(token) {
+    try {
+      if (!token) return null;
+      
+      const payload = await verifyToken(token);
+      if (!payload || !payload.id) return null;
+      
+      const user = await prisma.user.findUnique({
+        where: { id: payload.id },
+        include: {
+          customer: true,
+          employee: true
+        }
+      });
+      
+      return user;
+    } catch (error) {
+      console.error('Error getting user from token:', error);
+      return null;
+    }
+  }
+}; 

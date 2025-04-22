@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 import { sendServiceNotificationEmail } from '@/lib/email';
 import { PhotoType } from '@prisma/client';
 import sharp from 'sharp';
@@ -20,8 +22,17 @@ export async function POST(
 ) {
   try {
     // Verify employee or admin authorization
-    const session = await getServerSession(authOptions);
-    if (!session?.user || (session.user.role !== 'EMPLOYEE' && session.user.role !== 'ADMIN')) {
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
+    if (!session?.user || (role !== 'EMPLOYEE' && role !== 'ADMIN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -47,8 +58,8 @@ export async function POST(
     // Validate service completion based on user role
     const validation = validateServiceCompletion(
       service,
-      session.user.id,
-      session.user.role === 'ADMIN'
+      userId,
+      role === 'ADMIN'
     );
 
     if (!validation.isValid) {

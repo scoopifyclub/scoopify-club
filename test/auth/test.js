@@ -1,5 +1,4 @@
 const {
-  prisma,
   login,
   verifyToken,
   refreshToken,
@@ -7,6 +6,8 @@ const {
   hash,
   rateLimiter,
 } = require('./test-setup')
+const { PrismaClient } = require('@prisma/client')
+const prisma = new PrismaClient()
 
 async function cleanup() {
   await prisma.user.deleteMany({

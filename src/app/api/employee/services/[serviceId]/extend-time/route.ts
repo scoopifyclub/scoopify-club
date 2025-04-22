@@ -1,14 +1,25 @@
 import { NextResponse } from 'next/server';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+
+
 
 export async function POST(
   request: Request,
   { params }: { params: { serviceId: string } }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
     if (!session?.user) {
       return new NextResponse('Unauthorized', { status: 401 });
     }

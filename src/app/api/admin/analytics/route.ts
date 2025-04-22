@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+
 import { parseISO, format, differenceInDays, addDays, subDays } from 'date-fns';
 
 // Helper to generate random numbers within a range
@@ -10,8 +12,17 @@ const randomDecimal = (min: number, max: number) => +(Math.random() * (max - min
 export async function GET(request: Request) {
   try {
     // Verify admin authorization
-    const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'ADMIN') {
+    // Get access token from cookies
+const cookieStore = await cookies();
+const accessToken = cookieStore.get('accessToken')?.value;
+
+if (!accessToken) {
+  return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+}
+
+// Validate the token and check role
+const { userId, role } = await validateUser(accessToken);
+    if (!session?.user || role !== 'ADMIN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

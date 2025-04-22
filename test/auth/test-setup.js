@@ -5,44 +5,40 @@ const { compare, hash } = require('bcryptjs')
 // Initialize Prisma
 const prisma = new PrismaClient()
 
-// Simple rate limiter implementation
-class RateLimiter {
-  constructor() {
-    this.attempts = new Map()
-  }
-
-  async limit(key) {
-    const now = Date.now()
-    const windowStart = now - 60000 // 1 minute window
+// Rate limiting using PostgreSQL
+async function rateLimit(key) {
+  const now = new Date()
+  const windowStart = new Date(now.getTime() - 60000) // 1 minute window
+  
+  try {
+    const rateLimit = await prisma.rateLimit.upsert({
+      where: { key },
+      update: {
+        count: {
+          increment: 1
+        },
+        resetTime: new Date(now.getTime() + 60000)
+      },
+      create: {
+        key,
+        count: 1,
+        resetTime: new Date(now.getTime() + 60000)
+      }
+    })
     
-    // Get or initialize attempts
-    let attempts = this.attempts.get(key) || []
-    
-    // Remove old attempts
-    attempts = attempts.filter(timestamp => timestamp > windowStart)
-    
-    // Add new attempt
-    attempts.push(now)
-    
-    // Update attempts
-    this.attempts.set(key, attempts)
-    
-    // Check if limit exceeded
-    return { success: attempts.length <= 5 }
-  }
-
-  reset() {
-    this.attempts.clear()
+    return { success: rateLimit.count <= 5 }
+  } catch (error) {
+    console.error('Rate limit error:', error)
+    return { success: true }
   }
 }
 
-const rateLimiter = new RateLimiter()
 const JWT_SECRET = 'test_jwt_secret'
 const REFRESH_TOKEN_SECRET = JWT_SECRET + '_refresh'
 
 // Auth functions
 async function login(email, password) {
-  const { success } = await rateLimiter.limit(email)
+  const { success } = await rateLimit(email)
   if (!success) {
     throw new Error('Too many login attempts. Please try again later.')
   }
@@ -148,5 +144,5 @@ module.exports = {
   refreshToken,
   logout,
   hash,
-  rateLimiter,
+  rateLimit,
 } 

@@ -1,16 +1,23 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { validateUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    // Get access token from cookies
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Validate the token and check admin role
+    const { role } = await validateUser(accessToken, 'ADMIN');
+    
+    if (role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Get query parameters for filtering
@@ -108,13 +115,22 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
-  
-  if (!session || session.user.role !== 'ADMIN') {
-    return new NextResponse('Unauthorized', { status: 401 });
-  }
-
   try {
+    // Get access token from cookies
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Validate the token and check admin role
+    const { role } = await validateUser(accessToken, 'ADMIN');
+    
+    if (role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { employeeId, amount, paymentMethod } = await request.json();
 
     const payment = await prisma.payment.create({
@@ -136,13 +152,22 @@ export async function POST(request: Request) {
 
 // Batch approve payments - useful for weekly payment processing
 export async function PUT(request: Request) {
-  const session = await getServerSession(authOptions);
-  
-  if (!session || session.user.role !== 'ADMIN') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    // Get access token from cookies
+    const cookieStore = await cookies();
+    const accessToken = cookieStore.get('accessToken')?.value;
+    
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Validate the token and check admin role
+    const { userId, role } = await validateUser(accessToken, 'ADMIN');
+    
+    if (role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { paymentIds, paymentMethod } = await request.json();
     
     if (!paymentIds || !Array.isArray(paymentIds) || paymentIds.length === 0) {
@@ -171,7 +196,7 @@ export async function PUT(request: Request) {
             status: 'APPROVED',
             paymentMethod: paymentMethod || 'CASH_APP',
             approvedAt: new Date(),
-            approvedBy: session.user.id
+            approvedBy: userId
           }
         });
         
@@ -184,7 +209,7 @@ export async function PUT(request: Request) {
             data: { 
               paymentStatus: 'APPROVED',
               paymentApprovedAt: new Date(),
-              paymentApprovedBy: session.user.id
+              paymentApprovedBy: userId
             }
           });
         }

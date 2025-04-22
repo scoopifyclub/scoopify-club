@@ -3,26 +3,18 @@ import prisma from "@/lib/prisma";
 import { cleanupDatabase, setupTestDatabase } from '@/tests/setup';
 import { testUsers, createTestUser } from '@/tests/setup';
 import { sendEmail } from '@/lib/email';
-
-// Mock Redis
-jest.mock('@upstash/redis', () => ({
-  Redis: jest.fn().mockImplementation(() => ({
-    set: jest.fn().mockResolvedValue(true),
-    get: jest.fn().mockResolvedValue(null),
-    del: jest.fn().mockResolvedValue(true),
-  })),
-}));
-
-// Mock rate limiter
-jest.mock('@upstash/ratelimit', () => ({
-  Ratelimit: jest.fn().mockImplementation(() => ({
-    limit: jest.fn().mockResolvedValue({ success: true }),
-  })),
-}));
+import { NextRequest } from 'next/server';
+import { GET } from '../session/route';
+import { verifyToken } from '@/lib/auth';
 
 // Mock the email sending function
 jest.mock('@/lib/email', () => ({
   sendEmail: jest.fn().mockResolvedValue(true)
+}));
+
+// Mock auth functions
+jest.mock('@/lib/auth', () => ({
+  verifyToken: jest.fn()
 }));
 
 // Mock Request object
@@ -31,7 +23,8 @@ const mockRequest = (body: any) => ({
   headers: new Headers(),
   cookies: {
     get: () => undefined,
-    getAll: () => []
+    getAll: () => [],
+    set: () => {}
   }
 } as Request);
 
@@ -257,6 +250,31 @@ describe('Authentication', () => {
       const data = await response.json();
       expect(response.status).toBe(400);
       expect(data.error).toBe('Invalid or expired reset token');
+    });
+  });
+
+  describe('Session', () => {
+    let mockRequest: NextRequest;
+
+    beforeEach(() => {
+      mockRequest = new NextRequest('http://localhost:3000/api/auth/session');
+    });
+
+    it('should return 401 if no token is provided', async () => {
+      const response = await GET(mockRequest);
+      expect(response.status).toBe(401);
+      const data = await response.json();
+      expect(data.error).toBe('No session found');
+    });
+
+    it('should return 401 if token is invalid', async () => {
+      (verifyToken as jest.Mock).mockResolvedValue(null);
+      mockRequest.cookies.set('accessToken', 'invalid-token');
+      
+      const response = await GET(mockRequest);
+      expect(response.status).toBe(401);
+      const data = await response.json();
+      expect(data.error).toBe('Invalid session');
     });
   });
 });

@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
+import { jwtVerify } from 'jose'
 import prisma from "@/lib/prisma";
 import { hash } from 'bcryptjs'
 import { validatePassword } from '@/lib/password'
 import { Resend } from 'resend'
-import { rateLimit } from '@/middleware/rate-limit'
+import { rateLimit } from '@/lib/rate-limit'
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
