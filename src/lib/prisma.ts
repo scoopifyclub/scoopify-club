@@ -30,9 +30,6 @@ if (!isEdge) {
   // Connect to the database (only in Node.js environment)
   prisma.$connect().catch((err) => {
     console.error('Failed to connect to database:', err);
-    if (typeof process !== 'undefined' && process.exit) {
-      process.exit(1);
-    }
   });
 } else {
   // In Edge Runtime, create a dummy prisma client that works with middleware

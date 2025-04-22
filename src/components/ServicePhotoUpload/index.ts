@@ -1,0 +1,1 @@
+export { ServicePhotoUpload } from '../ServicePhotoUpload'; 

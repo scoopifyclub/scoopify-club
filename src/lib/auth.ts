@@ -166,7 +166,13 @@ export async function refreshToken(oldRefreshToken: string, fingerprint?: string
       throw new Error('User not found');
     }
 
-    // Generate new tokens
+    // If payload has fingerprint but different from provided, log but continue
+    // This helps when fingerprint is lost or changed between environments
+    if (payload.fingerprint && fingerprint && payload.fingerprint !== fingerprint) {
+      console.warn('Fingerprint mismatch during token refresh, but continuing for compatibility');
+    }
+
+    // Generate new tokens with provided fingerprint or a new one
     const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
       user,
       fingerprint || generateFingerprint()

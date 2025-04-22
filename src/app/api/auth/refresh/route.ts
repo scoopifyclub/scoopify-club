@@ -22,6 +22,7 @@ export async function POST(request: Request) {
       )
     }
 
+    // Always attempt to refresh token even if fingerprint is missing
     console.log('Attempting to refresh the token');
     const { accessToken, refreshToken: newRefreshToken, user } = await refreshToken(refreshTokenCookie, fingerprint)
     console.log('Token refresh successful for user:', { id: user.id, role: user.role });
@@ -54,9 +55,19 @@ export async function POST(request: Request) {
       maxAge: 7 * 24 * 60 * 60, // 7 days
     })
 
-    // Set fingerprint cookie if not already set
+    // Set fingerprint cookie if not already set - generate a new one from the user object
     if (!fingerprint) {
-      response.cookies.set('fingerprint', user.deviceFingerprint || '', {
+      const newFingerprint = user.deviceFingerprint || (user.id + '-' + Date.now());
+      response.cookies.set('fingerprint', newFingerprint, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60, // 7 days
+      })
+      console.log('Generated new fingerprint for user:', user.id);
+    } else {
+      response.cookies.set('fingerprint', fingerprint, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
