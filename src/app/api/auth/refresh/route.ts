@@ -11,7 +11,8 @@ export async function POST(request: Request) {
 
     console.log('Refresh token cookies check:', { 
       hasRefreshToken: !!refreshTokenCookie,
-      hasFingerprint: !!fingerprint
+      hasFingerprint: !!fingerprint,
+      fingerprintStart: fingerprint ? fingerprint.substring(0, 8) : 'null'
     });
 
     if (!refreshTokenCookie) {
@@ -24,7 +25,21 @@ export async function POST(request: Request) {
 
     // Always attempt to refresh token even if fingerprint is missing
     console.log('Attempting to refresh the token');
-    const { accessToken, refreshToken: newRefreshToken, user } = await refreshToken(refreshTokenCookie, fingerprint)
+    let refreshResult;
+    try {
+      refreshResult = await refreshToken(refreshTokenCookie, fingerprint);
+    } catch (refreshError) {
+      console.log('First refresh attempt failed, trying without fingerprint validation');
+      // Fall back to refresh without fingerprint if that's the issue
+      if (fingerprint && refreshError instanceof Error && 
+          (refreshError.message.includes('fingerprint') || refreshError.message.includes('Invalid refresh token'))) {
+        refreshResult = await refreshToken(refreshTokenCookie);
+      } else {
+        throw refreshError; // Re-throw if it's not a fingerprint issue
+      }
+    }
+    
+    const { accessToken, refreshToken: newRefreshToken, user } = refreshResult;
     console.log('Token refresh successful for user:', { id: user.id, role: user.role });
 
     // Create the response object with user data

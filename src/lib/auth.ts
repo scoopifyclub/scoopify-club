@@ -166,16 +166,26 @@ export async function refreshToken(oldRefreshToken: string, fingerprint?: string
       throw new Error('User not found');
     }
 
-    // If payload has fingerprint but different from provided, log but continue
-    // This helps when fingerprint is lost or changed between environments
-    if (payload.fingerprint && fingerprint && payload.fingerprint !== fingerprint) {
-      console.warn('Fingerprint mismatch during token refresh, but continuing for compatibility');
+    // Improved fingerprint handling
+    const tokenFingerprint = payload.fingerprint as string;
+    
+    // If both fingerprints exist but don't match, log detailed info but continue
+    // This is a security trade-off to prevent login loops while maintaining some security
+    if (tokenFingerprint && fingerprint && tokenFingerprint !== fingerprint) {
+      console.warn('Fingerprint mismatch during token refresh:', {
+        tokenFingerprintStart: tokenFingerprint.substring(0, 10),
+        providedFingerprintStart: fingerprint.substring(0, 10),
+        userId: user.id
+      });
+      
+      // Still continue with token refresh using the provided fingerprint
+      console.log('Refreshing tokens despite fingerprint mismatch for usability');
     }
 
-    // Generate new tokens with provided fingerprint or a new one
+    // Generate new tokens with provided fingerprint or the one from the token
     const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
       user,
-      fingerprint || generateFingerprint()
+      fingerprint || tokenFingerprint || generateFingerprint()
     );
 
     return { accessToken, refreshToken: newRefreshToken, user };

@@ -17,8 +17,10 @@ function getDeviceFingerprint() {
   }
   
   // Generate a new fingerprint and save it
-  const newFingerprint = 'web-' + Math.random().toString(36).substring(2, 15) + 
-                        Math.random().toString(36).substring(2, 15);
+  // Use a more stable format that includes domain to make it more consistent
+  const newFingerprint = 'scoopifyclub-' + 
+                        Math.random().toString(36).substring(2, 10) + 
+                        '-' + Date.now().toString(36);
   localStorage.setItem('deviceFingerprint', newFingerprint);
   return newFingerprint;
 }

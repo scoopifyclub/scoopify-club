@@ -60,10 +60,69 @@ export async function GET(request: NextRequest) {
             maxAge: 7 * 24 * 60 * 60, // 7 days
           });
           
+          // Make sure to set the fingerprint cookie as well
+          response.cookies.set('fingerprint', fingerprint, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60, // 7 days
+          });
+          
           console.log('Token refresh successful');
           return response;
         } catch (refreshError) {
           console.error('Error refreshing token:', refreshError);
+        }
+      } else if (refreshTokenCookie) {
+        // Handle the case where we have a refresh token but no fingerprint
+        console.log('Refresh token exists but no fingerprint. Attempting refresh without fingerprint verification');
+        try {
+          const refreshResult = await refreshToken(refreshTokenCookie);
+          
+          // Create response with user data
+          const response = NextResponse.json({
+            user: {
+              id: refreshResult.user.id,
+              email: refreshResult.user.email,
+              name: refreshResult.user.name,
+              role: refreshResult.user.role,
+              customerId: refreshResult.user.customer?.id,
+              employeeId: refreshResult.user.employee?.id
+            }
+          });
+          
+          // Set cookies with new tokens
+          response.cookies.set('accessToken', refreshResult.accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 15 * 60, // 15 minutes
+          });
+          
+          response.cookies.set('refreshToken', refreshResult.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60, // 7 days
+          });
+          
+          // Generate a new fingerprint if needed
+          const newFingerprint = `regenerated-${Date.now()}-${refreshResult.user.id.substring(0, 8)}`;
+          response.cookies.set('fingerprint', newFingerprint, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60, // 7 days
+          });
+          
+          console.log('Token refresh successful without fingerprint');
+          return response;
+        } catch (refreshError) {
+          console.error('Error refreshing token without fingerprint:', refreshError);
         }
       }
       
@@ -140,6 +199,15 @@ export async function GET(request: NextRequest) {
           });
           
           response.cookies.set('refreshToken', refreshResult.refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60, // 7 days
+          });
+          
+          // Make sure to set the fingerprint cookie as well
+          response.cookies.set('fingerprint', fingerprint, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
