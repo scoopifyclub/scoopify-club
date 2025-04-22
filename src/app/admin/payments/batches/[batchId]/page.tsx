@@ -2,14 +2,12 @@ import { Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import BatchDetailClient from './BatchDetailClient';
 
-// Simple interface without PageProps constraint
-interface BatchDetailPageProps {
-  params: {
-    batchId: string;
-  };
-}
-
-export default function BatchDetailPage({ params }: BatchDetailPageProps) {
+// Define the component with direct type annotation instead of a separate interface
+export default function BatchDetailPage({ 
+  params 
+}: { 
+  params: { batchId: string } 
+}) {
   return (
     <Suspense fallback={
       <div className="container py-6">
