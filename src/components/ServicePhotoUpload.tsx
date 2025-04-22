@@ -17,7 +17,7 @@ interface PhotoPreview {
   type: 'BEFORE' | 'AFTER';
 }
 
-export default function ServicePhotoUpload({ serviceId, onUploadComplete }: ServicePhotoUploadProps) {
+export function ServicePhotoUpload({ serviceId, onUploadComplete }: ServicePhotoUploadProps) {
   const [previews, setPreviews] = useState<PhotoPreview[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);

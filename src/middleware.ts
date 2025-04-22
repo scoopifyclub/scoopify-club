@@ -35,6 +35,45 @@ function getLoginPath(pathname: string) {
   return '/login';
 }
 
+// Simple in-memory rate limiter for Edge Runtime
+const memoryStore = new Map<string, { count: number, resetTime: number }>();
+
+const edgeRateLimit = {
+  limit(request: NextRequest): NextResponse | null {
+    const ip = request.ip ?? '127.0.0.1';
+    const key = `rate-limit:${ip}`;
+    const now = Date.now();
+    const windowMs = 10 * 1000; // 10 seconds
+    const maxRequests = 100; // More lenient rate limit
+
+    // Get or initialize rate limit data
+    let rateLimitData = memoryStore.get(key);
+    if (!rateLimitData || now > rateLimitData.resetTime) {
+      rateLimitData = { count: 0, resetTime: now + windowMs };
+    }
+
+    // Increment count
+    rateLimitData.count++;
+    memoryStore.set(key, rateLimitData);
+
+    // Check if limit exceeded
+    if (rateLimitData.count > maxRequests) {
+      const retryAfter = Math.ceil((rateLimitData.resetTime - now) / 1000);
+      return new NextResponse('Too Many Requests', {
+        status: 429,
+        headers: {
+          'X-RateLimit-Limit': maxRequests.toString(),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': retryAfter.toString(),
+          'Retry-After': retryAfter.toString()
+        }
+      });
+    }
+
+    return null;
+  }
+};
+
 // List of paths that should skip middleware
 const SKIP_PATHS = [
   '/login',
@@ -81,24 +120,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // Apply rate limiting based on path type - only for non-auth paths
-  let rateLimitResult = null
-  
-  // Skip rate limiting for auth-related paths
-  if (!path.includes('/auth/') && !path.includes('/session')) {
-    // For API routes, we can safely use the database-backed rate limiter
-    if (path.startsWith('/api/')) {
-      try {
-        rateLimitResult = await rateLimit.limit(request)
-      } catch (error) {
-        console.error('Error with rate limiter', error)
-        // If rate limiting fails, we'll just continue without it
+  // Apply rate limiting - use edge-compatible in-memory solution
+  try {
+    // Only apply rate limiting for non-auth paths
+    if (!path.includes('/auth/') && !path.includes('/session')) {
+      const rateLimitResult = edgeRateLimit.limit(request);
+      if (rateLimitResult) {
+        return rateLimitResult;
       }
     }
-    
-    if (rateLimitResult) {
-      return rateLimitResult
-    }
+  } catch (error) {
+    console.error('Error with rate limiter:', error);
+    // Continue if rate limiting fails
   }
 
   // Check if the path is for the API
