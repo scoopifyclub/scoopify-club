@@ -1,16 +1,12 @@
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 
-// Define the PATCH handler with proper Next.js API route typing
-export async function PATCH(
-  request: NextRequest,
-  context: { params: { employeeId: string } }
-) {
+export async function PATCH(req, { params }) {
   try {
     // Extract the employeeId from params
-    const { employeeId } = context.params;
+    const { employeeId } = params;
 
     // Get access token from cookies
     const cookieStore = cookies();
@@ -31,7 +27,7 @@ export async function PATCH(
     }
 
     // Parse request body
-    const { zipCode, serviceRadius, isAvailable } = await request.json();
+    const { zipCode, serviceRadius, isAvailable } = await req.json();
 
     // Validate zip code format (basic validation)
     if (zipCode && !/^\d{5}(-\d{4})?$/.test(zipCode)) {
