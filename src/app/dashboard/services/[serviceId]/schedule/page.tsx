@@ -38,18 +38,35 @@ interface Service {
 export default function ScheduleServicePage({
   params,
 }: {
-  params: { serviceId: string }
+  params: Promise<{ serviceId: string }>
 }) {
   const [service, setService] = useState<Service | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [scheduledDate, setScheduledDate] = useState('')
+  const [serviceId, setServiceId] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
+    const resolveParams = async () => {
+      try {
+        const resolvedParams = await params;
+        setServiceId(resolvedParams.serviceId);
+      } catch (error) {
+        console.error('Failed to resolve params:', error);
+        toast.error('Failed to load service details');
+      }
+    };
+    
+    resolveParams();
+  }, [params]);
+
+  useEffect(() => {
+    if (!serviceId) return;
+    
     const fetchService = async () => {
       try {
-        const response = await fetch(`/api/services/${params.serviceId}`)
+        const response = await fetch(`/api/services/${serviceId}`)
         if (!response.ok) {
           throw new Error('Failed to fetch service')
         }
@@ -68,14 +85,15 @@ export default function ScheduleServicePage({
     }
 
     fetchService()
-  }, [params.serviceId])
+  }, [serviceId])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!serviceId) return;
     setSaving(true)
 
     try {
-      const response = await fetch(`/api/services/${params.serviceId}/schedule`, {
+      const response = await fetch(`/api/services/${serviceId}/schedule`, {
         method: service?.scheduledDate ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -99,20 +117,26 @@ export default function ScheduleServicePage({
   }
 
   const handleCancel = async () => {
+    if (!serviceId) return;
+    
     try {
-      const response = await fetch(`/api/services/${params.serviceId}/schedule`, {
-        method: 'DELETE',
+      const response = await fetch(`/api/customer/services/${serviceId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${document.cookie.split(';').find(c => c.trim().startsWith('accessToken='))?.split('=')[1] || ''}`,
+        },
       })
 
       if (!response.ok) {
-        throw new Error('Failed to cancel service')
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to cancel service');
       }
 
-      toast.success('Service cancelled successfully!')
-      router.push('/dashboard/services')
+      toast.success('Service cancelled successfully!');
+      router.push('/dashboard/services');
     } catch (error) {
-      console.error('Service cancellation error:', error)
-      toast.error('Failed to cancel service')
+      console.error('Service cancellation error:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to cancel service');
     }
   }
 

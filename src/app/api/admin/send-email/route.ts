@@ -20,7 +20,7 @@ if (!accessToken) {
 
 // Validate the token and check role
 const { userId, role } = await validateUser(accessToken);
-    if (!session?.user || role !== 'ADMIN') {
+    if (!userId || role !== 'ADMIN') {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
@@ -30,8 +30,12 @@ const { userId, role } = await validateUser(accessToken);
     const employee = await prisma.employee.findUnique({
       where: { id: employeeId },
       select: {
-        email: true,
-        name: true
+        user: {
+          select: {
+            email: true,
+            name: true
+          }
+        }
       }
     });
 
@@ -42,11 +46,11 @@ const { userId, role } = await validateUser(accessToken);
     // Send email
     await resend.emails.send({
       from: 'Scoopify Club <admin@scoopify.club>',
-      to: employee.email,
+      to: employee.user.email,
       subject: subject,
       html: `
         <h1>${subject}</h1>
-        <p>Hello ${employee.name},</p>
+        <p>Hello ${employee.user.name},</p>
         <p>${message}</p>
         <p>Best regards,<br>Scoopify Club Team</p>
       `
