@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export async function PUT(
   request: Request,
-  { params }: { params: { customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     // Verify customer authorization
@@ -16,7 +16,7 @@ export async function PUT(
     const payload = await verifyToken(token);
     
     // Make sure the user is either the customer or an admin
-    const { customerId } = params;
+    const { customerId } = await params;
     if (payload.role !== 'ADMIN' && 
        (payload.role !== 'CUSTOMER' || payload.customerId !== customerId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -67,7 +67,7 @@ export async function PUT(
 
 export async function GET(
   request: Request,
-  { params }: { params: { customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     // Verify customer authorization
@@ -79,7 +79,7 @@ export async function GET(
     const payload = await verifyToken(token);
     
     // Make sure the user is either the customer or an admin
-    const { customerId } = params;
+    const { customerId } = await params;
     if (payload.role !== 'ADMIN' && 
        (payload.role !== 'CUSTOMER' || payload.customerId !== customerId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

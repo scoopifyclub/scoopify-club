@@ -7,7 +7,7 @@ import prisma from '@/lib/prisma';
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Get access token from cookies
@@ -26,7 +26,7 @@ const { userId, role } = await validateUser(accessToken);
 
     const notification = await prisma.notification.update({
       where: {
-        id: params.id,
+        id: (await params).id,
         userId: userId,
       },
       data: {

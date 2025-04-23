@@ -5,7 +5,7 @@ import PDFDocument from 'pdfkit';
 
 export async function GET(
   request: Request,
-  { params }: { params: { paymentId: string } }
+  { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
     // Verify admin authorization
@@ -21,7 +21,7 @@ export async function GET(
 
     // Fetch payment with related data
     const payment = await prisma.referralPayment.findUnique({
-      where: { id: params.paymentId },
+      where: { id: (await params).paymentId },
       include: {
         referral: {
           include: {

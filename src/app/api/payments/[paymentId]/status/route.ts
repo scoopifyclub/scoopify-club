@@ -4,10 +4,10 @@ import { withDatabase } from '@/middleware/db';
 import { requireAuth } from '@/lib/api-auth';
 import { stripe } from '@/lib/stripe';
 
-const handler = async (req: Request, { params }: { params: { paymentId: string } }) => {
+const handler = async (req: Request, { params }: { params: Promise<{ paymentId: string }> }) => {
   try {
     const user = await requireAuth(req as any);
-    const { paymentId } = params;
+    const { paymentId } = await params;
 
     const payment = await prisma.payment.findUnique({
       where: { id: paymentId },

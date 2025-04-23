@@ -6,7 +6,7 @@ import prisma from "@/lib/prisma";
 // GET - Retrieve a specific payment batch by ID
 export async function GET(
   request: NextRequest,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -22,7 +22,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const batchId = params.batchId;
+    const { batchId } = await params;
 
     const batch = await prisma.paymentBatch.findUnique({
       where: {
@@ -88,7 +88,7 @@ export async function GET(
 // PUT - Update a specific payment batch
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -104,7 +104,7 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const batchId = params.batchId;
+    const { batchId } = await params;
     const body = await request.json();
 
     // Verify the batch exists
@@ -147,7 +147,7 @@ export async function PUT(
 // DELETE - Remove a payment batch (with option to release payments)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -163,7 +163,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const batchId = params.batchId;
+    const { batchId } = await params;
     const releasePayments = request.nextUrl.searchParams.get("releasePayments") === "true";
 
     // Verify the batch exists

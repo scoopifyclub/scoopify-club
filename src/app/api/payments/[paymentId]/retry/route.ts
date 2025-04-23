@@ -9,7 +9,7 @@ import { UserRole } from '@prisma/client';
 
 export async function POST(
   request: Request,
-  { params }: { params: { paymentId: string } }
+  { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
     // Get access token from cookies
@@ -26,7 +26,7 @@ const { userId, role } = await validateUser(accessToken);
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { paymentId } = params;
+    const { paymentId } = await params;
 
     // Retrieve the payment from our database
     const payment = await prisma.payment.findUnique({

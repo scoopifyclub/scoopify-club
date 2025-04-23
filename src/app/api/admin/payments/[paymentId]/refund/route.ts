@@ -10,7 +10,7 @@ import { logger } from '@/lib/logger';
 
 export async function POST(
   request: Request,
-  { params }: { params: { paymentId: string } }
+  { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
     // Verify admin permission
@@ -31,7 +31,7 @@ const { userId, role } = await validateUser(accessToken);
       );
     }
 
-    const { paymentId } = params;
+    const { paymentId } = await params;
     const { amount, reason } = await request.json();
 
     // Validate input

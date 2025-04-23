@@ -7,7 +7,7 @@ import prisma from "@/lib/prisma";
 // Get all payments in a specific batch
 export async function GET(
   request: Request,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
     // Verify user is admin
@@ -24,7 +24,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { batchId } = params;
+    const { batchId } = await params;
 
     // First check if the batch exists
     const batch = await prisma.paymentBatch.findUnique({
@@ -89,7 +89,7 @@ export async function GET(
 // Add payments to a batch
 export async function POST(
   request: Request,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
     // Verify user is admin
@@ -106,7 +106,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { batchId } = params;
+    const { batchId } = await params;
 
     // First check if the batch exists and is in DRAFT status
     const batch = await prisma.paymentBatch.findUnique({
@@ -167,7 +167,7 @@ export async function POST(
 // Remove payments from a batch
 export async function DELETE(
   request: Request,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   try {
     // Verify user is admin
@@ -184,7 +184,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { batchId } = params;
+    const { batchId } = await params;
 
     // First check if the batch exists and is in DRAFT status
     const batch = await prisma.paymentBatch.findUnique({

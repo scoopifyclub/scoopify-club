@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export async function POST(
   request: Request,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     // Verify employee authorization
@@ -39,7 +39,7 @@ export async function POST(
 
     // Get the service
     const service = await prisma.service.findUnique({
-      where: { id: params.jobId },
+      where: { id: (await params).jobId },
       include: {
         address: true
       }
@@ -85,7 +85,7 @@ export async function POST(
 
     // Claim the service
     const updatedService = await prisma.service.update({
-      where: { id: params.jobId },
+      where: { id: (await params).jobId },
       data: {
         employeeId: employee.id,
         status: 'ASSIGNED'

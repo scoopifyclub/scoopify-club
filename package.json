@@ -3,6 +3,9 @@
   "version": "0.1.1",
   "description": "A comprehensive system for managing dog waste removal services, employee scheduling, and customer subscriptions.",
   "private": true,
+  "engines": {
+    "node": ">=20.x"
+  },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
@@ -14,7 +17,7 @@
     "dev:https": "node scripts/generate-cert.js && next dev",
     "restart": "node restart-dev.js",
     "proxy": "local-ssl-proxy --source 3001 --target 3000",
-    "build": "prisma generate && next build",
+    "build": "next build",
     "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
@@ -97,6 +100,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "dompurify": "^3.2.5",
+    "glob": "^11.0.1",
     "jose": "^5.10.0",
     "jsonwebtoken": "^9.0.2",
     "leaflet": "^1.9.4",

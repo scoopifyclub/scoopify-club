@@ -18,7 +18,7 @@ const PHOTO_RETENTION_DAYS = 7; // Photos will be deleted after this many days
 
 export async function POST(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     // Verify employee or admin authorization
@@ -37,7 +37,7 @@ const { userId, role } = await validateUser(accessToken);
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       include: {
         employee: true,
         customer: {
@@ -74,7 +74,7 @@ const { userId, role } = await validateUser(accessToken);
 
     // Check current photo count
     const currentPhotoCount = await prisma.servicePhoto.count({
-      where: { serviceId: params.serviceId }
+      where: { serviceId: (await params).serviceId }
     });
 
     // Check if adding these photos would exceed the limit
@@ -129,7 +129,7 @@ const { userId, role } = await validateUser(accessToken);
 
     // Update service status to COMPLETED
     const updatedService = await prisma.service.update({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       data: {
         status: 'COMPLETED',
         completedAt: new Date(),
@@ -189,7 +189,7 @@ const { userId, role } = await validateUser(accessToken);
       data: {
         taskType: 'PHOTO_CLEANUP',
         scheduledFor: addDays(new Date(), PHOTO_RETENTION_DAYS),
-        targetId: params.serviceId,
+        targetId: (await params).serviceId,
         status: 'PENDING'
       }
     });

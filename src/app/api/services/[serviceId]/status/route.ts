@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export async function PUT(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.split(' ')[1];
@@ -18,7 +18,7 @@ export async function PUT(
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       include: { employee: true }
     });
 
@@ -36,7 +36,7 @@ export async function PUT(
     }
 
     const updatedService = await prisma.service.update({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       data: { status },
       include: {
         customer: true,
@@ -55,7 +55,7 @@ export async function PUT(
 
 export async function GET(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.split(' ')[1];
@@ -69,7 +69,7 @@ export async function GET(
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       include: {
         customer: true,
         employee: true,

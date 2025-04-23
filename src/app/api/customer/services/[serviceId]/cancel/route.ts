@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export async function POST(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     // Verify customer authorization
@@ -18,9 +18,11 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { serviceId } = await params;
+
     // Get the service and verify ownership
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: serviceId },
       include: {
         customer: true,
         employee: true
@@ -59,7 +61,7 @@ export async function POST(
     const result = await prisma.$transaction(async (tx) => {
       // Update service status to cancelled
       const updatedService = await tx.service.update({
-        where: { id: params.serviceId },
+        where: { id: serviceId },
         data: { 
           status: 'CANCELLED',
           notes: 'Skipped by customer'

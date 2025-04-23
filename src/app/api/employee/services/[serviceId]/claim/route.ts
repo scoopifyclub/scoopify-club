@@ -8,7 +8,7 @@ import { checkTimeConflict } from '@/lib/validations'
 // API endpoint for employee to claim a service
 export async function POST(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     // Verify employee authorization
@@ -181,7 +181,7 @@ export async function POST(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     const token = request.headers.get('Authorization')?.split(' ')[1]
@@ -205,7 +205,7 @@ export async function PUT(
     // Extend the expiration time by 15 minutes
     const service = await prisma.service.update({
       where: {
-        id: params.serviceId,
+        id: (await params).serviceId,
         employeeId: employee.id,
         status: 'CLAIMED'
       },

@@ -8,7 +8,7 @@ import { stripe } from "@/lib/stripe";
 // Process all payments in a batch
 export async function POST(
   request: Request,
-  { params }: { params: { batchId: string } }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
   // Verify user is admin
   const session = await getServerSession(authOptions);
@@ -16,7 +16,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { batchId } = params;
+  const { batchId } = await params;
 
   try {
     // First check if the batch exists and is ready for processing

@@ -11,7 +11,7 @@ const COMPRESSED_IMAGE_WIDTH = 1920;
 
 export async function POST(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     const token = request.headers.get('Authorization')?.split(' ')[1];
@@ -25,7 +25,7 @@ export async function POST(
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       include: {
         photos: true
       }
@@ -105,7 +105,7 @@ export async function POST(
     );
 
     const updatedService = await prisma.service.update({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       data: {
         photos: {
           create: processedPhotos.map(photo => ({
@@ -138,7 +138,7 @@ export async function POST(
 // Add GET endpoint to retrieve photos for a service
 export async function GET(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     // Verify authorization (employee or admin)
@@ -154,7 +154,7 @@ export async function GET(
 
     // Get photos for the service
     const photos = await prisma.servicePhoto.findMany({
-      where: { serviceId: params.serviceId },
+      where: { serviceId: (await params).serviceId },
       orderBy: { timestamp: 'desc' }
     });
 

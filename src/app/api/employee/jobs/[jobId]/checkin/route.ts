@@ -6,7 +6,7 @@ import { isAfter } from 'date-fns';
 
 const handler = async (
   req: Request,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) => {
   try {
     const token = req.headers.get('authorization')?.split(' ')[1];

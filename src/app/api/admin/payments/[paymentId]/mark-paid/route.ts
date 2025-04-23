@@ -9,7 +9,7 @@ const VALID_PAYMENT_METHODS = ['CASH', 'CASH_APP', 'CHECK'] as const;
 
 export async function POST(
   request: Request,
-  { params }: { params: { paymentId: string } }
+  { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
     // Validate session and admin role
@@ -30,7 +30,7 @@ const { userId, role } = await validateUser(accessToken);
       );
     }
 
-    const { paymentId } = params;
+    const { paymentId } = await params;
     const body = await request.json();
     const { paymentMethod, paidAt } = body;
 

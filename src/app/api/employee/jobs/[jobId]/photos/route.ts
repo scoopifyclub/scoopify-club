@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export async function POST(
   request: Request,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     // Verify employee authorization
@@ -20,7 +20,7 @@ export async function POST(
 
     // Get the service
     const service = await prisma.service.findUnique({
-      where: { id: params.jobId }
+      where: { id: (await params).jobId }
     });
 
     if (!service) {
@@ -68,7 +68,7 @@ export async function POST(
         photos.map(photo =>
           tx.servicePhoto.create({
             data: {
-              serviceId: params.jobId,
+              serviceId: (await params).jobId,
               url: photo.url,
               type: photo.type,
               metadata: photo.metadata || {}
@@ -83,7 +83,7 @@ export async function POST(
           checklistItems.map(item =>
             tx.serviceChecklist.create({
               data: {
-                serviceId: params.jobId,
+                serviceId: (await params).jobId,
                 item: item.text,
                 completed: item.completed
               }
@@ -95,7 +95,7 @@ export async function POST(
       // Update service status if complete
       if (isComplete) {
         const updatedService = await tx.service.update({
-          where: { id: params.jobId },
+          where: { id: (await params).jobId },
           data: {
             status: 'COMPLETED',
             completedAt: new Date(),
@@ -139,7 +139,7 @@ export async function POST(
 // Get photos for a service
 export async function GET(
   request: Request,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     // Verify authorization
@@ -155,7 +155,7 @@ export async function GET(
 
     // Get the service with photos and checklist
     const service = await prisma.service.findUnique({
-      where: { id: params.jobId },
+      where: { id: (await params).jobId },
       include: {
         photos: {
           orderBy: {

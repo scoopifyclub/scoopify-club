@@ -7,7 +7,7 @@ import prisma from '@/lib/prisma';
 
 export async function GET(
   request: Request,
-  { params }: { params: { customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     // Get access token from cookies
@@ -24,7 +24,7 @@ const { userId, role } = await validateUser(accessToken);
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const { customerId } = params;
+    const { customerId } = await params;
 
     // Check if user is authorized to view this customer's data
     const isAdmin = role === 'ADMIN';
@@ -72,7 +72,7 @@ const { userId, role } = await validateUser(accessToken);
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { customerId: string } }
+  { params }: { params: Promise<{ customerId: string }> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -80,7 +80,7 @@ export async function PATCH(
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const { customerId } = params;
+    const { customerId } = await params;
     const body = await request.json();
     const { action } = body;
 

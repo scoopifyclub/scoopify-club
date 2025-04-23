@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth'
 
 export async function POST(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.split(' ')[1]
@@ -18,7 +18,7 @@ export async function POST(
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       include: { employee: true }
     })
 
@@ -33,7 +33,7 @@ export async function POST(
     const checklist = await request.json()
     const serviceChecklist = await prisma.serviceChecklist.create({
       data: {
-        serviceId: params.serviceId,
+        serviceId: (await params).serviceId,
         ...checklist
       }
     })
@@ -47,7 +47,7 @@ export async function POST(
 
 export async function GET(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     const token = request.headers.get('authorization')?.split(' ')[1]
@@ -61,7 +61,7 @@ export async function GET(
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       include: { checklist: true }
     })
 

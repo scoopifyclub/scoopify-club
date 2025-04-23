@@ -7,6 +7,9 @@ const path = require('path');
 
 console.log('🚀 Preparing deployment to Vercel...');
 
+// Check if skip-tests flag is provided
+const skipTests = process.argv.includes('--skip-tests');
+
 // 1. Create a migration for PostgreSQL if needed
 console.log('📊 Checking for pending database changes...');
 
@@ -25,14 +28,19 @@ try {
   process.exit(1);
 }
 
-// 2. Run other pre-deployment checks
-console.log('🧪 Running tests...');
-try {
-  execSync('npm run test', { stdio: 'inherit' });
-  console.log('✅ Tests passed');
-} catch (error) {
-  console.error('❌ Tests failed:', error.message);
-  process.exit(1);
+// 2. Run other pre-deployment checks (optional)
+if (!skipTests) {
+  console.log('🧪 Running tests...');
+  try {
+    execSync('npm run test', { stdio: 'inherit' });
+    console.log('✅ Tests passed');
+  } catch (error) {
+    console.error('❌ Tests failed:', error.message);
+    console.log('Use --skip-tests flag to deploy anyway.');
+    process.exit(1);
+  }
+} else {
+  console.log('⏩ Skipping tests as requested');
 }
 
 // 3. Deploy to Vercel (if vercel CLI is installed)

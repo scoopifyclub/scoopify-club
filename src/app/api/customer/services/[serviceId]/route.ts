@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 
 export async function GET(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     // Verify customer authorization
@@ -16,10 +16,11 @@ export async function GET(
     }
 
     const { userId } = await validateUser(token, 'CUSTOMER');
+    const { serviceId } = await params;
 
     // Get the service with all related data
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: serviceId },
       include: {
         customer: {
           select: {
@@ -88,7 +89,7 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     // Verify customer authorization
@@ -99,7 +100,7 @@ export async function POST(
     }
 
     const { userId } = await validateUser(token, 'CUSTOMER');
-
+    const { serviceId } = await params;
     const { rating, comment } = await request.json();
 
     // Validate feedback data
@@ -112,7 +113,7 @@ export async function POST(
 
     // Verify service ownership
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: serviceId },
       select: {
         customer: {
           select: {
@@ -133,7 +134,7 @@ export async function POST(
     // Create feedback
     const feedback = await prisma.serviceFeedback.create({
       data: {
-        serviceId: params.serviceId,
+        serviceId: serviceId,
         rating,
         comment
       }

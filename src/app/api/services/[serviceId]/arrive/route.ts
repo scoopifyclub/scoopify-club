@@ -3,10 +3,10 @@ import prisma from "@/lib/prisma";
 import { withDatabase } from '@/middleware/db';
 import { requireAuth } from '@/lib/api-auth';
 
-const handler = async (req: Request, { params }: { params: { serviceId: string } }) => {
+const handler = async (req: Request, { params }: { params: Promise<{ serviceId: string }> }) => {
   try {
     const user = await requireAuth(req as any);
-    const { serviceId } = params;
+    const { serviceId } = await params;
 
     // Only employees can mark arrival
     if (user.role !== 'EMPLOYEE') {

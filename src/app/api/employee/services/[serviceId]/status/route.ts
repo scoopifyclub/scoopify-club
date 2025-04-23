@@ -5,7 +5,7 @@ import { validateServiceStatus } from '@/lib/validations';
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     const token = request.headers.get('Authorization')?.split(' ')[1];
@@ -24,7 +24,7 @@ export async function PATCH(
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       include: { employee: true }
     });
 
@@ -46,7 +46,7 @@ export async function PATCH(
 
     // Update service status
     const updatedService = await prisma.service.update({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       data: {
         status,
         completedDate: status === 'COMPLETED' ? new Date() : undefined

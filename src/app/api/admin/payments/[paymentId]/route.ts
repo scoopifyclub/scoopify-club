@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { paymentId: string } }
+  { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
     const cookieStore = await cookies();
@@ -22,10 +22,11 @@ export async function PATCH(
     }
 
     const { status, paymentMethod } = await request.json();
+    const { paymentId } = await params;
 
     const payment = await prisma.payment.update({
       where: {
-        id: params.paymentId,
+        id: paymentId,
       },
       data: {
         status,

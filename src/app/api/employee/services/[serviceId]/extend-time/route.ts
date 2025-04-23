@@ -7,7 +7,7 @@ import prisma from "@/lib/prisma";
 
 export async function POST(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     // Get access token from cookies
@@ -25,7 +25,7 @@ const { userId, role } = await validateUser(accessToken);
     }
 
     const { minutes } = await request.json();
-    const serviceId = params.serviceId;
+    const serviceId = (await params).serviceId;
 
     // Get the service and employee
     const service = await prisma.service.findUnique({

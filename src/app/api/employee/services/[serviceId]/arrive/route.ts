@@ -4,7 +4,7 @@ import { verifyToken } from '@/lib/auth';
 
 export async function POST(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     // Verify employee authorization
@@ -21,7 +21,7 @@ export async function POST(
     // Update service status to IN_PROGRESS
     const service = await prisma.service.update({
       where: {
-        id: params.serviceId,
+        id: (await params).serviceId,
         employeeId: decoded.id,
         status: 'ASSIGNED'
       },

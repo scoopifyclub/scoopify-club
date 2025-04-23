@@ -4,10 +4,10 @@ import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { geocodeZipCode } from '@/lib/geocoding';
 
-export async function POST(request, context) {
+export async function POST(request, { params }: { params: Promise<any> }) {
   try {
     // Extract the employeeId from params
-    const { employeeId } = context.params;
+    const { employeeId } = await params;
 
     // Get access token from cookies
     const cookieStore = cookies();
@@ -76,10 +76,10 @@ export async function POST(request, context) {
   }
 }
 
-export async function GET(request, context) {
+export async function GET(request, { params }: { params: Promise<any> }) {
   try {
     // Extract the employeeId from params
-    const { employeeId } = context.params;
+    const { employeeId } = await params;
 
     // Get access token from cookies
     const cookieStore = cookies();

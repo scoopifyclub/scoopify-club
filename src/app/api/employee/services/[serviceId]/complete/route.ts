@@ -13,7 +13,7 @@ const COMPRESSED_IMAGE_WIDTH = 1920
 
 export async function POST(
   request: Request,
-  { params }: { params: { serviceId: string } }
+  { params }: { params: Promise<{ serviceId: string }> }
 ) {
   try {
     // Verify employee authorization
@@ -28,7 +28,7 @@ export async function POST(
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       include: {
         employee: true,
         customer: true,
@@ -59,7 +59,7 @@ export async function POST(
 
     // Check current photo count
     const currentPhotoCount = await prisma.servicePhoto.count({
-      where: { serviceId: params.serviceId }
+      where: { serviceId: (await params).serviceId }
     })
 
     // Check if adding these photos would exceed the limit
@@ -72,7 +72,7 @@ export async function POST(
 
     // Check if service has at least one photo
     const existingPhotos = await prisma.servicePhoto.findMany({
-      where: { serviceId: params.serviceId }
+      where: { serviceId: (await params).serviceId }
     })
 
     if (existingPhotos.length === 0 && (!photos || photos.length === 0)) {
@@ -125,7 +125,7 @@ export async function POST(
 
     // Update service status to COMPLETED
     const updatedService = await prisma.service.update({
-      where: { id: params.serviceId },
+      where: { id: (await params).serviceId },
       data: {
         status: 'COMPLETED',
         completedDate: new Date(),

@@ -7,7 +7,7 @@ import prisma from '@/lib/prisma';
 
 export async function POST(
   request: Request,
-  { params }: { params: { paymentId: string } }
+  { params }: { params: Promise<{ paymentId: string }> }
 ) {
   try {
     // Get access token from cookies
@@ -24,7 +24,7 @@ const { userId, role } = await validateUser(accessToken);
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
-    const { paymentId } = params;
+    const { paymentId } = await params;
 
     // Cancel all scheduled retries for this payment
     await prisma.paymentRetry.updateMany({
