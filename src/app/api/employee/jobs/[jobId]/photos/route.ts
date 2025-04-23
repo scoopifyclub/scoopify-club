@@ -7,6 +7,10 @@ export async function POST(
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
+    // Resolve params first
+    const resolvedParams = await params;
+    const jobId = resolvedParams.jobId;
+
     // Verify employee authorization
     const token = request.headers.get('Authorization')?.split(' ')[1];
     if (!token) {
@@ -20,7 +24,7 @@ export async function POST(
 
     // Get the service
     const service = await prisma.service.findUnique({
-      where: { id: (await params).jobId }
+      where: { id: jobId }
     });
 
     if (!service) {
@@ -68,7 +72,7 @@ export async function POST(
         photos.map(photo =>
           tx.servicePhoto.create({
             data: {
-              serviceId: (await params).jobId,
+              serviceId: jobId,
               url: photo.url,
               type: photo.type,
               metadata: photo.metadata || {}
@@ -83,7 +87,7 @@ export async function POST(
           checklistItems.map(item =>
             tx.serviceChecklist.create({
               data: {
-                serviceId: (await params).jobId,
+                serviceId: jobId,
                 item: item.text,
                 completed: item.completed
               }
@@ -95,7 +99,7 @@ export async function POST(
       // Update service status if complete
       if (isComplete) {
         const updatedService = await tx.service.update({
-          where: { id: (await params).jobId },
+          where: { id: jobId },
           data: {
             status: 'COMPLETED',
             completedAt: new Date(),
@@ -142,6 +146,10 @@ export async function GET(
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
+    // Resolve params first
+    const resolvedParams = await params;
+    const jobId = resolvedParams.jobId;
+
     // Verify authorization
     const token = request.headers.get('Authorization')?.split(' ')[1];
     if (!token) {
@@ -155,7 +163,7 @@ export async function GET(
 
     // Get the service with photos and checklist
     const service = await prisma.service.findUnique({
-      where: { id: (await params).jobId },
+      where: { id: jobId },
       include: {
         photos: {
           orderBy: {

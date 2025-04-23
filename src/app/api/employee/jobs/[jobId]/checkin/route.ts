@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { withDatabase } from '@/middleware/db';
 import { verifyToken } from '@/lib/auth';
 import { isAfter } from 'date-fns';
 
-const handler = async (
+export async function POST(
   req: Request,
   { params }: { params: Promise<{ jobId: string }> }
-) => {
+) {
   try {
+    // Resolve params first
+    const resolvedParams = await params;
+    const jobId = resolvedParams.jobId;
+    
     const token = req.headers.get('authorization')?.split(' ')[1];
     if (!token) {
       return NextResponse.json(
@@ -26,8 +29,8 @@ const handler = async (
     }
 
     const service = await prisma.service.findUnique({
-      where: { id: params.jobId },
-      include: { employee: true }
+      where: { id: jobId },
+      include: { employee: true, customer: { include: { user: true } } }
     });
 
     if (!service) {
@@ -37,7 +40,7 @@ const handler = async (
       );
     }
 
-    if (service.employeeId !== decoded.userId) {
+    if (service.employeeId !== decoded.id) {
       return NextResponse.json(
         { error: 'Not assigned to this service' },
         { status: 403 }
@@ -57,7 +60,7 @@ const handler = async (
     if (isAfter(now, new Date(service.arrivalDeadline))) {
       // Release the job back to the pool
       await prisma.service.update({
-        where: { id: params.jobId },
+        where: { id: jobId },
         data: {
           employeeId: null,
           status: 'SCHEDULED',
@@ -94,7 +97,7 @@ const handler = async (
 
     // Update service status
     const updatedService = await prisma.service.update({
-      where: { id: params.jobId },
+      where: { id: jobId },
       data: {
         status: 'IN_PROGRESS',
         arrivedAt: now
@@ -120,9 +123,7 @@ const handler = async (
       { status: 500 }
     );
   }
-};
-
-export const POST = withDatabase(handler);
+}
 
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 3963; // Earth's radius in miles
