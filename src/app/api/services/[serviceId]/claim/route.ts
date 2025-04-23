@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { withDatabase } from '@/middleware/db';
 import { requireAuth } from '@/lib/api-auth';
 
-const handler = async (req: Request, { params }: { params: Promise<{ serviceId: string }> }) => {
+export async function POST(req: Request, { params }: { params: Promise<{ serviceId: string }> }) {
   try {
     const user = await requireAuth(req as any);
     const { serviceId } = await params;
@@ -76,6 +75,4 @@ const handler = async (req: Request, { params }: { params: Promise<{ serviceId: 
       { status: 500 }
     );
   }
-};
-
-export const POST = withDatabase(handler); 
+} 
