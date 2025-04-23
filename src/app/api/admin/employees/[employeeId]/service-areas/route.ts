@@ -1,13 +1,10 @@
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { geocodeZipCode } from '@/lib/geocoding';
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { employeeId: string } }
-) {
+export async function POST(req, { params }) {
   try {
     // Extract the employeeId from params
     const { employeeId } = params;
@@ -30,7 +27,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
-    const { zipCode, radius, isPrimary } = await request.json();
+    const { zipCode, radius, isPrimary } = await req.json();
 
     // Validate zip code format
     if (!/^\d{5}(-\d{4})?$/.test(zipCode)) {
@@ -79,10 +76,7 @@ export async function POST(
   }
 }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { employeeId: string } }
-) {
+export async function GET(req, { params }) {
   try {
     // Extract the employeeId from params
     const { employeeId } = params;
