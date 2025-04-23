@@ -4,10 +4,10 @@ import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { geocodeZipCode } from '@/lib/geocoding';
 
-export async function POST(req, { params }) {
+export async function POST(request, context) {
   try {
     // Extract the employeeId from params
-    const { employeeId } = params;
+    const { employeeId } = context.params;
 
     // Get access token from cookies
     const cookieStore = cookies();
@@ -27,7 +27,7 @@ export async function POST(req, { params }) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
-    const { zipCode, radius, isPrimary } = await req.json();
+    const { zipCode, radius, isPrimary } = await request.json();
 
     // Validate zip code format
     if (!/^\d{5}(-\d{4})?$/.test(zipCode)) {
@@ -76,10 +76,10 @@ export async function POST(req, { params }) {
   }
 }
 
-export async function GET(req, { params }) {
+export async function GET(request, context) {
   try {
     // Extract the employeeId from params
-    const { employeeId } = params;
+    const { employeeId } = context.params;
 
     // Get access token from cookies
     const cookieStore = cookies();

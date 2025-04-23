@@ -3,10 +3,10 @@ import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 
-export async function PATCH(req, { params }) {
+export async function PATCH(request, context) {
   try {
     // Extract the employeeId from params
-    const { employeeId } = params;
+    const { employeeId } = context.params;
 
     // Get access token from cookies
     const cookieStore = cookies();
@@ -27,7 +27,7 @@ export async function PATCH(req, { params }) {
     }
 
     // Parse request body
-    const { zipCode, serviceRadius, isAvailable } = await req.json();
+    const { zipCode, serviceRadius, isAvailable } = await request.json();
 
     // Validate zip code format (basic validation)
     if (zipCode && !/^\d{5}(-\d{4})?$/.test(zipCode)) {
