@@ -6,11 +6,11 @@ import prisma from "@/lib/prisma";
 // Define the PATCH handler with proper Next.js API route typing
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { employeeId: string } }
+  context: { params: { employeeId: string } }
 ) {
   try {
     // Extract the employeeId from params
-    const { employeeId } = params;
+    const { employeeId } = context.params;
 
     // Get access token from cookies
     const cookieStore = cookies();
