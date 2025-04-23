@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { withDatabase } from '@/middleware/db';
 import { requireAuth } from '@/lib/api-auth';
 import { stripe } from '@/lib/stripe';
 
-const handler = async (req: Request, { params }: { params: Promise<{ paymentId: string }> }) => {
+export async function GET(req: Request, { params }: { params: Promise<{ paymentId: string }> }) {
   try {
     const user = await requireAuth(req as any);
     const { paymentId } = await params;
@@ -100,6 +99,4 @@ const handler = async (req: Request, { params }: { params: Promise<{ paymentId: 
       { status: 500 }
     );
   }
-};
-
-export const GET = withDatabase(handler); 
+} 
