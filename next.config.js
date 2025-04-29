@@ -71,6 +71,7 @@ const nextConfig = {
         tls: false,
         child_process: false,
         readline: false,
+        dns: false,
       };
     }
 
