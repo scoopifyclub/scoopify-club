@@ -6,7 +6,6 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
   relationMode = "prisma"
   extensions = []
 }
@@ -63,6 +62,7 @@ model Customer {
   referralsReceived Referral[]    @relation("Referred")
   referralsGiven    Referral[]    @relation("Referrer")
   services          Service[]
+  ratings           ServiceRating[]
 
   @@index([subscriptionId])
 }
@@ -130,6 +130,8 @@ model Employee {
   messages        ServiceMessage[]
   timeExtensions  TimeExtension[]
   earnings        Earning[]
+  ratings         ServiceRating[]
+  averageRating   Float?
 }
 
 model Payment {
@@ -234,6 +236,7 @@ model Service {
   photos         ServicePhoto[]
   timeExtensions TimeExtension[]
   earnings       Earning[]
+  rating         ServiceRating?
 
   @@index([paymentStatus])
   @@index([employeeId])
@@ -499,4 +502,23 @@ model Cache {
   @@index([key])
   @@index([tags])
   @@index([expiresAt])
+}
+
+model ServiceRating {
+  id          String   @id @default(cuid())
+  rating      Int      // 1-5 stars
+  comment     String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  service     Service  @relation(fields: [serviceId], references: [id])
+  serviceId   String   @unique  // Make this unique for one-to-one relation
+  customer    Customer @relation(fields: [customerId], references: [id])
+  customerId  String
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  employeeId  String
+
+  @@index([customerId])
+  @@index([employeeId])
 }

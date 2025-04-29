@@ -3,8 +3,8 @@
 import dynamic from 'next/dynamic';
 import { Suspense } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 // Create JobsList component dynamically to avoid SSR issues
 const JobsList = dynamic(() => import('./components/JobsList'), {
@@ -20,8 +20,14 @@ function ErrorFallback({ error, resetErrorBoundary }) {
       <h2 className="text-xl font-semibold text-red-600 mb-2">Something went wrong</h2>
       <p className="text-gray-600 mb-4">{error.message}</p>
       <button
-        onClick={resetErrorBoundary}
-        className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90"
+        onClick={() => {
+          toast.promise(resetErrorBoundary, {
+            loading: 'Retrying...',
+            success: 'Successfully refreshed',
+            error: 'Failed to refresh'
+          });
+        }}
+        className="px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition-colors"
       >
         Try again
       </button>
@@ -30,35 +36,37 @@ function ErrorFallback({ error, resetErrorBoundary }) {
 }
 
 export default function JobsPage() {
-  const router = useRouter();
-  const { data: session, status } = useSession({
-    required: true,
-    onUnauthenticated() {
-      router.push('/auth/login?callbackUrl=/employee/dashboard/jobs');
-    },
+  const { user, loading } = useAuth({ 
+    requiredRole: 'EMPLOYEE',
+    redirectTo: '/auth/login?callbackUrl=/employee/dashboard/jobs'
   });
 
   if (typeof window === 'undefined') {
     return null; // Return null during server-side rendering
   }
 
-  if (status === 'loading') {
-    return <div className="flex justify-center items-center min-h-screen">
-      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-    </div>;
-  }
-
-  if (session?.user?.role !== 'EMPLOYEE') {
-    router.push('/');
-    return null;
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   return (
-    <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <Suspense fallback={<div className="flex justify-center items-center py-8 sm:py-12">
-        <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-primary"></div>
-      </div>}>
-        <JobsList session={session} />
+    <ErrorBoundary 
+      FallbackComponent={ErrorFallback}
+      onReset={() => {
+        // Optional: Add any state reset logic here
+        window.location.reload();
+      }}
+    >
+      <Suspense fallback={
+        <div className="flex justify-center items-center py-8 sm:py-12">
+          <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-primary"></div>
+        </div>
+      }>
+        <JobsList user={user} />
       </Suspense>
     </ErrorBoundary>
   );

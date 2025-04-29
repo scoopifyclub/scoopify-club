@@ -1,37 +1,43 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { login } from '@/lib/auth';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
+import { z } from 'zod';
+
+// Validation schema for login request
+const loginSchema = z.object({
+    email: z.string().email('Invalid email format'),
+    password: z.string().min(8, 'Password must be at least 8 characters'),
+    fingerprint: z.string().optional()
+});
 
 export async function POST(request) {
     try {
-        const body = await request.json();
-        const { email, password, fingerprint } = body;
-
         // Get client IP for rate limiting
         const ip = request.headers.get('x-forwarded-for') || request.ip || 'unknown';
         
         // Apply rate limiting
         const rateLimiter = new AuthRateLimiter('login');
-        const rateLimitResult = await rateLimiter.limit(ip, 'login');
+        const rateLimitResult = await rateLimiter.limit(ip);
         
-        if (rateLimitResult?.response) {
-            return rateLimitResult.response;
-        }
-
-        // Validate required fields
-        if (!email || !password) {
+        if (rateLimitResult?.blocked) {
             return NextResponse.json(
-                { error: 'Email and password are required' },
-                { status: 400 }
+                { error: 'Too many login attempts. Please try again later.' },
+                { 
+                    status: 429,
+                    headers: rateLimitResult.headers
+                }
             );
         }
 
+        // Parse and validate request body
+        const body = await request.json();
+        const validatedData = loginSchema.parse(body);
+
         // Attempt login
         const { accessToken, refreshToken, user, deviceFingerprint } = await login(
-            email,
-            password,
-            fingerprint
+            validatedData.email,
+            validatedData.password,
+            validatedData.fingerprint
         );
 
         // Create successful response
@@ -42,7 +48,9 @@ export async function POST(request) {
                     id: user.id,
                     email: user.email,
                     role: user.role,
-                    name: user.name
+                    name: user.name,
+                    customerId: user.customer?.id,
+                    employeeId: user.employee?.id
                 }
             },
             { status: 200 }
@@ -52,7 +60,7 @@ export async function POST(request) {
         response.cookies.set('accessToken', accessToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'lax',
             path: '/',
             maxAge: 15 * 60 // 15 minutes
         });
@@ -60,7 +68,7 @@ export async function POST(request) {
         response.cookies.set('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'lax',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
@@ -68,7 +76,7 @@ export async function POST(request) {
         response.cookies.set('fingerprint', deviceFingerprint, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'lax',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
@@ -84,10 +92,37 @@ export async function POST(request) {
     } catch (error) {
         console.error('Login error:', error);
         
-        // Don't expose internal errors
+        // Handle validation errors
+        if (error instanceof z.ZodError) {
+            return NextResponse.json(
+                { 
+                    error: 'Invalid input',
+                    details: error.errors 
+                },
+                { status: 400 }
+            );
+        }
+
+        // Handle specific auth errors
+        if (error.message === 'Invalid email or password') {
+            return NextResponse.json(
+                { error: 'Invalid email or password' },
+                { status: 401 }
+            );
+        }
+
+        // Handle rate limit errors
+        if (error.message === 'Rate limit exceeded') {
+            return NextResponse.json(
+                { error: 'Too many login attempts. Please try again later.' },
+                { status: 429 }
+            );
+        }
+
+        // Handle any other errors without exposing details
         return NextResponse.json(
-            { error: 'Invalid email or password' },
-            { status: 401 }
+            { error: 'An error occurred during login' },
+            { status: 500 }
         );
     }
 }

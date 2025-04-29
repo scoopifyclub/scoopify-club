@@ -1,120 +1,57 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import prisma from "@/lib/prisma";
-export async function POST(req) {
-    var _a, _b, _c, _d;
+import { verifyToken } from '@/lib/auth';
+import prisma from '@/lib/prisma';
+import { cookies } from 'next/headers';
+
+export async function POST(request) {
     try {
-        // Verify scooper authorization
-        const session = await getServerSession(authOptions);
-        if (!(session === null || session === void 0 ? void 0 : session.user) || session.user.role !== 'EMPLOYEE') {
-            return new NextResponse('Unauthorized', { status: 401 });
+        const cookieStore = cookies();
+        const token = cookieStore.get('token')?.value;
+
+        if (!token) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const { serviceId } = await req.json();
-        if (!serviceId) {
-            return new NextResponse('Service ID is required', { status: 400 });
+
+        const decoded = await verifyToken(token);
+        if (!decoded || decoded.role !== 'EMPLOYEE') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        // Get employee details
-        const employee = await prisma.employee.findUnique({
-            where: { userId: session.user.id },
-            include: {
-                serviceAreas: true
-            }
-        });
-        if (!employee) {
-            return new NextResponse('Employee profile not found', { status: 404 });
-        }
-        // Get the service and verify it can be claimed
-        const service = await prisma.service.findUnique({
+
+        const { serviceId } = await request.json();
+
+        // Update service with employee
+        const service = await prisma.service.update({
             where: { id: serviceId },
+            data: {
+                employeeId: decoded.employeeId,
+                status: 'ASSIGNED'
+            },
             include: {
-                serviceArea: true,
-                customer: true
-            }
-        });
-        if (!service) {
-            return new NextResponse('Service not found', { status: 404 });
-        }
-        // Verify service is available
-        if (service.status !== 'SCHEDULED' || service.employeeId) {
-            return new NextResponse('Service is not available for claiming', { status: 400 });
-        }
-        // Verify service is in scooper's service area
-        const canService = employee.serviceAreas.some(area => { var _a; return area.zipCode === ((_a = service.serviceArea) === null || _a === void 0 ? void 0 : _a.zipCode); });
-        if (!canService) {
-            return new NextResponse('Service is not in your service area', { status: 400 });
-        }
-        // Check if scooper already has a service scheduled for this time
-        const conflictingService = await prisma.service.findFirst({
-            where: {
-                employeeId: employee.id,
-                scheduledDate: service.scheduledDate,
-                status: {
-                    in: ['SCHEDULED', 'IN_PROGRESS']
+                customer: {
+                    include: {
+                        user: true
+                    }
                 }
             }
         });
-        if (conflictingService) {
-            return new NextResponse('You already have a service scheduled for this time', { status: 400 });
-        }
-        // Claim the service with a transaction to ensure atomicity
-        const claimedService = await prisma.$transaction(async (tx) => {
-            // Double-check the service hasn't been claimed while we were checking
-            const freshService = await tx.service.findUnique({
-                where: { id: serviceId }
-            });
-            if (freshService === null || freshService === void 0 ? void 0 : freshService.employeeId) {
-                throw new Error('Service was just claimed by another scooper');
-            }
-            // Claim the service
-            return tx.service.update({
-                where: { id: serviceId },
-                data: {
-                    employeeId: employee.id
-                },
-                include: {
-                    customer: {
-                        include: {
-                            address: true,
-                            user: {
-                                select: {
-                                    name: true
-                                }
-                            }
-                        }
-                    },
-                    servicePlan: true
+
+        // Send email notification
+        if (service.customer?.user?.email) {
+            await sendServiceNotificationEmail(
+                service.customer.user.email,
+                serviceId,
+                'claimed',
+                {
+                    date: service.scheduledDate,
+                    address: service.customer.address,
+                    employeeName: decoded.name
                 }
-            });
-        });
-        // Format the response
-        const formattedService = {
-            id: claimedService.id,
-            scheduledDate: claimedService.scheduledDate,
-            potentialEarnings: claimedService.potentialEarnings,
-            customerName: claimedService.customer.user.name,
-            address: {
-                street: (_a = claimedService.customer.address) === null || _a === void 0 ? void 0 : _a.street,
-                city: (_b = claimedService.customer.address) === null || _b === void 0 ? void 0 : _b.city,
-                state: (_c = claimedService.customer.address) === null || _c === void 0 ? void 0 : _c.state,
-                zipCode: (_d = claimedService.customer.address) === null || _d === void 0 ? void 0 : _d.zipCode
-            },
-            servicePlan: {
-                name: claimedService.servicePlan.name,
-                duration: claimedService.servicePlan.duration
-            },
-            gateCode: claimedService.customer.gateCode
-        };
-        return NextResponse.json({
-            message: 'Service claimed successfully',
-            service: formattedService
-        });
-    }
-    catch (error) {
+            );
+        }
+
+        return NextResponse.json({ success: true, service });
+    } catch (error) {
         console.error('Error claiming service:', error);
-        if (error.message === 'Service was just claimed by another scooper') {
-            return NextResponse.json({ error: error.message }, { status: 409 });
-        }
         return NextResponse.json({ error: 'Failed to claim service' }, { status: 500 });
     }
 }

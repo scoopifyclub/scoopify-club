@@ -1,67 +1,64 @@
 import { NextResponse } from 'next/server';
 import { refreshToken } from '@/lib/auth';
-import { cookies } from 'next/headers';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 
 export async function POST(request) {
     try {
-        console.log('Refresh token endpoint called');
-        
         // Get client IP for rate limiting
         const ip = request.headers.get('x-forwarded-for') || request.ip || 'unknown';
         
         // Apply rate limiting
         const rateLimiter = new AuthRateLimiter('refresh');
-        const rateLimitResult = await rateLimiter.limit(ip, 'refresh');
+        const rateLimitResult = await rateLimiter.limit(ip);
         
-        if (rateLimitResult?.response) {
-            return rateLimitResult.response;
-        }
-        
-        const cookieStore = cookies();
-        const refreshTokenCookie = cookieStore.get('refreshToken')?.value;
-        const fingerprint = cookieStore.get('fingerprint')?.value;
-
-        console.log('Refresh token cookies check:', {
-            hasRefreshToken: !!refreshTokenCookie,
-            hasFingerprint: !!fingerprint,
-            fingerprintStart: fingerprint ? fingerprint.substring(0, 8) : 'null'
-        });
-
-        if (!refreshTokenCookie) {
-            console.log('No refresh token found in cookies');
+        if (rateLimitResult?.blocked) {
             return NextResponse.json(
-                { error: 'No refresh token found' },
+                { error: 'Too many refresh attempts. Please try again later.' },
+                { 
+                    status: 429,
+                    headers: rateLimitResult.headers
+                }
+            );
+        }
+
+        // Get refresh token from cookies
+        const oldRefreshToken = request.cookies.get('refreshToken')?.value;
+        const fingerprint = request.cookies.get('fingerprint')?.value;
+
+        if (!oldRefreshToken) {
+            return NextResponse.json(
+                { error: 'No refresh token provided' },
                 { status: 401 }
             );
         }
 
-        // Attempt to refresh the token
-        console.log('Attempting to refresh the token');
+        // Attempt to refresh the tokens
         const { accessToken, refreshToken: newRefreshToken, user } = await refreshToken(
-            refreshTokenCookie,
+            oldRefreshToken,
             fingerprint
         );
 
-        // Create the response with new tokens
+        // Create successful response
         const response = NextResponse.json(
-            { 
+            {
                 success: true,
                 user: {
                     id: user.id,
                     email: user.email,
                     role: user.role,
-                    name: user.name
+                    name: user.name,
+                    customerId: user.customer?.id,
+                    employeeId: user.employee?.id
                 }
             },
             { status: 200 }
         );
 
-        // Set the new cookies
+        // Set new auth cookies
         response.cookies.set('accessToken', accessToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'lax',
             path: '/',
             maxAge: 15 * 60 // 15 minutes
         });
@@ -69,7 +66,7 @@ export async function POST(request) {
         response.cookies.set('refreshToken', newRefreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'lax',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
@@ -83,18 +80,36 @@ export async function POST(request) {
 
         return response;
     } catch (error) {
-        console.error('Refresh token error:', error);
-        
-        // Clear cookies on error
-        const response = NextResponse.json(
-            { error: 'Invalid refresh token' },
-            { status: 401 }
-        );
+        console.error('Token refresh error:', error);
 
-        response.cookies.delete('accessToken');
-        response.cookies.delete('refreshToken');
-        
-        return response;
+        // Handle specific errors
+        if (error.message === 'Invalid refresh token' || 
+            error.message === 'Refresh token not found or revoked') {
+            return NextResponse.json(
+                { error: 'Invalid refresh token' },
+                { status: 401 }
+            );
+        }
+
+        if (error.message === 'User not found') {
+            return NextResponse.json(
+                { error: 'User not found' },
+                { status: 401 }
+            );
+        }
+
+        if (error.message === 'Rate limit exceeded') {
+            return NextResponse.json(
+                { error: 'Too many refresh attempts. Please try again later.' },
+                { status: 429 }
+            );
+        }
+
+        // Handle any other errors without exposing details
+        return NextResponse.json(
+            { error: 'An error occurred while refreshing token' },
+            { status: 500 }
+        );
     }
 }
 

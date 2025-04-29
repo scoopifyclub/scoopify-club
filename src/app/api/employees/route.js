@@ -1,98 +1,140 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
+import { verifyToken } from '@/lib/auth';
+import prisma from '@/lib/prisma';
+import { cookies } from 'next/headers';
+import bcrypt from 'bcryptjs';
+import { generateToken } from '@/lib/auth';
+
 export async function POST(request) {
     try {
-        const { name, email, phone, street, city, state, zipCode, cashAppTag, } = await request.json();
-        // Create a new user
-        const user = await prisma.user.create({
-            data: {
-                name,
-                email,
-                role: 'EMPLOYEE',
-            },
+        const cookieStore = cookies();
+        const token = cookieStore.get('token')?.value;
+
+        if (!token) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const decoded = await verifyToken(token);
+        if (!decoded || decoded.role !== 'ADMIN') {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const data = await request.json();
+        const { email, password, name, phone, serviceAreas } = data;
+
+        // Validate required fields
+        if (!email || !password || !name || !phone || !serviceAreas || !Array.isArray(serviceAreas)) {
+            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        }
+
+        // Check if email already exists
+        const existingUser = await prisma.user.findUnique({
+            where: { email }
         });
-        // Create the employee's address
-        const address = await prisma.address.create({
-            data: {
-                street,
-                city,
-                state,
-                zipCode,
-            },
+
+        if (existingUser) {
+            return NextResponse.json({ error: 'Email already registered' }, { status: 400 });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user and employee in a transaction
+        const result = await prisma.$transaction(async (prisma) => {
+            // Create user
+            const user = await prisma.user.create({
+                data: {
+                    email,
+                    password: hashedPassword,
+                    name,
+                    role: 'EMPLOYEE'
+                }
+            });
+
+            // Create employee profile
+            const employee = await prisma.employee.create({
+                data: {
+                    userId: user.id,
+                    phone,
+                    status: 'ACTIVE',
+                    serviceAreas: {
+                        create: serviceAreas.map(area => ({
+                            zipCode: area
+                        }))
+                    }
+                }
+            });
+
+            return { user, employee };
         });
-        // Create the employee record
-        const employee = await prisma.employee.create({
-            data: {
-                userId: user.id,
-                name,
-                email,
-                phone,
-                addressId: address.id,
-                cashAppTag,
-            },
+
+        // Generate token for the new employee
+        const employeeToken = await generateToken({
+            id: result.user.id,
+            email: result.user.email,
+            role: 'EMPLOYEE'
         });
+
         return NextResponse.json({
-            id: employee.id,
-            name: employee.name,
-            email: employee.email,
-            phone: employee.phone,
-            address: {
-                street: address.street,
-                city: address.city,
-                state: address.state,
-                zipCode: address.zipCode,
+            success: true,
+            employee: {
+                id: result.employee.id,
+                name: result.user.name,
+                email: result.user.email,
+                phone: result.employee.phone,
+                serviceAreas: serviceAreas
             },
-            cashAppTag: employee.cashAppTag,
+            token: employeeToken
         });
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Error creating employee:', error);
         return NextResponse.json({ error: 'Failed to create employee' }, { status: 500 });
     }
 }
-export async function GET() {
+
+export async function GET(request) {
     try {
+        const cookieStore = cookies();
+        const token = cookieStore.get('token')?.value;
+
+        if (!token) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const decoded = await verifyToken(token);
+        if (!decoded || !['ADMIN', 'MANAGER'].includes(decoded.role)) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const employees = await prisma.employee.findMany({
             include: {
                 user: {
                     select: {
                         name: true,
-                        email: true,
-                        phone: true,
-                    },
+                        email: true
+                    }
                 },
-                address: true,
-                services: {
-                    select: {
-                        id: true,
-                        date: true,
-                        price: true,
-                        status: true,
-                    },
-                },
-            },
+                serviceAreas: true
+            }
         });
-        const formattedEmployees = employees.map(employee => ({
-            id: employee.id,
-            name: employee.user.name,
-            email: employee.user.email,
-            phone: employee.user.phone,
-            address: {
-                street: employee.address.street,
-                city: employee.address.city,
-                state: employee.address.state,
-                zipCode: employee.address.zipCode,
-            },
-            cashAppTag: employee.cashAppTag,
-            services: employee.services,
-        }));
-        return NextResponse.json(formattedEmployees);
-    }
-    catch (error) {
+
+        return NextResponse.json({
+            success: true,
+            employees: employees.map(emp => ({
+                id: emp.id,
+                name: emp.user.name,
+                email: emp.user.email,
+                phone: emp.phone,
+                status: emp.status,
+                serviceAreas: emp.serviceAreas.map(area => area.zipCode)
+            }))
+        });
+    } catch (error) {
         console.error('Error fetching employees:', error);
         return NextResponse.json({ error: 'Failed to fetch employees' }, { status: 500 });
     }
 }
+
 export async function DELETE(request) {
     try {
         const { searchParams } = new URL(request.url);

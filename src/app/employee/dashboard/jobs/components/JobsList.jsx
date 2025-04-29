@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
 
-export default function JobsList({ session }) {
+export default function JobsList({ user }) {
     const router = useRouter();
     const [jobs, setJobs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -34,10 +34,10 @@ export default function JobsList({ session }) {
             }
         };
 
-        if (session) {
+        if (user) {
             initializeLocation();
         }
-    }, [session]);
+    }, [user]);
 
     const fetchAvailableJobs = async (latitude, longitude) => {
         try {
@@ -49,12 +49,7 @@ export default function JobsList({ session }) {
                 url += `?latitude=${latitude}&longitude=${longitude}`;
             }
 
-            const response = await fetch(url, {
-                headers: {
-                    'Authorization': `Bearer ${session?.user?.accessToken}`,
-                },
-                cache: 'no-store',
-            });
+            const response = await fetch(url);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -78,13 +73,13 @@ export default function JobsList({ session }) {
             const response = await fetch(`/api/employee/services/${jobId}/claim`, {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Bearer ${session?.user?.accessToken}`,
                     'Content-Type': 'application/json',
                 },
             });
 
             if (!response.ok) {
-                throw new Error('Failed to claim job');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || 'Failed to claim job');
             }
 
             toast.success('Job claimed successfully! Check your schedule for details.');
@@ -93,7 +88,7 @@ export default function JobsList({ session }) {
             // Redirect to schedule page after successful claim
             router.push('/employee/dashboard/schedule');
         } catch (err) {
-            toast.error('Failed to claim job. Please try again.');
+            toast.error(err.message || 'Failed to claim job. Please try again.');
             console.error('Error claiming job:', err);
         } finally {
             setClaimingJob(null);

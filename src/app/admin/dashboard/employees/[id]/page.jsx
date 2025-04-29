@@ -1,6 +1,5 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,11 +13,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ArrowLeft, UserCog, Mail, Phone, Calendar, MapPin, Star, CheckCircle2, ClipboardList, AlertTriangle } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+
 export default function EmployeeDetailsPage() {
     var _a, _b, _c, _d, _e, _f, _g;
     const params = useParams();
     const employeeId = params.id;
-    const { data: session, status } = useSession();
+    const { user, loading } = useAuth({ required: true, role: 'ADMIN' });
     const router = useRouter();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(true);
@@ -34,83 +35,47 @@ export default function EmployeeDetailsPage() {
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     useEffect(() => {
-        var _a;
-        // Redirect to login if not authenticated
-        if (status === 'unauthenticated') {
-            router.push(`/login?callbackUrl=/admin/dashboard/employees/${employeeId}`);
+        if (!loading && !user) {
+            router.push('/login');
             return;
         }
-        // Verify user is an admin
-        if (status === 'authenticated' && ((_a = session === null || session === void 0 ? void 0 : session.user) === null || _a === void 0 ? void 0 : _a.role) !== 'ADMIN') {
-            router.push('/');
-            return;
-        }
-        if (status === 'authenticated') {
+        if (user) {
             fetchEmployeeDetails();
         }
-    }, [status, session, router, employeeId]);
+    }, [loading, user]);
     const fetchEmployeeDetails = async () => {
         try {
-            // In a real app, fetch from API using employeeId
-            // Mock data for demonstration
-            const mockEmployee = {
-                id: employeeId,
-                name: 'David Miller',
-                email: 'david.m@scoopify.com',
-                phone: '(555) 123-4567',
-                role: 'Senior Cleaner',
-                status: 'active',
-                hireDate: '2022-05-12',
-                lastActive: '2023-11-22',
-                completedServices: 153,
-                rating: 4.8,
-                serviceAreas: ['Downtown', 'North Side', 'West Hills'],
-                address: '456 Park Avenue, Anytown, CA 94568',
-                bio: 'Professional cleaner with 5+ years of experience. Specializes in deep cleaning and detail-oriented work.',
-                skills: ['Deep Cleaning', 'Carpet Cleaning', 'Window Cleaning', 'Move-out Cleaning'],
-                emergencyContact: {
-                    name: 'Sarah Miller',
-                    phone: '(555) 987-6543',
-                    relationship: 'Spouse'
-                },
-                upcomingServices: [
-                    {
-                        id: '1001',
-                        date: '2023-12-05T10:00:00Z',
-                        customer: 'John Smith',
-                        type: 'Regular Cleaning'
-                    },
-                    {
-                        id: '1002',
-                        date: '2023-12-07T14:30:00Z',
-                        customer: 'Emily Wilson',
-                        type: 'Deep Cleaning'
-                    }
-                ],
-                paymentInfo: {
-                    accountNumber: '****6789',
-                    routingNumber: '****4321',
-                    paymentMethod: 'Direct Deposit'
+            const response = await fetch(`/api/employees/${employeeId}`, {
+                headers: {
+                    'Content-Type': 'application/json',
                 }
-            };
-            setEmployee(mockEmployee);
-            setEditFormData({
-                name: mockEmployee.name,
-                email: mockEmployee.email,
-                phone: mockEmployee.phone,
-                role: mockEmployee.role,
-                serviceAreas: mockEmployee.serviceAreas,
             });
-        }
-        catch (error) {
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch employee details');
+            }
+
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to fetch employee details');
+            }
+
+            setEmployee(data.employee);
+            setEditFormData({
+                name: data.employee.name,
+                email: data.employee.email,
+                phone: data.employee.phone,
+                role: data.employee.role,
+                serviceAreas: data.employee.serviceAreas,
+            });
+        } catch (error) {
             console.error('Error fetching employee details:', error);
             toast({
                 title: "Error",
                 description: "Failed to load employee details. Please try again.",
                 variant: "destructive"
             });
-        }
-        finally {
+        } finally {
             setIsLoading(false);
         }
     };
@@ -119,30 +84,37 @@ export default function EmployeeDetailsPage() {
             return;
         setIsSubmitting(true);
         try {
-            // In a real app, post to API
-            // For demo, simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            // Update local state to reflect changes
-            setEmployee(prev => {
-                if (!prev)
-                    return null;
-                return Object.assign(Object.assign({}, prev), { name: editFormData.name, email: editFormData.email, phone: editFormData.phone, role: editFormData.role, serviceAreas: editFormData.serviceAreas });
+            const response = await fetch(`/api/employees/${employeeId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(editFormData)
             });
+
+            if (!response.ok) {
+                throw new Error('Failed to update employee');
+            }
+
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to update employee');
+            }
+
+            setEmployee(data.employee);
             setIsEditDialogOpen(false);
             toast({
-                title: "Employee Updated",
-                description: "The employee information has been successfully updated.",
+                title: "Success",
+                description: "Employee information has been updated successfully.",
             });
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Error updating employee:', error);
             toast({
                 title: "Error",
                 description: "Failed to update employee information. Please try again.",
                 variant: "destructive"
             });
-        }
-        finally {
+        } finally {
             setIsSubmitting(false);
         }
     };
@@ -150,22 +122,30 @@ export default function EmployeeDetailsPage() {
         if (!employee)
             return;
         try {
-            // In a real app, post to API
-            // For demo, simulate API call
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            // Update local state to reflect changes
-            setEmployee(prev => {
-                if (!prev)
-                    return null;
-                return Object.assign(Object.assign({}, prev), { status: newStatus });
+            const response = await fetch(`/api/employees/${employeeId}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ status: newStatus })
             });
+
+            if (!response.ok) {
+                throw new Error('Failed to update employee status');
+            }
+
+            const data = await response.json();
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to update employee status');
+            }
+
+            setEmployee(prev => ({ ...prev, status: newStatus }));
             setIsDeactivateDialogOpen(false);
             toast({
-                title: "Status Updated",
+                title: "Success",
                 description: `Employee status has been changed to ${newStatus}.`,
             });
-        }
-        catch (error) {
+        } catch (error) {
             console.error('Error updating employee status:', error);
             toast({
                 title: "Error",
@@ -176,17 +156,17 @@ export default function EmployeeDetailsPage() {
     };
     const getStatusBadge = (status) => {
         switch (status) {
-            case 'active':
+            case 'ACTIVE':
                 return <Badge className="bg-green-100 text-green-800">Active</Badge>;
-            case 'inactive':
+            case 'INACTIVE':
                 return <Badge className="bg-red-100 text-red-800">Inactive</Badge>;
-            case 'on_leave':
+            case 'ON_LEAVE':
                 return <Badge className="bg-yellow-100 text-yellow-800">On Leave</Badge>;
             default:
                 return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
         }
     };
-    if (status === 'loading' || isLoading) {
+    if (loading || isLoading) {
         return (<div className="flex items-center justify-center h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>);
@@ -236,10 +216,10 @@ export default function EmployeeDetailsPage() {
             <UserCog className="h-4 w-4 mr-2"/>
             Edit Employee
           </Button>
-          {employee.status === 'active' ? (<Button variant="destructive" onClick={() => setIsDeactivateDialogOpen(true)}>
-              Deactivate
-            </Button>) : (<Button variant="default" onClick={() => handleStatusChange('active')}>
-              Activate
+          {employee.status === 'ACTIVE' ? (<Button variant="destructive" onClick={() => setIsDeactivateDialogOpen(true)}>
+              Deactivate Account
+            </Button>) : (<Button variant="default" onClick={() => handleStatusChange('ACTIVE')}>
+              Activate Account
             </Button>)}
         </div>
       </div>
@@ -476,7 +456,7 @@ export default function EmployeeDetailsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => handleStatusChange('inactive')}>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground" onClick={() => handleStatusChange('INACTIVE')}>
               Deactivate
             </AlertDialogAction>
           </AlertDialogFooter>

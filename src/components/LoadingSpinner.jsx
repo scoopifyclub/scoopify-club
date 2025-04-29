@@ -11,8 +11,10 @@ import { Loader2 } from 'lucide-react';
  * @param {LoadingSpinnerProps} props - Component props
  * @returns {JSX.Element} The rendered component
  */
-export function LoadingSpinner({ size = 24, className = '' }) {
-    return (<div className={`flex items-center justify-center ${className}`}>
-      <Loader2 className="animate-spin text-primary" size={size}/>
-    </div>);
+export function LoadingSpinner() {
+    return (
+        <div className="flex items-center justify-center min-h-[400px]">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+    );
 }

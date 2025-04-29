@@ -1,164 +1,107 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { jwtVerify } from 'jose';
+import { verifyToken } from '@/lib/auth';
 
-// Define security headers
-export const securityHeaders = {
-    'X-DNS-Prefetch-Control': 'on',
-    'X-XSS-Protection': '1; mode=block',
-    'X-Frame-Options': 'DENY',
-    'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
-    'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
-};
-
-// Public paths that don't require authentication
+// Paths that don't require authentication
 const PUBLIC_PATHS = [
     '/',
-    '/about',
-    '/contact',
-    '/services',
-    '/pricing',
     '/auth/signin',
     '/auth/signup',
-    '/forgot-password',
-    '/reset-password',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/auth/verify-email',
+    '/pricing',
+    '/contact',
+    '/about',
     '/terms',
     '/privacy',
     '/faq',
-    '/api/auth/login',
-    '/api/auth/signup',
-    '/api/auth/refresh'
+    '/blog',
 ];
 
-// Rate limiting map (in-memory storage - consider using Redis for production)
-const rateLimit = new Map();
-
-// Rate limit check (100 requests per minute)
-function checkRateLimit(ip) {
-    const now = Date.now();
-    const windowMs = 60 * 1000; // 1 minute
-    const maxRequests = 100;
-
-    const requestLog = rateLimit.get(ip) || [];
-    const windowStart = now - windowMs;
-
-    // Filter out old requests
-    const recentRequests = requestLog.filter(timestamp => timestamp > windowStart);
-    
-    if (recentRequests.length >= maxRequests) {
-        return false;
-    }
-
-    recentRequests.push(now);
-    rateLimit.set(ip, recentRequests);
-    return true;
-}
-
-// Verify token in Edge Runtime
-async function verifyToken(token) {
-    if (!token) return null;
-    try {
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-        const { payload } = await jwtVerify(token, secret, {
-            algorithms: ['HS256'],
-            clockTolerance: 15 // 15 seconds clock skew tolerance
-        });
-
-        // Check if token is expired
-        const now = Math.floor(Date.now() / 1000);
-        if (payload.exp && payload.exp <= now) {
-            return null;
-        }
-
-        return payload;
-    } catch (error) {
-        console.error('Token verification failed:', error);
-        return null;
-    }
-}
+// Paths that start with these prefixes don't require authentication
+const PUBLIC_PATH_PREFIXES = [
+    '/_next',
+    '/api/auth',
+    '/api/webhooks',
+    '/api/health',
+    '/static',
+    '/images',
+    '/fonts',
+];
 
 export async function middleware(request) {
-    const path = request.nextUrl.pathname;
-    
-    // Get client IP
-    const ip = request.ip || request.headers.get('x-forwarded-for') || 'unknown';
-    
-    // Check rate limit
-    if (!checkRateLimit(ip)) {
-        return new NextResponse('Too Many Requests', {
-            status: 429,
-            headers: {
-                'Retry-After': '60',
-                ...securityHeaders
-            }
-        });
+    const { pathname } = request.nextUrl;
+
+    // Check if the path is public
+    if (PUBLIC_PATHS.includes(pathname) || 
+        PUBLIC_PATH_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+        return NextResponse.next();
     }
 
-    // Allow public paths and static assets
-    if (PUBLIC_PATHS.includes(path) || 
-        path.startsWith('/_next/') || 
-        path.startsWith('/api/auth/') ||
-        path.includes('/favicon.ico')) {
-        const response = NextResponse.next();
-        Object.entries(securityHeaders).forEach(([key, value]) => {
-            response.headers.set(key, value);
-        });
-        return response;
+    // Get the token from cookies
+    const token = request.cookies.get('token')?.value;
+
+    // If no token is present, redirect to login
+    if (!token) {
+        const url = new URL('/auth/signin', request.url);
+        url.searchParams.set('callbackUrl', pathname);
+        return NextResponse.redirect(url);
     }
 
     try {
-        // Get access token from cookie
-        const cookieStore = await cookies();
-        const accessToken = cookieStore.get('accessToken')?.value;
-
-        if (!accessToken) {
-            // Redirect to login with callback URL
-            const url = new URL('/auth/signin', request.url);
-            url.searchParams.set('callbackUrl', request.nextUrl.pathname);
-            return NextResponse.redirect(url);
-        }
-
-        // Verify token
-        const payload = await verifyToken(accessToken);
+        // Verify the token and get the payload
+        const payload = await verifyToken(token);
+        
         if (!payload) {
-            const url = new URL('/auth/signin', request.url);
-            url.searchParams.set('callbackUrl', request.nextUrl.pathname);
-            return NextResponse.redirect(url);
+            throw new Error('Invalid token');
         }
 
-        // Handle role-based access
-        const roleMatches = {
-            '/employee/dashboard': payload.role === 'EMPLOYEE',
-            '/admin/dashboard': payload.role === 'ADMIN',
-            '/customer/dashboard': payload.role === 'CUSTOMER'
-        };
-
-        for (const [prefix, isAllowed] of Object.entries(roleMatches)) {
-            if (path.startsWith(prefix) && !isAllowed) {
-                return NextResponse.redirect(new URL('/', request.url));
-            }
+        // Check role-based access
+        if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
+            return new NextResponse('Unauthorized', { status: 403 });
         }
 
-        // Apply security headers and continue
+        if (pathname.startsWith('/employee/dashboard') && payload.role !== 'EMPLOYEE') {
+            return new NextResponse('Unauthorized', { status: 403 });
+        }
+
+        if (pathname.startsWith('/customer/dashboard') && payload.role !== 'CUSTOMER') {
+            return new NextResponse('Unauthorized', { status: 403 });
+        }
+
+        // Create the response
         const response = NextResponse.next();
-        Object.entries(securityHeaders).forEach(([key, value]) => {
-            response.headers.set(key, value);
-        });
-        return response;
 
+        // Add security headers
+        response.headers.set('X-Frame-Options', 'DENY');
+        response.headers.set('X-Content-Type-Options', 'nosniff');
+        response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+        response.headers.set(
+            'Content-Security-Policy',
+            "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:;"
+        );
+
+        return response;
     } catch (error) {
-        console.error('Middleware error:', error);
-        return NextResponse.redirect(new URL('/auth/signin', request.url));
+        console.error('Auth middleware error:', error);
+
+        // If token is invalid, redirect to login
+        const url = new URL('/auth/signin', request.url);
+        url.searchParams.set('callbackUrl', pathname);
+        return NextResponse.redirect(url);
     }
 }
 
+// Configure which paths the middleware should run on
 export const config = {
     matcher: [
-        '/employee/dashboard/:path*',
-        '/admin/dashboard/:path*',
-        '/customer/dashboard/:path*',
+        /*
+         * Match all request paths except for the ones starting with:
+         * - _next/static (static files)
+         * - _next/image (image optimization files)
+         * - favicon.ico (favicon file)
+         * - public folder
+         */
         '/((?!_next/static|_next/image|favicon.ico|public/).*)',
     ],
 };

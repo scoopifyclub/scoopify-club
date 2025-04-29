@@ -1,59 +1,102 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import useSWR from 'swr';
 import { MapPin, Search, Navigation, Route, CalendarDays, ArrowRight, List, Grid } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-
-const fetcher = (...args) => fetch(...args).then(res => res.json());
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 
 export default function MapsPage() {
     const router = useRouter();
-    const { data: session, status } = useSession({
-        required: true,
-        onUnauthenticated() {
-            router.push('/auth/login?callbackUrl=/employee/dashboard/maps');
-        }
+    const { user, loading: authLoading } = useAuth({ 
+        requiredRole: 'EMPLOYEE',
+        redirectTo: '/auth/login?callbackUrl=/employee/dashboard/maps'
     });
 
     const [isClient, setIsClient] = useState(false);
     const [viewMode, setViewMode] = useState('map');
     const [searchTerm, setSearchTerm] = useState('');
+    const [locations, setLocations] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
     
-    const { data: locations, error, isLoading, mutate } = useSWR(
-        session ? '/api/services/available' : null,
-        fetcher,
-        {
-            revalidateOnFocus: false,
-            revalidateOnReconnect: false
-        }
-    );
-
     useEffect(() => {
         setIsClient(true);
     }, []);
+
+    useEffect(() => {
+        const fetchLocations = async () => {
+            if (!user) return;
+            
+            try {
+                setLoading(true);
+                const response = await fetch(`/api/employee/locations?date=${selectedDate}`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch locations');
+                }
+
+                const data = await response.json();
+                setLocations(data);
+            } catch (error) {
+                console.error('Error fetching locations:', error);
+                toast.error('Failed to load locations');
+                
+                // Fallback to mock data in development
+                if (process.env.NODE_ENV === 'development') {
+                    setLocations([
+                        {
+                            id: '1',
+                            name: '123 Main St',
+                            address: '123 Main St, Anytown, USA',
+                            customerName: 'John Smith',
+                            appointmentTime: '9:00 AM',
+                            serviceType: 'Weekly Cleanup',
+                            status: 'completed',
+                            location: { latitude: 37.7749, longitude: -122.4194 }
+                        },
+                        {
+                            id: '2',
+                            name: '456 Oak Ave',
+                            address: '456 Oak Ave, Anytown, USA',
+                            customerName: 'Jane Doe',
+                            appointmentTime: '11:00 AM',
+                            serviceType: 'Bi-Weekly Cleanup',
+                            status: 'pending',
+                            location: { latitude: 37.7749, longitude: -122.4194 }
+                        },
+                        {
+                            id: '3',
+                            name: '789 Pine Rd',
+                            address: '789 Pine Rd, Anytown, USA',
+                            customerName: 'Bob Wilson',
+                            appointmentTime: '2:00 PM',
+                            serviceType: 'Monthly Cleanup',
+                            status: 'upcoming',
+                            location: { latitude: 37.7749, longitude: -122.4194 }
+                        }
+                    ]);
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchLocations();
+    }, [user, selectedDate]);
 
     if (!isClient) {
         return null;
     }
 
-    if (status === 'loading' || isLoading) {
+    if (authLoading || loading) {
         return (
             <div className="flex justify-center items-center min-h-screen">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="p-4">
-                <p className="text-red-500">Error loading locations. Please try again later.</p>
             </div>
         );
     }
@@ -76,13 +119,40 @@ export default function MapsPage() {
         }
     };
 
+    const handleOptimizeRoute = async () => {
+        try {
+            toast.promise(
+                fetch('/api/employee/routes/optimize', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        date: selectedDate,
+                        locationIds: filteredLocations.map(loc => loc.id)
+                    })
+                }).then(res => {
+                    if (!res.ok) throw new Error('Failed to optimize route');
+                    return res.json();
+                }),
+                {
+                    loading: 'Optimizing route...',
+                    success: 'Route optimized successfully!',
+                    error: 'Failed to optimize route'
+                }
+            );
+        } catch (error) {
+            console.error('Error optimizing route:', error);
+        }
+    };
+
     return (
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Routes & Yards</h1>
                     <p className="text-gray-500">
-                        View your service locations and optimized routes
+                        {filteredLocations.length} locations in your service area
                     </p>
                 </div>
                 <div className="flex gap-2">
@@ -121,12 +191,12 @@ export default function MapsPage() {
                         <CalendarDays className="h-4 w-4 text-gray-500 mr-2"/>
                         <input 
                             type="date" 
-                            value={new Date().toISOString().split('T')[0]} 
-                            onChange={(e) => {}} 
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
                             className="border-none focus:outline-none"
                         />
                     </div>
-                    <Button variant="default">
+                    <Button variant="default" onClick={handleOptimizeRoute}>
                         <Route className="h-4 w-4 mr-2"/>
                         Optimize Route
                     </Button>
@@ -173,11 +243,24 @@ export default function MapsPage() {
                                         </div>
                                     </div>
                                     <div className="flex gap-2">
-                                        <Button variant="outline" size="sm">
+                                        <Button 
+                                            variant="outline" 
+                                            size="sm"
+                                            onClick={() => {
+                                                const url = location.location
+                                                    ? `https://www.google.com/maps/dir/?api=1&destination=${location.location.latitude},${location.location.longitude}`
+                                                    : `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(location.address)}`;
+                                                window.open(url, '_blank');
+                                            }}
+                                        >
                                             <Navigation className="h-4 w-4 mr-2"/>
                                             Directions
                                         </Button>
-                                        <Button variant="default" size="sm">
+                                        <Button 
+                                            variant="default" 
+                                            size="sm"
+                                            onClick={() => router.push(`/employee/dashboard/locations/${location.id}`)}
+                                        >
                                             View Details
                                             <ArrowRight className="h-4 w-4 ml-2"/>
                                         </Button>
