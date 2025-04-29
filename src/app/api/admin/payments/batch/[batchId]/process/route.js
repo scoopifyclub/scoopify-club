@@ -3,16 +3,22 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
+import { validateRequest, validateToken } from '@/lib/auth';
 // POST /api/admin/payments/batch/[batchId]/process
 // Process all payments in a batch
-export async function POST(request, { params }) {
-    // Verify user is admin
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "ADMIN") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const { batchId } = await params;
+export async function POST(req, { params }) {
     try {
+        const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+        if (!token) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+        }
+
+        const user = await validateToken(token);
+        if (!user || user.role !== 'ADMIN') {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+        }
+
+        const { batchId } = params;
         // First check if the batch exists and is ready for processing
         const batch = await prisma.paymentBatch.findUnique({
             where: { id: batchId }
@@ -24,7 +30,7 @@ export async function POST(request, { params }) {
             return NextResponse.json({ error: "Batch is already being processed or is completed" }, { status: 400 });
         }
         // Get request data
-        const data = await request.json();
+        const data = await req.json();
         const { paymentMethod } = data;
         if (!paymentMethod) {
             return NextResponse.json({ error: "Payment method is required" }, { status: 400 });

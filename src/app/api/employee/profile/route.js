@@ -2,22 +2,28 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth/next';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { validateRequest, validateToken } from '@/lib/auth';
 // GET handler to fetch employee profile data
-export async function GET(request) {
+export async function GET(req) {
     try {
-        // Check authentication
-        const session = await getServerSession(authOptions);
-        if (!session || !session.user) {
-            return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+        const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+        if (!token) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
         }
+
+        const user = await validateToken(token);
+        if (!user || user.role !== 'EMPLOYEE') {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+        }
+
         // Get email from query params
-        const { searchParams } = new URL(request.url);
+        const { searchParams } = new URL(req.url);
         const email = searchParams.get('email');
         if (!email) {
             return NextResponse.json({ message: 'Email parameter is required' }, { status: 400 });
         }
         // Verify that the requester is fetching their own profile
-        if (email !== session.user.email) {
+        if (email !== user.email) {
             return NextResponse.json({ message: 'You can only access your own profile' }, { status: 403 });
         }
         // Fetch employee profile from database

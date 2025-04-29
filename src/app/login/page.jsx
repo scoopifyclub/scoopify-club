@@ -97,75 +97,24 @@ export default function LoginPage() {
     };
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        setError(null);
-        setDebugInfo('Attempting login...');
         try {
-            // Get consistent device fingerprint
-            const deviceFingerprint = getDeviceFingerprint();
-            setDebugInfo(`Using device fingerprint: ${deviceFingerprint.substring(0, 8)}...`);
-            // For admin login, use NextAuth
-            if (formData.email === 'admin@scoopify.club') {
-                setDebugInfo('Admin login detected, using NextAuth...');
-                const { signIn } = await import('next-auth/react');
-                const result = await signIn('credentials', {
-                    redirect: false,
-                    email: formData.email,
-                    password: formData.password,
-                    callbackUrl: '/admin/dashboard'
-                });
-                if (result === null || result === void 0 ? void 0 : result.error) {
-                    setError('Invalid admin credentials');
-                    setDebugInfo(`Admin login failed: ${result.error}`);
-                    return;
-                }
-                setDebugInfo('Admin login successful, redirecting...');
-                window.location.href = '/admin/dashboard';
-                return;
-            }
-            // For regular users, use the signin endpoint
-            setDebugInfo(`Regular login for ${formData.email}, using signin endpoint...`);
-            const response = await fetch('/api/auth/signin', {
+            const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(Object.assign(Object.assign({}, formData), { deviceFingerprint })),
-                credentials: 'include',
+                body: JSON.stringify({ email: formData.email, password: formData.password }),
             });
-            setDebugInfo(`Signin response status: ${response.status}`);
-            if (!response.ok) {
+
+            if (response.ok) {
                 const data = await response.json();
-                if (response.status === 429) {
-                    setError('Too many login attempts. Please try again later.');
-                    setDebugInfo('Rate limit exceeded');
-                }
-                else {
-                    setError(data.error || 'Invalid email or password');
-                    setDebugInfo(`Login error: ${data.error || 'Unknown error'}`);
-                }
-                return;
+                // Redirect based on user role
+                router.push(data.redirectUrl || '/dashboard');
+            } else {
+                setError('Invalid email or password');
             }
-            const data = await response.json();
-            setDebugInfo(`Login successful for user: ${data.user.email} (${data.user.role})`);
-            // Determine redirect path based on user role
-            let redirectPath = '/customer/dashboard';
-            if (data.user.role === 'EMPLOYEE') {
-                redirectPath = '/employee/dashboard';
-            }
-            else if (data.user.role === 'ADMIN') {
-                redirectPath = '/admin/dashboard';
-            }
-            setDebugInfo(`Redirecting to ${redirectPath}...`);
-            window.location.href = redirectPath;
-        }
-        catch (error) {
-            console.error('Login error:', error);
-            setError('An error occurred during login. Please try again.');
-            setDebugInfo(`Login exception: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-        finally {
-            setLoading(false);
+        } catch (error) {
+            setError('An error occurred during login');
         }
     };
     // Add a continue to dashboard handler 

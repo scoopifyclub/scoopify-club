@@ -3,21 +3,28 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import Stripe from 'stripe';
+import { validateRequest, validateToken } from '@/lib/auth';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2023-10-16'
 });
 export async function GET(req) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!(session === null || session === void 0 ? void 0 : session.user)) {
-            return new NextResponse('Unauthorized', { status: 401 });
+        const token = req.headers.get('Authorization')?.replace('Bearer ', '');
+        if (!token) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
         }
+
+        const user = await validateToken(token);
+        if (!user) {
+            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+        }
+
         const { searchParams } = new URL(req.url);
         const page = parseInt(searchParams.get('page') || '1');
         const limit = parseInt(searchParams.get('limit') || '10');
         const payments = await prisma.payment.findMany({
             where: {
-                customerId: session.user.id
+                customerId: user.id
             },
             orderBy: {
                 createdAt: 'desc'
@@ -27,12 +34,12 @@ export async function GET(req) {
         });
         const total = await prisma.payment.count({
             where: {
-                customerId: session.user.id
+                customerId: user.id
             }
         });
         const subscription = await prisma.subscription.findFirst({
             where: {
-                customerId: session.user.id,
+                customerId: user.id,
                 status: 'active'
             }
         });
