@@ -17,17 +17,6 @@
   "regions": [
     "iad1"
   ],
-  "env": {
-    "NEXTAUTH_URL": {
-      "url": ["VERCEL_URL"]
-    }
-  },
-  "functions": {
-    "src/app/api/**/*": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
   "github": {
     "enabled": true,
     "silent": false

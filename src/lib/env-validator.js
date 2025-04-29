@@ -32,9 +32,6 @@ const envSchema = z.object({
     // Authentication
     JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters long'),
     JWT_REFRESH_SECRET: z.string().min(32, 'JWT_REFRESH_SECRET must be at least 32 characters long'),
-    // NextAuth
-    NEXTAUTH_SECRET: z.string().min(32, 'NEXTAUTH_SECRET must be at least 32 characters long'),
-    NEXTAUTH_URL: z.string().optional(),  // Will be set automatically in Vercel
     // Stripe integration
     STRIPE_SECRET_KEY: z.string().startsWith('sk_', 'Invalid Stripe secret key format'),
     STRIPE_PUBLISHABLE_KEY: z.string().startsWith('pk_', 'Invalid Stripe publishable key format'),
@@ -61,11 +58,25 @@ export function validateEnv() {
         const env = process.env;
         
         // Handle Vercel-specific URL configuration
-        if (env.VERCEL_URL && !env.NEXTAUTH_URL) {
-            env.NEXTAUTH_URL = `https://${env.VERCEL_URL}`;
-        }
-        if (env.VERCEL_URL && !env.NEXT_PUBLIC_API_URL) {
-            env.NEXT_PUBLIC_API_URL = `https://${env.VERCEL_URL}`;
+        if (env.VERCEL_URL) {
+            const vercelUrl = `https://${env.VERCEL_URL}`;
+            
+            // Set API URL if not explicitly set
+            if (!env.NEXT_PUBLIC_API_URL) {
+                env.NEXT_PUBLIC_API_URL = vercelUrl;
+                console.log('Setting NEXT_PUBLIC_API_URL from VERCEL_URL:', vercelUrl);
+            }
+
+            // Set APP URL if not explicitly set
+            if (!env.NEXT_PUBLIC_APP_URL) {
+                env.NEXT_PUBLIC_APP_URL = vercelUrl;
+                console.log('Setting NEXT_PUBLIC_APP_URL from VERCEL_URL:', vercelUrl);
+            }
+        } else if (env.NODE_ENV === 'development') {
+            // Set default development URLs if not set
+            const devUrl = 'http://localhost:3000';
+            if (!env.NEXT_PUBLIC_API_URL) env.NEXT_PUBLIC_API_URL = devUrl;
+            if (!env.NEXT_PUBLIC_APP_URL) env.NEXT_PUBLIC_APP_URL = devUrl;
         }
 
         // Parse and validate environment variables
@@ -76,9 +87,8 @@ export function validateEnv() {
             console.log('\n🔧 Environment Configuration:');
             console.log(`- Node Environment: ${env.NODE_ENV}`);
             console.log(`- Vercel Environment: ${env.VERCEL_ENV || 'local'}`);
-            if (env.VERCEL_URL) {
-                console.log(`- Vercel URL: ${env.VERCEL_URL}`);
-            }
+            console.log(`- API URL: ${env.NEXT_PUBLIC_API_URL}`);
+            console.log(`- APP URL: ${env.NEXT_PUBLIC_APP_URL}`);
         }
 
         return validatedEnv;
@@ -139,3 +149,7 @@ export const isProduction = () => getEnv().NODE_ENV === 'production';
 export const isDevelopment = () => getEnv().NODE_ENV === 'development';
 export const isTest = () => getEnv().NODE_ENV === 'test';
 export const isVercel = () => !!getEnv().VERCEL;
+
+// Export URL getters
+export const getApiUrl = () => getEnv().NEXT_PUBLIC_API_URL;
+export const getAppUrl = () => getEnv().NEXT_PUBLIC_APP_URL;

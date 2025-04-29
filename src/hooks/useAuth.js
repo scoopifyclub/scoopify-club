@@ -4,49 +4,47 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
-export function useAuth({ required = false, role = null, redirectTo = '/auth/signin' } = {}) {
+export function useAuth({ required = true, role = null, redirectTo = '/login' } = {}) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const router = useRouter();
 
-    // Define checkAuth outside useEffect so it can be returned from the hook
-    const checkAuth = async () => {
-        try {
-            setLoading(true);
-            const response = await fetch('/api/auth/session', {
-                credentials: 'include'
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to fetch session');
-            }
-
-            const data = await response.json();
-
-            if (data.user) {
-                setUser(data.user);
-                
-                // Check role requirement if specified
-                if (role && data.user.role !== role) {
-                    router.push(redirectTo);
-                }
-            } else if (required) {
-                // Redirect if auth is required and no user
-                router.push(`${redirectTo}?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
-            }
-        } catch (error) {
-            console.error('Auth check failed:', error);
-            if (required) {
-                router.push(`${redirectTo}?callbackUrl=${encodeURIComponent(window.location.pathname)}`);
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
     useEffect(() => {
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/verify', {
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.user) {
+                    // If role is required and user doesn't have it, redirect
+                    if (role && data.user.role !== role) {
+                        router.push('/');
+                        return;
+                    }
+                    setUser(data.user);
+                } else if (required) {
+                    // If auth is required and we don't have it, redirect
+                    const callbackUrl = encodeURIComponent(window.location.pathname);
+                    router.push(`${redirectTo}?callbackUrl=${callbackUrl}`);
+                    return;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                if (required) {
+                    const callbackUrl = encodeURIComponent(window.location.pathname);
+                    router.push(`${redirectTo}?callbackUrl=${callbackUrl}`);
+                    return;
+                }
+            } finally {
+                setLoading(false);
+            }
+        }
+
         checkAuth();
-    }, [required, role, redirectTo]);
+    }, [required, role, redirectTo, router]);
 
     const logout = async () => {
         try {
@@ -73,8 +71,8 @@ export function useAuth({ required = false, role = null, redirectTo = '/auth/sig
         user,
         loading,
         isAuthenticated: !!user,
-        role: user?.role,
+        status: loading ? 'loading' : user ? 'authenticated' : 'unauthenticated',
         logout,
-        checkSession: checkAuth
+        role: user?.role
     };
 }
