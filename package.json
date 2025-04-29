@@ -17,9 +17,9 @@
     "dev:https": "node scripts/generate-cert.js && next dev",
     "restart": "node restart-dev.js",
     "proxy": "local-ssl-proxy --source 3001 --target 3000",
-    "build": "next build",
-    "build-no-types": "tsc --noEmit false && next build --no-lint",
-    "vercel-build": "prisma generate && prisma migrate deploy && next build",
+    "build": "npm run check-deploy && next build",
+    "build-no-types": "npm run check-deploy && tsc --noEmit false && next build --no-lint",
+    "vercel-build": "npm run check-deploy && prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "setup-stripe": "ts-node scripts/setup-stripe.ts",
@@ -71,7 +71,8 @@
     "vercel:check": "npm run verify:deployment",
     "analyze:bundle": "cross-env ANALYZE=true next build",
     "postinstall": "prisma generate",
-    "fix:vercel-deploy": "node scripts/fix-vercel-deploy.js"
+    "fix:vercel-deploy": "node scripts/fix-vercel-deploy.js",
+    "check-deploy": "node scripts/check-deploy.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",
