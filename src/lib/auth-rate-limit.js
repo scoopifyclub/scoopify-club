@@ -108,7 +108,7 @@ export class AuthRateLimiter {
         }
     }
 
-    private async isBlocked(key) {
+    async isBlocked(key) {
         const record = await prisma.rateLimit.findUnique({
             where: { key }
         });
@@ -128,7 +128,7 @@ export class AuthRateLimiter {
         return null;
     }
 
-    private createLimitExceededResponse(retryAfter, remaining) {
+    createLimitExceededResponse(retryAfter, remaining) {
         return {
             response: NextResponse.json({
                 error: 'Too many requests',
