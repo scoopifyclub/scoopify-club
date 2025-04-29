@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, generateTokens } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
-import { generateToken } from '@/lib/auth';
 
 export async function POST(request) {
     try {
@@ -68,12 +67,16 @@ export async function POST(request) {
             return { user, employee };
         });
 
-        // Generate token for the new employee
-        const employeeToken = await generateToken({
+        // Generate fingerprint for the new employee
+        const deviceFingerprint = Math.random().toString(36).substring(2, 15);
+
+        // Generate tokens for the new employee
+        const { accessToken } = await generateTokens({
             id: result.user.id,
             email: result.user.email,
-            role: 'EMPLOYEE'
-        });
+            role: 'EMPLOYEE',
+            employee: { id: result.employee.id }
+        }, deviceFingerprint);
 
         return NextResponse.json({
             success: true,
@@ -84,7 +87,7 @@ export async function POST(request) {
                 phone: result.employee.phone,
                 serviceAreas: serviceAreas
             },
-            token: employeeToken
+            token: accessToken
         });
     } catch (error) {
         console.error('Error creating employee:', error);
