@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   images: {
     remotePatterns: [
       {
@@ -29,7 +28,9 @@ const nextConfig = {
   // Configure dynamic rendering for authenticated pages
   experimental: {
     optimizeCss: true,
-    serverActions: true,
+    serverActions: {
+      allowedOrigins: ['localhost:3000', 'scoopify.club'],
+    },
   },
   // Configure route segments
   async redirects() {
