@@ -19,13 +19,30 @@ import {
 } from "@/components/ui/form";
 import { Card, CardContent } from "@/components/ui/card";
 import { PlusCircle } from "lucide-react";
+import { Label } from '@/components/ui/label';
+import { CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   description: z.string().optional(),
 });
 
-export default function CreateBatchForm() {
+/**
+ * @typedef {Object} PaymentBatch
+ * @property {string} name
+ * @property {string} description
+ * @property {number} amount
+ * @property {Date} dueDate
+ */
+
+/**
+ * Form component for creating a new payment batch
+ * @param {Object} props
+ * @param {(batch: PaymentBatch) => Promise<void>} props.onSubmit
+ * @returns {JSX.Element}
+ */
+export default function CreateBatchForm({ onSubmit }) {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
@@ -38,90 +55,122 @@ export default function CreateBatchForm() {
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
-    try {
-      const response = await fetch("/api/admin/payments/batch", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(values),
-      });
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    amount: '',
+    dueDate: ''
+  });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Failed to create batch");
+  /**
+   * Handles form submission
+   * @param {React.FormEvent} e
+   */
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const amount = parseFloat(formData.amount);
+      if (isNaN(amount) || amount <= 0) {
+        throw new Error('Invalid amount');
       }
 
-      const batch = await response.json();
-
-      toast({
-        title: "Batch created successfully",
-        description: `Batch "${batch.name}" has been created`,
+      await onSubmit({
+        ...formData,
+        amount,
+        dueDate: new Date(formData.dueDate)
       });
 
-      // Reset form
-      form.reset();
-      
-      // Refresh the page to show the new batch
-      router.refresh();
+      setFormData({
+        name: '',
+        description: '',
+        amount: '',
+        dueDate: ''
+      });
 
+      toast.success('Payment batch created successfully');
     } catch (error) {
-      toast({
-        title: "Error creating batch",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error('Error creating payment batch:', error);
+      toast.error('Failed to create payment batch');
     } finally {
       setIsLoading(false);
     }
-  }
+  };
+
+  /**
+   * Handles form input changes
+   * @param {React.ChangeEvent<HTMLInputElement>} e
+   */
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   return (
-    <Card className="max-w-2xl mx-auto">
-      <CardContent className="pt-6">
+    <Card>
+      <CardHeader>
+        <CardTitle>Create Payment Batch</CardTitle>
+        <CardDescription>Create a new batch of payments for processing</CardDescription>
+      </CardHeader>
+      <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Batch Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Weekly Payments - June 1-7" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description (Optional)</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Enter details about this payment batch"
-                      className="resize-none"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Batch Name</Label>
+              <Input
+                id="name"
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Enter batch name"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description</Label>
+              <Input
+                id="description"
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                placeholder="Enter batch description"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="amount">Amount ($)</Label>
+              <Input
+                id="amount"
+                name="amount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={formData.amount}
+                onChange={handleChange}
+                placeholder="0.00"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="dueDate">Due Date</Label>
+              <Input
+                id="dueDate"
+                name="dueDate"
+                type="date"
+                value={formData.dueDate}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
             <Button type="submit" disabled={isLoading}>
-              {isLoading ? (
-                <>Creating batch...</>
-              ) : (
-                <>
-                  <PlusCircle className="h-4 w-4 mr-2" />
-                  Create New Batch
-                </>
-              )}
+              {isLoading ? 'Creating...' : 'Create Batch'}
             </Button>
           </form>
         </Form>

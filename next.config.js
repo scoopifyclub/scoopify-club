@@ -16,20 +16,42 @@ const nextConfig = {
     ],
     formats: ['image/avif', 'image/webp'],
   },
-  webpack: (config, { isServer }) => {
-    // Optimize large string handling
-    config.optimization.splitChunks = {
-      ...config.optimization.splitChunks,
-      minSize: 20000,
-      maxSize: 244000,
-    };
-
-    // Improve caching
-    config.cache = {
-      type: 'filesystem',
-      buildDependencies: {
-        config: [__filename],
+  // Configure dynamic rendering for authenticated pages
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '2mb',
+    },
+    optimizeCss: true,
+    optimizePackageImports: ['@prisma/client', 'lucide-react', '@radix-ui/react-icons'],
+  },
+  // Configure route segments
+  async redirects() {
+    return [
+      {
+        source: '/employee/dashboard',
+        destination: '/employee/dashboard/overview',
+        permanent: true,
       },
+      {
+        source: '/admin/dashboard',
+        destination: '/admin/dashboard/overview',
+        permanent: true,
+      },
+    ];
+  },
+  webpack: (config, { isServer }) => {
+    // Add path aliases
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': __dirname,
+      '@components': __dirname + '/components',
+      '@lib': __dirname + '/lib',
+      '@utils': __dirname + '/utils',
+      '@styles': __dirname + '/styles',
+      '@public': __dirname + '/public',
+      '@hooks': __dirname + '/hooks',
+      '@context': __dirname + '/context',
+      '@types': __dirname + '/types',
     };
 
     // Handle Prisma in Edge Runtime
@@ -44,12 +66,36 @@ const nextConfig = {
       };
     }
 
+    // Optimize bundle size
+    if (!isServer) {
+      config.optimization = {
+        ...config.optimization,
+        splitChunks: {
+          chunks: 'all',
+          minSize: 20000,
+          maxSize: 244000,
+          minChunks: 1,
+          maxAsyncRequests: 30,
+          maxInitialRequests: 30,
+          cacheGroups: {
+            defaultVendors: {
+              test: /[\\/]node_modules[\\/]/,
+              priority: -10,
+              reuseExistingChunk: true,
+            },
+            default: {
+              minChunks: 2,
+              priority: -20,
+              reuseExistingChunk: true,
+            },
+          },
+        },
+      };
+    }
+
     return config;
   },
-  // Configure build output
-  distDir: '.next',
-  // Configure static file serving
-  staticPageGenerationTimeout: 1000,
+  // Configure headers
   async headers() {
     return [
       {

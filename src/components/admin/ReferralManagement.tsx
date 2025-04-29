@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +15,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, CheckCircle, AlertCircle } from 'lucide-react';
+import { DollarSign, CheckCircle, AlertCircle, Copy, RefreshCw, Users } from 'lucide-react';
 
 interface Referral {
   id: string;
@@ -46,14 +48,22 @@ interface ReferralStats {
   totalAmount: number;
 }
 
-export function ReferralManagement() {
+/**
+ * ReferralManagement component for managing referral codes and viewing statistics
+ * @returns {JSX.Element} The ReferralManagement component
+ */
+export default function ReferralManagement() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [stats, setStats] = useState<ReferralStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [referralCode, setReferralCode] = useState(/** @type {ReferralCode|null} */ (null));
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     fetchReferrals();
+    fetchReferralStats();
+    fetchReferralCode();
   }, []);
 
   const fetchReferrals = async () => {
@@ -68,6 +78,30 @@ export function ReferralManagement() {
       toast.error('Failed to load referrals');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchReferralStats = async () => {
+    try {
+      const response = await fetch('/api/referrals/stats');
+      if (!response.ok) throw new Error('Failed to fetch referral stats');
+      const data = await response.json();
+      setStats(data);
+    } catch (error) {
+      console.error('Error fetching referral stats:', error);
+      toast.error('Failed to load referral statistics');
+    }
+  };
+
+  const fetchReferralCode = async () => {
+    try {
+      const response = await fetch('/api/referrals');
+      if (!response.ok) throw new Error('Failed to fetch referral code');
+      const data = await response.json();
+      setReferralCode(data);
+    } catch (error) {
+      console.error('Error fetching referral code:', error);
+      toast.error('Failed to load referral code');
     }
   };
 
@@ -101,6 +135,41 @@ export function ReferralManagement() {
       toast.error('Failed to update reward status');
     } finally {
       setProcessingId(null);
+    }
+  };
+
+  /**
+   * Generates a new referral code
+   */
+  const generateNewCode = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/referrals/generate', {
+        method: 'POST',
+      });
+      if (!response.ok) throw new Error('Failed to generate new code');
+      const data = await response.json();
+      setReferralCode(data);
+      toast.success('New referral code generated');
+    } catch (error) {
+      console.error('Error generating referral code:', error);
+      toast.error('Failed to generate new referral code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Copies the referral URL to clipboard
+   */
+  const copyReferralUrl = async () => {
+    if (!referralCode?.url) return;
+    try {
+      await navigator.clipboard.writeText(referralCode.url);
+      toast.success('Referral link copied to clipboard');
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      toast.error('Failed to copy referral link');
     }
   };
 
@@ -252,6 +321,50 @@ export function ReferralManagement() {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card className="md:col-span-2 lg:col-span-4">
+        <CardHeader>
+          <CardTitle>Your Referral Code</CardTitle>
+          <CardDescription>Share this code with potential customers</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Current Code</Label>
+            <div className="flex items-center space-x-2">
+              <Input
+                value={referralCode?.code || ''}
+                readOnly
+                className="font-mono"
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={copyReferralUrl}
+                disabled={!referralCode?.url}
+              >
+                <Copy className="h-4 w-4"/>
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={generateNewCode}
+                disabled={isLoading}
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`}/>
+              </Button>
+            </div>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <Badge variant="secondary">
+              Created: {referralCode?.createdAt ? new Date(referralCode.createdAt).toLocaleDateString() : 'N/A'}
+            </Badge>
+            <Badge variant="secondary">
+              Uses: {referralCode?.uses || 0}
+            </Badge>
+          </div>
         </CardContent>
       </Card>
     </div>

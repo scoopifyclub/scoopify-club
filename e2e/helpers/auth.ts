@@ -79,7 +79,7 @@ export async function cleanupTestData() {
     const testUserEmails = Object.values(testUsers).map(u => u.email);
     console.log('Looking for test users with emails:', testUserEmails);
     
-    const testUsers = await prisma.user.findMany({
+    const foundTestUsers = await prisma.user.findMany({
       where: {
         email: {
           in: testUserEmails
@@ -91,8 +91,8 @@ export async function cleanupTestData() {
       }
     });
     
-    console.log('Found test users:', testUsers.map(u => ({ id: u.id, email: u.email })));
-    const testUserIds = testUsers.map(u => u.id);
+    console.log('Found test users:', foundTestUsers.map(u => ({ id: u.id, email: u.email })));
+    const testUserIds = foundTestUsers.map(u => u.id);
 
     // Delete in correct order to respect foreign key constraints
     console.log('\nDeleting customer data...');

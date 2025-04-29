@@ -7,7 +7,7 @@ async function globalSetup(config: FullConfig) {
   console.log('Setting up test environment...');
 
   // Set test environment variables
-  process.env.NODE_ENV = 'test';
+  // Note: NODE_ENV is read-only during build
   process.env.JWT_SECRET = 'test-secret';
   process.env.STRIPE_SECRET_KEY = 'test-stripe-key';
 

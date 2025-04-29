@@ -1,12 +1,20 @@
+'use client';
+
 import { ReactNode } from 'react';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
 import { Footer } from './Footer';
 
-interface MainLayoutProps {
-  children: ReactNode;
-}
+/**
+ * @typedef {Object} MainLayoutProps
+ * @property {React.ReactNode} children - The content to render inside the layout
+ */
 
+/**
+ * Main layout component that wraps the application content
+ * @param {MainLayoutProps} props - Component props
+ * @returns {JSX.Element} The MainLayout component
+ */
 export function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

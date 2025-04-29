@@ -44,7 +44,7 @@ async function globalTeardown(config: FullConfig) {
             }
           },
           {
-            scooper: {
+            employee: {
               userId: { in: userIds }
             }
           }

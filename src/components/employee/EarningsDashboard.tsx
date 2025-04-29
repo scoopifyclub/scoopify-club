@@ -1,181 +1,160 @@
+'use client';
+
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { DollarSign, Clock, CheckCircle, Download } from 'lucide-react';
-import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { format } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DollarSign, TrendingUp, Calendar, Clock } from 'lucide-react';
+import { toast } from 'sonner';
 
-interface Earning {
-  id: string;
-  amount: number;
-  status: string;
-  createdAt: string;
-  payment: {
-    subscription: {
-      plan: string;
-      customer: {
-        name: string;
-      };
+/**
+ * @typedef {Object} EarningsData
+ * @property {number} totalEarnings
+ * @property {number} pendingPayments
+ * @property {number} completedJobs
+ * @property {number} averageRating
+ * @property {Array<{date: string, amount: number}>} recentEarnings
+ */
+
+/**
+ * Dashboard component for displaying employee earnings information
+ * @returns {JSX.Element} The EarningsDashboard component
+ */
+export default function EarningsDashboard() {
+    const [isLoading, setIsLoading] = useState(true);
+    const [timeframe, setTimeframe] = useState('week');
+    const [earnings, setEarnings] = useState(/** @type {EarningsData|null} */ (null));
+
+    useEffect(() => {
+        fetchEarningsData();
+    }, [timeframe]);
+
+    /**
+     * Fetches earnings data from the API
+     */
+    const fetchEarningsData = async () => {
+        try {
+            const response = await fetch(`/api/employee/earnings?timeframe=${timeframe}`);
+            if (!response.ok) throw new Error('Failed to fetch earnings data');
+            const data = await response.json();
+            setEarnings(data);
+        } catch (error) {
+            console.error('Error fetching earnings:', error);
+            toast.error('Failed to load earnings data');
+        } finally {
+            setIsLoading(false);
+        }
     };
-    date: string;
-  };
-}
 
-interface EarningsStats {
-  totalEarned: number;
-  pendingAmount: number;
-  totalJobs: number;
-}
-
-export function EarningsDashboard() {
-  const [earnings, setEarnings] = useState<Earning[]>([]);
-  const [stats, setStats] = useState<EarningsStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>({
-    from: new Date(new Date().setMonth(new Date().getMonth() - 1)),
-    to: new Date(),
-  });
-
-  useEffect(() => {
-    fetchEarnings();
-  }, [dateRange]);
-
-  const fetchEarnings = async () => {
-    try {
-      const response = await fetch(`/api/employee/earnings?from=${dateRange.from.toISOString()}&to=${dateRange.to.toISOString()}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (!response.ok) throw new Error('Failed to fetch earnings');
-      const data = await response.json();
-      setEarnings(data.earnings);
-      setStats(data.stats);
-    } catch (error) {
-      console.error('Error fetching earnings:', error);
-    } finally {
-      setLoading(false);
+    if (isLoading) {
+        return (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                {[1, 2, 3, 4].map((i) => (
+                    <Card key={i} className="animate-pulse">
+                        <CardHeader className="space-y-2">
+                            <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                            <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+                        </CardHeader>
+                    </Card>
+                ))}
+            </div>
+        );
     }
-  };
 
-  const exportToCSV = () => {
-    const headers = ['Date', 'Customer', 'Plan', 'Amount', 'Status'];
-    const csvContent = [
-      headers.join(','),
-      ...earnings.map(earning => [
-        format(new Date(earning.payment.date), 'MM/dd/yyyy'),
-        earning.payment.subscription.customer.name,
-        earning.payment.subscription.plan,
-        earning.amount.toFixed(2),
-        earning.status
-      ].join(','))
-    ].join('\n');
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold tracking-tight">Earnings Overview</h2>
+                <Select value={timeframe} onValueChange={setTimeframe}>
+                    <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Select timeframe" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="week">This Week</SelectItem>
+                        <SelectItem value="month">This Month</SelectItem>
+                        <SelectItem value="year">This Year</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `earnings_${format(dateRange.from, 'MM-dd-yyyy')}_to_${format(dateRange.to, 'MM-dd-yyyy')}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
+                        <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">${earnings?.totalEarnings.toFixed(2)}</div>
+                        <p className="text-xs text-muted-foreground">
+                            +20.1% from last {timeframe}
+                        </p>
+                    </CardContent>
+                </Card>
 
-  if (loading) {
-    return <div className="flex justify-center items-center h-64">Loading...</div>;
-  }
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">${earnings?.pendingPayments.toFixed(2)}</div>
+                        <p className="text-xs text-muted-foreground">
+                            From {earnings?.completedJobs || 0} completed jobs
+                        </p>
+                    </CardContent>
+                </Card>
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <DateRangePicker
-          dateRange={dateRange}
-          onDateRangeChange={setDateRange}
-        />
-        <Button onClick={exportToCSV} variant="outline">
-          <Download className="mr-2 h-4 w-4" />
-          Export CSV
-        </Button>
-      </div>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Completed Jobs</CardTitle>
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{earnings?.completedJobs}</div>
+                        <p className="text-xs text-muted-foreground">
+                            This {timeframe}
+                        </p>
+                    </CardContent>
+                </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Earned</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${stats?.totalEarned.toFixed(2) || 0}</div>
-          </CardContent>
-        </Card>
+                <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Average Rating</CardTitle>
+                        <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{earnings?.averageRating.toFixed(1)}</div>
+                        <p className="text-xs text-muted-foreground">
+                            From customer reviews
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Payments</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${stats?.pendingAmount.toFixed(2) || 0}</div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Jobs</CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalJobs || 0}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Customer</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead>Status</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {earnings.map((earning) => (
-                <TableRow key={earning.id}>
-                  <TableCell>
-                    {format(new Date(earning.payment.date), 'MM/dd/yyyy')}
-                  </TableCell>
-                  <TableCell>{earning.payment.subscription.customer.name}</TableCell>
-                  <TableCell>{earning.payment.subscription.plan}</TableCell>
-                  <TableCell>${earning.amount.toFixed(2)}</TableCell>
-                  <TableCell>
-                    <Badge
-                      variant={
-                        earning.status === 'PAID'
-                          ? 'default'
-                          : earning.status === 'PENDING'
-                          ? 'secondary'
-                          : 'destructive'
-                      }
-                    >
-                      {earning.status}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
+            <Card>
+                <CardHeader>
+                    <CardTitle>Recent Earnings</CardTitle>
+                    <CardDescription>Your earnings for the past {timeframe}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        {earnings?.recentEarnings.map((earning, index) => (
+                            <div key={index} className="flex items-center justify-between">
+                                <div className="flex items-center space-x-4">
+                                    <div className="p-2 bg-primary/10 rounded-full">
+                                        <DollarSign className="h-4 w-4 text-primary" />
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-medium">{earning.date}</p>
+                                        <p className="text-sm text-muted-foreground">Payment received</p>
+                                    </div>
+                                </div>
+                                <div className="font-medium">${earning.amount.toFixed(2)}</div>
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+        </div>
+    );
 } 

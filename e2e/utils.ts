@@ -127,4 +127,128 @@ export async function expectToBeVisible(locator: Locator, message?: string): Pro
  */
 export async function takeScreenshot(page: Page, name: string): Promise<void> {
   await page.screenshot({ path: `./test-results/screenshots/${name}-${Date.now()}.png` });
+}
+
+/**
+ * @typedef {Object} User
+ * @property {string} email
+ * @property {string} password
+ */
+
+/**
+ * @typedef {Object} TestContext
+ * @property {import('@playwright/test').Page} page
+ */
+
+/**
+ * Generates a random email address for testing
+ * @returns {string} A random email address
+ */
+export function generateTestEmail() {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    return `test.${timestamp}.${random}@example.com`;
+}
+
+/**
+ * Generates test user credentials
+ * @returns {User} Test user credentials
+ */
+export function generateTestUser() {
+    return {
+        email: generateTestEmail(),
+        password: 'TestPassword123!'
+    };
+}
+
+/**
+ * Fills out a form with the given data
+ * @param {TestContext} context - The test context
+ * @param {Object.<string, string>} data - Form field data
+ */
+export async function fillForm({ page }, data) {
+    for (const [field, value] of Object.entries(data)) {
+        await page.fill(`[name="${field}"]`, value);
+    }
+}
+
+/**
+ * Waits for navigation to complete
+ * @param {TestContext} context - The test context
+ * @param {() => Promise<void>} action - The action that triggers navigation
+ */
+export async function waitForNavigation({ page }, action) {
+    await Promise.all([
+        page.waitForNavigation(),
+        action()
+    ]);
+}
+
+/**
+ * Checks if an element exists on the page
+ * @param {TestContext} context - The test context
+ * @param {string} selector - The element selector
+ * @returns {Promise<boolean>} Whether the element exists
+ */
+export async function elementExists({ page }, selector) {
+    const element = await page.$(selector);
+    return element !== null;
+}
+
+/**
+ * Waits for an element to be visible
+ * @param {TestContext} context - The test context
+ * @param {string} selector - The element selector
+ * @param {Object} [options] - Wait options
+ * @param {number} [options.timeout] - Maximum time to wait in milliseconds
+ */
+export async function waitForVisible({ page }, selector, options = {}) {
+    await page.waitForSelector(selector, { state: 'visible', ...options });
+}
+
+/**
+ * Gets text content of an element
+ * @param {TestContext} context - The test context
+ * @param {string} selector - The element selector
+ * @returns {Promise<string>} The element's text content
+ */
+export async function getText({ page }, selector) {
+    return page.textContent(selector);
+}
+
+/**
+ * Clicks an element and waits for navigation
+ * @param {TestContext} context - The test context
+ * @param {string} selector - The element selector
+ */
+export async function clickAndWait({ page }, selector) {
+    await waitForNavigation({ page }, async () => {
+        await page.click(selector);
+    });
+}
+
+/**
+ * Waits for a network request to complete
+ * @param {TestContext} context - The test context
+ * @param {string} urlPattern - URL pattern to match
+ * @param {() => Promise<void>} action - The action that triggers the request
+ */
+export async function waitForRequest({ page }, urlPattern, action) {
+    await Promise.all([
+        page.waitForRequest(urlPattern),
+        action()
+    ]);
+}
+
+/**
+ * Waits for a response from a specific URL pattern
+ * @param {TestContext} context - The test context
+ * @param {string} urlPattern - URL pattern to match
+ * @param {() => Promise<void>} action - The action that triggers the response
+ */
+export async function waitForResponse({ page }, urlPattern, action) {
+    await Promise.all([
+        page.waitForResponse(urlPattern),
+        action()
+    ]);
 } 
