@@ -1,0 +1,61 @@
+import { NextResponse } from 'next/server';
+import prisma from "@/lib/prisma";
+import { requireAuth } from '@/lib/api-auth';
+export async function POST(req, { params }) {
+    try {
+        const user = await requireAuth(req);
+        const { serviceId } = await params;
+        const service = await prisma.service.findUnique({
+            where: { id: serviceId },
+            include: {
+                customer: {
+                    include: {
+                        user: true,
+                    },
+                },
+                employee: {
+                    include: {
+                        user: true,
+                    },
+                },
+            },
+        });
+        if (!service) {
+            return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+        }
+        // Check if user has access to this service
+        if (user.role === 'CUSTOMER' && service.customerId !== user.customerId ||
+            user.role === 'EMPLOYEE' && service.employeeId !== user.employeeId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+        const { delayMinutes, reason } = await req.json();
+        if (!delayMinutes || !reason) {
+            return NextResponse.json({ error: 'Delay minutes and reason are required' }, { status: 400 });
+        }
+        const updatedService = await prisma.service.update({
+            where: { id: serviceId },
+            data: {
+                status: 'DELAYED',
+                delayMinutes: parseInt(delayMinutes),
+                delayReason: reason,
+            },
+            include: {
+                customer: {
+                    include: {
+                        user: true,
+                    },
+                },
+                employee: {
+                    include: {
+                        user: true,
+                    },
+                },
+            },
+        });
+        return NextResponse.json(updatedService);
+    }
+    catch (error) {
+        console.error('Error delaying service:', error);
+        return NextResponse.json({ error: 'Failed to delay service' }, { status: 500 });
+    }
+}

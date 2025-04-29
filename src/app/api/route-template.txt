@@ -1,0 +1,109 @@
+/**
+ * API Route Template
+ * 
+ * This template follows best practices for Vercel deployment:
+ * - Uses executeQuery for database operations with retry logic
+ * - Uses withErrorHandler for consistent error handling
+ * - Specifies runtime (edge or nodejs)
+ * - Includes request validation with zod
+ * - Implements caching where appropriate
+ */
+
+import { NextResponse } from 'next/server';
+import prisma, { executeQuery } from "@/lib/prisma";
+import { withErrorHandler, ApiError, ErrorCode } from '@/lib/error-handler';
+import { z } from 'zod';
+import { cookies } from 'next/headers';
+import { validateUser } from '@/lib/auth';
+import { getCache, setCache, generateCacheKey, invalidateCache } from '@/lib/cache';
+
+// Specify the runtime - use 'edge' for lightweight API routes
+// and 'nodejs' for routes that need full Node.js features
+export const runtime = 'nodejs';
+
+// Input validation schemas
+const queryParamsSchema = z.object({
+  limit: z.string().transform(val => parseInt(val)).default('50'),
+  page: z.string().transform(val => parseInt(val)).default('1')
+});
+
+const requestBodySchema = z.object({
+  // Define your request body schema here
+  // Example:
+  // name: z.string().min(1),
+  // email: z.string().email()
+});
+
+// GET handler
+export const GET = withErrorHandler(async (request: Request) => {
+  // Get and validate authentication if needed
+  const { userId, role } = await validateUser(
+    request.headers.get('authorization')?.split(' ')[1] || 
+    (await cookies()).get('accessToken')?.value
+  );
+  
+  // Parse query parameters
+  const url = new URL(request.url);
+  const { limit, page } = queryParamsSchema.parse(Object.fromEntries(url.searchParams));
+  
+  // Check cache first
+  const cacheKey = generateCacheKey(`route_template_${userId}_${limit}_${page}`);
+  const cachedData = await getCache(cacheKey);
+  
+  if (cachedData) {
+    return NextResponse.json(cachedData);
+  }
+  
+  // Fetch data using executeQuery for retry capability
+  const data = await executeQuery(() => prisma.someModel.findMany({
+    skip: (page - 1) * limit,
+    take: limit,
+    where: {
+      userId
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  }));
+  
+  // Cache the results
+  await setCache(cacheKey, data, 60); // Cache for 60 seconds
+  
+  return NextResponse.json(data);
+});
+
+// POST handler
+export const POST = withErrorHandler(async (request: Request) => {
+  // Validate authentication
+  const { userId, role } = await validateUser(
+    request.headers.get('authorization')?.split(' ')[1] || 
+    (await cookies()).get('accessToken')?.value
+  );
+  
+  // Parse and validate request body
+  const body = await request.json();
+  const validatedData = requestBodySchema.parse(body);
+  
+  // Create record with transaction retry
+  const newRecord = await executeQuery(() => prisma.someModel.create({
+    data: {
+      ...validatedData,
+      userId
+    }
+  }));
+  
+  // Invalidate relevant caches
+  await invalidateCache([`user:${userId}`, 'someModel']);
+  
+  return NextResponse.json(newRecord, { status: 201 });
+});
+
+// PUT handler
+export const PUT = withErrorHandler(async (request: Request) => {
+  // Similar implementation to POST but for updates
+});
+
+// DELETE handler
+export const DELETE = withErrorHandler(async (request: Request) => {
+  // Implementation for deletion
+}); 

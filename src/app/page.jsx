@@ -3,29 +3,12 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPaw, faCircleInfo, faBroom, faCalendar, faStar, faCircleCheck, faTags, faMobileScreen, faCamera, faThumbsUp } from '@fortawesome/free-solid-svg-icons';
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
 /**
  * Home page component
  * @returns {JSX.Element} The rendered component
  */
 export default function Home() {
-    const router = useRouter();
-    // Check if user is logged in and redirect to dashboard
-    useEffect(() => {
-        // Check for access token in cookies
-        const checkAuth = () => {
-            const cookies = document.cookie.split(';');
-            const accessTokenCookie = cookies.find(cookie => cookie.trim().startsWith('accessToken='));
-            if (accessTokenCookie) {
-                // User has an access token, redirect to customer dashboard
-                router.push('/customer/dashboard');
-            }
-        };
-        checkAuth();
-    }, [router]);
-
     return (<div className="min-h-screen bg-white">
       {/* Hero Section */}
       <section className="relative overflow-hidden py-20">
