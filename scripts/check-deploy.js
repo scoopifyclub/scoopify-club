@@ -14,14 +14,10 @@ async function checkDeployment() {
     'STRIPE_SECRET_KEY',
     'STRIPE_WEBHOOK_SECRET',
     'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
-    'AWS_ACCESS_KEY_ID',
-    'AWS_SECRET_ACCESS_KEY',
-    'AWS_REGION',
-    'AWS_BUCKET_NAME',
-    'EMAIL_HOST',
-    'EMAIL_PORT',
-    'EMAIL_USER',
-    'EMAIL_PASSWORD',
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'SMTP_USER',
+    'SMTP_PASSWORD',
     'EMAIL_FROM'
   ]
 
