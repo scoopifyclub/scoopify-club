@@ -17,23 +17,33 @@ import { v4 as uuidv4 } from 'uuid';
 import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import Stripe from 'stripe';
+import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2023-10-16',
 });
 export async function POST(request) {
     try {
+        // Get client IP for rate limiting
+        const ip = request.headers.get('x-forwarded-for') || request.ip || 'unknown';
+        
+        // Apply rate limiting
+        const rateLimiter = new AuthRateLimiter('signup');
+        const rateLimitResult = await rateLimiter.limit(ip, 'signup');
+        
+        if (rateLimitResult?.response) {
+            return rateLimitResult.response;
+        }
+
         const body = await request.json();
         const { email, name, password, deviceFingerprint, role = 'CUSTOMER', address, firstName, lastName, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, } = body;
         // Validate required fields
         if (!email || !name || !password || !deviceFingerprint) {
             return NextResponse.json({ error: 'All required fields must be provided' }, { status: 400 });
         }
-        // Check if user already exists
-        const existingUser = await prisma.user.findUnique({
-            where: { email }
-        });
-        if (existingUser) {
-            return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
         }
         // Validate password strength
         const validation = validatePassword(password);
@@ -43,6 +53,13 @@ export async function POST(request) {
                 details: validation.errors,
                 strength: validation.strength
             }, { status: 400 });
+        }
+        // Check if user already exists
+        const existingUser = await prisma.user.findUnique({
+            where: { email }
+        });
+        if (existingUser) {
+            return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
         }
         // Hash password
         const hashedPassword = await hash(password, 12);
@@ -254,7 +271,7 @@ export async function POST(request) {
         });
         // Remove sensitive data before sending response
         const { password: _ } = user, userWithoutPassword = __rest(user, ["password"]);
-        return NextResponse.json({
+        const response = NextResponse.json({
             user: userWithoutPassword,
             customer: {
                 id: customer.id,
@@ -269,9 +286,29 @@ export async function POST(request) {
             subscription,
             token,
         }, { status: 201 });
+
+        // Add rate limit headers if available
+        if (rateLimitResult?.headers) {
+            Object.entries(rateLimitResult.headers).forEach(([key, value]) => {
+                response.headers.set(key, value);
+            });
+        }
+
+        return response;
     }
     catch (error) {
         console.error('Signup error:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
+}
+
+export async function OPTIONS() {
+    return new NextResponse(null, {
+        status: 204,
+        headers: {
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Max-Age': '86400',
+        },
+    });
 }

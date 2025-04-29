@@ -8,6 +8,12 @@ datasource db {
   url      = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
   relationMode = "prisma"
+  extensions = []
+  poolTimeout = 20
+  pool_timeout = 20
+  connection_limit = 5
+  connection_timeout = 60
+  statement_timeout = 60000
 }
 
 enum PhotoType {

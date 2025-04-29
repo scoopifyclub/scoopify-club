@@ -1,22 +1,33 @@
 {
   "version": 2,
-  "buildCommand": "npm run build:vercel",
+  "buildCommand": "prisma generate && next build",
   "installCommand": "npm install",
   "outputDirectory": ".next",
   "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/cron/schedule-services",
-      "schedule": "0 0 * * 0"
+      "path": "/api/cron/cleanup-photos",
+      "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/retry-payments",
-      "schedule": "0 4 * * *"
+      "schedule": "0 */4 * * *"
     }
   ],
   "regions": [
     "iad1"
   ],
+  "env": {
+    "NEXTAUTH_URL": {
+      "url": ["VERCEL_URL"]
+    }
+  },
+  "functions": {
+    "src/app/api/**/*": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  },
   "github": {
     "enabled": true,
     "silent": false
@@ -40,6 +51,10 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
         }
       ]
     },

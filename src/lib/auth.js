@@ -57,39 +57,89 @@ export function setAdminCookie(response, token) {
     return response;
 }
 export async function generateTokens(user, deviceFingerprint) {
-    var _a, _b;
     try {
         console.log(`Generating tokens for user:`, { id: user.id, role: user.role, fingerprint: deviceFingerprint.substring(0, 8) + '...' });
+
         // Generate access token
         const accessToken = await new SignJWT({
             id: user.id,
             email: user.email,
             role: user.role,
-            customerId: (_a = user.customer) === null || _a === void 0 ? void 0 : _a.id,
-            employeeId: (_b = user.employee) === null || _b === void 0 ? void 0 : _b.id,
+            customerId: user.customer?.id,
+            employeeId: user.employee?.id,
             fingerprint: deviceFingerprint,
         })
             .setProtectedHeader({ alg: 'HS256' })
             .setIssuedAt()
             .setExpirationTime('15m') // 15 minutes
             .sign(new TextEncoder().encode(JWT_SECRET));
-        // Generate refresh token
+
+        // Generate refresh token with a unique identifier
+        const refreshTokenId = await generateUniqueTokenId();
         const refreshToken = await new SignJWT({
             id: user.id,
+            tokenId: refreshTokenId,
             fingerprint: deviceFingerprint,
         })
             .setProtectedHeader({ alg: 'HS256' })
             .setIssuedAt()
             .setExpirationTime('7d')
             .sign(new TextEncoder().encode(REFRESH_SECRET));
+
+        // Store refresh token in database
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+        await prisma.refreshToken.create({
+            data: {
+                id: refreshTokenId,
+                token: refreshToken,
+                userId: user.id,
+                deviceFingerprint,
+                expiresAt,
+            },
+        });
+
+        // Cleanup old refresh tokens for this user/device combination
+        await cleanupOldTokens(user.id, deviceFingerprint);
+
         console.log('Tokens generated successfully');
         return { accessToken, refreshToken };
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Error generating tokens:', error);
         throw error;
     }
 }
+
+async function generateUniqueTokenId() {
+    const id = crypto.randomUUID();
+    const exists = await prisma.refreshToken.findUnique({ where: { id } });
+    if (exists) return generateUniqueTokenId();
+    return id;
+}
+
+async function cleanupOldTokens(userId, deviceFingerprint) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    
+    // Revoke expired tokens
+    await prisma.refreshToken.updateMany({
+        where: {
+            userId,
+            deviceFingerprint,
+            expiresAt: { lt: new Date() },
+            isRevoked: false
+        },
+        data: { isRevoked: true }
+    });
+
+    // Delete very old tokens
+    await prisma.refreshToken.deleteMany({
+        where: {
+            userId,
+            deviceFingerprint,
+            createdAt: { lt: thirtyDaysAgo }
+        }
+    });
+}
+
 export async function login(email, password, fingerprint) {
     console.log('Login attempt for email:', email);
     // Find user in database
@@ -118,25 +168,54 @@ export async function login(email, password, fingerprint) {
 }
 // Safe to use in Edge environment
 export async function verifyToken(token) {
-    if (!token)
-        return null;
+    if (!token) return null;
     try {
-        // Use TextEncoder for compatibility with all environments
         const secret = new TextEncoder().encode(JWT_SECRET);
-        const { payload } = await jwtVerify(token, secret, { algorithms: ['HS256'] });
+        const { payload } = await jwtVerify(token, secret, {
+            algorithms: ['HS256'],
+            clockTolerance: 15 // 15 seconds clock skew tolerance
+        });
+
+        // Check if token is expired
+        const now = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp <= now) {
+            return null;
+        }
+
         return payload;
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Token verification failed:', error);
         return null;
     }
 }
 export async function refreshToken(oldRefreshToken, fingerprint) {
     try {
-        const { payload } = await jwtVerify(oldRefreshToken, new TextEncoder().encode(REFRESH_SECRET), { algorithms: ['HS256'] });
-        if (!payload || !payload.id) {
+        // Verify the old refresh token
+        const { payload } = await jwtVerify(
+            oldRefreshToken,
+            new TextEncoder().encode(REFRESH_SECRET),
+            { algorithms: ['HS256'] }
+        );
+
+        if (!payload || !payload.id || !payload.tokenId) {
             throw new Error('Invalid refresh token');
         }
+
+        // Find the token in the database
+        const storedToken = await prisma.refreshToken.findFirst({
+            where: {
+                id: payload.tokenId,
+                userId: payload.id,
+                token: oldRefreshToken,
+                isRevoked: false,
+                expiresAt: { gt: new Date() }
+            }
+        });
+
+        if (!storedToken) {
+            throw new Error('Refresh token not found or revoked');
+        }
+
         // Find user in database
         const user = await prisma.user.findUnique({
             where: { id: payload.id },
@@ -145,27 +224,34 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
                 employee: true
             }
         });
+
         if (!user) {
             throw new Error('User not found');
         }
-        // Improved fingerprint handling
-        const tokenFingerprint = payload.fingerprint;
-        // If both fingerprints exist but don't match, log detailed info but continue
-        // This is a security trade-off to prevent login loops while maintaining some security
-        if (tokenFingerprint && fingerprint && tokenFingerprint !== fingerprint) {
+
+        // Verify fingerprint if provided
+        if (fingerprint && storedToken.deviceFingerprint !== fingerprint) {
             console.warn('Fingerprint mismatch during token refresh:', {
-                tokenFingerprintStart: tokenFingerprint.substring(0, 10),
+                tokenFingerprintStart: storedToken.deviceFingerprint.substring(0, 10),
                 providedFingerprintStart: fingerprint.substring(0, 10),
                 userId: user.id
             });
-            // Still continue with token refresh using the provided fingerprint
-            console.log('Refreshing tokens despite fingerprint mismatch for usability');
         }
-        // Generate new tokens with provided fingerprint or the one from the token
-        const { accessToken, refreshToken: newRefreshToken } = await generateTokens(user, fingerprint || tokenFingerprint || generateFingerprint());
+
+        // Revoke the old refresh token
+        await prisma.refreshToken.update({
+            where: { id: storedToken.id },
+            data: { isRevoked: true }
+        });
+
+        // Generate new tokens
+        const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
+            user,
+            fingerprint || storedToken.deviceFingerprint
+        );
+
         return { accessToken, refreshToken: newRefreshToken, user };
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Refresh token error:', error);
         throw new Error('Invalid refresh token');
     }
@@ -223,15 +309,17 @@ export async function validateUser(token, requiredRole) {
     }
 }
 export async function verifyAuth(request) {
-    var _a, _b;
     try {
         // Get tokens from cookies
         const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        const refreshToken = (_b = cookieStore.get('refreshToken')) === null || _b === void 0 ? void 0 : _b.value;
+        const accessToken = cookieStore.get('accessToken')?.value;
+        const refreshToken = cookieStore.get('refreshToken')?.value;
+        const fingerprint = cookieStore.get('fingerprint')?.value;
+
         if (!accessToken && !refreshToken) {
             return { success: false, error: 'No session found' };
         }
+
         // Try to verify access token first
         if (accessToken) {
             const payload = await verifyToken(accessToken);
@@ -244,8 +332,8 @@ export async function verifyAuth(request) {
                         employee: true
                     }
                 });
+
                 if (user) {
-                    const { password: _ } = user, userWithoutPassword = __rest(user, ["password"]);
                     return {
                         success: true,
                         session: {
@@ -260,10 +348,12 @@ export async function verifyAuth(request) {
                 }
             }
         }
+
         // If access token is invalid or expired, try refresh token
         if (refreshToken) {
             try {
-                const { accessToken: newAccessToken, user } = await refreshToken(refreshToken);
+                const { accessToken: newAccessToken, user } = await refreshToken(refreshToken, fingerprint);
+                
                 // Set new access token cookie
                 const response = new NextResponse();
                 response.cookies.set('accessToken', newAccessToken, {
@@ -273,7 +363,7 @@ export async function verifyAuth(request) {
                     path: '/',
                     maxAge: 15 * 60, // 15 minutes
                 });
-                const { password: _ } = user, userWithoutPassword = __rest(user, ["password"]);
+
                 return {
                     success: true,
                     session: {
@@ -285,15 +375,14 @@ export async function verifyAuth(request) {
                         employee: user.employee,
                     },
                 };
-            }
-            catch (error) {
+            } catch (error) {
                 console.error('Refresh token error:', error);
                 return { success: false, error: 'Invalid refresh token' };
             }
         }
+
         return { success: false, error: 'Invalid session' };
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Auth verification error:', error);
         return { success: false, error: 'Internal server error' };
     }
@@ -350,3 +439,34 @@ export const authOptions = {
         }
     }
 };
+
+export async function revokeAllUserTokens(userId) {
+    try {
+        await prisma.refreshToken.updateMany({
+            where: {
+                userId,
+                isRevoked: false
+            },
+            data: { isRevoked: true }
+        });
+    } catch (error) {
+        console.error('Error revoking user tokens:', error);
+        throw error;
+    }
+}
+
+export async function revokeUserTokenByFingerprint(userId, fingerprint) {
+    try {
+        await prisma.refreshToken.updateMany({
+            where: {
+                userId,
+                deviceFingerprint: fingerprint,
+                isRevoked: false
+            },
+            data: { isRevoked: true }
+        });
+    } catch (error) {
+        console.error('Error revoking user token by fingerprint:', error);
+        throw error;
+    }
+}
