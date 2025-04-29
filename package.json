@@ -77,7 +77,8 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:test-migrate": "node scripts/test-migration.js",
     "prisma:check-migrations": "node scripts/check-migrations.js",
-    "prisma:safe-deploy": "npm run prisma:check-migrations && npm run prisma:test-migrate && prisma migrate deploy"
+    "prisma:safe-deploy": "npm run prisma:check-migrations && npm run prisma:test-migrate && prisma migrate deploy",
+    "prepare:deployment": "node scripts/prepare-deployment.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",
