@@ -70,22 +70,18 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_API_URL": "@next_public_api_url",
-    "DATABASE_URL": "@database_url",
-    "JWT_SECRET": "@jwt_secret",
-    "JWT_REFRESH_SECRET": "@jwt_refresh_secret",
-    "STRIPE_SECRET_KEY": "@stripe_secret_key",
-    "STRIPE_WEBHOOK_SECRET": "@stripe_webhook_secret",
-    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "@next_public_stripe_publishable_key",
-    "AWS_ACCESS_KEY_ID": "@aws_access_key_id",
-    "AWS_SECRET_ACCESS_KEY": "@aws_secret_access_key",
-    "AWS_REGION": "@aws_region",
-    "AWS_BUCKET_NAME": "@aws_bucket_name",
-    "EMAIL_HOST": "@email_host",
-    "EMAIL_PORT": "@email_port",
-    "EMAIL_USER": "@email_user",
-    "EMAIL_PASSWORD": "@email_password",
-    "EMAIL_FROM": "@email_from"
+    "NEXT_PUBLIC_API_URL": "https://scoopify-club.vercel.app",
+    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/scoopify",
+    "JWT_SECRET": "your-jwt-secret",
+    "JWT_REFRESH_SECRET": "your-jwt-refresh-secret",
+    "STRIPE_SECRET_KEY": "your-stripe-secret-key",
+    "STRIPE_WEBHOOK_SECRET": "your-stripe-webhook-secret",
+    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "your-stripe-publishable-key",
+    "SMTP_HOST": "mail.privateemail.com",
+    "SMTP_PORT": "465",
+    "SMTP_USER": "services@scoopify.club",
+    "SMTP_PASSWORD": "RnCbH9@Y7d$eVc",
+    "EMAIL_FROM": "Scoopify Club <services@scoopify.club>"
   },
   "build": {
     "env": {
