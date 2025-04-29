@@ -10,6 +10,11 @@ const nextConfig = {
         pathname: '/photo-**',
       },
       {
+        protocol: 'https',
+        hostname: 'images.pexels.com',
+        pathname: '/photos/**',
+      },
+      {
         protocol: 'http',
         hostname: 'localhost',
       }
