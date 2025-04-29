@@ -1,26 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "npm run vercel-build",
-  "installCommand": "npm install",
-  "outputDirectory": ".next",
   "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/cron/cleanup",
-      "schedule": "0 0 * * *"
-    },
-    {
-      "path": "/api/cron/retry-payments",
-      "schedule": "0 1 * * *"
-    }
-  ],
-  "regions": [
-    "iad1"
-  ],
-  "github": {
-    "enabled": true,
-    "silent": false
-  },
+  "buildCommand": "next build",
   "headers": [
     {
       "source": "/(.*)",
@@ -40,52 +21,8 @@
         {
           "key": "Referrer-Policy",
           "value": "strict-origin-when-cross-origin"
-        },
-        {
-          "key": "Permissions-Policy",
-          "value": "camera=(), microphone=(), geolocation=()"
-        }
-      ]
-    },
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Credentials",
-          "value": "true"
-        },
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET,DELETE,PATCH,POST,PUT"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization"
         }
       ]
     }
-  ],
-  "env": {
-    "NEXT_PUBLIC_API_URL": "https://scoopify-club.vercel.app",
-    "DATABASE_URL": "postgresql://postgres:postgres@localhost:5432/scoopify",
-    "JWT_SECRET": "your-jwt-secret",
-    "JWT_REFRESH_SECRET": "your-jwt-refresh-secret",
-    "STRIPE_SECRET_KEY": "your-stripe-secret-key",
-    "STRIPE_WEBHOOK_SECRET": "your-stripe-webhook-secret",
-    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "your-stripe-publishable-key",
-    "SMTP_HOST": "mail.privateemail.com",
-    "SMTP_PORT": "465",
-    "SMTP_USER": "services@scoopify.club",
-    "SMTP_PASSWORD": "RnCbH9@Y7d$eVc",
-    "EMAIL_FROM": "Scoopify Club <services@scoopify.club>"
-  },
-  "build": {
-    "env": {
-      "NODE_ENV": "production"
-    }
-  }
+  ]
 }
