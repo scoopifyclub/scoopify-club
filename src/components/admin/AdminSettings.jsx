@@ -1,6 +1,6 @@
 import React from 'react';
 
-const AdminSettings = () => {
+export default function AdminSettings() {
   return (
     <div className="p-4">
       <h2 className="text-2xl font-bold mb-4">Admin Settings</h2>
@@ -58,6 +58,4 @@ const AdminSettings = () => {
       </div>
     </div>
   );
-};
-
-export default AdminSettings; 
+} 

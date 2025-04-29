@@ -1,6 +1,6 @@
 import React from 'react';
 
-const ServiceDetails = ({ service }) => {
+export default function ServiceDetails({ service }) {
   if (!service) {
     return <div>Loading...</div>;
   }
@@ -24,6 +24,4 @@ const ServiceDetails = ({ service }) => {
       </div>
     </div>
   );
-};
-
-export default ServiceDetails; 
+} 
