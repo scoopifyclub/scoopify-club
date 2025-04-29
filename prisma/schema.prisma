@@ -17,12 +17,68 @@ enum PhotoType {
   OTHER
 }
 
+enum ServiceStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum UserRole {
+  CUSTOMER
+  EMPLOYEE
+  ADMIN
+  MANAGER
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  PAID
+  FAILED
+}
+
+enum PaymentMethod {
+  CASH
+  CASH_APP
+  CHECK
+  STRIPE
+}
+
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum PaymentBatchStatus {
+  DRAFT
+  PROCESSING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+  SUSPENDED
+}
+
 model User {
   id                      String         @id @default(cuid())
   email                   String         @unique
   name                    String?
   password                String
-  role                    String         @default("CUSTOMER")
+  role                    UserRole        @default(CUSTOMER)
   emailVerified           Boolean        @default(false)
   verificationToken       String?        @unique
   verificationTokenExpiry DateTime?
@@ -85,7 +141,7 @@ model Subscription {
   id         String    @id @default(cuid())
   customerId String
   planId     String
-  status     String    @default("ACTIVE")
+  status     SubscriptionStatus    @default(ACTIVE)
   startDate  DateTime
   endDate    DateTime?
   createdAt  DateTime  @default(now())
@@ -115,10 +171,10 @@ model Employee {
   phone           String?
   cashAppUsername String?
   stripeAccountId String?         @unique
-  preferredPaymentMethod String?  // CASH_APP or STRIPE
+  preferredPaymentMethod PaymentMethod?
   bio             String?
   availability    Json?
-  status          String           @default("ACTIVE")
+  status          EmployeeStatus    @default(ACTIVE)
   rating          Float?
   completedJobs   Int              @default(0)
   createdAt       DateTime         @default(now())
@@ -139,13 +195,13 @@ model Payment {
   amount         Float          // Total payment amount
   stripeFee      Float?         // Stripe processing fee
   netAmount      Float?         // Net amount after fees
-  status         String         @default("PENDING") // PENDING, APPROVED, PAID, FAILED
+  status         PaymentStatus   @default(PENDING)
   type           String
   serviceId      String?
   employeeId     String?
   customerId     String?
   referredId     String?
-  paymentMethod  String?        // CASH, CASH_APP, CHECK, STRIPE, etc.
+  paymentMethod  PaymentMethod?
   paidAt         DateTime?      // When the payment was actually sent
   approvedAt     DateTime?      // When the payment was approved by admin
   approvedBy     String?        // Admin who approved the payment
@@ -161,7 +217,7 @@ model Payment {
   refundedAt     DateTime?      // When the refund was processed
   refundedBy     String?        // Admin who processed the refund
   refundReason   String?        // Reason for the refund
-  refundStatus   String?        // PENDING, COMPLETED, FAILED
+  refundStatus   RefundStatus?
   refundTransactionId String?   // ID of refund transaction from payment provider
   batchId        String?        // ID of the batch this payment belongs to
   subscription   Subscription?  @relation(fields: [subscriptionId], references: [id])
@@ -210,7 +266,7 @@ model ServicePlan {
 model Service {
   id             String            @id @default(cuid())
   customerId     String
-  status         String            @default("SCHEDULED")
+  status         ServiceStatus     @default(SCHEDULED)
   scheduledDate  DateTime
   completedDate  DateTime?
   servicePlanId  String
@@ -425,7 +481,7 @@ model PaymentBatch {
   id                 String    @id @default(cuid())
   name               String
   description        String?
-  status             String    // DRAFT, PROCESSING, COMPLETED, PARTIAL, FAILED
+  status             PaymentBatchStatus
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
   createdById        String

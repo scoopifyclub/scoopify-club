@@ -1,61 +1,139 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
+import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/auth';
+import { cookies } from 'next/headers';
+import { emitServiceStatusChange } from '@/lib/socket';
+import { sendServiceNotificationEmail } from '@/lib/email';
+
 export async function PUT(request, { params }) {
-    var _a;
     try {
-        const token = (_a = request.headers.get('authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
+        const token = cookies().get('token')?.value;
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const decoded = verifyToken(token);
-        if (!decoded || decoded.role !== 'EMPLOYEE') {
+
+        const user = await verifyToken(token);
+        if (!user || !['ADMIN', 'EMPLOYEE'].includes(user.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const service = await prisma.service.findUnique({
-            where: { id: (await params).serviceId },
-            include: { employee: true }
-        });
-        if (!service) {
-            return NextResponse.json({ error: 'Service not found' }, { status: 404 });
-        }
-        if (service.employeeId !== decoded.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const { status } = await request.json();
-        if (!status || !['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'].includes(status)) {
+
+        const { serviceId } = params;
+        const { status, notes } = await request.json();
+
+        // Validate status
+        const validStatuses = ['PENDING', 'SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
+        if (!status || !validStatuses.includes(status)) {
             return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
         }
-        const updatedService = await prisma.service.update({
-            where: { id: (await params).serviceId },
-            data: { status },
+
+        // Get the current service
+        const service = await prisma.service.findUnique({
+            where: { id: serviceId },
             include: {
-                customer: true,
-                employee: true,
+                customer: {
+                    include: {
+                        user: true
+                    }
+                },
+                employee: {
+                    include: {
+                        user: true
+                    }
+                },
+                servicePlan: true,
                 checklist: true,
                 photos: true
             }
         });
+
+        if (!service) {
+            return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+        }
+
+        // If employee is updating, verify they are assigned to this service
+        if (user.role === 'EMPLOYEE' && service.employeeId !== user.id) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // Update service status
+        const updatedService = await prisma.service.update({
+            where: { id: serviceId },
+            data: {
+                status,
+                notes: notes ? {
+                    create: {
+                        content: notes,
+                        userId: user.id
+                    }
+                } : undefined,
+                ...(status === 'COMPLETED' ? { completedAt: new Date() } : {})
+            },
+            include: {
+                customer: {
+                    include: {
+                        user: true
+                    }
+                },
+                employee: {
+                    include: {
+                        user: true
+                    }
+                },
+                servicePlan: true,
+                checklist: true,
+                photos: true,
+                notes: {
+                    include: {
+                        user: true
+                    }
+                }
+            }
+        });
+
+        // Emit real-time update
+        emitServiceStatusChange(serviceId, status, {
+            message: `Service status updated to ${status}`,
+            notes,
+            updatedBy: user.name
+        });
+
+        // Send email notification
+        if (service.customer?.user?.email) {
+            await sendServiceNotificationEmail(
+                service.customer.user.email,
+                serviceId,
+                status.toLowerCase(),
+                {
+                    date: service.scheduledAt.toLocaleString(),
+                    address: service.customer.address,
+                    employeeName: service.employee?.user?.name,
+                    notes
+                }
+            );
+        }
+
         return NextResponse.json(updatedService);
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Error updating service status:', error);
         return NextResponse.json({ error: 'Failed to update service status' }, { status: 500 });
     }
 }
+
 export async function GET(request, { params }) {
-    var _a;
     try {
-        const token = (_a = request.headers.get('authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
+        const token = cookies().get('token')?.value;
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const decoded = verifyToken(token);
-        if (!decoded) {
+
+        const user = await verifyToken(token);
+        if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const { serviceId } = params;
         const service = await prisma.service.findUnique({
-            where: { id: (await params).serviceId },
+            where: { id: serviceId },
             include: {
                 customer: true,
                 employee: true,
@@ -63,19 +141,21 @@ export async function GET(request, { params }) {
                 photos: true
             }
         });
+
         if (!service) {
             return NextResponse.json({ error: 'Service not found' }, { status: 404 });
         }
+
         // Only allow access if user is the customer or employee
-        if (decoded.role === 'CUSTOMER' && service.customerId !== decoded.id) {
+        if (user.role === 'CUSTOMER' && service.customerId !== user.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        if (decoded.role === 'EMPLOYEE' && service.employeeId !== decoded.id) {
+        if (user.role === 'EMPLOYEE' && service.employeeId !== user.id) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
         return NextResponse.json(service);
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Error fetching service:', error);
         return NextResponse.json({ error: 'Failed to fetch service' }, { status: 500 });
     }

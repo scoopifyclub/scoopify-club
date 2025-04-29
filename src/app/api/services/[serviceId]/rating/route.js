@@ -16,7 +16,7 @@ export async function POST(request, { params }) {
             );
         }
 
-        const { id } = params;
+        const { serviceId } = params;
         const { rating, comment } = await request.json();
 
         // Validate rating
@@ -29,7 +29,7 @@ export async function POST(request, { params }) {
 
         // Get the service and verify it's completed
         const service = await prisma.service.findUnique({
-            where: { id },
+            where: { id: serviceId },
             include: {
                 customer: true,
                 employee: true,
@@ -74,7 +74,7 @@ export async function POST(request, { params }) {
                 data: {
                     rating,
                     comment,
-                    serviceId: id,
+                    serviceId,
                     customerId: service.customerId,
                     employeeId: service.employeeId
                 }
@@ -97,7 +97,7 @@ export async function POST(request, { params }) {
         });
 
         // Emit real-time update
-        emitServiceUpdate(id, {
+        emitServiceUpdate(serviceId, {
             message: 'Service rated',
             details: `Rating: ${rating}/5${comment ? ` - "${comment}"` : ''}`,
             rating: serviceRating
@@ -120,10 +120,10 @@ export async function POST(request, { params }) {
 // Get rating for a service
 export async function GET(request, { params }) {
     try {
-        const { id } = params;
+        const { serviceId } = params;
 
         const rating = await prisma.serviceRating.findFirst({
-            where: { serviceId: id },
+            where: { serviceId },
             include: {
                 customer: {
                     include: {

@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ['@prisma/client'],
+  swcMinify: true,
   images: {
     remotePatterns: [
       {
@@ -20,14 +20,16 @@ const nextConfig = {
       }
     ],
     formats: ['image/avif', 'image/webp'],
+    domains: [
+      'localhost',
+      'scoopify.club',
+      'scoopifyclub.s3.amazonaws.com'
+    ],
   },
   // Configure dynamic rendering for authenticated pages
   experimental: {
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
     optimizeCss: true,
-    optimizePackageImports: ['@prisma/client', 'lucide-react', '@radix-ui/react-icons'],
+    serverActions: true,
   },
   // Configure route segments
   async redirects() {
@@ -112,8 +114,27 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Headers', value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version' },
         ],
       },
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on'
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload'
+          }
+        ]
+      }
     ]
-  }
+  },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production',
+  },
+  poweredByHeader: false,
+  compress: true,
+  generateEtags: true,
 }
 
 module.exports = nextConfig 

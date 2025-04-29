@@ -33,7 +33,8 @@ async function connectWithRetry(client, retries = MAX_RETRIES) {
 }
 if (!isEdgeRuntime()) {
     // Only use Prisma in Node.js environments, not in Edge Runtime
-    prisma = global.prisma || new PrismaClient({
+    const globalForPrisma = globalThis;
+    prisma = globalForPrisma.prisma ?? new PrismaClient({
         log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
         datasources: {
             db: {
@@ -41,13 +42,14 @@ if (!isEdgeRuntime()) {
             }
         }
     });
-    if (!isProduction()) {
-        global.prisma = prisma;
+    if (process.env.NODE_ENV !== 'production') {
+        globalForPrisma.prisma = prisma;
     }
     // Connect to the database asynchronously (only in Node.js environment)
     // This allows the app to start even if the database is not available
     connectWithRetry(prisma).catch((err) => {
         console.error('Failed to initiate database connection:', err);
+        process.exit(1);
     });
 }
 else {
