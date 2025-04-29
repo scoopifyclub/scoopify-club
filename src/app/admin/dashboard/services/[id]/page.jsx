@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import ServiceDetails from '@/components/admin/ServiceDetails';
+import { ServiceDetails } from '@/components/admin/ServiceDetails';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 export default function AdminServicePage({ params }) {

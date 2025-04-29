@@ -1,27 +1,65 @@
+'use client';
+
 import React from 'react';
 
-export default function ServiceDetails({ service }) {
-  if (!service) {
-    return <div>Loading...</div>;
-  }
+export default function ServiceDetails({ serviceId }) {
+    const [service, setService] = React.useState(null);
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState(null);
 
-  return (
-    <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Service Details</h2>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <h3 className="font-semibold">Service Information</h3>
-          <p>ID: {service.id}</p>
-          <p>Status: {service.status}</p>
-          <p>Created: {new Date(service.createdAt).toLocaleDateString()}</p>
+    React.useEffect(() => {
+        async function fetchService() {
+            try {
+                const response = await fetch(`/api/services/${serviceId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to fetch service details');
+                }
+                const data = await response.json();
+                setService(data);
+            } catch (err) {
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        if (serviceId) {
+            fetchService();
+        }
+    }, [serviceId]);
+
+    if (loading) return <div>Loading service details...</div>;
+    if (error) return <div>Error: {error}</div>;
+    if (!service) return <div>No service found</div>;
+
+    return (
+        <div className="p-6">
+            <h1 className="text-2xl font-bold mb-4">Service Details</h1>
+            <div className="space-y-4">
+                <div>
+                    <h2 className="text-lg font-semibold">Status</h2>
+                    <p>{service.status}</p>
+                </div>
+                <div>
+                    <h2 className="text-lg font-semibold">Customer</h2>
+                    <p>{service.customer?.name || 'N/A'}</p>
+                </div>
+                <div>
+                    <h2 className="text-lg font-semibold">Employee</h2>
+                    <p>{service.employee?.name || 'Not assigned'}</p>
+                </div>
+                <div>
+                    <h2 className="text-lg font-semibold">Schedule</h2>
+                    <p>Date: {new Date(service.scheduledDate).toLocaleDateString()}</p>
+                    <p>Time: {new Date(service.scheduledDate).toLocaleTimeString()}</p>
+                </div>
+                {service.notes && (
+                    <div>
+                        <h2 className="text-lg font-semibold">Notes</h2>
+                        <p>{service.notes}</p>
+                    </div>
+                )}
+            </div>
         </div>
-        <div>
-          <h3 className="font-semibold">Customer Information</h3>
-          <p>Name: {service.customer?.name}</p>
-          <p>Email: {service.customer?.email}</p>
-          <p>Phone: {service.customer?.phone}</p>
-        </div>
-      </div>
-    </div>
-  );
+    );
 } 

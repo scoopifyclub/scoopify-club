@@ -24,13 +24,17 @@ const nextConfig = {
       'scoopify.club',
       'scoopifyclub.s3.amazonaws.com'
     ],
+    minimumCacheTTL: 60,
+    dangerouslyAllowSVG: false
   },
   // Configure dynamic rendering for authenticated pages
   experimental: {
     optimizeCss: true,
     serverActions: {
-      allowedOrigins: ['localhost:3000', 'scoopify.club'],
+      allowedOrigins: ['localhost:3000', 'scoopify.club']
     },
+    instrumentationHook: true,
+    serverComponentsExternalPackages: ['@prisma/client']
   },
   // Configure route segments
   async redirects() {
@@ -51,15 +55,15 @@ const nextConfig = {
     // Add path aliases
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': __dirname,
-      '@components': __dirname + '/components',
-      '@lib': __dirname + '/lib',
-      '@utils': __dirname + '/utils',
-      '@styles': __dirname + '/styles',
+      '@': __dirname + '/src',
+      '@components': __dirname + '/src/components',
+      '@lib': __dirname + '/src/lib',
+      '@utils': __dirname + '/src/utils',
+      '@styles': __dirname + '/src/styles',
       '@public': __dirname + '/public',
-      '@hooks': __dirname + '/hooks',
-      '@context': __dirname + '/context',
-      '@types': __dirname + '/types',
+      '@hooks': __dirname + '/src/hooks',
+      '@context': __dirname + '/src/context',
+      '@types': __dirname + '/src/types',
     };
 
     // Handle Prisma in Edge Runtime
@@ -71,7 +75,7 @@ const nextConfig = {
         tls: false,
         child_process: false,
         readline: false,
-        dns: false,
+        dns: false
       };
     }
 
@@ -104,7 +108,7 @@ const nextConfig = {
 
     return config;
   },
-  // Configure headers
+  // Configure headers for security
   async headers() {
     return [
       {
@@ -113,7 +117,7 @@ const nextConfig = {
           { key: 'Access-Control-Allow-Credentials', value: 'true' },
           { key: 'Access-Control-Allow-Origin', value: '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET,DELETE,PATCH,POST,PUT' },
-          { key: 'Access-Control-Allow-Headers', value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version' },
+          { key: 'Access-Control-Allow-Headers', value: 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization, x-device-fingerprint' },
         ],
       },
       {
@@ -126,6 +130,26 @@ const nextConfig = {
           {
             key: 'Strict-Transport-Security',
             value: 'max-age=63072000; includeSubDomains; preload'
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'DENY'
+          },
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block'
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'strict-origin-when-cross-origin'
+          },
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
           }
         ]
       }

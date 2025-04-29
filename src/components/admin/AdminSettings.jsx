@@ -1,61 +1,114 @@
+'use client';
+
 import React from 'react';
 
 export default function AdminSettings() {
-  return (
-    <div className="p-4">
-      <h2 className="text-2xl font-bold mb-4">Admin Settings</h2>
-      <div className="space-y-4">
-        <div>
-          <h3 className="font-semibold mb-2">General Settings</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Site Name</label>
-              <input
-                type="text"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                defaultValue="Scoopify Club"
-              />
+    const [settings, setSettings] = React.useState({
+        emailNotifications: true,
+        autoAssignEmployees: false,
+        requirePaymentUpfront: true,
+        allowCustomerRescheduling: true,
+    });
+
+    const handleSettingChange = (setting) => {
+        setSettings(prev => ({
+            ...prev,
+            [setting]: !prev[setting]
+        }));
+    };
+
+    const handleSave = async () => {
+        try {
+            const response = await fetch('/api/admin/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(settings),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to save settings');
+            }
+
+            // Show success message
+            alert('Settings saved successfully');
+        } catch (error) {
+            console.error('Error saving settings:', error);
+            alert('Failed to save settings');
+        }
+    };
+
+    return (
+        <div className="p-6">
+            <h1 className="text-2xl font-bold mb-6">Admin Settings</h1>
+            
+            <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                    <label className="text-lg">Email Notifications</label>
+                    <button
+                        onClick={() => handleSettingChange('emailNotifications')}
+                        className={`px-4 py-2 rounded ${
+                            settings.emailNotifications
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-200'
+                        }`}
+                    >
+                        {settings.emailNotifications ? 'Enabled' : 'Disabled'}
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                    <label className="text-lg">Auto-assign Employees</label>
+                    <button
+                        onClick={() => handleSettingChange('autoAssignEmployees')}
+                        className={`px-4 py-2 rounded ${
+                            settings.autoAssignEmployees
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-200'
+                        }`}
+                    >
+                        {settings.autoAssignEmployees ? 'Enabled' : 'Disabled'}
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                    <label className="text-lg">Require Payment Upfront</label>
+                    <button
+                        onClick={() => handleSettingChange('requirePaymentUpfront')}
+                        className={`px-4 py-2 rounded ${
+                            settings.requirePaymentUpfront
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-200'
+                        }`}
+                    >
+                        {settings.requirePaymentUpfront ? 'Enabled' : 'Disabled'}
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                    <label className="text-lg">Allow Customer Rescheduling</label>
+                    <button
+                        onClick={() => handleSettingChange('allowCustomerRescheduling')}
+                        className={`px-4 py-2 rounded ${
+                            settings.allowCustomerRescheduling
+                                ? 'bg-green-500 text-white'
+                                : 'bg-gray-200'
+                        }`}
+                    >
+                        {settings.allowCustomerRescheduling ? 'Enabled' : 'Disabled'}
+                    </button>
+                </div>
+
+                <div className="mt-8">
+                    <button
+                        onClick={handleSave}
+                        className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600"
+                    >
+                        Save Settings
+                    </button>
+                </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Contact Email</label>
-              <input
-                type="email"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                defaultValue="services@scoopify.club"
-              />
-            </div>
-          </div>
         </div>
-        <div>
-          <h3 className="font-semibold mb-2">Notification Settings</h3>
-          <div className="space-y-2">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                defaultChecked
-              />
-              <label className="ml-2 block text-sm text-gray-900">Email Notifications</label>
-            </div>
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                defaultChecked
-              />
-              <label className="ml-2 block text-sm text-gray-900">SMS Notifications</label>
-            </div>
-          </div>
-        </div>
-        <div className="pt-4">
-          <button
-            type="button"
-            className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-          >
-            Save Changes
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+    );
 } 

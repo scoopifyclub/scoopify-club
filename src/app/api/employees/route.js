@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
-import { verifyToken, generateTokens } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
+import { generateTokens, validateUser } from '@/lib/auth';
 
 export async function POST(request) {
     try {
@@ -18,77 +19,74 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const data = await request.json();
-        const { email, password, name, phone, serviceAreas } = data;
+        const body = await request.json();
+        const { email, password, name, phone, serviceAreas } = body;
+        const deviceFingerprint = request.headers.get('x-device-fingerprint');
+
+        if (!deviceFingerprint) {
+            return NextResponse.json({ error: 'Device fingerprint is required' }, { status: 400 });
+        }
 
         // Validate required fields
-        if (!email || !password || !name || !phone || !serviceAreas || !Array.isArray(serviceAreas)) {
+        if (!email || !password || !name || !phone || !serviceAreas) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Check if email already exists
-        const existingUser = await prisma.user.findUnique({
+        // Check if employee already exists
+        const existingEmployee = await prisma.employee.findUnique({
             where: { email }
         });
 
-        if (existingUser) {
-            return NextResponse.json({ error: 'Email already registered' }, { status: 400 });
+        if (existingEmployee) {
+            return NextResponse.json({ error: 'Employee already exists' }, { status: 400 });
         }
 
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user and employee in a transaction
-        const result = await prisma.$transaction(async (prisma) => {
-            // Create user
-            const user = await prisma.user.create({
-                data: {
-                    email,
-                    password: hashedPassword,
-                    name,
-                    role: 'EMPLOYEE'
+        // Create employee
+        const employee = await prisma.employee.create({
+            data: {
+                email,
+                password: hashedPassword,
+                name,
+                phone,
+                serviceAreas: {
+                    create: serviceAreas.map(area => ({
+                        name: area
+                    }))
                 }
-            });
-
-            // Create employee profile
-            const employee = await prisma.employee.create({
-                data: {
-                    userId: user.id,
-                    phone,
-                    status: 'ACTIVE',
-                    serviceAreas: {
-                        create: serviceAreas.map(area => ({
-                            zipCode: area
-                        }))
-                    }
-                }
-            });
-
-            return { user, employee };
+            }
         });
 
-        // Generate fingerprint for the new employee
-        const deviceFingerprint = Math.random().toString(36).substring(2, 15);
+        // Generate tokens
+        const { accessToken, refreshToken } = await generateTokens(employee, deviceFingerprint);
 
-        // Generate tokens for the new employee
-        const { accessToken } = await generateTokens({
-            id: result.user.id,
-            email: result.user.email,
-            role: 'EMPLOYEE',
-            employee: { id: result.employee.id }
-        }, deviceFingerprint);
+        // Set refresh token in HTTP-only cookie
+        const cookieOptions = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+        };
 
-        return NextResponse.json({
-            success: true,
+        // Create response with both tokens
+        const response = NextResponse.json({
+            message: 'Employee created successfully',
             employee: {
-                id: result.employee.id,
-                name: result.user.name,
-                email: result.user.email,
-                phone: result.employee.phone,
-                serviceAreas: serviceAreas
+                id: employee.id,
+                email: employee.email,
+                name: employee.name,
+                phone: employee.phone,
+                serviceAreas: employee.serviceAreas
             },
-            token: accessToken
+            accessToken
         });
+
+        // Set the refresh token cookie
+        response.cookies.set('refreshToken', refreshToken, cookieOptions);
+
+        return response;
     } catch (error) {
         console.error('Error creating employee:', error);
         return NextResponse.json({ error: 'Failed to create employee' }, { status: 500 });

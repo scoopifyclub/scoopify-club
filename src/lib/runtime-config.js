@@ -3,40 +3,93 @@
  *
  * This file provides environment-specific configuration for the application.
  */
+// Get environment type
+export function getEnvironment() {
+    if (process.env.VERCEL_ENV === 'production') return 'production';
+    if (process.env.VERCEL_ENV === 'preview') return 'preview';
+    if (process.env.VERCEL_ENV === 'development') return 'development';
+    return process.env.NODE_ENV || 'development';
+}
 // Get base URL for API calls
 export function getBaseUrl() {
     // Check for Vercel environment
     if (process.env.VERCEL_URL) {
         return `https://${process.env.VERCEL_URL}`;
     }
+    
+    // Check for custom domain
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+        return process.env.NEXT_PUBLIC_SITE_URL;
+    }
+    
     // Check for explicitly set API URL
     if (process.env.NEXT_PUBLIC_API_URL) {
         return process.env.NEXT_PUBLIC_API_URL;
     }
+    
     // Default to localhost during development
     return process.env.NODE_ENV === 'development'
         ? 'http://localhost:3000'
         : '';
 }
-// Get application environment
-export function getEnvironment() {
-    return process.env.NODE_ENV || 'development';
+// Get database configuration
+export function getDatabaseConfig() {
+    return {
+        url: process.env.DATABASE_URL,
+        directUrl: process.env.DIRECT_URL || process.env.DATABASE_URL,
+        connectionLimit: getEnvironment() === 'production' ? 7 : 5,
+        poolTimeout: 10,
+        idleTimeout: 20
+    };
 }
-// Check if we're running in Vercel
-export function isVercelEnvironment() {
-    return !!process.env.VERCEL;
+// Get security configuration
+export function getSecurityConfig() {
+    return {
+        jwtSecret: process.env.JWT_SECRET,
+        jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
+        cookieSecret: process.env.COOKIE_SECRET || process.env.JWT_SECRET,
+        secureCookies: getEnvironment() === 'production',
+        corsOrigins: getCorsOrigins()
+    };
 }
-// Get Vercel environment type (development, preview, or production)
-export function getVercelEnvironment() {
-    return process.env.VERCEL_ENV;
+// Get CORS origins based on environment
+function getCorsOrigins() {
+    const origins = new Set([
+        'localhost:3000',
+        'scoopify.club'
+    ]);
+
+    // Add Vercel preview URLs
+    if (process.env.VERCEL_URL) {
+        origins.add(process.env.VERCEL_URL);
+    }
+
+    // Add custom domain if configured
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+        try {
+            const url = new URL(process.env.NEXT_PUBLIC_SITE_URL);
+            origins.add(url.host);
+        } catch (e) {
+            console.warn('Invalid NEXT_PUBLIC_SITE_URL:', e.message);
+        }
+    }
+
+    return Array.from(origins);
 }
-// Get debug information
-export function getDebugInfo() {
+// Get analytics configuration
+export function getAnalyticsConfig() {
+    return {
+        enabled: getEnvironment() === 'production',
+        vercelAnalytics: true,
+        webVitalsLogging: getEnvironment() !== 'production'
+    };
+}
+// Get deployment information
+export function getDeploymentInfo() {
     return {
         environment: getEnvironment(),
-        isVercel: isVercelEnvironment(),
-        vercelEnv: getVercelEnvironment(),
-        baseUrl: getBaseUrl(),
-        nodeVersion: process.version,
+        deploymentId: process.env.VERCEL_DEPLOYMENT_ID || null,
+        gitCommitSha: process.env.VERCEL_GIT_COMMIT_SHA || null,
+        buildTime: process.env.VERCEL_BUILD_TIME || null
     };
 }
