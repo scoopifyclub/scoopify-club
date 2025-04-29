@@ -6,12 +6,12 @@
   "framework": "nextjs",
   "crons": [
     {
-      "path": "/api/cron/cleanup-photos",
+      "path": "/api/cron/cleanup",
       "schedule": "0 0 * * *"
     },
     {
       "path": "/api/cron/retry-payments",
-      "schedule": "0 */4 * * *"
+      "schedule": "0 1 * * *"
     }
   ],
   "regions": [
@@ -68,5 +68,9 @@
         }
       ]
     }
-  ]
+  ],
+  "env": {
+    "NEXTAUTH_URL": "https://scoopify.club",
+    "NEXT_PUBLIC_APP_URL": "https://scoopify.club"
+  }
 }
