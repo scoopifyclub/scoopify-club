@@ -1,4 +1,5 @@
 'use client';
+// Trigger new Vercel deployment - fix skeleton component
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
