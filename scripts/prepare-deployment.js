@@ -58,16 +58,6 @@ async function prepareDeployment() {
             process.exit(1);
         }
 
-        // 5. Build the application
-        console.log('Building the application...');
-        try {
-            execSync('npm run build', { stdio: 'inherit' });
-            console.log('✅ Application built successfully\n');
-        } catch (error) {
-            console.error('❌ Build failed:', error.message);
-            process.exit(1);
-        }
-
         console.log('✅ Deployment preparation completed successfully!');
     } catch (error) {
         console.error('❌ Deployment preparation failed:', error);
