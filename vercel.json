@@ -85,7 +85,8 @@
     "EMAIL_PORT": "EMAIL_PORT",
     "EMAIL_USER": "EMAIL_USER",
     "EMAIL_PASSWORD": "EMAIL_PASSWORD",
-    "EMAIL_FROM": "EMAIL_FROM"
+    "EMAIL_FROM": "EMAIL_FROM",
+    "NODE_ENV": "production"
   },
   "build": {
     "env": {
@@ -97,5 +98,11 @@
       "src": "package.json",
       "use": "@vercel/next"
     }
-  ]
+  ],
+  "functions": {
+    "api/**/*.js": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  }
 }
