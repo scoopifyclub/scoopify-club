@@ -19,7 +19,15 @@ export default function SignIn() {
         setLoading(true);
 
         try {
-            const deviceFingerprint = await generateDeviceFingerprint();
+            // Generate device fingerprint with error handling
+            let deviceFingerprint;
+            try {
+                deviceFingerprint = await generateDeviceFingerprint();
+            } catch (error) {
+                console.error('Error generating device fingerprint:', error);
+                deviceFingerprint = `fallback-${Math.random().toString(36).substring(2)}`;
+            }
+
             const response = await fetch('/api/auth/signin', {
                 method: 'POST',
                 headers: {
@@ -53,7 +61,8 @@ export default function SignIn() {
 
             router.push(redirectPath);
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'An error occurred');
+            console.error('Login error:', error);
+            toast.error(error instanceof Error ? error.message : 'An error occurred during login');
         } finally {
             setLoading(false);
         }
