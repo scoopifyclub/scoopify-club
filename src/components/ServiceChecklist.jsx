@@ -38,7 +38,7 @@ export function ServiceChecklist({ serviceId, initialChecklist, onComplete }) {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const response = await fetch(`/api/services/${serviceId}/checklist`, {
+            const response = await fetch(`/api/services/${id}/checklist`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

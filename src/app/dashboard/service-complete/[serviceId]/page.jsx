@@ -6,13 +6,13 @@ import { Card } from '@/components/ui/card';
 import { CheckCircle } from 'lucide-react';
 import Link from 'next/link';
 export default function ServiceCompletePage() {
-    const { serviceId } = useParams();
+    const { id } = useParams();
     const [service, setService] = useState(null);
     const [loading, setLoading] = useState(true);
     useEffect(() => {
         const fetchService = async () => {
             try {
-                const response = await fetch(`/api/services/${serviceId}`);
+                const response = await fetch(`/api/services/${id}`);
                 const data = await response.json();
                 setService(data);
             }
@@ -24,7 +24,7 @@ export default function ServiceCompletePage() {
             }
         };
         fetchService();
-    }, [serviceId]);
+    }, [id]);
     if (loading) {
         return <div>Loading...</div>;
     }

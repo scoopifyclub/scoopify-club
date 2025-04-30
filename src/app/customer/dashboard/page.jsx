@@ -438,7 +438,7 @@ export default function CustomerDashboard() {
     };
     const handlePauseService = async (serviceId) => {
         try {
-            const response = await fetch(`/api/customer/services/${serviceId}/pause`, {
+            const response = await fetch(`/api/customer/services/${id}/pause`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -460,7 +460,7 @@ export default function CustomerDashboard() {
             return;
         }
         try {
-            const response = await fetch(`/api/customer/services/${serviceId}/cancel`, {
+            const response = await fetch(`/api/customer/services/${id}/cancel`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

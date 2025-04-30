@@ -1,76 +1,13 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  output          = "./node_modules/@prisma/client"
   previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-  relationMode = "prisma"
-  extensions = []
-}
-
-enum PhotoType {
-  BEFORE
-  AFTER
-  ISSUE
-  OTHER
-}
-
-enum ServiceStatus {
-  PENDING
-  SCHEDULED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
-}
-
-enum UserRole {
-  CUSTOMER
-  EMPLOYEE
-  ADMIN
-  MANAGER
-}
-
-enum PaymentStatus {
-  PENDING
-  APPROVED
-  PAID
-  FAILED
-}
-
-enum PaymentMethod {
-  CASH
-  CASH_APP
-  CHECK
-  STRIPE
-}
-
-enum RefundStatus {
-  PENDING
-  COMPLETED
-  FAILED
-}
-
-enum PaymentBatchStatus {
-  DRAFT
-  PROCESSING
-  COMPLETED
-  PARTIAL
-  FAILED
-}
-
-enum EmployeeStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
-}
-
-enum SubscriptionStatus {
-  ACTIVE
-  INACTIVE
-  CANCELLED
-  SUSPENDED
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "foreignKeys"
 }
 
 model User {
@@ -78,7 +15,6 @@ model User {
   email                   String         @unique
   name                    String?
   password                String
-  role                    UserRole        @default(CUSTOMER)
   emailVerified           Boolean        @default(false)
   verificationToken       String?        @unique
   verificationTokenExpiry DateTime?
@@ -88,35 +24,36 @@ model User {
   deviceFingerprint       String?
   createdAt               DateTime       @default(now())
   updatedAt               DateTime       @updatedAt
+  role                    UserRole       @default(CUSTOMER)
   receivedMessages        ChatMessage[]  @relation("ReceivedMessages")
   sentMessages            ChatMessage[]  @relation("SentMessages")
   customer                Customer?
   employee                Employee?
   notifications           Notification[]
   referredPayments        Payment[]      @relation("ReferredPayments")
+  paymentBatches          PaymentBatch[]
   refreshTokens           RefreshToken[]
   serviceDelays           ServiceDelay[]
-  paymentBatches          PaymentBatch[]
 }
 
 model Customer {
-  id                String        @id @default(cuid())
-  userId            String        @unique
-  subscriptionId    String?       @unique
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  stripeCustomerId  String?       @unique
+  id                String          @id @default(cuid())
+  userId            String          @unique
+  subscriptionId    String?         @unique
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  stripeCustomerId  String?         @unique
   gateCode          String?
   phone             String?
   serviceDay        String?
   cashAppName       String?
   referralCode      String?
   address           Address?
-  subscription      Subscription? @relation(fields: [subscriptionId], references: [id])
-  user              User          @relation(fields: [userId], references: [id])
+  subscription      Subscription?   @relation(fields: [subscriptionId], references: [id])
+  user              User            @relation(fields: [userId], references: [id])
   payments          Payment[]
-  referralsReceived Referral[]    @relation("Referred")
-  referralsGiven    Referral[]    @relation("Referrer")
+  referralsReceived Referral[]      @relation("Referred")
+  referralsGiven    Referral[]      @relation("Referrer")
   services          Service[]
   ratings           ServiceRating[]
 
@@ -138,14 +75,14 @@ model Address {
 }
 
 model Subscription {
-  id         String    @id @default(cuid())
+  id         String             @id @default(cuid())
   customerId String
   planId     String
-  status     SubscriptionStatus    @default(ACTIVE)
   startDate  DateTime
   endDate    DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  status     SubscriptionStatus @default(ACTIVE)
   customer   Customer?
   payments   Payment[]
 }
@@ -158,77 +95,76 @@ model TimeExtension {
   reason     String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  service    Service  @relation(fields: [serviceId], references: [id])
   employee   Employee @relation(fields: [employeeId], references: [id])
+  service    Service  @relation(fields: [serviceId], references: [id])
 
   @@index([serviceId])
   @@index([employeeId])
 }
 
 model Employee {
-  id              String           @id @default(cuid())
-  userId          String           @unique
-  phone           String?
-  cashAppUsername String?
-  stripeAccountId String?         @unique
+  id                     String           @id @default(cuid())
+  userId                 String           @unique
+  phone                  String?
+  cashAppUsername        String?
+  stripeAccountId        String?          @unique
+  bio                    String?
+  availability           Json?
+  rating                 Float?
+  completedJobs          Int              @default(0)
+  createdAt              DateTime         @default(now())
+  updatedAt              DateTime         @updatedAt
+  averageRating          Float?
   preferredPaymentMethod PaymentMethod?
-  bio             String?
-  availability    Json?
-  status          EmployeeStatus    @default(ACTIVE)
-  rating          Float?
-  completedJobs   Int              @default(0)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  user            User             @relation(fields: [userId], references: [id])
-  payments        Payment[]
-  services        Service[]
-  serviceAreas    ServiceArea[]
-  messages        ServiceMessage[]
-  timeExtensions  TimeExtension[]
-  earnings        Earning[]
-  ratings         ServiceRating[]
-  averageRating   Float?
+  status                 EmployeeStatus   @default(ACTIVE)
+  earnings               Earning[]
+  user                   User             @relation(fields: [userId], references: [id])
+  payments               Payment[]
+  services               Service[]
+  serviceAreas           ServiceArea[]
+  messages               ServiceMessage[]
+  ratings                ServiceRating[]
+  timeExtensions         TimeExtension[]
 }
 
 model Payment {
-  id             String         @id @default(cuid())
-  amount         Float          // Total payment amount
-  stripeFee      Float?         // Stripe processing fee
-  netAmount      Float?         // Net amount after fees
-  status         PaymentStatus   @default(PENDING)
-  type           String
-  serviceId      String?
-  employeeId     String?
-  customerId     String?
-  referredId     String?
-  paymentMethod  PaymentMethod?
-  paidAt         DateTime?      // When the payment was actually sent
-  approvedAt     DateTime?      // When the payment was approved by admin
-  approvedBy     String?        // Admin who approved the payment
-  notes          String?        // Additional information about the payment
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  subscriptionId String?
+  id                    String            @id @default(cuid())
+  amount                Float
+  stripeFee             Float?
+  netAmount             Float?
+  type                  String
+  serviceId             String?
+  employeeId            String?
+  customerId            String?
+  referredId            String?
+  paidAt                DateTime?
+  approvedAt            DateTime?
+  approvedBy            String?
+  notes                 String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  subscriptionId        String?
   stripePaymentIntentId String?
-  stripeInvoiceId String?
-  stripeTransferId String?      // ID of Stripe transfer (for employee payouts)
-  // Refund fields
-  refundedAmount Float?         // Amount refunded
-  refundedAt     DateTime?      // When the refund was processed
-  refundedBy     String?        // Admin who processed the refund
-  refundReason   String?        // Reason for the refund
-  refundStatus   RefundStatus?
-  refundTransactionId String?   // ID of refund transaction from payment provider
-  batchId        String?        // ID of the batch this payment belongs to
-  subscription   Subscription?  @relation(fields: [subscriptionId], references: [id])
-  referredBy     User?          @relation("ReferredPayments", fields: [referredId], references: [id])
-  customer       Customer?      @relation(fields: [customerId], references: [id])
-  service        Service?       @relation(fields: [serviceId], references: [id])
-  employee       Employee?      @relation(fields: [employeeId], references: [id])
-  retries        PaymentRetry[]
-  earnings       Earning[]
-  auditLogs      PaymentAuditLog[]
-  batch          PaymentBatch?  @relation(fields: [batchId], references: [id])
+  stripeInvoiceId       String?
+  stripeTransferId      String?
+  refundedAmount        Float?
+  refundedAt            DateTime?
+  refundedBy            String?
+  refundReason          String?
+  refundTransactionId   String?
+  batchId               String?
+  status                PaymentStatus     @default(PENDING)
+  paymentMethod         PaymentMethod?
+  refundStatus          RefundStatus?
+  batch                 PaymentBatch?     @relation(fields: [batchId], references: [id])
+  customer              Customer?         @relation(fields: [customerId], references: [id])
+  employee              Employee?         @relation(fields: [employeeId], references: [id])
+  referredBy            User?             @relation("ReferredPayments", fields: [referredId], references: [id])
+  service               Service?          @relation(fields: [serviceId], references: [id])
+  subscription          Subscription?     @relation(fields: [subscriptionId], references: [id])
+  auditLogs             PaymentAuditLog[]
+  retries               PaymentRetry[]
+  earnings              Earning[]         @relation("EarningToPayment")
 
   @@index([serviceId])
   @@index([employeeId])
@@ -244,10 +180,10 @@ model ServicePhoto {
   url       String
   type      PhotoType
   serviceId String
-  service   Service   @relation(fields: [serviceId], references: [id])
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  expiresAt DateTime? // When this photo should be deleted
+  expiresAt DateTime?
+  service   Service   @relation(fields: [serviceId], references: [id])
 }
 
 model ServicePlan {
@@ -264,35 +200,35 @@ model ServicePlan {
 }
 
 model Service {
-  id             String            @id @default(cuid())
-  customerId     String
-  status         ServiceStatus     @default(SCHEDULED)
-  scheduledDate  DateTime
-  completedDate  DateTime?
-  servicePlanId  String
-  employeeId     String?
-  serviceAreaId  String?
-  potentialEarnings Float?          // What the scooper would earn for this job
-  stripeFees     Float?            // Stripe processing fee for this service
-  netAmount      Float?            // Net amount after stripe fees
-  paymentStatus  String           @default("PENDING") // PENDING, APPROVED, PAID
-  paymentApprovedAt DateTime?     // When admin approved the payment
-  paymentApprovedBy String?       // Admin who approved the payment
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
-  location       Location?
-  payments       Payment[]
-  serviceArea    ServiceArea?      @relation(fields: [serviceAreaId], references: [id])
-  employee       Employee?         @relation(fields: [employeeId], references: [id])
-  servicePlan    ServicePlan       @relation(fields: [servicePlanId], references: [id])
-  customer       Customer          @relation(fields: [customerId], references: [id])
-  checklist      ServiceChecklist?
-  delays         ServiceDelay[]
-  messages       ServiceMessage[]
-  photos         ServicePhoto[]
-  timeExtensions TimeExtension[]
-  earnings       Earning[]
-  rating         ServiceRating?
+  id                String            @id @default(cuid())
+  customerId        String
+  scheduledDate     DateTime
+  completedDate     DateTime?
+  servicePlanId     String
+  employeeId        String?
+  serviceAreaId     String?
+  potentialEarnings Float?
+  stripeFees        Float?
+  netAmount         Float?
+  paymentStatus     String            @default("PENDING")
+  paymentApprovedAt DateTime?
+  paymentApprovedBy String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  status            ServiceStatus     @default(SCHEDULED)
+  earnings          Earning[]
+  location          Location?
+  payments          Payment[]
+  customer          Customer          @relation(fields: [customerId], references: [id])
+  employee          Employee?         @relation(fields: [employeeId], references: [id])
+  serviceArea       ServiceArea?      @relation(fields: [serviceAreaId], references: [id])
+  servicePlan       ServicePlan       @relation(fields: [servicePlanId], references: [id])
+  checklist         ServiceChecklist?
+  delays            ServiceDelay[]
+  messages          ServiceMessage[]
+  photos            ServicePhoto[]
+  rating            ServiceRating?
+  timeExtensions    TimeExtension[]
 
   @@index([paymentStatus])
   @@index([employeeId])
@@ -332,16 +268,16 @@ model ServiceArea {
 }
 
 model PaymentRetry {
-  id                   String    @id @default(cuid())
-  paymentId            String
-  status               String    // SCHEDULED, PENDING, SUCCESS, FAILED
-  retryCount           Int       @default(0)
-  nextRetryDate        DateTime
-  errorMessage         String?
-  scheduledDate        DateTime  @default(now())
-  processedDate        DateTime?
+  id                    String    @id @default(cuid())
+  paymentId             String
+  status                String
+  retryCount            Int       @default(0)
+  nextRetryDate         DateTime
+  errorMessage          String?
+  scheduledDate         DateTime  @default(now())
+  processedDate         DateTime?
   stripePaymentIntentId String?
-  payment              Payment   @relation(fields: [paymentId], references: [id])
+  payment               Payment   @relation(fields: [paymentId], references: [id])
 
   @@index([paymentId])
   @@index([status])
@@ -355,8 +291,8 @@ model ServiceDelay {
   type         String
   reportedAt   DateTime @default(now())
   reportedById String
-  service      Service  @relation(fields: [serviceId], references: [id])
   reportedBy   User     @relation(fields: [reportedById], references: [id])
+  service      Service  @relation(fields: [serviceId], references: [id])
 
   @@index([serviceId])
   @@index([reportedById])
@@ -430,43 +366,42 @@ model ServiceMessage {
   message    String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
-  service    Service  @relation(fields: [serviceId], references: [id])
   employee   Employee @relation(fields: [employeeId], references: [id])
+  service    Service  @relation(fields: [serviceId], references: [id])
 
   @@index([serviceId])
   @@index([employeeId])
 }
 
 model Earning {
-  id              String   @id @default(cuid())
-  amount          Float    // Amount earned by the scooper for this service
-  status          String   @default("PENDING") // PENDING, APPROVED, PAID, FAILED
-  serviceId       String   // Reference to the completed service
-  employeeId      String   // The scooper who earned this
-  paidVia         String?  // CASH_APP or STRIPE
-  paidAt          DateTime?
-  approvedAt      DateTime? // When the admin approved the payment
-  approvedBy      String?   // Admin who approved the payment
-  stripeTransferId String? @unique
-  errorMessage    String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  service         Service  @relation(fields: [serviceId], references: [id])
-  employee        Employee @relation(fields: [employeeId], references: [id])
-  payments        Payment[]
+  id               String    @id @default(cuid())
+  amount           Float
+  status           String    @default("PENDING")
+  serviceId        String
+  employeeId       String
+  paidVia          String?
+  paidAt           DateTime?
+  approvedAt       DateTime?
+  approvedBy       String?
+  stripeTransferId String?   @unique
+  errorMessage     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  employee         Employee  @relation(fields: [employeeId], references: [id])
+  service          Service   @relation(fields: [serviceId], references: [id])
+  payments         Payment[] @relation("EarningToPayment")
 
   @@index([serviceId])
   @@index([employeeId])
   @@index([status])
 }
 
-// Audit log for payment system
 model PaymentAuditLog {
   id          String   @id @default(cuid())
   paymentId   String
-  eventType   String   // CREATED, STATUS_CHANGED, APPROVED, PROCESSED, REFUNDED, etc.
-  details     String   // JSON string with event details
-  performedBy String   // USER_ID or SYSTEM
+  eventType   String
+  details     String
+  performedBy String
   timestamp   DateTime @default(now())
   payment     Payment  @relation(fields: [paymentId], references: [id])
 
@@ -476,26 +411,24 @@ model PaymentAuditLog {
   @@index([performedBy])
 }
 
-// New Payment Batch model for managing payments in batches
 model PaymentBatch {
-  id                 String    @id @default(cuid())
-  name               String
-  description        String?
-  status             PaymentBatchStatus
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  createdById        String
-  createdBy          User      @relation(fields: [createdById], references: [id])
+  id                  String             @id @default(cuid())
+  name                String
+  description         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  createdById         String
   processingStartedAt DateTime?
-  completedAt        DateTime?
-  notes              String?
-  payments           Payment[]
+  completedAt         DateTime?
+  notes               String?
+  status              PaymentBatchStatus
+  payments            Payment[]
+  createdBy           User               @relation(fields: [createdById], references: [id])
 }
 
-// Payment reconciliation
 model PaymentReconciliationReport {
-  id                     String    @id @default(cuid())
-  timestamp              DateTime  @default(now())
+  id                     String                      @id @default(cuid())
+  timestamp              DateTime                    @default(now())
   totalRecords           Int
   matchedCount           Int
   mismatchCount          Int
@@ -507,13 +440,13 @@ model PaymentReconciliationReport {
 }
 
 model PaymentReconciliationItem {
-  id           String              @id @default(cuid())
+  id           String                      @id @default(cuid())
   reportId     String
   paymentId    String?
   stripeId     String?
   systemAmount Float?
   stripeAmount Float?
-  matchStatus  String              // MATCHED, AMOUNT_MISMATCH, MISSING_FROM_STRIPE, MISSING_FROM_SYSTEM
+  matchStatus  String
   notes        String
   report       PaymentReconciliationReport @relation(fields: [reportId], references: [id])
 
@@ -524,10 +457,10 @@ model PaymentReconciliationItem {
 
 model CleanupTask {
   id           String    @id @default(cuid())
-  taskType     String    // PHOTO_CLEANUP, etc.
-  status       String    // PENDING, COMPLETED, FAILED
+  taskType     String
+  status       String
   scheduledFor DateTime
-  targetId     String    // ID of the object to clean up (e.g., serviceId)
+  targetId     String
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   completedAt  DateTime?
@@ -561,20 +494,81 @@ model Cache {
 }
 
 model ServiceRating {
-  id          String   @id @default(cuid())
-  rating      Int      // 1-5 stars
-  comment     String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
-  // Relations
-  service     Service  @relation(fields: [serviceId], references: [id])
-  serviceId   String   @unique  // Make this unique for one-to-one relation
-  customer    Customer @relation(fields: [customerId], references: [id])
-  customerId  String
-  employee    Employee @relation(fields: [employeeId], references: [id])
-  employeeId  String
+  id         String   @id @default(cuid())
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  serviceId  String   @unique
+  customerId String
+  employeeId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  employee   Employee @relation(fields: [employeeId], references: [id])
+  service    Service  @relation(fields: [serviceId], references: [id])
 
   @@index([customerId])
   @@index([employeeId])
+}
+
+enum PhotoType {
+  BEFORE
+  AFTER
+  ISSUE
+  OTHER
+}
+
+enum ServiceStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum UserRole {
+  CUSTOMER
+  EMPLOYEE
+  ADMIN
+  MANAGER
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  PAID
+  FAILED
+}
+
+enum PaymentMethod {
+  CASH
+  CASH_APP
+  CHECK
+  STRIPE
+}
+
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum PaymentBatchStatus {
+  DRAFT
+  PROCESSING
+  COMPLETED
+  PARTIAL
+  FAILED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+  SUSPENDED
 }

@@ -16,7 +16,7 @@ export async function POST(request) {
         if (role !== 'ADMIN') {
             return new NextResponse('Unauthorized', { status: 401 });
         }
-        const { serviceId } = await request.json();
+        const { id } = await request.json();
         // Get service details including customer address
         const service = await prisma.service.findUnique({
             where: { id: serviceId },

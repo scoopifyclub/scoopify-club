@@ -69,7 +69,7 @@ export function ServicePhotoUpload({ serviceId, onUploadComplete }) {
         formData.append(`photos`, blob, `photo-${index}.jpg`);
       });
 
-      const response = await fetch(`/api/employee/services/${serviceId}/photos`, {
+      const response = await fetch(`/api/employee/services/${id}/photos`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,

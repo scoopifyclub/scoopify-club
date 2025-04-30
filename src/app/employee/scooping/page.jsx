@@ -40,7 +40,7 @@ export default function ScoopingMode() {
                 router.push('/login');
                 return;
             }
-            const response = await fetch(`/api/employee/services/${serviceId}/claim`, {
+            const response = await fetch(`/api/employee/services/${id}/claim`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` }
             });

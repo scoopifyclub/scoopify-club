@@ -10,7 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Save, Shield } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { AdminSettings } from '@/components/admin/AdminSettings';
+import AdminSettings from '@/components/admin/AdminSettings';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 export default function AdminSettingsPage() {

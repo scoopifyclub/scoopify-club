@@ -22,7 +22,7 @@ export default function ServiceMessageComponent({ serviceId }) {
 
     const fetchMessages = async () => {
         try {
-            const response = await fetch(`/api/services/${serviceId}/messages`, {
+            const response = await fetch(`/api/services/${id}/messages`, {
                 credentials: 'include'
             });
             if (!response.ok) {
@@ -43,7 +43,7 @@ export default function ServiceMessageComponent({ serviceId }) {
         if (!newMessage.trim()) return;
 
         try {
-            const response = await fetch(`/api/services/${serviceId}/messages`, {
+            const response = await fetch(`/api/services/${id}/messages`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

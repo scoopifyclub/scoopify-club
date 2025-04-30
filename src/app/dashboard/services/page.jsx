@@ -78,7 +78,7 @@ export default function ServicesPage() {
                 router.push('/login');
                 return;
             }
-            const response = await fetch(`/api/customer/services/${serviceId}/cancel`, {
+            const response = await fetch(`/api/customer/services/${id}/cancel`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,

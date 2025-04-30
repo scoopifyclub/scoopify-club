@@ -14,7 +14,7 @@ export function WeatherDelay({ serviceId }) {
     const handleSubmit = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`/api/services/${serviceId}/delay`, {
+            const response = await fetch(`/api/services/${id}/delay`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

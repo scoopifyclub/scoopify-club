@@ -1,18 +1,6 @@
-var __rest = (this && this.__rest) || function (s, e) {
-    var t = {};
-    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
-        t[p] = s[p];
-    if (s != null && typeof Object.getOwnPropertySymbols === "function")
-        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
-            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
-                t[p[i]] = s[p[i]];
-        }
-    return t;
-};
 import { SignJWT, jwtVerify } from 'jose';
 import { compare } from 'bcryptjs';
 import { cookies } from 'next/headers';
-import { randomBytes } from 'crypto';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 // Ensure these environment variables are set, provide fallbacks for development
@@ -24,9 +12,11 @@ console.log(`Auth setup: Environment=${process.env.NODE_ENV}, JWT_SECRET=${JWT_S
 if (!JWT_SECRET || !REFRESH_SECRET) {
     throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be set in environment variables');
 }
-// Generate a device fingerprint
-function generateFingerprint() {
-    return randomBytes(32).toString('hex');
+// Generate a device fingerprint using Web Crypto API
+async function generateFingerprint() {
+    const array = new Uint8Array(32);
+    crypto.getRandomValues(array);
+    return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 // Generate admin token specifically for admin authentication
 export async function generateAdminToken(user) {
@@ -110,7 +100,9 @@ export async function generateTokens(user, deviceFingerprint) {
 }
 
 async function generateUniqueTokenId() {
-    const id = crypto.randomUUID();
+    const array = new Uint8Array(16);
+    crypto.getRandomValues(array);
+    const id = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
     const exists = await prisma.refreshToken.findUnique({ where: { id } });
     if (exists) return generateUniqueTokenId();
     return id;
@@ -160,7 +152,7 @@ export async function login(email, password, fingerprint) {
         throw new Error('Invalid email or password');
     }
     // Generate device fingerprint if not provided
-    const deviceFingerprint = fingerprint || generateFingerprint();
+    const deviceFingerprint = fingerprint || await generateFingerprint();
     // Generate tokens
     const { accessToken, refreshToken } = await generateTokens(user, deviceFingerprint);
     console.log('Generated tokens for user:', { id: user.id, tokenPayload: await verifyToken(accessToken) });
@@ -256,151 +248,31 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
         throw new Error('Invalid refresh token');
     }
 }
-export async function validateUser(token, requiredRole) {
-    var _a, _b;
-    try {
-        console.log('Validating user with token:', token.substring(0, 10) + '...');
-        const payload = await verifyToken(token);
-        if (!payload) {
-            console.log('Token verification failed in validateUser');
-            throw new Error('Invalid token');
-        }
-        console.log('Token payload in validateUser:', payload);
-        // Verify user exists and get latest data with relationships
-        const user = await prisma.user.findUnique({
-            where: { id: payload.id },
-            include: {
-                customer: {
-                    include: {
-                        address: true
-                    }
-                },
-                employee: true
-            }
-        });
-        console.log('Found user in validateUser:', user ? { id: user.id, email: user.email, role: user.role } : 'null');
-        if (!user) {
-            throw new Error('User not found');
-        }
-        // For customer role, ensure customer record exists
-        if (requiredRole === 'CUSTOMER' && !user.customer) {
-            throw new Error('Customer record not found');
-        }
-        // For employee role, ensure employee record exists
-        if (requiredRole === 'EMPLOYEE' && !user.employee) {
-            throw new Error('Employee record not found');
-        }
-        // Allow admins to access everything, otherwise check specific role
-        if (requiredRole && user.role !== 'ADMIN' && user.role !== requiredRole) {
-            throw new Error('Insufficient permissions');
-        }
-        return {
-            userId: user.id,
-            role: user.role,
-            customerId: (_a = user.customer) === null || _a === void 0 ? void 0 : _a.id,
-            employeeId: (_b = user.employee) === null || _b === void 0 ? void 0 : _b.id,
-            customer: user.customer,
-            employee: user.employee
-        };
-    }
-    catch (error) {
-        console.error('Error in validateUser:', error);
-        throw error;
-    }
+export async function validateToken(request) {
+    const token = request.headers.get('authorization')?.split(' ')[1];
+    if (!token) return null;
+    
+    const payload = await verifyToken(token);
+    if (!payload) return null;
+    
+    return payload;
 }
-export async function verifyAuth(request) {
-    try {
-        // Get tokens from cookies
-        const cookieStore = await cookies();
-        const accessToken = cookieStore.get('accessToken')?.value;
-        const refreshToken = cookieStore.get('refreshToken')?.value;
-        const fingerprint = cookieStore.get('fingerprint')?.value;
-
-        if (!accessToken && !refreshToken) {
-            return { success: false, error: 'No session found' };
-        }
-
-        // Try to verify access token first
-        if (accessToken) {
-            const payload = await verifyToken(accessToken);
-            if (payload) {
-                // Find user in database
-                const user = await prisma.user.findUnique({
-                    where: { id: payload.id },
-                    include: {
-                        customer: true,
-                        employee: true
-                    }
-                });
-
-                if (user) {
-                    return {
-                        success: true,
-                        session: {
-                            userId: user.id,
-                            email: user.email,
-                            name: user.name,
-                            role: user.role,
-                            customer: user.customer,
-                            employee: user.employee,
-                        },
-                    };
-                }
-            }
-        }
-
-        // If access token is invalid or expired, try refresh token
-        if (refreshToken) {
-            try {
-                const { accessToken: newAccessToken, user } = await refreshToken(refreshToken, fingerprint);
-                
-                // Set new access token cookie
-                const response = new NextResponse();
-                response.cookies.set('accessToken', newAccessToken, {
-                    httpOnly: true,
-                    secure: process.env.NODE_ENV === 'production',
-                    sameSite: 'strict',
-                    path: '/',
-                    maxAge: 15 * 60, // 15 minutes
-                });
-
-                return {
-                    success: true,
-                    session: {
-                        userId: user.id,
-                        email: user.email,
-                        name: user.name,
-                        role: user.role,
-                        customer: user.customer,
-                        employee: user.employee,
-                    },
-                };
-            } catch (error) {
-                console.error('Refresh token error:', error);
-                return { success: false, error: 'Invalid refresh token' };
-            }
-        }
-
-        return { success: false, error: 'Invalid session' };
-    } catch (error) {
-        console.error('Auth verification error:', error);
-        return { success: false, error: 'Internal server error' };
-    }
-}
-// Helper functions for role-based authorization
 export async function requireAuth(request) {
-    const { success, session, error } = await verifyAuth(request);
-    if (!success || !session) {
-        throw new Error(error || 'Unauthorized');
+    const payload = await validateToken(request);
+    if (!payload) {
+        return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
-    return session;
+    return payload;
 }
 export async function requireRole(request, role) {
-    const session = await requireAuth(request);
-    if (session.role !== role && session.role !== 'ADMIN') {
-        throw new Error('Insufficient permissions');
+    const payload = await validateToken(request);
+    if (!payload) {
+        return new NextResponse(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
     }
-    return session;
+    if (payload.role !== role) {
+        return new NextResponse(JSON.stringify({ error: 'Forbidden' }), { status: 403 });
+    }
+    return payload;
 }
 // Add authOptions for compatibility with files that expect it
 export const authOptions = {
@@ -468,5 +340,126 @@ export async function revokeUserTokenByFingerprint(userId, fingerprint) {
     } catch (error) {
         console.error('Error revoking user token by fingerprint:', error);
         throw error;
+    }
+}
+
+export async function validateUser(token, requiredRole) {
+    try {
+        const payload = await verifyToken(token);
+        if (!payload) {
+            throw new Error('Invalid token');
+        }
+
+        const user = await prisma.user.findUnique({
+            where: { id: payload.id },
+            include: {
+                customer: {
+                    include: {
+                        address: true
+                    }
+                },
+                employee: true
+            }
+        });
+
+        if (!user) {
+            throw new Error('User not found');
+        }
+
+        if (requiredRole === 'CUSTOMER' && !user.customer) {
+            throw new Error('Customer record not found');
+        }
+
+        if (requiredRole === 'EMPLOYEE' && !user.employee) {
+            throw new Error('Employee record not found');
+        }
+
+        if (requiredRole && user.role !== 'ADMIN' && user.role !== requiredRole) {
+            throw new Error('Insufficient permissions');
+        }
+
+        return {
+            userId: user.id,
+            role: user.role,
+            customerId: user.customer?.id,
+            employeeId: user.employee?.id,
+            customer: user.customer,
+            employee: user.employee
+        };
+    } catch (error) {
+        throw error;
+    }
+}
+
+export async function verifyAuth(request) {
+    try {
+        const cookieStore = await cookies();
+        const accessToken = cookieStore.get('accessToken')?.value;
+        const refreshToken = cookieStore.get('refreshToken')?.value;
+        const fingerprint = cookieStore.get('fingerprint')?.value;
+
+        if (!accessToken && !refreshToken) {
+            return { success: false, error: 'No session found' };
+        }
+
+        if (accessToken) {
+            const payload = await verifyToken(accessToken);
+            if (payload) {
+                const user = await prisma.user.findUnique({
+                    where: { id: payload.id },
+                    include: {
+                        customer: true,
+                        employee: true
+                    }
+                });
+
+                if (user) {
+                    return {
+                        success: true,
+                        session: {
+                            userId: user.id,
+                            email: user.email,
+                            name: user.name,
+                            role: user.role,
+                            customer: user.customer,
+                            employee: user.employee,
+                        },
+                    };
+                }
+            }
+        }
+
+        if (refreshToken) {
+            try {
+                const { accessToken: newAccessToken, user } = await refreshToken(refreshToken, fingerprint);
+                
+                const response = new NextResponse();
+                response.cookies.set('accessToken', newAccessToken, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === 'production',
+                    sameSite: 'strict',
+                    path: '/',
+                    maxAge: 15 * 60,
+                });
+
+                return {
+                    success: true,
+                    session: {
+                        userId: user.id,
+                        email: user.email,
+                        name: user.name,
+                        role: user.role,
+                        customer: user.customer,
+                        employee: user.employee,
+                    },
+                };
+            } catch (error) {
+                return { success: false, error: 'Invalid refresh token' };
+            }
+        }
+
+        return { success: false, error: 'Invalid session' };
+    } catch (error) {
+        return { success: false, error: 'Internal server error' };
     }
 }

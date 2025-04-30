@@ -70,22 +70,22 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_API_URL": "@next_public_api_url",
-    "DATABASE_URL": "@database_url",
-    "JWT_SECRET": "@jwt_secret",
-    "JWT_REFRESH_SECRET": "@jwt_refresh_secret",
-    "STRIPE_SECRET_KEY": "@stripe_secret_key",
-    "STRIPE_WEBHOOK_SECRET": "@stripe_webhook_secret",
-    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "@next_public_stripe_publishable_key",
-    "AWS_ACCESS_KEY_ID": "@aws_access_key_id",
-    "AWS_SECRET_ACCESS_KEY": "@aws_secret_access_key",
-    "AWS_REGION": "@aws_region",
-    "AWS_BUCKET_NAME": "@aws_bucket_name",
-    "EMAIL_HOST": "@email_host",
-    "EMAIL_PORT": "@email_port",
-    "EMAIL_USER": "@email_user",
-    "EMAIL_PASSWORD": "@email_password",
-    "EMAIL_FROM": "@email_from"
+    "NEXT_PUBLIC_API_URL": "NEXT_PUBLIC_API_URL",
+    "DATABASE_URL": "DATABASE_URL",
+    "JWT_SECRET": "JWT_SECRET",
+    "JWT_REFRESH_SECRET": "JWT_REFRESH_SECRET",
+    "STRIPE_SECRET_KEY": "STRIPE_SECRET_KEY",
+    "STRIPE_WEBHOOK_SECRET": "STRIPE_WEBHOOK_SECRET",
+    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+    "AWS_ACCESS_KEY_ID": "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY": "AWS_SECRET_ACCESS_KEY",
+    "AWS_REGION": "AWS_REGION",
+    "AWS_BUCKET_NAME": "AWS_BUCKET_NAME",
+    "EMAIL_HOST": "EMAIL_HOST",
+    "EMAIL_PORT": "EMAIL_PORT",
+    "EMAIL_USER": "EMAIL_USER",
+    "EMAIL_PASSWORD": "EMAIL_PASSWORD",
+    "EMAIL_FROM": "EMAIL_FROM"
   },
   "build": {
     "env": {

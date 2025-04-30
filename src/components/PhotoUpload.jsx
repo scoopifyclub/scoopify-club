@@ -128,7 +128,7 @@ export function PhotoUpload({
         })
       );
 
-      const response = await fetch(`/api/employee/services/${serviceId}/photos`, {
+      const response = await fetch(`/api/employee/services/${id}/photos`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -54,7 +54,7 @@ export async function POST(req) {
         if (!decoded || decoded.role !== 'EMPLOYEE') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const { serviceId } = await req.json();
+        const { id } = await req.json();
         if (!serviceId) {
             return NextResponse.json({ error: 'Service ID is required' }, { status: 400 });
         }

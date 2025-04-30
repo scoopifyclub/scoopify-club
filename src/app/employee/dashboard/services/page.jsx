@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 
 export default function ServicesPage() {
@@ -16,6 +17,7 @@ export default function ServicesPage() {
 
     const [services, setServices] = useState([]);
     const [loadingServices, setLoadingServices] = useState(true);
+    const [hasInProgressJob, setHasInProgressJob] = useState(false);
 
     useEffect(() => {
         if (user?.id) {
@@ -33,6 +35,8 @@ export default function ServicesPage() {
             }
             const data = await response.json();
             setServices(data);
+            // Check if employee has any in-progress jobs
+            setHasInProgressJob(data.some(service => service.status === 'IN_PROGRESS'));
         } catch (error) {
             console.error('Error fetching services:', error);
             toast.error('Failed to load services');
@@ -43,7 +47,7 @@ export default function ServicesPage() {
 
     const handleServiceAction = async (serviceId, action) => {
         try {
-            const response = await fetch(`/api/employee/services/${serviceId}/${action}`, {
+            const response = await fetch(`/api/employee/services/${id}/${action}`, {
                 method: 'POST',
                 credentials: 'include'
             });
@@ -60,12 +64,13 @@ export default function ServicesPage() {
 
     const getStatusBadge = (status) => {
         const statusConfig = {
-            pending: { class: 'bg-yellow-100 text-yellow-800', text: 'Pending' },
-            inProgress: { class: 'bg-blue-100 text-blue-800', text: 'In Progress' },
-            completed: { class: 'bg-green-100 text-green-800', text: 'Completed' },
-            cancelled: { class: 'bg-red-100 text-red-800', text: 'Cancelled' }
+            PENDING: { class: 'bg-yellow-100 text-yellow-800', text: 'Pending' },
+            SCHEDULED: { class: 'bg-blue-100 text-blue-800', text: 'Available' },
+            IN_PROGRESS: { class: 'bg-purple-100 text-purple-800', text: 'In Progress' },
+            COMPLETED: { class: 'bg-green-100 text-green-800', text: 'Completed' },
+            CANCELLED: { class: 'bg-red-100 text-red-800', text: 'Cancelled' }
         };
-        const config = statusConfig[status] || statusConfig.pending;
+        const config = statusConfig[status] || statusConfig.PENDING;
         return (
             <Badge className={config.class}>
                 {config.text}
@@ -77,6 +82,12 @@ export default function ServicesPage() {
         return <div className="p-6">Loading...</div>;
     }
 
+    const availableJobs = services.filter(service => service.status === 'SCHEDULED');
+    const myJobs = services.filter(service => 
+        service.status === 'IN_PROGRESS' || 
+        (service.status === 'COMPLETED' && service.employeeId === user?.employeeId)
+    );
+
     return (
         <div className="p-6 space-y-6">
             <div className="flex justify-between items-center">
@@ -86,53 +97,91 @@ export default function ServicesPage() {
                 </Button>
             </div>
 
-            <Card className="p-6">
-                <ScrollArea className="h-[600px] pr-4">
-                    <div className="space-y-4">
-                        {services.length === 0 ? (
-                            <p className="text-center text-gray-500">No services assigned</p>
-                        ) : (
-                            services.map((service) => (
-                                <div
-                                    key={service.id}
-                                    className="p-4 border rounded-lg hover:shadow-md transition-shadow"
-                                >
-                                    <div className="flex justify-between items-start">
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <h3 className="font-semibold">{service.customerName}</h3>
-                                                {getStatusBadge(service.status)}
+            <Tabs defaultValue="available" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="available">Available Jobs</TabsTrigger>
+                    <TabsTrigger value="my-jobs">My Jobs</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="available">
+                    <Card className="p-6">
+                        <ScrollArea className="h-[600px] pr-4">
+                            <div className="space-y-4">
+                                {availableJobs.length === 0 ? (
+                                    <p className="text-center text-gray-500">No available jobs</p>
+                                ) : (
+                                    availableJobs.map((service) => (
+                                        <div
+                                            key={service.id}
+                                            className="p-4 border rounded-lg hover:shadow-md transition-shadow"
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <h3 className="font-semibold">{service.customerName}</h3>
+                                                        {getStatusBadge(service.status)}
+                                                    </div>
+                                                    <p className="text-gray-600">{service.address}</p>
+                                                    <p className="text-sm text-gray-500">
+                                                        Scheduled: {new Date(service.scheduledTime).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    onClick={() => handleServiceAction(service.id, 'claim')}
+                                                    variant="outline"
+                                                    disabled={hasInProgressJob}
+                                                >
+                                                    {hasInProgressJob ? 'Complete Current Job First' : 'Claim Job'}
+                                                </Button>
                                             </div>
-                                            <p className="text-gray-600">{service.address}</p>
-                                            <p className="text-sm text-gray-500">
-                                                Scheduled: {new Date(service.scheduledTime).toLocaleString()}
-                                            </p>
                                         </div>
-                                        <div className="flex gap-2">
-                                            {service.status === 'pending' && (
-                                                <Button
-                                                    onClick={() => handleServiceAction(service.id, 'start')}
-                                                    variant="outline"
-                                                >
-                                                    Start
-                                                </Button>
-                                            )}
-                                            {service.status === 'inProgress' && (
-                                                <Button
-                                                    onClick={() => handleServiceAction(service.id, 'complete')}
-                                                    variant="outline"
-                                                >
-                                                    Complete
-                                                </Button>
-                                            )}
+                                    ))
+                                )}
+                            </div>
+                        </ScrollArea>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="my-jobs">
+                    <Card className="p-6">
+                        <ScrollArea className="h-[600px] pr-4">
+                            <div className="space-y-4">
+                                {myJobs.length === 0 ? (
+                                    <p className="text-center text-gray-500">No jobs assigned</p>
+                                ) : (
+                                    myJobs.map((service) => (
+                                        <div
+                                            key={service.id}
+                                            className="p-4 border rounded-lg hover:shadow-md transition-shadow"
+                                        >
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <h3 className="font-semibold">{service.customerName}</h3>
+                                                        {getStatusBadge(service.status)}
+                                                    </div>
+                                                    <p className="text-gray-600">{service.address}</p>
+                                                    <p className="text-sm text-gray-500">
+                                                        Scheduled: {new Date(service.scheduledTime).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                                {service.status === 'IN_PROGRESS' && (
+                                                    <Button
+                                                        onClick={() => handleServiceAction(service.id, 'complete')}
+                                                        variant="outline"
+                                                    >
+                                                        Complete
+                                                    </Button>
+                                                )}
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                            ))
-                        )}
-                    </div>
-                </ScrollArea>
-            </Card>
+                                    ))
+                                )}
+                            </div>
+                        </ScrollArea>
+                    </Card>
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }

@@ -10,7 +10,7 @@ export default function ServiceDetails({ serviceId }) {
     React.useEffect(() => {
         async function fetchService() {
             try {
-                const response = await fetch(`/api/services/${serviceId}`);
+                const response = await fetch(`/api/services/${id}`);
                 if (!response.ok) {
                     throw new Error('Failed to fetch service details');
                 }
@@ -26,7 +26,7 @@ export default function ServiceDetails({ serviceId }) {
         if (serviceId) {
             fetchService();
         }
-    }, [serviceId]);
+    }, [id]);
 
     if (loading) return <div>Loading service details...</div>;
     if (error) return <div>Error: {error}</div>;

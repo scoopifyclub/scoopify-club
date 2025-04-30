@@ -21,7 +21,7 @@ export function ServiceRating({ serviceId, onRatingSubmit, initialRating, readOn
 
         setIsSubmitting(true);
         try {
-            const response = await fetch(`/api/services/${serviceId}/rating`, {
+            const response = await fetch(`/api/services/${id}/rating`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

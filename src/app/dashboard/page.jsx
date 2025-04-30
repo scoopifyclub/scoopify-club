@@ -96,7 +96,7 @@ export default function CustomerDashboard() {
             return;
         }
         try {
-            const response = await fetch(`/api/customer/services/${serviceId}/cancel`, {
+            const response = await fetch(`/api/customer/services/${id}/cancel`, {
                 method: 'POST',
                 credentials: 'include'
             });

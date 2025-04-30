@@ -1,42 +1,56 @@
 #!/usr/bin/env node
 
-const REQUIRED_VERCEL_ENV = [
-  'DATABASE_URL',
-  'DIRECT_URL',
-  'JWT_SECRET',
-  'JWT_REFRESH_SECRET',
-  'SMTP_HOST',
-  'SMTP_PORT',
-  'SMTP_USER',
-  'SMTP_PASSWORD',
-  'EMAIL_FROM',
-  'NEXT_PUBLIC_APP_URL',
-  'STRIPE_SECRET_KEY',
-  'STRIPE_WEBHOOK_SECRET',
-  'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY'
-];
+require('dotenv').config();
+const { execSync } = require('child_process');
 
-async function main() {
-  console.log('🔍 Checking Vercel environment variables...\n');
+async function checkVercelEnv() {
+    console.log('🔍 Checking Vercel environment variables...\n');
 
-  // Check for required environment variables
-  const missingVars = [];
-  for (const envVar of REQUIRED_VERCEL_ENV) {
-    if (!process.env[envVar]) {
-      missingVars.push(envVar);
+    try {
+        // Get current environment variables from Vercel
+        const vercelEnv = execSync('vercel env ls', { encoding: 'utf8' });
+        console.log('Current Vercel environment variables:');
+        console.log(vercelEnv);
+
+        // Required environment variables
+        const requiredEnvVars = [
+            'DATABASE_URL',
+            'JWT_SECRET',
+            'JWT_REFRESH_SECRET',
+            'STRIPE_SECRET_KEY',
+            'STRIPE_WEBHOOK_SECRET',
+            'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
+            'EMAIL_HOST',
+            'EMAIL_PORT',
+            'EMAIL_USER',
+            'EMAIL_PASSWORD',
+            'EMAIL_FROM'
+        ];
+
+        // Check each required variable
+        for (const envVar of requiredEnvVars) {
+            try {
+                execSync(`vercel env ls ${envVar}`, { stdio: 'ignore' });
+                console.log(`✅ ${envVar} is set`);
+            } catch (error) {
+                console.error(`❌ ${envVar} is not set`);
+                process.exit(1);
+            }
+        }
+
+        console.log('\n✅ All required environment variables are set in Vercel');
+    } catch (error) {
+        console.error('❌ Failed to check Vercel environment:', error.message);
+        process.exit(1);
     }
-  }
-
-  if (missingVars.length > 0) {
-    console.error('❌ Missing required Vercel environment variables:');
-    missingVars.forEach(v => console.error(`   - ${v}`));
-    process.exit(1);
-  }
-
-  console.log('✅ All Vercel environment variables are set!\n');
 }
 
-main().catch(error => {
-  console.error('❌ Vercel environment check failed:', error);
-  process.exit(1);
-}); 
+// Run if called directly
+if (require.main === module) {
+    checkVercelEnv().catch(error => {
+        console.error('\n❌ Environment check failed:', error);
+        process.exit(1);
+    });
+}
+
+module.exports = checkVercelEnv; 

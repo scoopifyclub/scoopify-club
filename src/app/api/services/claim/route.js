@@ -17,7 +17,7 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { serviceId } = await request.json();
+        const { id } = await request.json();
 
         // Update service with employee
         const service = await prisma.service.update({

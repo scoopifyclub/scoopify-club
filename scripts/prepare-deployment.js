@@ -1,69 +1,86 @@
-const { execSync } = require('child_process');
-const { PrismaClient } = require('@prisma/client');
-const dotenv = require('dotenv');
+#!/usr/bin/env node
 
-dotenv.config();
+require('dotenv').config();
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 async function prepareDeployment() {
-  console.log('🚀 Preparing for deployment...\n');
+    console.log('🔧 Preparing project for Vercel deployment...\n');
 
-  // Step 1: Check and generate Prisma client
-  console.log('Step 1: Generating Prisma client...');
-  try {
-    execSync('npx prisma generate', { stdio: 'inherit' });
-    console.log('✅ Prisma client generated successfully\n');
-  } catch (error) {
-    console.error('❌ Failed to generate Prisma client:', error.message);
-    process.exit(1);
-  }
+    try {
+        // 1. Generate Prisma client
+        console.log('Generating Prisma client...');
+        execSync('npx prisma generate', { stdio: 'inherit' });
 
-  // Step 2: Check database migrations
-  console.log('Step 2: Checking database migrations...');
-  try {
-    const prisma = new PrismaClient();
-    await prisma.$connect();
-    await prisma.$queryRaw`SELECT 1`;
-    console.log('✅ Database connection and migrations verified\n');
-    await prisma.$disconnect();
-  } catch (error) {
-    console.error('❌ Database check failed:', error.message);
-    process.exit(1);
-  }
+        // 2. Check for required environment variables
+        const requiredEnvVars = [
+            'DATABASE_URL',
+            'JWT_SECRET',
+            'JWT_REFRESH_SECRET',
+            'STRIPE_SECRET_KEY',
+            'STRIPE_WEBHOOK_SECRET',
+            'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
+            'SMTP_HOST',
+            'SMTP_PORT',
+            'SMTP_USER',
+            'SMTP_PASSWORD',
+            'EMAIL_FROM'
+        ];
 
-  // Step 3: Run build check
-  console.log('Step 3: Running build check...');
-  try {
-    execSync('npm run build', { stdio: 'inherit' });
-    console.log('✅ Build completed successfully\n');
-  } catch (error) {
-    console.error('❌ Build failed:', error.message);
-    process.exit(1);
-  }
+        const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+        
+        if (missingEnvVars.length > 0) {
+            console.error('❌ Missing required environment variables:');
+            missingEnvVars.forEach(varName => console.error(`   - ${varName}`));
+            process.exit(1);
+        }
 
-  // Step 4: Verify Vercel configuration
-  console.log('Step 4: Checking Vercel configuration...');
-  try {
-    const vercelConfig = require('../vercel.json');
-    const requiredFields = ['version', 'buildCommand', 'outputDirectory'];
-    const missingFields = requiredFields.filter(field => !vercelConfig[field]);
-    
-    if (missingFields.length > 0) {
-      throw new Error(`Missing required fields in vercel.json: ${missingFields.join(', ')}`);
+        console.log('✅ All required environment variables are set\n');
+
+        // 3. Verify database connection
+        console.log('Verifying database connection...');
+        try {
+            execSync('npx prisma db pull', { stdio: 'inherit' });
+            console.log('✅ Database connection verified\n');
+        } catch (error) {
+            console.error('❌ Failed to connect to database:', error.message);
+            process.exit(1);
+        }
+
+        // 4. Check for pending migrations
+        console.log('Checking for pending migrations...');
+        try {
+            execSync('npx prisma migrate status', { stdio: 'inherit' });
+            console.log('✅ Migration status checked\n');
+        } catch (error) {
+            console.error('❌ Failed to check migration status:', error.message);
+            process.exit(1);
+        }
+
+        // 5. Build the application
+        console.log('Building the application...');
+        try {
+            execSync('npm run build', { stdio: 'inherit' });
+            console.log('✅ Application built successfully\n');
+        } catch (error) {
+            console.error('❌ Build failed:', error.message);
+            process.exit(1);
+        }
+
+        console.log('✅ Deployment preparation completed successfully!');
+    } catch (error) {
+        console.error('❌ Deployment preparation failed:', error);
+        process.exit(1);
     }
-    console.log('✅ Vercel configuration verified\n');
-  } catch (error) {
-    console.error('❌ Vercel configuration check failed:', error.message);
-    process.exit(1);
-  }
-
-  console.log('✅ Deployment preparation completed successfully!');
-  console.log('\nNext steps:');
-  console.log('1. Set DIRECT_URL in your Vercel environment variables');
-  console.log('2. Run `vercel deploy` to deploy to preview');
-  console.log('3. After testing preview, run `vercel --prod` to deploy to production');
 }
 
-prepareDeployment().catch(error => {
-  console.error('❌ Preparation failed:', error);
-  process.exit(1);
-}); 
+// Run if called directly
+if (require.main === module) {
+    prepareDeployment().catch(error => {
+        console.error('\n❌ Deployment preparation failed:', error);
+        process.exit(1);
+    });
+}
+
+module.exports = prepareDeployment; 
