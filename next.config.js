@@ -20,7 +20,7 @@ const nextConfig = {
       'scoopifyclub.s3.amazonaws.com'
     ]
   },
-  serverExternalPackages: ['@prisma/client'],
+  serverExternalPackages: ['@prisma/client', 'nodemailer'],
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Don't attempt to resolve these modules on the client side
