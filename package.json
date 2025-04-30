@@ -19,7 +19,7 @@
     "proxy": "local-ssl-proxy --source 3001 --target 3000",
     "build": "npm run check-deploy && next build",
     "build-no-types": "npm run check-deploy && tsc --noEmit false && next build --no-lint",
-    "vercel-build": "npm run prepare:deployment && prisma generate && next build",
+    "vercel-build": "npx prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "setup-stripe": "ts-node scripts/setup-stripe.ts",
