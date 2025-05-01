@@ -1,19 +1,14 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { JobStatus } from '@/types/enums';
-import { JobPoolEntry } from '@/types/job-pool';
+
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
-interface JobPoolSocketProps {
-  employeeId: string;
-  onJobUpdate: (jobs: JobPoolEntry[]) => void;
-  onJobClaim: (job: JobPoolEntry) => void;
-}
 
-export function JobPoolSocket({ employeeId, onJobUpdate, onJobClaim }: JobPoolSocketProps) {
-  const socketRef = useRef<WebSocket | null>(null);
+
+export function JobPoolSocket({ employeeId, handleJobUpdate = (jobs) => {}, handleJobClaim = (job) => {} }) {
+  const socketRef = useRef(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -36,7 +31,7 @@ export function JobPoolSocket({ employeeId, onJobUpdate, onJobClaim }: JobPoolSo
         
         switch (data.type) {
           case 'job-pool-update':
-            onJobUpdate(data.jobs);
+            handleJobUpdate(data.jobs);
             break;
           case 'job-claimed':
             onJobClaim(data.job);

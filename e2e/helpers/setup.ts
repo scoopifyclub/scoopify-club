@@ -48,7 +48,7 @@ async function globalSetup(config: FullConfig) {
             password: hashedPassword,
             name: userData.name,
             role: userData.role,
-            emailverified: true,
+            emailVerified: true,
           },
         });
 

@@ -6,21 +6,8 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
-interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'info' | 'warning' | 'error' | 'success';
-  createdAt: string;
-  read: boolean;
-}
-
-interface NotificationsProps {
-  employeeId: string;
-}
-
-export function Notifications({ employeeId }: NotificationsProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+export function Notifications() {
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -48,7 +35,7 @@ export function Notifications({ employeeId }: NotificationsProps) {
     }
   };
 
-  const markAsRead = async (notificationId: string) => {
+  const markAsRead = async (notificationId) => {
     try {
       const response = await fetch('/api/employee/notifications/mark-read', {
         method: 'POST',

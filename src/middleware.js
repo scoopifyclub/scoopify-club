@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { NextRequest } from 'next/server'
 import { verifyToken } from '@/lib/auth'
-import { validateServiceSchedule } from './middleware/scheduling'
 
 // Define paths that don't require authentication
 const publicPaths = [
@@ -61,12 +60,6 @@ export async function middleware(request) {
     requestHeaders.set('x-user-role', user.role)
 
     // Apply scheduling validation for service scheduling routes
-    if (pathname.startsWith('/api/services')) {
-      const response = await validateServiceSchedule(request)
-      if (response.status !== 200) {
-        return response
-      }
-    }
 
     return NextResponse.next({
       request: {

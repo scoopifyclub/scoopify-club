@@ -4,17 +4,15 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, MapPin, DollarSign } from 'lucide-react';
-import { JobPoolEntry } from '@/types/job-pool';
+
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { JobStatus } from '@/types/enums';
 
-interface JobPoolProps {
-  employeeId: string;
-}
 
-export function JobPool({ employeeId }: JobPoolProps) {
-  const [jobs, setJobs] = useState<JobPoolEntry[]>([]);
+
+
+export function JobPool({ employeeId }) {
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
@@ -41,7 +39,7 @@ export function JobPool({ employeeId }: JobPoolProps) {
     fetchJobs();
   }, []);
 
-  const handleClaimJob = async (job: JobPoolEntry) => {
+  const handleClaimJob = async (job) => {
     try {
       const response = await fetch('/api/jobs/pool', {
         method: 'POST',

@@ -1,19 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-// import { JobStatus } from '@prisma/client';
-// import { getAuth } from '@clerk/nextjs/server';
-// Replaced with custom auth system
-import { getAuthUser } from '@/lib/api-auth';
+import { getUserFromToken } from '@/lib/auth';
 
 export async function GET(request) {
-  const user = await getAuthUser(request);
-  if (!user?.userId) {
+  const { userId } = getUserFromToken(request);
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     const employee = await prisma.employee.findUnique({
-      where: { userId: user.userId },
+      where: { userId },
       include: { serviceAreas: true }
     });
 
@@ -55,8 +52,8 @@ export async function GET(request) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  const { userId } = getAuthUser(request);
+export async function POST(request) {
+  const { userId } = getUserFromToken(request);
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }

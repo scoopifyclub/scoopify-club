@@ -162,7 +162,7 @@ describe('Authentication', () => {
             const updatedUser = await prisma.user.findUnique({
                 where: { id: user.id }
             });
-            expect(updatedUser === null || updatedUser === void 0 ? void 0 : updatedUser.emailverified).toBe(true);
+            expect(updatedUser === null || updatedUser === void 0 ? void 0 : updatedUser.emailVerified).toBe(true);
         });
         it('should reject invalid verification token', async () => {
             const { POST } = await import('../verify-email/route');

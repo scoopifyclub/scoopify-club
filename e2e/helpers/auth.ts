@@ -35,7 +35,7 @@ export async function setupTestUser(role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN') {
       password: hashedPassword,
       name: userData.name,
       role: role,
-      emailverified: true,
+      emailVerified: true,
     },
   });
 

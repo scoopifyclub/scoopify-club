@@ -11,7 +11,7 @@ export async function POST() {
                 name: 'Test Customer',
                 password: hashedPassword,
                 role: 'CUSTOMER',
-                emailverified: true
+                emailVerified: true
             },
         });
         // Create test customer

@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthUser } from '@/lib/api-auth';
+import { getUserFromToken } from '@/lib/auth';
 
 export async function GET(request) {
-  const user = await getAuthUser(request);
-  if (!user?.userId) {
+  const { userId } = getUserFromToken(request);
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     const employee = await prisma.employee.findUnique({
-      where: { userId: user.userId },
+      where: { userId },
       include: { serviceAreas: true }
     });
 
@@ -29,8 +29,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const user = await getAuthUser(request);
-  if (!user?.userId) {
+  const { userId } = getUserFromToken(request);
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -47,7 +47,7 @@ export async function POST(request) {
 
     // Get employee
     const employee = await prisma.employee.findUnique({
-      where: { userId: user.userId },
+      where: { userId },
       include: { serviceAreas: true }
     });
 
@@ -88,8 +88,8 @@ export async function POST(request) {
 }
 
 export async function PUT(request) {
-  const user = await getAuthUser(request);
-  if (!user?.userId) {
+  const { userId } = getUserFromToken(request);
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -106,7 +106,7 @@ export async function PUT(request) {
 
     // Get employee
     const employee = await prisma.employee.findUnique({
-      where: { userId: user.userId }
+      where: { userId }
     });
 
     if (!employee) {
@@ -135,8 +135,8 @@ export async function PUT(request) {
 }
 
 export async function DELETE(request) {
-  const user = await getAuthUser(request);
-  if (!user?.userId) {
+  const { userId } = getUserFromToken(request);
+  if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -145,7 +145,7 @@ export async function DELETE(request) {
 
     // Get employee
     const employee = await prisma.employee.findUnique({
-      where: { userId: user.userId }
+      where: { userId }
     });
 
     if (!employee) {

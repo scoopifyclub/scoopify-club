@@ -9,23 +9,10 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
 
-interface ServiceHistoryProps {
-  employeeId: string;
-}
 
-interface ServiceHistoryItem {
-  id: string;
-  customerId: string;
-  customerName: string;
-  address: string;
-  scheduledAt: string;
-  status: string;
-  price: number;
-  notes?: string;
-}
 
-export function ServiceHistory({ employeeId }: ServiceHistoryProps) {
-  const [services, setServices] = useState<ServiceHistoryItem[]>([]);
+export function ServiceHistory({ employeeId }) {
+  const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState({
     date: '',
@@ -55,7 +42,7 @@ export function ServiceHistory({ employeeId }: ServiceHistoryProps) {
     }
   };
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilter(prev => ({
       ...prev,

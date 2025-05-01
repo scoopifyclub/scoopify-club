@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { PhotoType } from '@prisma/client';
+
 import { Button } from './ui/button';
 import { Camera, MapPin, Clock } from 'lucide-react';
 
@@ -9,7 +9,7 @@ import { Camera, MapPin, Clock } from 'lucide-react';
  * @typedef {Object} Photo
  * @property {File} file
  * @property {string} preview
- * @property {import('@prisma/client').PhotoType} type
+ * @property {string} type
  * @property {number} [latitude]
  * @property {number} [longitude]
  * @property {string} [timestamp]

@@ -7,15 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
-import { ServiceArea } from '@/types/service-area';
-import { CardProps, CardHeaderProps, CardTitleProps, CardContentProps, ButtonProps, InputProps, SelectProps, SelectItemProps } from '@/types/ui';
 
-interface ServiceAreaManagerProps {
-  employeeId: string;
-}
 
-export function ServiceAreaManager({ employeeId }: ServiceAreaManagerProps) {
-  const [serviceAreas, setServiceAreas] = useState<ServiceArea[]>([]);
+
+
+
+export function ServiceAreaManager({ employeeId }) {
+  const [serviceAreas, setServiceAreas] = useState([]);
   const [newArea, setNewArea] = useState({
     zipCode: '',
     travelRange: 10,
@@ -75,7 +73,7 @@ export function ServiceAreaManager({ employeeId }: ServiceAreaManagerProps) {
     }
   };
 
-  const handleToggleArea = async (area: ServiceArea) => {
+  const handleToggleArea = async (area) => {
     try {
       const response = await fetch('/api/employee/service-area', {
         method: 'PUT',
@@ -101,7 +99,7 @@ export function ServiceAreaManager({ employeeId }: ServiceAreaManagerProps) {
     }
   };
 
-  const handleDeleteArea = async (area: ServiceArea) => {
+  const handleDeleteArea = async (area) => {
     if (!confirm('Are you sure you want to delete this service area?')) {
       return;
     }

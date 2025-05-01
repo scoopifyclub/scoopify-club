@@ -4,6 +4,7 @@ import fs from 'fs';
 import { PrismaClient } from '@prisma/client';
 import { hash } from 'bcryptjs';
 import { TEST_USERS } from './test-data';
+import crypto from 'crypto';
 
 // Initialize a new Prisma client specifically for tests
 const prisma = new PrismaClient({
@@ -59,11 +60,13 @@ async function createTestUser(role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN') {
       where: { email: userData.email },
       update: {},
       create: {
+        id: crypto.randomUUID(),
         email: userData.email,
         password: hashedPassword,
         name: userData.name,
         role: role,
-        emailverified: true,
+        emailVerified: true,
+        updatedAt: new Date(),
       },
     });
 

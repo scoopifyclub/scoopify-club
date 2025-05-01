@@ -38,7 +38,7 @@ export async function POST(request) {
                             email: stripeCustomer.email,
                             name: stripeCustomer.name || 'New Customer',
                             password: "", // Will set up with password reset
-                            emailverified: true,
+                            emailVerified: true,
                             role: "CUSTOMER"
                         }
                     });
