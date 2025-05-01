@@ -493,15 +493,13 @@ enum UserRole {
 }
 
 model RefreshToken {
-  id                  String   @id
-  token              String   @unique
-  userId             String
-  user               User     @relation(fields: [userId], references: [id])
-  deviceFingerprint  String
-  isRevoked          Boolean  @default(false)
-  expiresAt          DateTime
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime
+  id        String   @id
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime
 
   @@index([userId])
   @@index([token])
