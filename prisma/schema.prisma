@@ -274,20 +274,6 @@ model Referral {
   @@index([status])
 }
 
-model RefreshToken {
-  id                String   @id
-  token             String   @unique
-  userId            String
-  deviceFingerprint String
-  isRevoked         Boolean  @default(false)
-  expiresAt         DateTime
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime
-
-  @@index([deviceFingerprint])
-  @@index([token])
-  @@index([userId])
-}
 
 model Service {
   id                String        @id
