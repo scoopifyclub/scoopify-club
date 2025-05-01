@@ -417,6 +417,7 @@ model User {
   verificationToken       String?   @unique
   verificationTokenExpiry DateTime? @db.Timestamp(6)
   role                    String
+  refreshTokens           RefreshToken[]
 }
 
 model EarningToPayment {
