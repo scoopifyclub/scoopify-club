@@ -1,74 +1,145 @@
-import { PrismaClient } from '@prisma/client';
-import bcrypt from 'bcrypt';
+console.log('Executing seed file:', __filename);
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
+
 const prisma = new PrismaClient();
+
 async function main() {
-    console.log('Starting database seed...');
-    // Create test users
-    const testUsers = [
-        {
-            email: 'admin@scoopify.club',
-            name: 'Admin User',
-            role: 'ADMIN',
-            password: 'admin123',
-        },
-        {
-            email: 'demo@example.com',
-            name: 'Demo User',
-            role: 'CUSTOMER',
-            password: 'demo123',
-        },
-        {
-            email: 'john@example.com',
-            name: 'John Doe',
-            role: 'CUSTOMER',
-            password: 'john123',
-        },
-        {
-            email: 'employee@scoopify.club',
-            name: 'Employee User',
-            role: 'EMPLOYEE',
-            password: 'employee123',
-        },
-    ];
-    // Create or update users
-    const createdUsers = await Promise.all(testUsers.map(async (user) => {
-        const hashedPassword = await bcrypt.hash(user.password, 10);
-        return prisma.user.upsert({
-            where: { email: user.email },
-            update: {
-                name: user.name,
-                role: user.role,
-                password: hashedPassword,
-            },
-            create: {
-                email: user.email,
-                name: user.name,
-                role: user.role,
-                password: hashedPassword,
-                emailVerified: true,
-            },
-        });
-    }));
-    console.log('Created/Updated users:', createdUsers);
-    // Create customer profiles for customer users
-    const customerUsers = createdUsers.filter(user => user.role === 'CUSTOMER');
-    for (const user of customerUsers) {
-        await prisma.customer.upsert({
-            where: { userId: user.id },
-            update: {},
-            create: {
-                userId: user.id,
-                stripeCustomerId: `fake_stripe_id_${user.id}`,
-            },
-        });
+  console.log('Starting database seed...');
+
+  const now = new Date();
+
+  // Create test users (all required fields, no referredId)
+  const admin = await prisma.user.create({
+    data: {
+      id: 'admin-1',
+      email: 'admin@scoopify.club',
+      name: 'Admin User',
+      role: 'ADMIN',
+      password: await bcrypt.hash('admin123', 10),
+      emailVerified: true,
+      image: null,
+      deviceFingerprint: null,
+      createdAt: now,
+      updatedAt: now
     }
-    console.log('Database seeding completed!');
+  });
+
+  const customer = await prisma.user.create({
+    data: {
+      id: 'customer-1',
+      email: 'demo@example.com',
+      name: 'Test Customer',
+      role: 'CUSTOMER',
+      password: await bcrypt.hash('demo123', 10),
+      emailVerified: true,
+      image: null,
+      deviceFingerprint: null,
+      createdAt: now,
+      updatedAt: now
+    }
+  });
+
+  const employee = await prisma.user.create({
+    data: {
+      id: 'employee-1',
+      email: 'employee@scoopify.club',
+      name: 'Test Employee',
+      role: 'EMPLOYEE',
+      password: await bcrypt.hash('employee123', 10),
+      emailVerified: true,
+      image: null,
+      deviceFingerprint: null,
+      createdAt: now,
+      updatedAt: now
+    }
+  });
+
+  await prisma.customer.create({
+    data: {
+      userId: customer.id,
+      referralCode: 'REF123',
+      createdAt: now,
+      updatedAt: now,
+      subscriptionId: null,
+      stripeCustomerId: null,
+      gateCode: null,
+      phone: null,
+      serviceDay: null,
+      cashAppName: null
+    }
+  });
+
+  await prisma.employee.create({
+    data: {
+      userId: employee.id,
+      status: 'ACTIVE',
+      phone: null,
+      cashAppUsername: null,
+      stripeAccountId: null,
+      bio: null,
+      availability: null,
+      rating: null,
+      completedJobs: 0,
+      createdAt: now,
+      updatedAt: now,
+      averageRating: null,
+      preferredPaymentMethod: null
+    }
+  });
+
+  // Create test service plan
+  const servicePlan = await prisma.servicePlan.create({
+    data: {
+      id: 'plan-1',
+      name: 'Basic Cleaning',
+      description: 'Standard cleaning service',
+      price: 50.0,
+      duration: 60,
+      type: 'ONE_TIME',
+      isActive: true,
+      createdAt: now,
+      updatedAt: now
+    }
+  });
+
+  // Create test service
+  const service = await prisma.service.create({
+    data: {
+      id: 'service-1',
+      customerId: customer.id,
+      scheduledDate: new Date(now.getTime() + 24 * 60 * 60 * 1000), // Tomorrow
+      servicePlanId: servicePlan.id,
+      employeeId: employee.id,
+      status: 'SCHEDULED',
+      createdAt: now,
+      updatedAt: now
+    }
+  });
+
+  // Create test payment
+  await prisma.payment.create({
+    data: {
+      id: 'payment-1',
+      amount: 50.0,
+      type: 'SERVICE',
+      serviceId: service.id,
+      customerId: customer.id,
+      status: 'PAID',
+      createdAt: now,
+      updatedAt: now,
+      paidAt: now
+    }
+  });
+
+  console.log('Database seeded successfully!');
 }
+
 main()
-    .catch((e) => {
+  .catch(e => {
     console.error('Error seeding database:', e);
     process.exit(1);
-})
-    .finally(async () => {
+  })
+  .finally(async () => {
     await prisma.$disconnect();
-});
+  });

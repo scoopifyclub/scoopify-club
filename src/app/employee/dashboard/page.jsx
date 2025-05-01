@@ -5,11 +5,17 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Skeleton } from '../../../components/ui/skeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMapMarkerAlt, faCalendarAlt, faDollarSign, faUsers } from '@fortawesome/free-solid-svg-icons';
 import PaymentInfoReminder from '@/components/PaymentInfoReminder';
 import { format } from 'date-fns';
+import { JobPool } from './components/JobPool';
+import { JobPoolSocket } from './components/JobPoolSocket';
+import { ServiceAreaManager } from './components/ServiceAreaManager';
+import { EarningsCalculator } from './components/EarningsCalculator';
+import { ServiceHistory } from './components/ServiceHistory';
+import { Notifications } from './components/Notifications';
 
 export default function EmployeeDashboard() {
     const router = useRouter();
@@ -156,6 +162,36 @@ export default function EmployeeDashboard() {
                     preferredMethodSelected={employeeData.preferredMethodSelected}
                 />
             )}
+
+            {/* Job Pool Section */}
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4">Available Jobs</h2>
+              <JobPool employeeId={user.id} />
+            </div>
+
+            {/* Service Area Section */}
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4">Service Areas</h2>
+              <ServiceAreaManager employeeId={user.id} />
+            </div>
+
+            {/* Earnings Section */}
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4">Earnings</h2>
+              <EarningsCalculator employeeId={user.id} />
+            </div>
+
+            {/* Service History Section */}
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4">Service History</h2>
+              <ServiceHistory employeeId={user.id} />
+            </div>
+
+            {/* Notifications Section */}
+            <div className="mt-8">
+              <h2 className="text-xl font-semibold mb-4">Notifications</h2>
+              <Notifications employeeId={user.id} />
+            </div>
         </div>
     );
 }

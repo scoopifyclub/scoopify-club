@@ -63,7 +63,7 @@ async function createTestUser(role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN') {
         password: hashedPassword,
         name: userData.name,
         role: role,
-        emailVerified: true,
+        emailverified: true,
       },
     });
 

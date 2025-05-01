@@ -36,7 +36,7 @@ export async function GET(request) {
                         gte: new Date(new Date().setDate(1)), // First day of current month
                         lt: new Date(new Date().setMonth(new Date().getMonth() + 1)) // First day of next month
                     },
-                    status: 'COMPLETED'
+                    status: 'PAID'
                 },
                 _sum: {
                     amount: true
@@ -56,11 +56,13 @@ export async function GET(request) {
             prisma.service.findMany({
                 take: 5,
                 orderBy: {
-                    createdAt: 'desc'
+                    createdAt: "desc"
                 },
                 include: {
                     customer: {
-                        include: {
+                        select: {
+                            id: true,
+                            userId: true,
                             user: {
                                 select: {
                                     name: true,
@@ -70,7 +72,9 @@ export async function GET(request) {
                         }
                     },
                     employee: {
-                        include: {
+                        select: {
+                            id: true,
+                            userId: true,
                             user: {
                                 select: {
                                     name: true

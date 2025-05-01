@@ -54,9 +54,11 @@ export class AuthRateLimiter {
             const rateLimit = await prisma.rateLimit.upsert({
                 where: { key },
                 create: {
+                    id: crypto.randomUUID(),
                     key,
                     count: 1,
-                    resetTime: new Date(now + this.window)
+                    resetTime: new Date(now + this.window),
+                    updatedAt: new Date()
                 },
                 update: {
                     count: {

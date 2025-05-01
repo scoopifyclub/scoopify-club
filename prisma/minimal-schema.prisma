@@ -1,0 +1,56 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CUSTOMER
+  EMPLOYEE
+}
+
+model User {
+  id                      String   @id @default(cuid())
+  email                   String   @unique
+  name                    String?
+  password                String
+  role                    UserRole @default(CUSTOMER)
+  emailVerified           Boolean  @default(false)
+  verificationToken       String?  @unique
+  verificationTokenExpiry DateTime?
+  resetToken              String?  @unique
+  resetTokenExpiry        DateTime?
+  image                   String?
+  deviceFingerprint       String?
+  referredId              String?  @unique
+  referrerId              String?  @unique
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  customer                Customer?
+  employee                Employee?
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  referralCode String?
+  subscriptionId String? @unique
+  stripeCustomerId String? @unique
+  gateCode    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  User        User     @relation(fields: [userId], references: [id])
+}
+
+model Employee {
+  id      String   @id @default(cuid())
+  userId  String   @unique
+  status  String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  User    User     @relation(fields: [userId], references: [id])
+}

@@ -17,16 +17,6 @@ import { Toaster } from "@/components/ui/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
 
-/**
- * @typedef {Object} RootLayoutProps
- * @property {React.ReactNode} children - The content to render inside the layout
- */
-
-/**
- * Root layout component that wraps the entire application
- * @param {RootLayoutProps} props - Component props
- * @returns {JSX.Element} The RootLayout component
- */
 export default function RootLayout({ children }) {
     return (<html lang="en" suppressHydrationWarning>
       <body className={inter.className}>

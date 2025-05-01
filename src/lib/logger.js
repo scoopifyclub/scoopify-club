@@ -19,9 +19,9 @@ class Logger {
             level,
             message,
             timestamp: new Date().toISOString(),
-            requestId: (request === null || request === void 0 ? void 0 : request.headers.get('x-request-id')) || undefined,
-            path: request === null || request === void 0 ? void 0 : request.nextUrl.pathname,
-            method: request === null || request === void 0 ? void 0 : request.method,
+            requestId: request?.headers?.get('x-request-id') || undefined,
+            path: request?.nextUrl?.pathname || undefined,
+            method: request?.method || undefined,
             metadata,
         };
         const formattedLog = this.formatLog(entry);

@@ -1,5 +1,5 @@
 import { FullConfig } from '@playwright/test';
-import prisma from "@/lib/prisma";
+import { prisma } from "../lib/prisma";
 import { testUsers } from './auth';
 import { hash } from 'bcryptjs';
 
@@ -48,7 +48,7 @@ async function globalSetup(config: FullConfig) {
             password: hashedPassword,
             name: userData.name,
             role: userData.role,
-            emailVerified: true,
+            emailverified: true,
           },
         });
 

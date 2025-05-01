@@ -43,7 +43,7 @@ export async function POST(request) {
                 email: user.email,
                 name: user.name,
                 role: user.role,
-                emailVerified: user.emailVerified
+                emailverified: user.emailverified
             }
         });
 

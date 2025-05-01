@@ -1,101 +1,100 @@
-import { NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
+import { verifyToken } from '@/lib/auth'
+import { validateServiceSchedule } from './middleware/scheduling'
 
-// Paths that don't require authentication
-const PUBLIC_PATHS = [
-    '/',
-    '/auth/signin',
-    '/auth/signup',
-    '/auth/forgot-password',
-    '/auth/reset-password',
-    '/auth/verify-email',
-    '/pricing',
-    '/contact',
-    '/about',
-    '/terms',
-    '/privacy',
-    '/faq',
-    '/blog',
-];
+// Define paths that don't require authentication
+const publicPaths = [
+  '/login',
+  '/register',
+  '/forgot-password',
+  '/reset-password',
+  '/verify-email',
+  '/',
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+  '/api/auth/verify-email',
+]
 
-// Paths that start with these prefixes don't require authentication
-const PUBLIC_PATH_PREFIXES = [
-    '/_next',
-    '/api/auth',
-    '/api/webhooks',
-    '/api/health',
-    '/static',
-    '/images',
-    '/fonts',
-];
-
-export async function middleware(request) {
-    const { pathname } = request.nextUrl;
-
-    // Check if the path is public
-    if (PUBLIC_PATHS.includes(pathname) || 
-        PUBLIC_PATH_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
-        return NextResponse.next();
-    }
-
-    // Get the token from cookies
-    const token = request.cookies.get('token')?.value;
-
-    // If no token is present, redirect to login
-    if (!token) {
-        const url = new URL('/auth/signin', request.url);
-        url.searchParams.set('callbackUrl', pathname);
-        return NextResponse.redirect(url);
-    }
-
-    try {
-        // Verify the token and get the payload
-        const payload = await verifyToken(token);
-        
-        if (!payload) {
-            throw new Error('Invalid token');
-        }
-
-        // Check role-based access
-        if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
-            return new NextResponse('Unauthorized', { status: 403 });
-        }
-
-        if (pathname.startsWith('/employee/dashboard') && payload.role !== 'EMPLOYEE') {
-            return new NextResponse('Unauthorized', { status: 403 });
-        }
-
-        if (pathname.startsWith('/customer/dashboard') && payload.role !== 'CUSTOMER') {
-            return new NextResponse('Unauthorized', { status: 403 });
-        }
-
-        // Create the response
-        const response = NextResponse.next();
-
-        // Add security headers
-        response.headers.set('X-Frame-Options', 'DENY');
-        response.headers.set('X-Content-Type-Options', 'nosniff');
-        response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
-        response.headers.set(
-            'Content-Security-Policy',
-            "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:;"
-        );
-
-        return response;
-    } catch (error) {
-        console.error('Auth middleware error:', error);
-
-        // If token is invalid, redirect to login
-        const url = new URL('/auth/signin', request.url);
-        url.searchParams.set('callbackUrl', pathname);
-        return NextResponse.redirect(url);
-    }
+// Define paths that require specific roles
+const roleRestrictedPaths = {
+  '/admin': ['ADMIN', 'MANAGER'],
+  '/admin/dashboard': ['ADMIN', 'MANAGER'],
+  '/employee/dashboard': ['EMPLOYEE', 'ADMIN', 'MANAGER'],
+  '/api/admin': ['ADMIN', 'MANAGER'],
+  '/api/employee': ['EMPLOYEE', 'ADMIN', 'MANAGER'],
 }
 
-// Configure which paths the middleware should run on
+export async function middleware(request) {
+  const { pathname } = request.nextUrl
+
+  // Allow public paths
+  if (publicPaths.some(path => pathname.startsWith(path))) {
+    return NextResponse.next()
+  }
+
+  // Check for authentication token
+  const token = request.cookies.get('token')?.value || null
+  if (!token) {
+    return redirectToLogin(request)
+  }
+
+  try {
+    // Verify token and get user data
+    const user = await verifyToken(token)
+    if (!user) {
+      return redirectToLogin(request)
+    }
+
+    // Check role restrictions
+    for (const [path, roles] of Object.entries(roleRestrictedPaths)) {
+      if (pathname.startsWith(path) && !roles.includes(user.role)) {
+        return new NextResponse(null, { status: 403 })
+      }
+    }
+
+    // Add user info to headers for downstream use
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-user-id', user.id)
+    requestHeaders.set('x-user-role', user.role)
+
+    // Apply scheduling validation for service scheduling routes
+    if (pathname.startsWith('/api/services')) {
+      const response = await validateServiceSchedule(request)
+      if (response.status !== 200) {
+        return response
+      }
+    }
+
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    })
+  } catch (error) {
+    console.error('Middleware error:', error)
+    return redirectToLogin(request)
+  }
+}
+
+function redirectToLogin(request) {
+  const url = request.nextUrl.clone()
+  url.pathname = '/login'
+  url.search = `?from=${encodeURIComponent(request.nextUrl.pathname)}`
+  return NextResponse.redirect(url)
+}
+
 export const config = {
-    matcher: [
-        // Skip all internal paths (_next, api)
-        '/((?!_next|api|static|.*\\..*|favicon.ico).*)',
-    ],
-};
+  matcher: [
+    /*
+     * Match all request paths except:
+     * 1. /api/webhooks routes
+     * 2. /_next (Next.js internals)
+     * 3. /static (static files)
+     * 4. /favicon.ico, /sitemap.xml (static files)
+     */
+    '/((?!api/webhooks|_next/static|_next/image|favicon.ico|sitemap.xml).*)',
+  ],
+}

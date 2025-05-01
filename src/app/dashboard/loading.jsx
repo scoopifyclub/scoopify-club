@@ -1,4 +1,4 @@
-import { Skeleton } from "../../components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 export default function DashboardLoading() {
     return (<div className="min-h-screen bg-neutral-50">
       <main className="container mx-auto px-4 py-8">

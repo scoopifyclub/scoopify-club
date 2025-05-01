@@ -118,7 +118,7 @@ export async function createTestUser(role) {
             name: userData.name,
             role: role,
             deviceFingerprint: userData.deviceFingerprint,
-            emailVerified: true
+            emailverified: true
         }
     });
     if (role === 'CUSTOMER') {

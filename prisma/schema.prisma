@@ -1,6 +1,5 @@
 generator client {
   provider        = "prisma-client-js"
-  output          = "./node_modules/@prisma/client"
   previewFeatures = ["postgresqlExtensions"]
 }
 
@@ -10,125 +9,137 @@ datasource db {
   relationMode = "foreignKeys"
 }
 
-model User {
-  id                      String         @id @default(cuid())
-  email                   String         @unique
-  name                    String?
-  password                String
-  emailVerified           Boolean        @default(false)
-  verificationToken       String?        @unique
-  verificationTokenExpiry DateTime?
-  resetToken              String?        @unique
-  resetTokenExpiry        DateTime?
-  image                   String?
-  deviceFingerprint       String?
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
-  role                    UserRole       @default(CUSTOMER)
-  receivedMessages        ChatMessage[]  @relation("ReceivedMessages")
-  sentMessages            ChatMessage[]  @relation("SentMessages")
-  customer                Customer?
-  employee                Employee?
-  notifications           Notification[]
-  referredPayments        Payment[]      @relation("ReferredPayments")
-  paymentBatches          PaymentBatch[]
-  refreshTokens           RefreshToken[]
-  serviceDelays           ServiceDelay[]
-}
-
-model Customer {
-  id                String          @id @default(cuid())
-  userId            String          @unique
-  subscriptionId    String?         @unique
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  stripeCustomerId  String?         @unique
-  gateCode          String?
-  phone             String?
-  serviceDay        String?
-  cashAppName       String?
-  referralCode      String?
-  address           Address?
-  subscription      Subscription?   @relation(fields: [subscriptionId], references: [id])
-  user              User            @relation(fields: [userId], references: [id])
-  payments          Payment[]
-  referralsReceived Referral[]      @relation("Referred")
-  referralsGiven    Referral[]      @relation("Referrer")
-  services          Service[]
-  ratings           ServiceRating[]
-
-  @@index([subscriptionId])
-}
-
 model Address {
-  id         String   @id @default(cuid())
+  id         String   @id
   street     String
   city       String
   state      String
   zipCode    String
   customerId String   @unique
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  customer   Customer @relation(fields: [customerId], references: [id])
+  updatedAt  DateTime
 
   @@index([customerId])
 }
 
-model Subscription {
-  id         String             @id @default(cuid())
-  customerId String
-  planId     String
-  startDate  DateTime
-  endDate    DateTime?
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime           @updatedAt
-  status     SubscriptionStatus @default(ACTIVE)
-  customer   Customer?
-  payments   Payment[]
+model Cache {
+  id        String   @id
+  key       String   @unique
+  value     Json
+  expiresAt DateTime
+  tags      String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  @@index([expiresAt])
+  @@index([key])
+  @@index([tags])
 }
 
-model TimeExtension {
-  id         String   @id @default(cuid())
-  serviceId  String
-  employeeId String
-  minutes    Int
-  reason     String
+model ChatMessage {
+  id         String   @id
+  senderId   String
+  receiverId String
+  content    String
+  read       Boolean  @default(false)
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  employee   Employee @relation(fields: [employeeId], references: [id])
-  service    Service  @relation(fields: [serviceId], references: [id])
 
-  @@index([serviceId])
+  @@index([receiverId])
+  @@index([senderId])
+}
+
+model CleanupTask {
+  id           String    @id
+  taskType     String
+  status       String
+  scheduledFor DateTime
+  targetId     String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+  completedAt  DateTime?
+  notes        String?
+}
+
+model Customer {
+  id               String   @id
+  userId           String   @unique
+  subscriptionId   String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime
+  stripeCustomerId String?  @unique
+  gateCode         String?
+  phone            String?
+  serviceDay       String?
+  cashAppName      String?
+  referralCode     String?
+  referrerId       String?
+  referredId       String?
+
+  @@index([subscriptionId])
+}
+
+model Earning {
+  id               String    @id
+  amount           Float
+  status           String    @default("PENDING")
+  serviceId        String
+  employeeId       String
+  paidVia          String?
+  paidAt           DateTime?
+  approvedAt       DateTime?
+  approvedBy       String?
+  stripeTransferId String?   @unique
+  errorMessage     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+
   @@index([employeeId])
+  @@index([serviceId])
+  @@index([status])
 }
 
 model Employee {
-  id                     String           @id @default(cuid())
-  userId                 String           @unique
+  id                     String         @id
+  userId                 String         @unique
   phone                  String?
   cashAppUsername        String?
-  stripeAccountId        String?          @unique
+  stripeAccountId        String?        @unique
   bio                    String?
   availability           Json?
   rating                 Float?
-  completedJobs          Int              @default(0)
-  createdAt              DateTime         @default(now())
-  updatedAt              DateTime         @updatedAt
+  completedJobs          Int            @default(0)
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime
   averageRating          Float?
   preferredPaymentMethod PaymentMethod?
-  status                 EmployeeStatus   @default(ACTIVE)
-  earnings               Earning[]
-  user                   User             @relation(fields: [userId], references: [id])
-  payments               Payment[]
-  services               Service[]
-  serviceAreas           ServiceArea[]
-  messages               ServiceMessage[]
-  ratings                ServiceRating[]
-  timeExtensions         TimeExtension[]
+  status                 EmployeeStatus @default(ACTIVE)
+}
+
+model Location {
+  id        String   @id
+  serviceId String   @unique
+  latitude  Float
+  longitude Float
+  address   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model Notification {
+  id        String   @id
+  userId    String
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Payment {
-  id                    String            @id @default(cuid())
+  id                    String         @id
   amount                Float
   stripeFee             Float?
   netAmount             Float?
@@ -141,8 +152,8 @@ model Payment {
   approvedAt            DateTime?
   approvedBy            String?
   notes                 String?
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime
   subscriptionId        String?
   stripePaymentIntentId String?
   stripeInvoiceId       String?
@@ -153,54 +164,133 @@ model Payment {
   refundReason          String?
   refundTransactionId   String?
   batchId               String?
-  status                PaymentStatus     @default(PENDING)
+  status                PaymentStatus  @default(PENDING)
   paymentMethod         PaymentMethod?
   refundStatus          RefundStatus?
-  batch                 PaymentBatch?     @relation(fields: [batchId], references: [id])
-  customer              Customer?         @relation(fields: [customerId], references: [id])
-  employee              Employee?         @relation(fields: [employeeId], references: [id])
-  referredBy            User?             @relation("ReferredPayments", fields: [referredId], references: [id])
-  service               Service?          @relation(fields: [serviceId], references: [id])
-  subscription          Subscription?     @relation(fields: [subscriptionId], references: [id])
-  auditLogs             PaymentAuditLog[]
-  retries               PaymentRetry[]
-  earnings              Earning[]         @relation("EarningToPayment")
 
-  @@index([serviceId])
-  @@index([employeeId])
-  @@index([customerId])
-  @@index([referredId])
-  @@index([subscriptionId])
-  @@index([status])
   @@index([batchId])
+  @@index([customerId])
+  @@index([employeeId])
+  @@index([referredId])
+  @@index([serviceId])
+  @@index([status])
+  @@index([subscriptionId])
 }
 
-model ServicePhoto {
-  id        String    @id @default(cuid())
-  url       String
-  type      PhotoType
-  serviceId String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  expiresAt DateTime?
-  service   Service   @relation(fields: [serviceId], references: [id])
+model PaymentAuditLog {
+  id          String   @id
+  paymentId   String
+  eventType   String
+  details     String
+  performedBy String
+  timestamp   DateTime @default(now())
+
+  @@index([eventType])
+  @@index([paymentId])
+  @@index([performedBy])
+  @@index([timestamp])
 }
 
-model ServicePlan {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-  price       Float
-  duration    Int
-  type        String
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  services    Service[]
+model PaymentBatch {
+  id                  String             @id
+  name                String
+  description         String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime
+  createdById         String
+  processingStartedAt DateTime?
+  completedAt         DateTime?
+  notes               String?
+  status              PaymentBatchStatus
+}
+
+model PaymentReconciliationItem {
+  id           String  @id
+  reportId     String
+  paymentId    String?
+  stripeId     String?
+  systemAmount Float?
+  stripeAmount Float?
+  matchStatus  String
+  notes        String
+
+  @@index([matchStatus])
+  @@index([paymentId])
+  @@index([reportId])
+}
+
+model PaymentReconciliationReport {
+  id                     String   @id
+  timestamp              DateTime @default(now())
+  totalRecords           Int
+  matchedCount           Int
+  mismatchCount          Int
+  missingFromStripeCount Int
+  missingFromSystemCount Int
+
+  @@index([timestamp])
+}
+
+model PaymentRetry {
+  id                    String    @id
+  paymentId             String
+  status                String
+  retryCount            Int       @default(0)
+  nextRetryDate         DateTime
+  errorMessage          String?
+  scheduledDate         DateTime  @default(now())
+  processedDate         DateTime?
+  stripePaymentIntentId String?
+
+  @@index([nextRetryDate])
+  @@index([paymentId])
+  @@index([status])
+}
+
+model RateLimit {
+  id        String   @id
+  key       String   @unique
+  count     Int      @default(1)
+  resetTime DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+
+  @@index([key])
+  @@index([resetTime])
+}
+
+model Referral {
+  id         String   @id
+  referrerId String
+  referredId String?
+  code       String   @unique
+  status     String   @default("PENDING")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+
+  @@index([code])
+  @@index([referredId])
+  @@index([referrerId])
+  @@index([status])
+}
+
+model RefreshToken {
+  id                String   @id
+  token             String   @unique
+  userId            String
+  deviceFingerprint String
+  isRevoked         Boolean  @default(false)
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime
+
+  @@index([deviceFingerprint])
+  @@index([token])
+  @@index([userId])
 }
 
 model Service {
-  id                String            @id @default(cuid())
+  id                String        @id
   customerId        String
   scheduledDate     DateTime
   completedDate     DateTime?
@@ -210,346 +300,152 @@ model Service {
   potentialEarnings Float?
   stripeFees        Float?
   netAmount         Float?
-  paymentStatus     String            @default("PENDING")
+  paymentStatus     String        @default("PENDING")
   paymentApprovedAt DateTime?
   paymentApprovedBy String?
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  status            ServiceStatus     @default(SCHEDULED)
-  earnings          Earning[]
-  location          Location?
-  payments          Payment[]
-  customer          Customer          @relation(fields: [customerId], references: [id])
-  employee          Employee?         @relation(fields: [employeeId], references: [id])
-  serviceArea       ServiceArea?      @relation(fields: [serviceAreaId], references: [id])
-  servicePlan       ServicePlan       @relation(fields: [servicePlanId], references: [id])
-  checklist         ServiceChecklist?
-  delays            ServiceDelay[]
-  messages          ServiceMessage[]
-  photos            ServicePhoto[]
-  rating            ServiceRating?
-  timeExtensions    TimeExtension[]
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime
+  status            ServiceStatus @default(SCHEDULED)
 
-  @@index([paymentStatus])
   @@index([employeeId])
+  @@index([paymentStatus])
   @@index([serviceAreaId])
 }
 
+model ServiceArea {
+  id         String   @id
+  employeeId String
+  zipCode    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+}
+
 model ServiceChecklist {
-  id          String    @id @default(cuid())
+  id          String    @id
   serviceId   String    @unique
   items       Json
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt   DateTime
   completedAt DateTime?
   notes       String?
-  service     Service   @relation(fields: [serviceId], references: [id])
-}
-
-model Location {
-  id        String   @id @default(cuid())
-  serviceId String   @unique
-  latitude  Float
-  longitude Float
-  address   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  service   Service  @relation(fields: [serviceId], references: [id], onDelete: Cascade)
-}
-
-model ServiceArea {
-  id         String    @id @default(cuid())
-  employeeId String
-  zipCode    String
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  services   Service[]
-  employee   Employee  @relation(fields: [employeeId], references: [id])
-}
-
-model PaymentRetry {
-  id                    String    @id @default(cuid())
-  paymentId             String
-  status                String
-  retryCount            Int       @default(0)
-  nextRetryDate         DateTime
-  errorMessage          String?
-  scheduledDate         DateTime  @default(now())
-  processedDate         DateTime?
-  stripePaymentIntentId String?
-  payment               Payment   @relation(fields: [paymentId], references: [id])
-
-  @@index([paymentId])
-  @@index([status])
-  @@index([nextRetryDate])
 }
 
 model ServiceDelay {
-  id           String   @id @default(cuid())
+  id           String   @id
   serviceId    String
   reason       String
   type         String
   reportedAt   DateTime @default(now())
   reportedById String
-  reportedBy   User     @relation(fields: [reportedById], references: [id])
-  service      Service  @relation(fields: [serviceId], references: [id])
 
-  @@index([serviceId])
   @@index([reportedById])
-}
-
-model RefreshToken {
-  id                String   @id @default(cuid())
-  token             String   @unique
-  userId            String
-  deviceFingerprint String
-  isRevoked         Boolean  @default(false)
-  expiresAt         DateTime
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id])
-
-  @@index([userId])
-  @@index([token])
-  @@index([deviceFingerprint])
-}
-
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  type      String
-  title     String
-  message   String
-  read      Boolean  @default(false)
-  metadata  Json?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-model ChatMessage {
-  id         String   @id @default(cuid())
-  senderId   String
-  receiverId String
-  content    String
-  read       Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  receiver   User     @relation("ReceivedMessages", fields: [receiverId], references: [id])
-  sender     User     @relation("SentMessages", fields: [senderId], references: [id])
-
-  @@index([senderId])
-  @@index([receiverId])
-}
-
-model Referral {
-  id         String    @id @default(cuid())
-  referrerId String
-  referredId String?
-  code       String    @unique
-  status     String    @default("PENDING")
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  referred   Customer? @relation("Referred", fields: [referredId], references: [id])
-  referrer   Customer  @relation("Referrer", fields: [referrerId], references: [id])
-
-  @@index([referrerId])
-  @@index([referredId])
-  @@index([code])
-  @@index([status])
+  @@index([serviceId])
 }
 
 model ServiceMessage {
-  id         String   @id @default(cuid())
+  id         String   @id
   serviceId  String
   employeeId String
   message    String
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  employee   Employee @relation(fields: [employeeId], references: [id])
-  service    Service  @relation(fields: [serviceId], references: [id])
+  updatedAt  DateTime
 
-  @@index([serviceId])
   @@index([employeeId])
-}
-
-model Earning {
-  id               String    @id @default(cuid())
-  amount           Float
-  status           String    @default("PENDING")
-  serviceId        String
-  employeeId       String
-  paidVia          String?
-  paidAt           DateTime?
-  approvedAt       DateTime?
-  approvedBy       String?
-  stripeTransferId String?   @unique
-  errorMessage     String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  employee         Employee  @relation(fields: [employeeId], references: [id])
-  service          Service   @relation(fields: [serviceId], references: [id])
-  payments         Payment[] @relation("EarningToPayment")
-
   @@index([serviceId])
-  @@index([employeeId])
-  @@index([status])
 }
 
-model PaymentAuditLog {
-  id          String   @id @default(cuid())
-  paymentId   String
-  eventType   String
-  details     String
-  performedBy String
-  timestamp   DateTime @default(now())
-  payment     Payment  @relation(fields: [paymentId], references: [id])
-
-  @@index([paymentId])
-  @@index([eventType])
-  @@index([timestamp])
-  @@index([performedBy])
+model ServicePhoto {
+  id        String    @id
+  url       String
+  type      PhotoType
+  serviceId String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime
+  expiresAt DateTime?
 }
 
-model PaymentBatch {
-  id                  String             @id @default(cuid())
-  name                String
-  description         String?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  createdById         String
-  processingStartedAt DateTime?
-  completedAt         DateTime?
-  notes               String?
-  status              PaymentBatchStatus
-  payments            Payment[]
-  createdBy           User               @relation(fields: [createdById], references: [id])
-}
-
-model PaymentReconciliationReport {
-  id                     String                      @id @default(cuid())
-  timestamp              DateTime                    @default(now())
-  totalRecords           Int
-  matchedCount           Int
-  mismatchCount          Int
-  missingFromStripeCount Int
-  missingFromSystemCount Int
-  items                  PaymentReconciliationItem[]
-
-  @@index([timestamp])
-}
-
-model PaymentReconciliationItem {
-  id           String                      @id @default(cuid())
-  reportId     String
-  paymentId    String?
-  stripeId     String?
-  systemAmount Float?
-  stripeAmount Float?
-  matchStatus  String
-  notes        String
-  report       PaymentReconciliationReport @relation(fields: [reportId], references: [id])
-
-  @@index([reportId])
-  @@index([paymentId])
-  @@index([matchStatus])
-}
-
-model CleanupTask {
-  id           String    @id @default(cuid())
-  taskType     String
-  status       String
-  scheduledFor DateTime
-  targetId     String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  completedAt  DateTime?
-  notes        String?
-}
-
-model RateLimit {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  count     Int      @default(1)
-  resetTime DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([key])
-  @@index([resetTime])
-}
-
-model Cache {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  value     Json
-  expiresAt DateTime
-  tags      String[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([key])
-  @@index([tags])
-  @@index([expiresAt])
+model ServicePlan {
+  id          String   @id
+  name        String
+  description String?
+  price       Float
+  duration    Int
+  type        String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
 }
 
 model ServiceRating {
-  id         String   @id @default(cuid())
+  id         String   @id
   rating     Int
   comment    String?
   createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime
   serviceId  String   @unique
   customerId String
   employeeId String
-  customer   Customer @relation(fields: [customerId], references: [id])
-  employee   Employee @relation(fields: [employeeId], references: [id])
-  service    Service  @relation(fields: [serviceId], references: [id])
 
   @@index([customerId])
   @@index([employeeId])
 }
 
-enum PhotoType {
-  BEFORE
-  AFTER
-  ISSUE
-  OTHER
+model Subscription {
+  id         String             @id
+  customerId String
+  planId     String
+  startDate  DateTime
+  endDate    DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime
+  status     SubscriptionStatus @default(ACTIVE)
 }
 
-enum ServiceStatus {
-  PENDING
-  SCHEDULED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
+model TimeExtension {
+  id         String   @id
+  serviceId  String
+  employeeId String
+  minutes    Int
+  reason     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+
+  @@index([employeeId])
+  @@index([serviceId])
 }
 
-enum UserRole {
-  CUSTOMER
-  EMPLOYEE
-  ADMIN
-  MANAGER
+model User {
+  id                      String    @id
+  email                   String    @unique
+  name                    String?
+  password                String
+  resetTokenExpiry        DateTime? @db.Timestamp(6)
+  image                   String?
+  createdAt               DateTime? @default(now()) @db.Timestamp(6)
+  deviceFingerprint       String?
+  emailVerified           Boolean?  @default(false)
+  referredId              String?
+  referrerId              String?
+  resetToken              String?   @unique
+  updatedAt               DateTime  @db.Timestamp(6)
+  verificationToken       String?   @unique
+  verificationTokenExpiry DateTime? @db.Timestamp(6)
+  role                    String
 }
 
-enum PaymentStatus {
-  PENDING
-  APPROVED
-  PAID
-  FAILED
+model EarningToPayment {
+  A String
+  B String
+
+  @@unique([A, B], map: "_EarningToPayment_AB_unique")
+  @@index([B], map: "_EarningToPayment_B_index")
+  @@map("_EarningToPayment")
 }
 
-enum PaymentMethod {
-  CASH
-  CASH_APP
-  CHECK
-  STRIPE
-}
-
-enum RefundStatus {
-  PENDING
-  COMPLETED
-  FAILED
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
 }
 
 enum PaymentBatchStatus {
@@ -560,10 +456,39 @@ enum PaymentBatchStatus {
   FAILED
 }
 
-enum EmployeeStatus {
-  ACTIVE
-  INACTIVE
-  SUSPENDED
+enum PaymentMethod {
+  CASH
+  CASH_APP
+  CHECK
+  STRIPE
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  PAID
+  FAILED
+}
+
+enum PhotoType {
+  BEFORE
+  AFTER
+  ISSUE
+  OTHER
+}
+
+enum RefundStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum ServiceStatus {
+  PENDING
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 enum SubscriptionStatus {
@@ -571,4 +496,26 @@ enum SubscriptionStatus {
   INACTIVE
   CANCELLED
   SUSPENDED
+}
+
+enum UserRole {
+  CUSTOMER
+  EMPLOYEE
+  ADMIN
+  MANAGER
+}
+
+model RefreshToken {
+  id                  String   @id
+  token              String   @unique
+  userId             String
+  user               User     @relation(fields: [userId], references: [id])
+  deviceFingerprint  String
+  isRevoked          Boolean  @default(false)
+  expiresAt          DateTime
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime
+
+  @@index([userId])
+  @@index([token])
 }

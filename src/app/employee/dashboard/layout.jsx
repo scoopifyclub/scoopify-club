@@ -99,7 +99,7 @@ export default function DashboardLayout({ children }) {
                         </ScrollArea>
 
                         {/* User section */}
-                        <div className="p-4 border-t">
+                        <div className="p-4 border-t mt-auto">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="flex-1">
                                     <p className="font-medium">{user?.name}</p>
@@ -108,7 +108,7 @@ export default function DashboardLayout({ children }) {
                             </div>
                             <Button 
                                 variant="destructive" 
-                                className="w-full flex items-center gap-2"
+                                className="w-full flex items-center justify-center gap-2 py-2"
                                 onClick={handleLogout}
                             >
                                 <LogOut className="w-4 h-4" />

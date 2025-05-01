@@ -84,7 +84,7 @@ export async function POST(request) {
                 email,
                 role: 'EMPLOYEE',
                 password: 'temporary_password', // This should be changed on first login
-                emailVerified: true
+                emailverified: true
             }
         });
         // Then create employee

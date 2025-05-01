@@ -51,7 +51,7 @@ async function createTestUser(role) {
                 password: hashedPassword,
                 name: userData.name,
                 role: role,
-                emailVerified: true,
+                emailverified: true,
             },
         });
         // Create role-specific data

@@ -18,7 +18,7 @@ export async function POST() {
                 name: 'Admin User',
                 password: hashedPassword,
                 role: 'ADMIN',
-                emailVerified: true
+                emailverified: true
             }
         });
         return NextResponse.json({

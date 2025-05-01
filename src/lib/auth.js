@@ -85,6 +85,7 @@ export async function generateTokens(user, deviceFingerprint) {
                 userId: user.id,
                 deviceFingerprint,
                 expiresAt,
+                updatedAt: new Date()
             },
         });
 
@@ -136,11 +137,7 @@ export async function login(email, password, fingerprint) {
     console.log('Login attempt for email:', email);
     // Find user in database
     const user = await prisma.user.findUnique({
-        where: { email },
-        include: {
-            customer: true,
-            employee: true
-        }
+        where: { email }
     });
     if (!user) {
         throw new Error('Invalid email or password');
@@ -351,15 +348,7 @@ export async function validateUser(token, requiredRole) {
         }
 
         const user = await prisma.user.findUnique({
-            where: { id: payload.id },
-            include: {
-                customer: {
-                    include: {
-                        address: true
-                    }
-                },
-                employee: true
-            }
+            where: { id: payload.id }
         });
 
         if (!user) {

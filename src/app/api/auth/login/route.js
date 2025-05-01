@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 import { login } from '@/lib/auth';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
-import { z } from 'zod';
 
-// Validation schema for login request
-const loginSchema = z.object({
-    email: z.string().email('Invalid email format'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    fingerprint: z.string().optional()
-});
+// Validation function for login request
+function validateLoginData(data) {
+    if (!data.email || !data.email.includes('@')) {
+        throw new Error('Invalid email format');
+    }
+    if (!data.password || data.password.length < 6) {
+        throw new Error('Password must be at least 6 characters');
+    }
+    return data;
+}
 
 export async function POST(request) {
     try {
@@ -31,7 +34,7 @@ export async function POST(request) {
 
         // Parse and validate request body
         const body = await request.json();
-        const validatedData = loginSchema.parse(body);
+        const validatedData = validateLoginData(body);
 
         // Attempt login
         const { accessToken, refreshToken, user, deviceFingerprint } = await login(
@@ -47,31 +50,42 @@ export async function POST(request) {
                 user: {
                     id: user.id,
                     email: user.email,
-                    role: user.role,
                     name: user.name,
                     customerId: user.customer?.id,
-                    employeeId: user.employee?.id
+                    employeeId: user.employee?.id,
+                    role: user.role
                 }
             },
             { status: 200 }
         );
 
-        // Set auth cookies
-        response.cookies.set('accessToken', accessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 15 * 60 // 15 minutes
-        });
-
+        // Set refresh token cookie
         response.cookies.set('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            sameSite: 'strict',
             path: '/',
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
+
+        // Set access token cookie
+        if (user.role === 'ADMIN') {
+            response.cookies.set('adminToken', accessToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                path: '/',
+                maxAge: 15 * 60 // 15 minutes
+            });
+        } else {
+            response.cookies.set('token', accessToken, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'strict',
+                path: '/',
+                maxAge: 15 * 60 // 15 minutes
+            });
+        }
 
         response.cookies.set('fingerprint', deviceFingerprint, {
             httpOnly: true,
@@ -93,11 +107,10 @@ export async function POST(request) {
         console.error('Login error:', error);
         
         // Handle validation errors
-        if (error instanceof z.ZodError) {
+        if (error instanceof Error) {
             return NextResponse.json(
                 { 
-                    error: 'Invalid input',
-                    details: error.errors 
+                    error: error.message
                 },
                 { status: 400 }
             );

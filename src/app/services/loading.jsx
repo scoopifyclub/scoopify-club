@@ -1,4 +1,4 @@
-import { Skeleton } from "../../components/ui/skeleton";
+import { Skeleton } from "@/components/ui/skeleton";
 export default function ServicesLoading() {
     return (<div className="min-h-screen bg-neutral-50">
       <main>

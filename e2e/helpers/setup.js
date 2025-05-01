@@ -39,7 +39,7 @@ async function globalSetup(config) {
                         password: hashedPassword,
                         name: userData.name,
                         role: userData.role,
-                        emailVerified: true,
+                        emailverified: true,
                     },
                 });
                 // Create role-specific data
