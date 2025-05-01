@@ -39,14 +39,10 @@ async function globalTeardown(config: FullConfig) {
       where: {
         OR: [
           {
-            customer: {
-              userId: { in: userIds }
-            }
+            customerId: { in: userIds }
           },
           {
-            employee: {
-              userId: { in: userIds }
-            }
+            employeeId: { in: userIds }
           }
         ]
       }
@@ -57,14 +53,10 @@ async function globalTeardown(config: FullConfig) {
       where: {
         OR: [
           {
-            customer: {
-              userId: { in: userIds }
-            }
+            customerId: { in: userIds }
           },
           {
-            employee: {
-              userId: { in: userIds }
-            }
+            employeeId: { in: userIds }
           }
         ]
       }
@@ -73,9 +65,7 @@ async function globalTeardown(config: FullConfig) {
     // Delete customer addresses
     await prisma.address.deleteMany({
       where: {
-        customer: {
-          userId: { in: userIds }
-        }
+        customerId: { in: userIds }
       }
     });
     

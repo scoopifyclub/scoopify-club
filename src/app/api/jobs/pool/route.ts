@@ -55,9 +55,9 @@ export async function GET(request) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  const { userId } = getAuthUser(request);
-  if (!userId) {
+export async function POST(request) {
+  const user = await getAuthUser(request);
+  if (!user?.userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     // Check if employee is assigned to the service area
     const employee = await prisma.employee.findUnique({
-      where: { userId },
+      where: { userId: user.userId },
       include: {
         serviceAreas: {
           where: {

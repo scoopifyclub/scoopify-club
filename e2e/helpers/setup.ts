@@ -2,6 +2,7 @@ import { FullConfig } from '@playwright/test';
 import { prisma } from "../lib/prisma";
 import { testUsers } from './auth';
 import { hash } from 'bcryptjs';
+import crypto from 'crypto';
 
 async function globalSetup(config: FullConfig) {
   console.log('Setting up test environment...');
@@ -44,33 +45,45 @@ async function globalSetup(config: FullConfig) {
         // Create user
         const user = await prisma.user.create({
           data: {
+            id: crypto.randomUUID(),
             email: userData.email,
             password: hashedPassword,
             name: userData.name,
             role: userData.role,
             emailVerified: true,
+            updatedAt: new Date(),
           },
         });
 
         // Create role-specific data
         if (role === 'customer') {
-          await prisma.customer.create({
+          const customer = await prisma.customer.create({
             data: {
+              id: crypto.randomUUID(),
               userId: user.id,
-              address: {
-                create: {
-                  street: '123 Test St',
-                  city: 'Test City',
-                  state: 'CA',
-                  zipCode: '12345',
-                },
-              },
+              updatedAt: new Date(),
+            },
+          });
+
+          // Create address separately
+          await prisma.address.create({
+            data: {
+              id: crypto.randomUUID(),
+              street: '123 Test St',
+              city: 'Test City',
+              state: 'CA',
+              zipCode: '12345',
+              customerId: customer.id,
+              updatedAt: new Date(),
             },
           });
         } else if (role === 'employee') {
           await prisma.employee.create({
             data: {
+              id: crypto.randomUUID(),
               userId: user.id,
+              status: 'ACTIVE',
+              updatedAt: new Date(),
             },
           });
         }
@@ -85,12 +98,8 @@ async function globalSetup(config: FullConfig) {
     // Delete test services
     await prisma.service.deleteMany({
       where: {
-        customer: {
-          user: {
-            email: {
-              in: testUserEmails
-            }
-          }
+        customerId: {
+          in: existingUsers.map(u => u.id)
         }
       }
     });
@@ -100,21 +109,13 @@ async function globalSetup(config: FullConfig) {
       where: {
         OR: [
           {
-            customer: {
-              user: {
-                email: {
-                  in: testUserEmails
-                }
-              }
+            customerId: {
+              in: existingUsers.map(u => u.id)
             }
           },
           {
-            employee: {
-              user: {
-                email: {
-                  in: testUserEmails
-                }
-              }
+            employeeId: {
+              in: existingUsers.map(u => u.id)
             }
           }
         ]

@@ -2,6 +2,7 @@ import { Page } from '@playwright/test';
 import { prisma } from '../lib/prisma';
 import { hash } from 'bcryptjs';
 import { UserRole } from '../../src/types/user';
+import crypto from 'crypto';
 
 export const testUsers = {
   customer: {
@@ -31,34 +32,45 @@ export async function setupTestUser(role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN') {
   // Create user
   const user = await prisma.user.create({
     data: {
+      id: crypto.randomUUID(),
       email: userData.email,
       password: hashedPassword,
       name: userData.name,
       role: role,
       emailVerified: true,
+      updatedAt: new Date(),
     },
   });
 
   // Create role-specific data
   if (role === 'CUSTOMER') {
-    await prisma.customer.create({
+    const customer = await prisma.customer.create({
       data: {
+        id: crypto.randomUUID(),
         userId: user.id,
-        address: {
-          create: {
-            street: '123 Test St',
-            city: 'Test City',
-            state: 'CA',
-            zipCode: '12345',
-          },
-        },
+        updatedAt: new Date(),
+      },
+    });
+
+    // Create address separately
+    await prisma.address.create({
+      data: {
+        id: crypto.randomUUID(),
+        street: '123 Test St',
+        city: 'Test City',
+        state: 'CA',
+        zipCode: '12345',
+        customerId: customer.id,
+        updatedAt: new Date(),
       },
     });
   } else if (role === 'EMPLOYEE') {
     await prisma.employee.create({
       data: {
+        id: crypto.randomUUID(),
         userId: user.id,
         status: 'ACTIVE',
+        updatedAt: new Date(),
       },
     });
   }

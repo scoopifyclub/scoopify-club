@@ -72,19 +72,28 @@ async function createTestUser(role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN') {
 
     // Create role-specific data
     if (role === 'CUSTOMER') {
-      await prisma.customer.upsert({
+      const customer = await prisma.customer.upsert({
         where: { userId: user.id },
         update: {},
         create: {
+          id: crypto.randomUUID(),
           userId: user.id,
-          address: {
-            create: {
-              street: '123 Test St',
-              city: 'Test City',
-              state: 'CA',
-              zipCode: '12345',
-            },
-          },
+          updatedAt: new Date(),
+        },
+      });
+
+      // Create address separately
+      await prisma.address.upsert({
+        where: { customerId: customer.id },
+        update: {},
+        create: {
+          id: crypto.randomUUID(),
+          street: '123 Test St',
+          city: 'Test City',
+          state: 'CA',
+          zipCode: '12345',
+          customerId: customer.id,
+          updatedAt: new Date(),
         },
       });
     } else if (role === 'EMPLOYEE') {
@@ -92,8 +101,10 @@ async function createTestUser(role: 'CUSTOMER' | 'EMPLOYEE' | 'ADMIN') {
         where: { userId: user.id },
         update: {},
         create: {
+          id: crypto.randomUUID(),
           userId: user.id,
           status: 'ACTIVE',
+          updatedAt: new Date(),
         },
       });
     }
