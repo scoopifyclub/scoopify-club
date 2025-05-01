@@ -71,8 +71,9 @@ model Customer {
   phone            String?
   serviceDay       String?
   cashAppName      String?
-  referralCode     String?
-  referrerId       String?
+  serviceCredits   Int      @default(0)
+  hasPaidCleanupFee Boolean @default(false)
+  referredBy       String?
   referredId       String?
 
   @@index([subscriptionId])
@@ -113,6 +114,7 @@ model Employee {
   averageRating          Float?
   preferredPaymentMethod PaymentMethod?
   status                 EmployeeStatus @default(ACTIVE)
+  hasSetServiceArea      Boolean        @default(false)
 }
 
 model Location {
@@ -260,6 +262,10 @@ model RateLimit {
 }
 
 model Referral {
+  payoutAmount   Float?
+  payoutStatus   String?  @default("PENDING")
+  payoutDate     DateTime?
+
   id         String   @id
   referrerId String
   referredId String?
@@ -274,8 +280,43 @@ model Referral {
   @@index([status])
 }
 
+model ReferralPartner {
+  id            String   @id @default(uuid())
+  name          String
+  contactEmail  String?
+  paymentMethod String? // e.g., 'CASH_APP', 'PAYPAL', 'ACH'
+  paymentInfo   Json?   // Store payment details (CashApp tag, PayPal email, etc)
+  notes         String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  codes         ReferralCode[]
+}
+
+model ReferralCode {
+  id           String   @id @default(uuid())
+  code         String   @unique
+  type         String   // 'CUSTOMER', 'SCOOPER', 'PARTNER'
+  ownerId      String?  // User id (for customer/scooper), null for partner
+  partnerId    String?  // ReferralPartner id if type is 'PARTNER'
+  uses         Int      @default(0)
+  maxUses      Int?
+  totalEarned  Float    @default(0)
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  ReferralPartner ReferralPartner? @relation(fields: [partnerId], references: [id])
+}
+
 
 model Service {
+  workflowStatus      String        @default("AVAILABLE") // AVAILABLE, CLAIMED, ARRIVED, CHECKLIST, PHOTOS, COMPLETED, APPROVED
+  arrivedAt           DateTime?
+  checklistCompleted  Boolean       @default(false)
+  beforePhotoIds      String[]      // IDs of ServicePhoto
+  afterPhotoIds       String[]      // IDs of ServicePhoto
+  gatePhotoId         String?
+
   id                String        @id
   customerId        String
   scheduledDate     DateTime
@@ -296,6 +337,18 @@ model Service {
   @@index([employeeId])
   @@index([paymentStatus])
   @@index([serviceAreaId])
+}
+
+model CoverageArea {
+  id         String   @id @default(uuid())
+  zipCode    String
+  employeeId String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+  
+  @@index([zipCode])
+  @@index([employeeId])
 }
 
 model ServiceArea {
