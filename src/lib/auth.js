@@ -171,7 +171,9 @@ async function cleanupOldTokens(userId, deviceFingerprint) {
         if (error.message.includes('Unknown argument `deviceFingerprint`')) {
             console.warn('Schema does not have deviceFingerprint field');
             hasDeviceFingerprint = false;
-        } else if (error.message.includes('Unknown argument `isRevoked`')) {
+        } 
+        
+        if (error.message.includes('Unknown argument `isRevoked`')) {
             console.warn('Schema does not have isRevoked field');
             hasIsRevoked = false;
         }
@@ -185,8 +187,7 @@ async function cleanupOldTokens(userId, deviceFingerprint) {
                 where: {
                     userId,
                     deviceFingerprint,
-                    expiresAt: { lt: new Date() },
-                    isRevoked: false
+                    expiresAt: { lt: new Date() }
                 },
                 data: { isRevoked: true }
             });
@@ -226,8 +227,7 @@ async function cleanupOldTokens(userId, deviceFingerprint) {
             await prisma.refreshToken.updateMany({
                 where: {
                     userId,
-                    expiresAt: { lt: new Date() },
-                    isRevoked: false
+                    expiresAt: { lt: new Date() }
                 },
                 data: { isRevoked: true }
             });
@@ -276,25 +276,45 @@ async function cleanupOldTokens(userId, deviceFingerprint) {
 
 export async function login(email, password, fingerprint) {
     console.log('Login attempt for email:', email);
-    // Find user in database
-    const user = await prisma.user.findUnique({
-        where: { email }
-    });
-    if (!user) {
-        throw new Error('Invalid email or password');
+    try {
+        // Find user in database
+        const user = await prisma.user.findUnique({
+            where: { email },
+            include: {
+                customer: true,
+                employee: true
+            }
+        });
+        
+        if (!user) {
+            throw new Error('Invalid email or password');
+        }
+        
+        console.log('Found user during login:', { id: user.id, email: user.email, role: user.role });
+        
+        // Compare password
+        const isValid = await compare(password, user.password);
+        if (!isValid) {
+            throw new Error('Invalid email or password');
+        }
+        
+        // Generate device fingerprint if not provided
+        const deviceFingerprint = fingerprint || await generateFingerprint();
+        
+        // Generate tokens
+        const { accessToken, refreshToken } = await generateTokens(user, deviceFingerprint);
+        console.log('Generated tokens for user:', { id: user.id });
+        
+        return { accessToken, refreshToken, user, deviceFingerprint };
+    } catch (error) {
+        console.error('Login error:', error);
+        // If this is a database connection error, provide a more specific message
+        if (error.message && error.message.includes('connection pool')) {
+            throw new Error('Database connection error. Please try again later.');
+        }
+        // Rethrow all other errors
+        throw error;
     }
-    console.log('Found user during login:', { id: user.id, email: user.email, role: user.role });
-    // Compare password
-    const isValid = await compare(password, user.password);
-    if (!isValid) {
-        throw new Error('Invalid email or password');
-    }
-    // Generate device fingerprint if not provided
-    const deviceFingerprint = fingerprint || await generateFingerprint();
-    // Generate tokens
-    const { accessToken, refreshToken } = await generateTokens(user, deviceFingerprint);
-    console.log('Generated tokens for user:', { id: user.id, tokenPayload: await verifyToken(accessToken) });
-    return { accessToken, refreshToken, user, deviceFingerprint };
 }
 // Safe to use in Edge environment
 export async function verifyToken(token) {
@@ -331,10 +351,28 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
             throw new Error('Invalid refresh token');
         }
 
-        // Try finding the token with deviceFingerprint first
-        let storedToken;
-        let schemaHasIsRevoked = true;
+        // Check for schema compatibility
+        let hasIsRevoked = true;
+        
         try {
+            // Test query for isRevoked field
+            await prisma.refreshToken.findFirst({
+                where: {
+                    userId: payload.id,
+                    isRevoked: false
+                },
+                take: 1
+            });
+        } catch (error) {
+            if (error.message && error.message.includes('Unknown argument `isRevoked`')) {
+                console.warn('Schema does not have isRevoked field');
+                hasIsRevoked = false;
+            }
+        }
+
+        // Find the stored token based on schema capabilities
+        let storedToken;
+        if (hasIsRevoked) {
             storedToken = await prisma.refreshToken.findFirst({
                 where: {
                     id: payload.tokenId,
@@ -344,28 +382,19 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
                     expiresAt: { gt: new Date() }
                 }
             });
-        } catch (error) {
-            if (error.message.includes('Unknown argument `isRevoked`')) {
-                console.warn('Schema does not have isRevoked field, modifying query');
-                schemaHasIsRevoked = false;
-                
-                // Try again without isRevoked
-                storedToken = await prisma.refreshToken.findFirst({
-                    where: {
-                        id: payload.tokenId,
-                        userId: payload.id,
-                        token: oldRefreshToken,
-                        expiresAt: { gt: new Date() }
-                    }
-                });
-            } else {
-                console.error('Error finding refresh token:', error);
-                throw new Error('Failed to validate refresh token');
-            }
+        } else {
+            storedToken = await prisma.refreshToken.findFirst({
+                where: {
+                    id: payload.tokenId,
+                    userId: payload.id,
+                    token: oldRefreshToken,
+                    expiresAt: { gt: new Date() }
+                }
+            });
         }
 
         if (!storedToken) {
-            throw new Error('Refresh token not found or revoked');
+            throw new Error('Refresh token not found or expired');
         }
 
         // Find user in database
@@ -391,41 +420,27 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
             });
         }
 
-        // Try to revoke the old refresh token if schema has isRevoked
-        if (schemaHasIsRevoked) {
-            try {
-                await prisma.refreshToken.update({
-                    where: { id: storedToken.id },
-                    data: { isRevoked: true }
-                });
-            } catch (error) {
-                // If isRevoked field is missing, just log error and continue
-                if (error.message.includes('Unknown argument `isRevoked`')) {
-                    console.warn('Cannot revoke token - isRevoked field missing from schema');
-                } else {
-                    console.error('Error revoking refresh token:', error);
-                }
-            }
-        } else {
-            // If schema doesn't have isRevoked, delete the token instead
-            try {
-                await prisma.refreshToken.delete({
-                    where: { id: storedToken.id }
-                });
-            } catch (error) {
-                console.error('Error deleting old refresh token:', error);
-            }
+        // Delete the old token regardless of schema capabilities
+        try {
+            await prisma.refreshToken.delete({
+                where: { id: storedToken.id }
+            });
+        } catch (error) {
+            console.warn('Failed to delete old refresh token:', error.message);
+            // Continue even if this fails
         }
 
         // Generate new tokens
-        const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
-            user,
-            fingerprint || storedToken.deviceFingerprint || await generateFingerprint()
-        );
+        const deviceFp = fingerprint || storedToken.deviceFingerprint || await generateFingerprint();
+        const { accessToken, refreshToken: newRefreshToken } = await generateTokens(user, deviceFp);
 
         return { accessToken, refreshToken: newRefreshToken, user };
     } catch (error) {
         console.error('Refresh token error:', error);
+        // If this is a database connection error, provide a more specific message
+        if (error.message && error.message.includes('connection pool')) {
+            throw new Error('Database connection error. Please try again later.');
+        }
         throw new Error('Invalid refresh token');
     }
 }
@@ -674,5 +689,101 @@ export async function verifyAuth(request) {
         return { success: false, error: 'Invalid session' };
     } catch (error) {
         return { success: false, error: 'Internal server error' };
+    }
+}
+
+// Rate limiting with improved error handling
+export class RateLimiter {
+    constructor(options = {}) {
+        this.windowMs = options.windowMs || 60 * 1000; // 1 minute default
+        this.maxRequests = options.maxRequests || 5; // 5 requests per windowMs
+        this.message = options.message || 'Too many requests, please try again later.';
+        this.statusCode = options.statusCode || 429;
+    }
+    
+    async _isBlocked(key) {
+        try {
+            // Attempt to find existing rate limit record
+            const record = await prisma.rateLimit.findUnique({
+                where: { id: key }
+            }).catch(err => {
+                console.warn('Rate limit check failed, allowing request:', err.message);
+                return null; // If DB query fails, allow request to proceed
+            });
+            
+            if (!record) return false;
+            
+            // Check if window has expired
+            const now = Date.now();
+            const windowExpired = now - record.timestamp > this.windowMs;
+            
+            if (windowExpired) {
+                // Reset counter if window expired
+                await prisma.rateLimit.update({
+                    where: { id: key },
+                    data: { 
+                        count: 1,
+                        timestamp: now
+                    }
+                }).catch(err => console.error('Failed to reset rate limit:', err));
+                return false;
+            }
+            
+            // Check if max requests exceeded
+            const blocked = record.count >= this.maxRequests;
+            return blocked;
+        } catch (error) {
+            console.error('Rate limit check error:', error);
+            return false; // Allow request in case of errors
+        }
+    }
+    
+    async _increment(key) {
+        try {
+            const now = Date.now();
+            
+            // Try to update existing record
+            await prisma.rateLimit.upsert({
+                where: { id: key },
+                update: {
+                    count: { increment: 1 },
+                    timestamp: now
+                },
+                create: {
+                    id: key,
+                    count: 1,
+                    timestamp: now
+                }
+            }).catch(err => {
+                console.warn('Failed to update rate limit:', err.message);
+                // Continue execution even if this fails
+            });
+        } catch (error) {
+            console.error('Rate limit increment error:', error);
+            // Continue execution even if this fails
+        }
+    }
+    
+    async limit(key) {
+        // Skip rate limiting in development
+        if (process.env.NODE_ENV === 'development') return { success: true };
+        
+        try {
+            const blocked = await this._isBlocked(key);
+            
+            if (blocked) {
+                return {
+                    success: false,
+                    message: this.message,
+                    statusCode: this.statusCode
+                };
+            }
+            
+            await this._increment(key);
+            return { success: true };
+        } catch (error) {
+            console.error('Rate limit error:', error);
+            return { success: true }; // Allow request in case of errors
+        }
     }
 }
