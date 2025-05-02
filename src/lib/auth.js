@@ -152,24 +152,59 @@ async function cleanupOldTokens(userId, deviceFingerprint) {
             }
         });
     } catch (error) {
+        // Handle missing deviceFingerprint field
         if (error.message.includes('Unknown argument `deviceFingerprint`')) {
-            // Fall back to schema without deviceFingerprint
             console.warn('Falling back to schema without deviceFingerprint in cleanup');
             
-            // Revoke expired tokens - without deviceFingerprint
-            await prisma.refreshToken.updateMany({
-                where: {
-                    userId,
-                    expiresAt: { lt: new Date() },
-                    isRevoked: false
-                },
-                data: { isRevoked: true }
-            });
+            try {
+                // Revoke expired tokens - without deviceFingerprint
+                await prisma.refreshToken.updateMany({
+                    where: {
+                        userId,
+                        expiresAt: { lt: new Date() },
+                        isRevoked: false
+                    },
+                    data: { isRevoked: true }
+                });
+            } catch (err) {
+                // Handle missing isRevoked field
+                if (err.message.includes('Unknown argument `isRevoked`')) {
+                    console.warn('Schema does not have isRevoked field, skipping token revocation');
+                    // Just delete old tokens instead
+                    await prisma.refreshToken.deleteMany({
+                        where: {
+                            userId,
+                            expiresAt: { lt: new Date() }
+                        }
+                    });
+                } else {
+                    throw err;
+                }
+            }
 
             // Delete very old tokens - without deviceFingerprint
             await prisma.refreshToken.deleteMany({
                 where: {
                     userId,
+                    createdAt: { lt: thirtyDaysAgo }
+                }
+            });
+        } else if (error.message.includes('Unknown argument `isRevoked`')) {
+            console.warn('Schema does not have isRevoked field, skipping token revocation');
+            // Just delete old tokens instead
+            await prisma.refreshToken.deleteMany({
+                where: {
+                    userId,
+                    deviceFingerprint,
+                    expiresAt: { lt: new Date() }
+                }
+            });
+            
+            // Delete very old tokens
+            await prisma.refreshToken.deleteMany({
+                where: {
+                    userId,
+                    deviceFingerprint,
                     createdAt: { lt: thirtyDaysAgo }
                 }
             });
@@ -238,6 +273,7 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
 
         // Try finding the token with deviceFingerprint first
         let storedToken;
+        let schemaHasIsRevoked = true;
         try {
             storedToken = await prisma.refreshToken.findFirst({
                 where: {
@@ -249,8 +285,23 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
                 }
             });
         } catch (error) {
-            console.error('Error finding refresh token:', error);
-            throw new Error('Failed to validate refresh token');
+            if (error.message.includes('Unknown argument `isRevoked`')) {
+                console.warn('Schema does not have isRevoked field, modifying query');
+                schemaHasIsRevoked = false;
+                
+                // Try again without isRevoked
+                storedToken = await prisma.refreshToken.findFirst({
+                    where: {
+                        id: payload.tokenId,
+                        userId: payload.id,
+                        token: oldRefreshToken,
+                        expiresAt: { gt: new Date() }
+                    }
+                });
+            } else {
+                console.error('Error finding refresh token:', error);
+                throw new Error('Failed to validate refresh token');
+            }
         }
 
         if (!storedToken) {
@@ -280,14 +331,30 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
             });
         }
 
-        // Revoke the old refresh token
-        try {
-            await prisma.refreshToken.update({
-                where: { id: storedToken.id },
-                data: { isRevoked: true }
-            });
-        } catch (error) {
-            console.error('Error revoking refresh token:', error);
+        // Try to revoke the old refresh token if schema has isRevoked
+        if (schemaHasIsRevoked) {
+            try {
+                await prisma.refreshToken.update({
+                    where: { id: storedToken.id },
+                    data: { isRevoked: true }
+                });
+            } catch (error) {
+                // If isRevoked field is missing, just log error and continue
+                if (error.message.includes('Unknown argument `isRevoked`')) {
+                    console.warn('Cannot revoke token - isRevoked field missing from schema');
+                } else {
+                    console.error('Error revoking refresh token:', error);
+                }
+            }
+        } else {
+            // If schema doesn't have isRevoked, delete the token instead
+            try {
+                await prisma.refreshToken.delete({
+                    where: { id: storedToken.id }
+                });
+            } catch (error) {
+                console.error('Error deleting old refresh token:', error);
+            }
         }
 
         // Generate new tokens
@@ -368,13 +435,25 @@ export const authOptions = {
 
 export async function revokeAllUserTokens(userId) {
     try {
-        await prisma.refreshToken.updateMany({
-            where: {
-                userId,
-                isRevoked: false
-            },
-            data: { isRevoked: true }
-        });
+        try {
+            await prisma.refreshToken.updateMany({
+                where: {
+                    userId,
+                    isRevoked: false
+                },
+                data: { isRevoked: true }
+            });
+        } catch (error) {
+            if (error.message.includes('Unknown argument `isRevoked`')) {
+                console.warn('Schema does not have isRevoked field, deleting tokens instead');
+                // Delete tokens if we can't revoke them
+                await prisma.refreshToken.deleteMany({
+                    where: { userId }
+                });
+            } else {
+                throw error;
+            }
+        }
     } catch (error) {
         console.error('Error revoking user tokens:', error);
         throw error;
@@ -383,14 +462,42 @@ export async function revokeAllUserTokens(userId) {
 
 export async function revokeUserTokenByFingerprint(userId, fingerprint) {
     try {
-        await prisma.refreshToken.updateMany({
-            where: {
-                userId,
-                deviceFingerprint: fingerprint,
-                isRevoked: false
-            },
-            data: { isRevoked: true }
-        });
+        try {
+            await prisma.refreshToken.updateMany({
+                where: {
+                    userId,
+                    deviceFingerprint: fingerprint,
+                    isRevoked: false
+                },
+                data: { isRevoked: true }
+            });
+        } catch (error) {
+            if (error.message.includes('Unknown argument `deviceFingerprint`')) {
+                console.warn('Schema does not have deviceFingerprint field, skipping fingerprint-specific revocation');
+            } else if (error.message.includes('Unknown argument `isRevoked`')) {
+                console.warn('Schema does not have isRevoked field, deleting tokens instead');
+                // Try to delete by fingerprint if available
+                try {
+                    await prisma.refreshToken.deleteMany({
+                        where: {
+                            userId,
+                            deviceFingerprint: fingerprint
+                        }
+                    });
+                } catch (err) {
+                    if (err.message.includes('Unknown argument `deviceFingerprint`')) {
+                        // If no fingerprint field either, delete all user tokens
+                        await prisma.refreshToken.deleteMany({
+                            where: { userId }
+                        });
+                    } else {
+                        throw err;
+                    }
+                }
+            } else {
+                throw error;
+            }
+        }
     } catch (error) {
         console.error('Error revoking user token by fingerprint:', error);
         throw error;
