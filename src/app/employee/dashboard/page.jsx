@@ -16,8 +16,12 @@ import { ServiceAreaManager } from './components/ServiceAreaManager';
 import { EarningsCalculator } from './components/EarningsCalculator';
 import { ServiceHistory } from './components/ServiceHistory';
 import { Notifications } from './components/Notifications';
+import { NotificationSettings } from './components/NotificationSettings';
 
 export default function EmployeeDashboard() {
+    // --- Notification badge state ---
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [notificationSettings, setNotificationSettings] = useState(null);
     const router = useRouter();
     const { user, loading } = useAuth({
         required: true,
@@ -53,23 +57,48 @@ export default function EmployeeDashboard() {
 
     useEffect(() => {
         if (user?.id) {
-            fetchDashboardStats();
+            fetchEmployeeStats();
         }
     }, [user]);
 
-    const fetchDashboardStats = async () => {
+    const [onboardingState, setOnboardingState] = useState({ hasSetServiceArea: false, serviceAreas: [] });
+    const [statsLoading, setStatsLoading] = useState(true);
+
+    const fetchEmployeeStats = async () => {
+        setStatsLoading(true);
         try {
-            const response = await fetch('/api/employee/dashboard/stats', {
-                credentials: 'include'
-            });
+            const response = await fetch('/api/employee/stats', { credentials: 'include' });
             if (response.ok) {
                 const data = await response.json();
-                setStats(data);
+                setStats({
+                    totalServices: data.totalServices,
+                    completedServices: data.completedServices,
+                    earnings: data.earnings,
+                    customerCount: data.customerCount
+                });
+                setOnboardingState({
+                    hasSetServiceArea: data.hasSetServiceArea,
+                    serviceAreas: data.serviceAreas || []
+                });
             }
         } catch (error) {
-            console.error('Failed to fetch dashboard stats:', error);
+            console.error('Failed to fetch employee stats:', error);
         }
+        setStatsLoading(false);
     };
+
+    // Show onboarding block if not set
+    if (!statsLoading && (!onboardingState.hasSetServiceArea || onboardingState.serviceAreas.length === 0)) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-screen">
+                <h2 className="text-2xl font-bold mb-4">Complete Your Onboarding</h2>
+                <p className="mb-6 text-gray-600">You must set up at least one active service area before you can access your dashboard.</p>
+                <div className="w-full max-w-md">
+                    <ServiceAreaManager employeeId={user.id} onOnboardingComplete={fetchEmployeeStats} />
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return <DashboardSkeleton />;
@@ -77,7 +106,22 @@ export default function EmployeeDashboard() {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6">Welcome back, {user?.name || 'Employee'}</h1>
+            <div className="mb-6">
+                <NotificationSettings onChange={setNotificationSettings} />
+                <Notifications 
+                  onUnreadCountChange={setUnreadCount} 
+                  employeeId={user.id} 
+                  settings={notificationSettings} 
+                />
+            </div>
+            <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                Welcome back, {user?.name || 'Employee'}
+                {unreadCount > 0 && (
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                        {unreadCount} unread
+                    </span>
+                )}
+            </h1>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <Card className="p-6">

@@ -13,21 +13,12 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         const { searchParams } = new URL(request.url);
-        const date = searchParams.get('date');
-        if (!date) {
-            return NextResponse.json({ error: 'Date is required' }, { status: 400 });
-        }
-        const startDate = new Date(date);
-        startDate.setHours(0, 0, 0, 0);
-        const endDate = new Date(date);
-        endDate.setHours(23, 59, 59, 999);
+        const status = searchParams.get('status');
+        // Remove date filter, optionally filter by status
+        const where = {};
+        if (status) where.status = status;
         const services = await prisma.service.findMany({
-            where: {
-                scheduledDate: {
-                    gte: startDate,
-                    lte: endDate
-                }
-            },
+            where,
             include: {
                 customer: {
                     include: {
@@ -53,20 +44,33 @@ export async function GET(request) {
                 scheduledDate: 'asc'
             }
         });
-        const formattedServices = services.map(service => ({
-            id: service.id,
-            scheduledFor: service.scheduledDate,
-            status: service.status,
-            customer: {
-                name: service.customer.user.name,
-                address: service.customer.address.street
-            },
-            employee: service.employee ? {
-                name: service.employee.user.name
-            } : undefined,
-            completedAt: service.completedDate
+        // For each service, get payout and referral status
+        const formattedServices = await Promise.all(services.map(async service => {
+            // Get payout status from Earning
+            const earning = await prisma.earning.findFirst({ where: { serviceId: service.id } });
+            // Get referral status from Referral
+            let referralStatus = 'N/A';
+            if (service.customerId) {
+                const referral = await prisma.referral.findFirst({ where: { referredId: service.customerId } });
+                if (referral) referralStatus = referral.payoutStatus || 'Pending';
+            }
+            return {
+                id: service.id,
+                scheduledFor: service.scheduledDate,
+                status: service.status,
+                payoutStatus: earning ? earning.status : 'Pending',
+                referralStatus,
+                customer: {
+                    name: service.customer.user.name,
+                    address: service.customer.address.street
+                },
+                employee: service.employee ? {
+                    name: service.employee.user.name
+                } : undefined,
+                completedAt: service.completedDate
+            };
         }));
-        return NextResponse.json({ services: formattedServices });
+        return NextResponse.json(formattedServices);
     }
     catch (error) {
         console.error('Error fetching services:', error);

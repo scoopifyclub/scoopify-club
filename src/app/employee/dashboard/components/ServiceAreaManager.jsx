@@ -12,7 +12,12 @@ import { useAuth } from '@/hooks/useAuth';
 
 
 
-export function ServiceAreaManager({ employeeId }) {
+/**
+ * ServiceAreaManager
+ * @param {string} employeeId - The employee's ID.
+ * @param {function} [onOnboardingComplete] - Optional callback, called when onboarding is completed (first service area added).
+ */
+export function ServiceAreaManager({ employeeId, onOnboardingComplete }) {
   const [serviceAreas, setServiceAreas] = useState([]);
   const [newArea, setNewArea] = useState({
     zipCode: '',
@@ -66,7 +71,17 @@ export function ServiceAreaManager({ employeeId }) {
 
       toast.success('Service area added successfully');
       setNewArea({ zipCode: '', travelRange: 10, active: true });
+      // Refetch to get the latest areas
       fetchServiceAreas();
+      // If this was the first area, trigger onboarding complete callback
+      if (typeof onOnboardingComplete === 'function') {
+        // Fetch again to get updated list (or you could pass serviceAreas.length === 0 before add)
+        const updatedAreas = await fetch('/api/employee/service-area', { credentials: 'include' })
+          .then(r => r.ok ? r.json() : []);
+        if (updatedAreas.length === 1) { // first ever
+          onOnboardingComplete();
+        }
+      }
     } catch (error) {
       console.error('Error adding service area:', error);
       toast.error('Failed to add service area');

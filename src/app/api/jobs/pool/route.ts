@@ -20,7 +20,11 @@ export async function GET(request) {
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
-
+    // Enforce onboarding: must have at least one active service area and hasSetServiceArea=true
+    const hasActiveServiceAreas = employee.serviceAreas && employee.serviceAreas.length > 0;
+    if (!hasActiveServiceAreas || !employee.hasSetServiceArea) {
+      return NextResponse.json({ error: 'Scooper onboarding incomplete: set your service area.' }, { status: 403 });
+    }
     // Get available jobs that match employee's service areas
     const availableJobs = await prisma.jobPool.findMany({
       where: {

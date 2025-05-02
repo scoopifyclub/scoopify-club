@@ -77,6 +77,14 @@ export async function POST(request) {
       }
     });
 
+    // If this is the employee's first service area, set hasSetServiceArea to true
+    if (!employee.serviceAreas || employee.serviceAreas.length === 0) {
+      await prisma.employee.update({
+        where: { id: employee.id },
+        data: { hasSetServiceArea: true }
+      });
+    }
+
     return NextResponse.json(serviceArea);
   } catch (error) {
     console.error('Error creating service area:', error);

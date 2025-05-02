@@ -315,6 +315,8 @@ export default function ServicesPage() {
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Employee</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Date & Time</th>
                                         <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
+                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Payout Status</th>
+                                        <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Referral Status</th>
                                         <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Actions</th>
                                     </tr>
                                 </thead>
@@ -370,7 +372,46 @@ export default function ServicesPage() {
                                                     </Badge>
                                                 </div>
                                             </td>
+                                            <td className="p-4 align-middle">
+                                                {/* Payout status: show 'Paid', 'Pending', etc. (mock for now) */}
+                                                <span className="text-sm font-medium">
+                                                    {service.payoutStatus || 'Pending'}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 align-middle">
+                                                {/* Referral status: show 'Paid', 'Pending', etc. (mock for now) */}
+                                                <span className="text-sm font-medium">
+                                                    {service.referralStatus || 'N/A'}
+                                                </span>
+                                            </td>
                                             <td className="p-4 align-middle text-right">
+                                                {service.status === 'completed' && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="success"
+                                                        onClick={async (e) => {
+                                                            e.stopPropagation();
+                                                            try {
+                                                                const res = await fetch('/api/admin/services/approve', {
+                                                                    method: 'POST',
+                                                                    headers: { 'Content-Type': 'application/json' },
+                                                                    body: JSON.stringify({ serviceId: service.id })
+                                                                });
+                                                                if (res.ok) {
+                                                                    toast.success('Service approved & payout triggered!');
+                                                                    fetchServices();
+                                                                } else {
+                                                                    const err = await res.json();
+                                                                    toast.error('Approval failed: ' + (err.error || 'Unknown error'));
+                                                                }
+                                                            } catch (err) {
+                                                                toast.error('Approval failed: ' + err.message);
+                                                            }
+                                                        }}
+                                                    >
+                                                        Approve & Payout
+                                                    </Button>
+                                                )}
                                                 <Button 
                                                     variant="ghost" 
                                                     size="icon"

@@ -8,12 +8,10 @@ import { Calendar, Clock, MapPin, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 
-
-
-
-export function JobPool({ employeeId }) {
+export function JobPool({ employeeId, onOnboardingRequired }) {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [onboardingError, setOnboardingError] = useState(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -24,6 +22,13 @@ export function JobPool({ employeeId }) {
           credentials: 'include'
         });
         if (!response.ok) {
+          // Try to parse onboarding error
+          const errorData = await response.json().catch(() => null);
+          if (errorData && errorData.error && errorData.error.includes('onboarding')) {
+            setOnboardingError(errorData.error);
+            setLoading(false);
+            return;
+          }
           throw new Error('Failed to fetch job pool');
         }
         const data = await response.json();
@@ -76,6 +81,23 @@ export function JobPool({ employeeId }) {
           </Card>
         ))}
       </div>
+    );
+  }
+
+  if (onboardingError) {
+    return (
+      <Card className="p-6">
+        <div className="text-center py-12">
+          <MapPin className="mx-auto h-12 w-12 text-gray-400" />
+          <h3 className="mt-2 text-lg font-semibold text-gray-900">Complete Onboarding Required</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {onboardingError}
+          </p>
+          {onOnboardingRequired && (
+            <Button onClick={onOnboardingRequired}>Go to Onboarding</Button>
+          )}
+        </div>
+      </Card>
     );
   }
 

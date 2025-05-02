@@ -60,21 +60,32 @@ model CleanupTask {
   notes        String?
 }
 
+model CoverageArea {
+  id         String   @id
+  zipCode    String
+  employeeId String
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime
+
+  @@index([employeeId])
+  @@index([zipCode])
+}
+
 model Customer {
-  id               String   @id
-  userId           String   @unique
-  subscriptionId   String?  @unique
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime
-  stripeCustomerId String?  @unique
-  gateCode         String?
-  phone            String?
-  serviceDay       String?
-  cashAppName      String?
-  serviceCredits   Int      @default(0)
-  hasPaidCleanupFee Boolean @default(false)
-  referredBy       String?
-  referredId       String?
+  id                String   @id
+  userId            String   @unique
+  subscriptionId    String?  @unique
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime
+  stripeCustomerId  String?  @unique
+  gateCode          String?
+  phone             String?
+  serviceDay        String?
+  cashAppName       String?
+  referralCode      String?  @unique
+  referrerId        String?
+  referredId        String?
 
   @@index([subscriptionId])
 }
@@ -262,17 +273,16 @@ model RateLimit {
 }
 
 model Referral {
-  payoutAmount   Float?
-  payoutStatus   String?  @default("PENDING")
-  payoutDate     DateTime?
-
-  id         String   @id
-  referrerId String
-  referredId String?
-  code       String   @unique
-  status     String   @default("PENDING")
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime
+  payoutAmount Float?
+  payoutStatus String?   @default("PENDING")
+  payoutDate   DateTime?
+  id           String    @id
+  referrerId   String
+  referredId   String?
+  code         String    @unique
+  status       String    @default("PENDING")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
 
   @@index([code])
   @@index([referredId])
@@ -280,75 +290,75 @@ model Referral {
   @@index([status])
 }
 
-model ReferralPartner {
-  id            String   @id @default(uuid())
-  name          String
-  contactEmail  String?
-  paymentMethod String? // e.g., 'CASH_APP', 'PAYPAL', 'ACH'
-  paymentInfo   Json?   // Store payment details (CashApp tag, PayPal email, etc)
-  notes         String?
-  active        Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime
-  codes         ReferralCode[]
-}
-
 model ReferralCode {
-  id           String   @id @default(uuid())
-  code         String   @unique
-  type         String   // 'CUSTOMER', 'SCOOPER', 'PARTNER'
-  ownerId      String?  // User id (for customer/scooper), null for partner
-  partnerId    String?  // ReferralPartner id if type is 'PARTNER'
-  uses         Int      @default(0)
-  maxUses      Int?
-  totalEarned  Float    @default(0)
-  active       Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime
+  id              String           @id
+  code            String           @unique
+  type            String
+  ownerId         String?
+  partnerId       String?
+  uses            Int              @default(0)
+  maxUses         Int?
+  totalEarned     Float            @default(0)
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime
   ReferralPartner ReferralPartner? @relation(fields: [partnerId], references: [id])
 }
 
+model ReferralPartner {
+  id            String         @id
+  name          String
+  contactEmail  String?
+  paymentMethod String?
+  paymentInfo   Json?
+  notes         String?
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime
+  ReferralCode  ReferralCode[]
+}
+
+model RefreshToken {
+  id                String   @id
+  token             String   @unique
+  userId            String
+  expiresAt         DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime
+  deviceFingerprint String?
+  User              User     @relation(fields: [userId], references: [id])
+
+  @@index([token])
+  @@index([userId])
+}
 
 model Service {
-  workflowStatus      String        @default("AVAILABLE") // AVAILABLE, CLAIMED, ARRIVED, CHECKLIST, PHOTOS, COMPLETED, APPROVED
-  arrivedAt           DateTime?
-  checklistCompleted  Boolean       @default(false)
-  beforePhotoIds      String[]      // IDs of ServicePhoto
-  afterPhotoIds       String[]      // IDs of ServicePhoto
-  gatePhotoId         String?
-
-  id                String        @id
-  customerId        String
-  scheduledDate     DateTime
-  completedDate     DateTime?
-  servicePlanId     String
-  employeeId        String?
-  serviceAreaId     String?
-  potentialEarnings Float?
-  stripeFees        Float?
-  netAmount         Float?
-  paymentStatus     String        @default("PENDING")
-  paymentApprovedAt DateTime?
-  paymentApprovedBy String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime
-  status            ServiceStatus @default(SCHEDULED)
+  workflowStatus     String        @default("AVAILABLE")
+  arrivedAt          DateTime?
+  checklistCompleted Boolean       @default(false)
+  beforePhotoIds     String[]
+  afterPhotoIds      String[]
+  gatePhotoId        String?
+  id                 String        @id
+  customerId         String
+  scheduledDate      DateTime
+  completedDate      DateTime?
+  servicePlanId      String
+  employeeId         String?
+  serviceAreaId      String?
+  potentialEarnings  Float?
+  stripeFees         Float?
+  netAmount          Float?
+  paymentStatus      String        @default("PENDING")
+  paymentApprovedAt  DateTime?
+  paymentApprovedBy  String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime
+  status             ServiceStatus @default(SCHEDULED)
 
   @@index([employeeId])
   @@index([paymentStatus])
   @@index([serviceAreaId])
-}
-
-model CoverageArea {
-  id         String   @id @default(uuid())
-  zipCode    String
-  employeeId String
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime
-  
-  @@index([zipCode])
-  @@index([employeeId])
 }
 
 model ServiceArea {
@@ -454,23 +464,23 @@ model TimeExtension {
 }
 
 model User {
-  id                      String    @id
-  email                   String    @unique
+  id                      String         @id
+  email                   String         @unique
   name                    String?
   password                String
-  resetTokenExpiry        DateTime? @db.Timestamp(6)
+  resetTokenExpiry        DateTime?      @db.Timestamp(6)
   image                   String?
-  createdAt               DateTime? @default(now()) @db.Timestamp(6)
+  createdAt               DateTime?      @default(now()) @db.Timestamp(6)
   deviceFingerprint       String?
-  emailVerified           Boolean?  @default(false)
+  emailVerified           Boolean?       @default(false)
   referredId              String?
   referrerId              String?
-  resetToken              String?   @unique
-  updatedAt               DateTime  @db.Timestamp(6)
-  verificationToken       String?   @unique
-  verificationTokenExpiry DateTime? @db.Timestamp(6)
+  resetToken              String?        @unique
+  updatedAt               DateTime       @db.Timestamp(6)
+  verificationToken       String?        @unique
+  verificationTokenExpiry DateTime?      @db.Timestamp(6)
   role                    String
-  refreshTokens           RefreshToken[]
+  RefreshToken            RefreshToken[]
 }
 
 model EarningToPayment {
@@ -543,17 +553,4 @@ enum UserRole {
   EMPLOYEE
   ADMIN
   MANAGER
-}
-
-model RefreshToken {
-  id        String   @id
-  token     String   @unique
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime
-
-  @@index([userId])
-  @@index([token])
 }
