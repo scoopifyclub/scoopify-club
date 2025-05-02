@@ -76,20 +76,39 @@ export async function generateTokens(user, deviceFingerprint) {
             .setExpirationTime('7d')
             .sign(new TextEncoder().encode(REFRESH_SECRET));
 
-        // Store refresh token in database
+        // Store refresh token in database with schema version awareness
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-        await prisma.refreshToken.create({
-            data: {
-                id: refreshTokenId,
-                token: refreshToken,
-                userId: user.id,
-                deviceFingerprint,
-                expiresAt,
-                updatedAt: new Date()
-            },
-        });
+        try {
+            // Try with deviceFingerprint
+            await prisma.refreshToken.create({
+                data: {
+                    id: refreshTokenId,
+                    token: refreshToken,
+                    userId: user.id,
+                    deviceFingerprint,
+                    expiresAt,
+                    updatedAt: new Date()
+                },
+            });
+        } catch (error) {
+            if (error.message.includes('Unknown argument `deviceFingerprint`')) {
+                // Fall back to schema without deviceFingerprint
+                console.warn('Falling back to schema without deviceFingerprint');
+                await prisma.refreshToken.create({
+                    data: {
+                        id: refreshTokenId,
+                        token: refreshToken,
+                        userId: user.id,
+                        expiresAt,
+                        updatedAt: new Date()
+                    },
+                });
+            } else {
+                throw error;
+            }
+        }
 
-        // Cleanup old refresh tokens for this user/device combination
+        // Cleanup old tokens for this user/device combination
         await cleanupOldTokens(user.id, deviceFingerprint);
 
         console.log('Tokens generated successfully');
@@ -112,25 +131,52 @@ async function generateUniqueTokenId() {
 async function cleanupOldTokens(userId, deviceFingerprint) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     
-    // Revoke expired tokens
-    await prisma.refreshToken.updateMany({
-        where: {
-            userId,
-            deviceFingerprint,
-            expiresAt: { lt: new Date() },
-            isRevoked: false
-        },
-        data: { isRevoked: true }
-    });
+    try {
+        // Revoke expired tokens - with deviceFingerprint
+        await prisma.refreshToken.updateMany({
+            where: {
+                userId,
+                deviceFingerprint,
+                expiresAt: { lt: new Date() },
+                isRevoked: false
+            },
+            data: { isRevoked: true }
+        });
 
-    // Delete very old tokens
-    await prisma.refreshToken.deleteMany({
-        where: {
-            userId,
-            deviceFingerprint,
-            createdAt: { lt: thirtyDaysAgo }
+        // Delete very old tokens - with deviceFingerprint
+        await prisma.refreshToken.deleteMany({
+            where: {
+                userId,
+                deviceFingerprint,
+                createdAt: { lt: thirtyDaysAgo }
+            }
+        });
+    } catch (error) {
+        if (error.message.includes('Unknown argument `deviceFingerprint`')) {
+            // Fall back to schema without deviceFingerprint
+            console.warn('Falling back to schema without deviceFingerprint in cleanup');
+            
+            // Revoke expired tokens - without deviceFingerprint
+            await prisma.refreshToken.updateMany({
+                where: {
+                    userId,
+                    expiresAt: { lt: new Date() },
+                    isRevoked: false
+                },
+                data: { isRevoked: true }
+            });
+
+            // Delete very old tokens - without deviceFingerprint
+            await prisma.refreshToken.deleteMany({
+                where: {
+                    userId,
+                    createdAt: { lt: thirtyDaysAgo }
+                }
+            });
+        } else {
+            throw error;
         }
-    });
+    }
 }
 
 export async function login(email, password, fingerprint) {
@@ -190,16 +236,22 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
             throw new Error('Invalid refresh token');
         }
 
-        // Find the token in the database
-        const storedToken = await prisma.refreshToken.findFirst({
-            where: {
-                id: payload.tokenId,
-                userId: payload.id,
-                token: oldRefreshToken,
-                isRevoked: false,
-                expiresAt: { gt: new Date() }
-            }
-        });
+        // Try finding the token with deviceFingerprint first
+        let storedToken;
+        try {
+            storedToken = await prisma.refreshToken.findFirst({
+                where: {
+                    id: payload.tokenId,
+                    userId: payload.id,
+                    token: oldRefreshToken,
+                    isRevoked: false,
+                    expiresAt: { gt: new Date() }
+                }
+            });
+        } catch (error) {
+            console.error('Error finding refresh token:', error);
+            throw new Error('Failed to validate refresh token');
+        }
 
         if (!storedToken) {
             throw new Error('Refresh token not found or revoked');
@@ -218,25 +270,30 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
             throw new Error('User not found');
         }
 
-        // Verify fingerprint if provided
-        if (fingerprint && storedToken.deviceFingerprint !== fingerprint) {
+        // Verify fingerprint if provided and if token has deviceFingerprint
+        if (fingerprint && storedToken.deviceFingerprint && 
+            storedToken.deviceFingerprint !== fingerprint) {
             console.warn('Fingerprint mismatch during token refresh:', {
-                tokenFingerprintStart: storedToken.deviceFingerprint.substring(0, 10),
+                tokenFingerprintStart: storedToken.deviceFingerprint?.substring(0, 10) || 'none',
                 providedFingerprintStart: fingerprint.substring(0, 10),
                 userId: user.id
             });
         }
 
         // Revoke the old refresh token
-        await prisma.refreshToken.update({
-            where: { id: storedToken.id },
-            data: { isRevoked: true }
-        });
+        try {
+            await prisma.refreshToken.update({
+                where: { id: storedToken.id },
+                data: { isRevoked: true }
+            });
+        } catch (error) {
+            console.error('Error revoking refresh token:', error);
+        }
 
         // Generate new tokens
         const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
             user,
-            fingerprint || storedToken.deviceFingerprint
+            fingerprint || storedToken.deviceFingerprint || await generateFingerprint()
         );
 
         return { accessToken, refreshToken: newRefreshToken, user };
