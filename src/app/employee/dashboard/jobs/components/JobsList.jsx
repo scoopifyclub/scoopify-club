@@ -53,7 +53,13 @@ export default function JobsList({ user }) {
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Failed to fetch available jobs');
+                if (response.status === 403 && errorData.error && errorData.error.includes('onboarding')) {
+                    setError('onboarding');
+                    setJobs([]);
+                    setLoading(false);
+                    return;
+                }
+                throw new Error(errorData.message || errorData.error || 'Failed to fetch available jobs');
             }
 
             const data = await response.json();
@@ -155,7 +161,18 @@ export default function JobsList({ user }) {
                 </div>
             </div>
 
-            {error && (
+            {error === 'onboarding' ? (
+                <div className="mb-4 sm:mb-6 bg-yellow-50 border border-yellow-200 text-yellow-700 px-3 py-2 sm:px-4 sm:py-3 rounded text-base font-semibold text-center">
+                    🚧 <br />
+                    <span className="block mt-2">You must set up your service area before you can view or claim jobs.<br />
+                    Please complete onboarding in your profile or settings.</span>
+                    <a href="/employee/dashboard/profile" className="inline-block mt-4">
+                        <button className="px-5 py-2 bg-blue-600 text-white rounded shadow hover:bg-blue-700 font-semibold transition-colors">
+                            Set Up Service Area
+                        </button>
+                    </a>
+                </div>
+            ) : error && (
                 <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 text-red-700 px-3 py-2 sm:px-4 sm:py-3 rounded text-sm">
                     {error}
                 </div>

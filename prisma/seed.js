@@ -66,6 +66,21 @@ async function main() {
       },
     });
 
+    // Create Initial Cleanup Plan (if not exists)
+    const initialCleanupPlan = await prisma.servicePlan.create({
+      data: {
+        id: uuidv4(),
+        name: 'Initial Cleanup',
+        description: 'Discounted initial cleanup for new customers',
+        price: 69.0,
+        duration: 1,
+        type: 'INITIAL_CLEANUP',
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+    });
+
     // Create customer profile
     const customerProfile = await prisma.customer.create({
       data: {
@@ -109,6 +124,23 @@ async function main() {
         completedJobs: 0,
         createdAt: new Date(),
         updatedAt: new Date()
+      },
+    });
+
+    // Create a sample initial cleanup Service for the demo customer (50% off)
+    const discountedCleanupFee = 69.0 * 0.5;
+    await prisma.service.create({
+      data: {
+        id: uuidv4(),
+        customerId: customerProfile.id,
+        status: 'SCHEDULED',
+        scheduledDate: new Date(),
+        servicePlanId: initialCleanupPlan.id,
+        potentialEarnings: discountedCleanupFee,
+        paymentStatus: 'PAID',
+        workflowStatus: 'AVAILABLE',
+        createdAt: new Date(),
+        updatedAt: new Date(),
       },
     });
 

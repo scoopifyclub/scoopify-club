@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { validateUser } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/prisma';
 // Helper function to get token and validate

@@ -12,7 +12,7 @@ var __rest = (this && this.__rest) || function (s, e) {
 import { NextResponse } from 'next/server';
 import { compare } from 'bcryptjs';
 import prisma from "@/lib/prisma";
-import { generateTokens } from '@/lib/auth';
+import { verifyToken, generateTokens } from '@/lib/api-auth';
 export async function POST(request) {
     try {
         console.log('Starting customer login process...');

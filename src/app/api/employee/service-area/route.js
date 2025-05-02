@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserFromToken } from '@/lib/auth';
+import { getUserFromToken } from '@/lib/api-auth';
 
 export async function GET(request) {
   const { userId } = getUserFromToken(request);

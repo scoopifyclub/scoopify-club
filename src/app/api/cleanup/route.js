@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createOneTimeCharge } from '@/lib/stripe';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import prisma from "@/lib/prisma";
 
 // Import directly from the stripe-subscriptions file

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyAuth } from '@/lib/auth';
+import { verifyAuth } from '@/lib/api-auth';
 export async function GET(request) {
     try {
         // Verify employee authentication

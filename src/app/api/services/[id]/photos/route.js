@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 
 const VALID_PHOTO_TYPES = ['BEFORE', 'AFTER', 'ISSUE', 'OTHER'];

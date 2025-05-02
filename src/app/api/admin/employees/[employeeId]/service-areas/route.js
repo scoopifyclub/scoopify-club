@@ -1,75 +1,90 @@
+import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
-import { validateUser } from '@/lib/auth';
-import { cookies } from 'next/headers';
-import prisma from "@/lib/prisma";
-export async function POST(request, { params }) {
-    var _a;
-    try {
-        // Extract the employeeId from params
-        const { employeeId } = await params;
-        // Get access token from cookies
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Validate the token and check role
-        try {
-            const userData = await validateUser(accessToken);
-            if (userData.role !== 'ADMIN') {
-                return NextResponse.json({ error: 'Unauthorized, admin access required' }, { status: 401 });
-            }
-        }
-        catch (err) {
-            return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-        }
-        const { zipCode } = await request.json();
-        // Validate zip code format
-        if (!/^\d{5}(-\d{4})?$/.test(zipCode)) {
-            return NextResponse.json({ error: 'Invalid zip code format' }, { status: 400 });
-        }
-        // Create service area
-        const serviceArea = await prisma.serviceArea.create({
-            data: {
-                employeeId,
-                zipCode
-            },
-        });
-        return NextResponse.json(serviceArea);
-    }
-    catch (error) {
-        console.error('Error creating service area:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-    }
-}
+import prisma from '@/lib/prisma';
+
 export async function GET(request, { params }) {
-    var _a;
-    try {
-        // Extract the employeeId from params
-        const { employeeId } = await params;
-        // Get access token from cookies
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Validate the token and check role
-        try {
-            const userData = await validateUser(accessToken);
-            if (userData.role !== 'ADMIN') {
-                return NextResponse.json({ error: 'Unauthorized, admin access required' }, { status: 401 });
-            }
-        }
-        catch (err) {
-            return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
-        }
-        const serviceAreas = await prisma.serviceArea.findMany({
-            where: { employeeId },
-        });
-        return NextResponse.json(serviceAreas);
+  try {
+    const user = await requireRole('ADMIN');
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    catch (error) {
-        console.error('Error fetching service areas:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+
+    const { employeeId } = params;
+
+    const serviceAreas = await prisma.serviceArea.findMany({
+      where: { employeeId },
+      include: {
+        employee: {
+          include: { user: true }
+        }
+      }
+    });
+
+    return NextResponse.json(serviceAreas);
+  } catch (error) {
+    console.error('Error fetching service areas:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch service areas' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request, { params }) {
+  try {
+    const user = await requireRole('ADMIN');
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { employeeId } = params;
+    const data = await request.json();
+
+    const serviceArea = await prisma.serviceArea.create({
+      data: {
+        ...data,
+        employeeId
+      },
+      include: {
+        employee: {
+          include: { user: true }
+        }
+      }
+    });
+
+    return NextResponse.json(serviceArea);
+  } catch (error) {
+    console.error('Error creating service area:', error);
+    return NextResponse.json(
+      { error: 'Failed to create service area' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request, { params }) {
+  try {
+    const user = await requireRole('ADMIN');
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { employeeId } = params;
+    const { id } = await request.json();
+
+    await prisma.serviceArea.delete({
+      where: {
+        id,
+        employeeId
+      }
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting service area:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete service area' },
+      { status: 500 }
+    );
+  }
 }

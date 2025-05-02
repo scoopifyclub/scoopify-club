@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import prisma from '@/lib/prisma';
 export async function POST(request) {
     var _a;

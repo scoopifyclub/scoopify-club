@@ -9,12 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import PaymentInfoReminder from '@/components/PaymentInfoReminder';
+import CustomerPaymentAlert from '@/components/CustomerPaymentAlert';
 export default function CustomerDashboard() {
     var _a, _b, _c, _d, _e, _f, _g;
     const router = useRouter();
     const [services, setServices] = useState([]);
     const [subscription, setSubscription] = useState(null);
     const [customer, setCustomer] = useState(null);
+    const [showPaymentAlert, setShowPaymentAlert] = useState(false);
     const [payments, setPayments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);

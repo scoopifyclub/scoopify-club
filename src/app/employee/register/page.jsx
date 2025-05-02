@@ -1,16 +1,24 @@
 'use client';
 import { useState } from 'react';
+
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 export default function EmployeeRegistration() {
     const router = useRouter();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [travelRange, setTravelRange] = useState(10);
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError('');
         const formData = new FormData(e.currentTarget);
+        const homeZip = formData.get('zipCode');
+        if (!homeZip) {
+            setError('Please enter your home ZIP code.');
+            setLoading(false);
+            return;
+        }
         const data = {
             name: formData.get('name'),
             email: formData.get('email'),
@@ -18,8 +26,10 @@ export default function EmployeeRegistration() {
             street: formData.get('street'),
             city: formData.get('city'),
             state: formData.get('state'),
-            zipCode: formData.get('zipCode'),
+            zipCode: homeZip,
             cashAppTag: formData.get('cashAppTag'),
+            homeZip,
+            travelRange,
         };
         try {
             const response = await fetch('/api/employees', {
@@ -29,8 +39,11 @@ export default function EmployeeRegistration() {
                 },
                 body: JSON.stringify(data),
             });
+            const result = await response.json();
             if (!response.ok) {
-                throw new Error('Failed to register employee');
+                setError(result.error || 'Failed to register employee');
+                setLoading(false);
+                return;
             }
             router.push('/employee/dashboard');
         }
@@ -111,6 +124,23 @@ export default function EmployeeRegistration() {
               Cash App Tag
             </label>
             <input type="text" id="cashAppTag" name="cashAppTag" required className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"/>
+          </div>
+
+          <div>
+            <label htmlFor="travelRange" className="block text-sm font-medium text-gray-700">
+              Travel Range (miles)
+            </label>
+            <select
+              id="travelRange"
+              name="travelRange"
+              value={travelRange}
+              onChange={e => setTravelRange(Number(e.target.value))}
+              className="mt-1 block w-full rounded-md border border-gray-300 p-2 shadow-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
+            >
+              {[5, 10, 15, 20, 25, 30].map(miles => (
+                <option key={miles} value={miles}>{miles} miles</option>
+              ))}
+            </select>
           </div>
 
           <Button type="submit" className="w-full" disabled={loading}>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { NextRequest } from 'next/server'
-import { verifyToken } from '@/lib/auth'
+import { verifyToken } from '@/lib/api-auth'
 
 // Define paths that don't require authentication
 const publicPaths = [

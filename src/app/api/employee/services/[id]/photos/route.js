@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { validatePhotoUpload } from '@/lib/validations';
 import sharp from 'sharp';
 const MAX_PHOTOS_PER_SERVICE = 16;

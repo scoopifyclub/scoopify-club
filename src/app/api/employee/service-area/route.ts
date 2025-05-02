@@ -77,13 +77,12 @@ export async function POST(request) {
       }
     });
 
-    // If this is the employee's first service area, set hasSetServiceArea to true
-    if (!employee.serviceAreas || employee.serviceAreas.length === 0) {
-      await prisma.employee.update({
-        where: { id: employee.id },
-        data: { hasSetServiceArea: true }
-      });
-    }
+    // After creation, always check if employee now has at least one service area
+    const areaCount = await prisma.serviceArea.count({ where: { employeeId: employee.id } });
+    await prisma.employee.update({
+      where: { id: employee.id },
+      data: { hasSetServiceArea: areaCount > 0 }
+    });
 
     return NextResponse.json(serviceArea);
   } catch (error) {
@@ -163,6 +162,13 @@ export async function DELETE(request) {
     // Delete service area
     await prisma.serviceArea.delete({
       where: { id }
+    });
+
+    // After deletion, check if employee has any service areas left
+    const areaCount = await prisma.serviceArea.count({ where: { employeeId: employee.id } });
+    await prisma.employee.update({
+      where: { id: employee.id },
+      data: { hasSetServiceArea: areaCount > 0 }
     });
 
     return NextResponse.json({ success: true });

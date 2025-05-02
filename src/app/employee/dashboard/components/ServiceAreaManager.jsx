@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,10 @@ export function ServiceAreaManager({ employeeId, onOnboardingComplete }) {
     active: true
   });
   const [loading, setLoading] = useState(true);
+  const [showRecalc, setShowRecalc] = useState(false);
+  const [recalcZip, setRecalcZip] = useState('');
+  const [recalcRange, setRecalcRange] = useState(10);
+  const [recalcLoading, setRecalcLoading] = useState(false);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -155,6 +160,60 @@ export function ServiceAreaManager({ employeeId, onOnboardingComplete }) {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={() => setShowRecalc(true)}>Recalculate Area</Button>
+      </div>
+      <Dialog open={showRecalc} onOpenChange={setShowRecalc}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Recalculate Service Area</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              type="text"
+              value={recalcZip}
+              onChange={e => setRecalcZip(e.target.value)}
+              placeholder="Enter home zip code"
+              maxLength={5}
+            />
+            <select
+              value={recalcRange}
+              onChange={e => setRecalcRange(Number(e.target.value))}
+              className="block w-full rounded-md border border-gray-300 p-2"
+            >
+              {[5, 10, 15, 20, 25, 30].map(miles => (
+                <option key={miles} value={miles}>{miles} miles</option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={async () => {
+                setRecalcLoading(true);
+                try {
+                  const res = await fetch('/api/employee/service-area/recalculate', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ homeZip: recalcZip, travelRange: recalcRange })
+                  });
+                  if (!res.ok) throw new Error('Failed to recalculate');
+                  setShowRecalc(false);
+                  fetchServiceAreas();
+                  toast.success('Service area updated!');
+                } catch {
+                  toast.error('Failed to recalculate area');
+                } finally {
+                  setRecalcLoading(false);
+                }
+              }}
+              disabled={recalcLoading || !/^[0-9]{5}$/.test(recalcZip)}
+            >
+              {recalcLoading ? 'Updating...' : 'Recalculate'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Card>
         <CardHeader>
           <CardTitle>Add Service Area</CardTitle>

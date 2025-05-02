@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { validateServiceStatus } from '@/lib/validations';
 export async function PATCH(request, { params }) {
     var _a;

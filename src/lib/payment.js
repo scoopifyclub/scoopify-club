@@ -141,18 +141,25 @@ export async function processMonthlyReferralPayments() {
         totalAmount: 0,
         referralPayments: []
     };
-    // Process $5 payment for each active referral
+    // Cap referral payouts at 12 months from subscription start
+    const now = new Date();
     for (const referral of activeReferrals) {
         try {
-            // Create payment record
+            const subscription = referral.referred?.subscription;
+            if (!subscription || !subscription.startDate) continue;
+            const startDate = new Date(subscription.startDate);
+            const monthsSinceStart = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth());
+            if (monthsSinceStart >= 12) continue; // Cap at 12 months
+
+            // Only pay if subscription is still active and within 12 months
             const payment = await prisma.payment.create({
                 data: {
                     amount: 5, // $5 fixed monthly referral fee
-                    status: 'COMPLETED',
+                    status: 'APPROVED', // Mark as approved for batch payout
                     type: 'MONTHLY_REFERRAL',
                     customerId: referral.referrerId,
                     referredId: referral.referredId,
-                    notes: `Monthly referral payment for ${((_a = referral.referred.user) === null || _a === void 0 ? void 0 : _a.name) || 'customer'}`
+                    notes: `Monthly referral payment for ${((_a = referral.referred.user) === null || _a === void 0 ? void 0 : _a.name) || 'customer'} (month ${monthsSinceStart + 1}/12)`
                 }
             });
             results.processedCount++;
@@ -162,10 +169,10 @@ export async function processMonthlyReferralPayments() {
                 paymentId: payment.id,
                 referrerId: referral.referrerId,
                 referrerName: (_b = referral.referrer.user) === null || _b === void 0 ? void 0 : _b.name,
-                amount: 5
+                amount: 5,
+                month: monthsSinceStart + 1
             });
-        }
-        catch (error) {
+        } catch (error) {
             console.error(`Error processing referral payment for referral ${referral.id}:`, error);
         }
     }

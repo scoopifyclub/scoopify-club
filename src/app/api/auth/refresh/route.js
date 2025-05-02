@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { refreshToken } from '@/lib/auth';
+import { verifyToken, refreshToken } from '@/lib/api-auth';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 
 export async function POST(request) {

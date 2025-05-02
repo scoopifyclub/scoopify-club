@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { validateUser } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { getCache, setCache, generateCacheKey, invalidateCache } from '@/lib/cache';

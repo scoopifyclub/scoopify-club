@@ -1,24 +1,20 @@
+import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
-import { validateUser } from '@/lib/auth';
-import { cookies } from 'next/headers';
-import prisma from "@/lib/prisma";
+import prisma from '@/lib/prisma';
 const VALID_PAYMENT_METHODS = ['CASH', 'CASH_APP', 'CHECK'];
 export async function POST(request, { params }) {
-    var _a;
     try {
-        // Validate session and admin role
-        // Get access token from cookies
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
+        const user = await requireRole('ADMIN');
+        if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        // Validate the token and check role
-        const { userId, role } = await validateUser(accessToken);
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized - Admin access required' }, { status: 401 });
+        const { paymentId } = params;
+        if (!paymentId) {
+            return NextResponse.json(
+                { error: 'Payment ID is required' },
+                { status: 400 }
+            );
         }
-        const { paymentId } = await params;
         const body = await request.json();
         const { paymentMethod, paidAt } = body;
         // Validate payment method
@@ -34,9 +30,8 @@ export async function POST(request, { params }) {
             where: { id: paymentId },
             include: {
                 service: {
-                    select: {
-                        id: true,
-                        status: true,
+                    include: {
+                        customer: true,
                     },
                 },
             },

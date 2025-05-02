@@ -1,9 +1,9 @@
-'use client';
+"use client";
 // Trigger new Vercel deployment - fix skeleton component
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -17,17 +17,21 @@ import { EarningsCalculator } from './components/EarningsCalculator';
 import { ServiceHistory } from './components/ServiceHistory';
 import { Notifications } from './components/Notifications';
 import { NotificationSettings } from './components/NotificationSettings';
+import NotificationsDropdown from '@/components/NotificationsDropdown';
+import ScooperRatings from '@/components/ScooperRatings';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { toast } from 'react-hot-toast';
 
 export default function EmployeeDashboard() {
     // --- Notification badge state ---
     const [unreadCount, setUnreadCount] = useState(0);
     const [notificationSettings, setNotificationSettings] = useState(null);
     const router = useRouter();
-    const { user, loading } = useAuth({
-        required: true,
-        role: 'EMPLOYEE',
-        redirectTo: '/auth/signin'
-    });
+    const { user, loading } = useAuth();
+    const [services, setServices] = useState([]);
+    const [loadingServices, setLoadingServices] = useState(true);
+    const [error, setError] = useState(null);
 
     const [stats, setStats] = useState({
         totalServices: 0,
@@ -39,6 +43,7 @@ export default function EmployeeDashboard() {
     const [employeeData, setEmployeeData] = useState(null);
     const [isClient, setIsClient] = useState(false);
     const [currentDate, setCurrentDate] = useState('');
+    const [statsLoading, setStatsLoading] = useState(true);
 
     // Set isClient to true on mount and initialize date
     useEffect(() => {
@@ -46,23 +51,65 @@ export default function EmployeeDashboard() {
         setCurrentDate(format(new Date(), 'MMMM d, yyyy'));
     }, []);
 
-    // If not client-side yet, show loading state
-    if (!isClient) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
+    useEffect(() => {
+        if (user && user.role === 'EMPLOYEE') {
+            fetchServices();
+        }
+    }, [user]);
 
+    const fetchServices = async () => {
+        try {
+            const response = await fetch('/api/employee/services', {
+                credentials: 'include',
+            });
+            if (!response.ok) {
+                throw new Error('Failed to fetch services');
+            }
+            const data = await response.json();
+            setServices(data);
+        } catch (error) {
+            setError(error.message);
+            toast.error('Failed to load services');
+        } finally {
+            setLoadingServices(false);
+        }
+    };
+
+    const handleClaimService = async (serviceId) => {
+        try {
+            const response = await fetch(`/api/employee/services/${serviceId}/claim`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            if (!response.ok) {
+                throw new Error('Failed to claim service');
+            }
+            toast.success('Service claimed successfully');
+            fetchServices(); // Refresh the list
+        } catch (error) {
+            toast.error('Failed to claim service');
+        }
+    };
+
+
+
+    // Header with notifications dropdown
+    const header = (
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold">Employee Dashboard</h1>
+          <div className="text-gray-500 text-sm">{currentDate}</div>
+        </div>
+        <NotificationsDropdown userType="scooper" />
+      </div>
+    );
+
+    const [onboardingState, setOnboardingState] = useState({ hasSetServiceArea: false, serviceAreas: [] });
     useEffect(() => {
         if (user?.id) {
             fetchEmployeeStats();
         }
     }, [user]);
-
-    const [onboardingState, setOnboardingState] = useState({ hasSetServiceArea: false, serviceAreas: [] });
-    const [statsLoading, setStatsLoading] = useState(true);
 
     const fetchEmployeeStats = async () => {
         setStatsLoading(true);
@@ -100,8 +147,16 @@ export default function EmployeeDashboard() {
         );
     }
 
-    if (loading) {
-        return <DashboardSkeleton />;
+    if (loading || loadingServices) {
+        return <div>Loading...</div>;
+    }
+
+    if (error) {
+        return <div>Error: {error}</div>;
+    }
+
+    if (!user || user.role !== 'EMPLOYEE') {
+        return <div>Access denied. Employee access only.</div>;
     }
 
     return (
@@ -225,6 +280,11 @@ export default function EmployeeDashboard() {
               <EarningsCalculator employeeId={user.id} />
             </div>
 
+            {/* Scooper Ratings Section */}
+            <div className="mt-8">
+              <ScooperRatings employeeId={user.id} />
+            </div>
+
             {/* Service History Section */}
             <div className="mt-8">
               <h2 className="text-xl font-semibold mb-4">Service History</h2>
@@ -236,6 +296,47 @@ export default function EmployeeDashboard() {
               <h2 className="text-xl font-semibold mb-4">Notifications</h2>
               <Notifications employeeId={user.id} />
             </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Upcoming Services</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <ScrollArea className="h-[400px]">
+                        {loadingServices ? (
+                            <div className="animate-pulse space-y-2">
+                                {[...Array(5)].map((_, i) => (
+                                    <div key={i} className="h-16 bg-gray-100 rounded" />
+                                ))}
+                            </div>
+                        ) : services.length === 0 ? (
+                            <p className="text-center text-gray-500">No upcoming services</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {services.map((service) => (
+                                    <div key={service.id} className="flex items-center space-x-4 p-4 border rounded-lg">
+                                        <Avatar>
+                                            <AvatarImage src={service.customer.avatar} />
+                                            <AvatarFallback>
+                                                {service.customer.name?.charAt(0) || 'C'}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1">
+                                            <p className="font-medium">{service.customer.name}</p>
+                                            <p className="text-sm text-gray-500">
+                                                {new Date(service.scheduledDate).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                        <Button variant="outline" size="sm">
+                                            View Details
+                                        </Button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </ScrollArea>
+                </CardContent>
+            </Card>
         </div>
     );
 }

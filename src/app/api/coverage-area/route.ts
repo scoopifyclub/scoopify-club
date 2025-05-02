@@ -4,9 +4,21 @@ import { getAuthUser } from '@/lib/api-auth';
 
 // GET: List coverage areas (optionally filter by zipCode or employeeId)
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
+  const { searchParams, pathname } = new URL(request.url);
   const zipCode = searchParams.get('zipCode');
   const employeeId = searchParams.get('employeeId');
+
+  // Special endpoint: /api/coverage-area/active-zips
+  if (pathname.endsWith('/active-zips')) {
+    // Find all zip codes with at least one active scooper
+    const activeAreas = await prisma.coverageArea.findMany({
+      where: { active: true },
+      select: { zipCode: true },
+      distinct: ['zipCode']
+    });
+    const zipCodes = activeAreas.map(a => a.zipCode);
+    return NextResponse.json(zipCodes);
+  }
 
   const where: any = {};
   if (zipCode) where.zipCode = zipCode;

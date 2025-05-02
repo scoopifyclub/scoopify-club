@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { validateUser } from '@/lib/auth';
+import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { rateLimit } from '@/lib/rate-limit';
 export async function GET(request) {

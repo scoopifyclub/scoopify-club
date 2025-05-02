@@ -1,6 +1,9 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+
+const InterestSplash = dynamic(() => import('./interest'), { ssr: false });
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,7 +15,7 @@ import { Elements, CardElement, useStripe, useElements, } from '@stripe/react-st
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 const SERVICE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-function SignupForm() {
+function SignupForm({ onUncoveredZip }) {
     const router = useRouter();
     const stripe = useStripe();
     const elements = useElements();
@@ -34,10 +37,30 @@ function SignupForm() {
         serviceDay: '',
         startDate: '',
         isOneTimeService: false,
+        referralCode: '',
     });
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+
+        // Check zip code coverage BEFORE payment attempt
+        try {
+          const res = await fetch('/api/coverage-area/active-zips');
+          if (res.ok) {
+            const coveredZips = await res.json();
+            if (!coveredZips.includes(formData.zipCode)) {
+              toast.error('Sorry, our service is not available in your area yet.');
+              onUncoveredZip(formData.zipCode);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (err) {
+          toast.error('Could not verify service coverage. Please try again.');
+          setLoading(false);
+          return;
+        }
+
         if (!stripe || !elements) {
             toast.error('Payment system not ready');
             setLoading(false);
@@ -69,10 +92,21 @@ function SignupForm() {
             });
             if (!response.ok) {
                 const data = await response.json();
+                if (data.error && data.error.includes('Service not available')) {
+                  onUncoveredZip(formData.zipCode);
+                  setLoading(false);
+                  return;
+                }
                 throw new Error(data.error || 'Failed to create account');
             }
+            const respData = await response.json();
             toast.success('Account created successfully!');
-            router.push('/dashboard');
+            // If the initial cleanup was bumped, add ?bumped=true to payment page
+            if (respData && respData.bumped) {
+              router.push('/signup/payment?bumped=true');
+            } else {
+              router.push('/signup/payment');
+            }
         }
         catch (error) {
             toast.error(error instanceof Error ? error.message : 'Failed to create account');
@@ -215,6 +249,19 @@ function SignupForm() {
         </div>
       </div>
 
+      {/* Referral Code */}
+      <div className="space-y-2">
+        <Label htmlFor="referralCode">Referral Code <span className="text-gray-400">(optional)</span></Label>
+        <Input
+          id="referralCode"
+          type="text"
+          placeholder="Enter referral code (if any)"
+          value={formData.referralCode}
+          onChange={e => handleChange('referralCode', e.target.value)}
+          className="w-full"
+        />
+      </div>
+
       {/* Payment Information */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -269,7 +316,9 @@ function SignupForm() {
     </form>);
 }
 export default function SignupPage() {
-    return (<div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+  const [uncoveredZip, setUncoveredZip] = useState(null);
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="text-center text-3xl font-bold tracking-tight text-gray-900">
           Create your account
@@ -281,13 +330,18 @@ export default function SignupPage() {
           </a>
         </p>
       </div>
-
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-2xl">
         <div className="bg-white py-8 px-4 shadow-lg sm:rounded-lg sm:px-10">
-          <Elements stripe={stripePromise}>
-            <SignupForm />
-          </Elements>
+          {uncoveredZip ? (
+            <InterestSplash zipCode={uncoveredZip} />
+          ) : (
+            <Elements stripe={stripePromise}>
+              <SignupForm onUncoveredZip={setUncoveredZip} />
+            </Elements>
+          )}
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }
+

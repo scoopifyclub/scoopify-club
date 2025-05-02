@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { validateUser } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 // Helper function to get token from request
 async function getTokenAndValidate(request, role = 'CUSTOMER') {

@@ -13,12 +13,18 @@ export default function Payment() {
     const plan = searchParams.get('plan');
     const numberOfDogs = parseInt(searchParams.get('dogs') || '1');
     const preferredDay = searchParams.get('day') || 'MONDAY';
-    const price = parseFloat(searchParams.get('price') || '0');
+    // If present, show a warning that the initial cleanup date was bumped
+    const wasBumped = searchParams.get('bumped') === 'true';
+    // Example: get base prices (replace with dynamic logic as needed)
+    const monthlyAmount = 129.0; // $129.00
+    const fullCleanupFee = 69.0; // $69.00
+    const discountedCleanupFee = Math.round(fullCleanupFee * 0.5 * 100) / 100; // 50% off, rounded to 2 decimals
+    const total = monthlyAmount + discountedCleanupFee;
     useEffect(() => {
-        if (!plan || !numberOfDogs || !price) {
+        if (!plan || !numberOfDogs) {
             router.push('/signup');
         }
-    }, [plan, numberOfDogs, price, router]);
+    }, [plan, numberOfDogs, router]);
     const handlePayment = async () => {
         setLoading(true);
         setError('');
@@ -66,6 +72,13 @@ export default function Payment() {
 
         <div className="space-y-6">
           {/* Order Summary */}
+          {wasBumped && (
+            <div className="rounded-md bg-yellow-50 p-4 mb-4">
+              <div className="text-sm text-yellow-800 font-semibold">
+                Heads up! Your requested initial cleanup date was less than 3 days away, so we bumped it to the same day next week to ensure proper scheduling. You’ll receive a confirmation email with the new date.
+              </div>
+            </div>
+          )}
           <div className="rounded-lg border border-gray-200 p-6">
             <h2 className="text-lg font-semibold">Order Summary</h2>
             <div className="mt-4 space-y-4">
@@ -79,16 +92,24 @@ export default function Payment() {
                 <span className="text-gray-600">Number of Dogs</span>
                 <span className="font-medium">{numberOfDogs}</span>
               </div>
-              {plan === 'weekly' && (<div className="flex justify-between">
+              {plan === 'weekly' && (
+                <div className="flex justify-between">
                   <span className="text-gray-600">Preferred Day</span>
                   <span className="font-medium">{preferredDay}</span>
-                </div>)}
+                </div>
+              )}
+              {/* Show initial cleanup fee with discount */}
+              <div className="flex justify-between">
+                <span className="text-gray-600">Initial Cleanup Fee (50% off)</span>
+                <span className="font-medium">${discountedCleanupFee.toFixed(2)} <span className="line-through text-gray-400 ml-1 text-xs">${fullCleanupFee.toFixed(2)}</span></span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">First Month Subscription</span>
+                <span className="font-medium">${monthlyAmount.toFixed(2)}</span>
+              </div>
               <div className="flex justify-between border-t border-gray-200 pt-4">
-                <span className="text-lg font-semibold">Total</span>
-                <span className="text-lg font-semibold">
-                  ${price}
-                  {plan === 'weekly' && '/month'}
-                </span>
+                <span className="text-lg font-semibold">Total Due Today</span>
+                <span className="text-lg font-semibold">${total.toFixed(2)}</span>
               </div>
             </div>
           </div>

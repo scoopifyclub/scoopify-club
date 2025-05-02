@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { sendServiceNotificationEmail } from '@/lib/email';
 import sharp from 'sharp';
 import { validateServiceCompletion } from '@/lib/validations';

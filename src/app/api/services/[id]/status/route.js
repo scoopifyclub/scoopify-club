@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { emitServiceStatusChange } from '@/lib/socket';
 import { sendServiceNotificationEmail } from '@/lib/email';

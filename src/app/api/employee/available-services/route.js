@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { startOfDay, endOfDay, setHours, format, isAfter, isBefore } from 'date-fns';
 import { calculateDistance } from '@/lib/geolocation';
 export async function GET(request) {

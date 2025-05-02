@@ -1,22 +1,15 @@
+import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/auth';
+import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { Prisma } from '@prisma/client';
+
 export async function GET(request) {
     var _a;
     try {
-        // 1. Auth check
-        const cookieStore = await cookies();
-        const token = (_a = cookieStore.get('adminToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!token) {
-            console.log('No admin token found in cookies');
-            return NextResponse.json({ error: 'Unauthorized', details: 'No admin token found' }, { status: 401 });
-        }
-        const decoded = await verifyToken(token);
-        if (!decoded || decoded.role !== 'ADMIN') {
-            console.log('Invalid token or not admin:', decoded === null || decoded === void 0 ? void 0 : decoded.role);
-            return NextResponse.json({ error: 'Unauthorized', details: 'Invalid admin token' }, { status: 401 });
+        const user = await requireRole('ADMIN');
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         // 2. First check if we can count customers
         try {
@@ -124,5 +117,62 @@ export async function GET(request) {
     }
     finally {
         await prisma.$disconnect();
+    }
+}
+
+export async function PUT(request) {
+    try {
+        const user = await requireRole('ADMIN');
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { id, ...data } = await request.json();
+
+        const updatedCustomer = await prisma.customer.update({
+            where: { id },
+            data,
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        createdAt: true,
+                    },
+                },
+            },
+        });
+
+        return NextResponse.json(updatedCustomer);
+    } catch (error) {
+        console.error('Error updating customer:', error);
+        return NextResponse.json(
+            { error: 'Failed to update customer' },
+            { status: 500 }
+        );
+    }
+}
+
+export async function DELETE(request) {
+    try {
+        const user = await requireRole('ADMIN');
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const { id } = await request.json();
+
+        await prisma.customer.delete({
+            where: { id },
+        });
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('Error deleting customer:', error);
+        return NextResponse.json(
+            { error: 'Failed to delete customer' },
+            { status: 500 }
+        );
     }
 }

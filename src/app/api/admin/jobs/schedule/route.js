@@ -1,59 +1,69 @@
+import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/auth';
-export async function POST(req) {
-    var _a, _b;
-    try {
-        // Verify admin authorization
-        const token = (_a = req.headers.get('authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const decoded = await verifyToken(token);
-        if (!decoded || decoded.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Get all active subscriptions with their customer details
-        const subscriptions = await prisma.subscription.findMany({
-            where: {
-                status: 'ACTIVE',
-            },
-            include: {
-                customer: {
-                    include: {
-                        address: true,
-                    },
-                },
-            },
-        });
-        const createdJobs = [];
-        const currentDate = new Date();
-        // For each subscription, create a service job for the next week
-        for (const subscription of subscriptions) {
-            if (!((_b = subscription.customer) === null || _b === void 0 ? void 0 : _b.serviceDay))
-                continue;
-            // Calculate the next service date based on the customer's preferred day
-            const nextServiceDate = new Date(currentDate);
-            const daysUntilNextService = (subscription.customer.serviceDay.charCodeAt(0) - currentDate.getDay() + 7) % 7;
-            nextServiceDate.setDate(currentDate.getDate() + daysUntilNextService + 7); // Add 7 days to get next week
-            // Create the service job
-            const job = await prisma.service.create({
-                data: {
-                    customerId: subscription.customer.id,
-                    status: 'SCHEDULED',
-                    scheduledDate: nextServiceDate,
-                    servicePlanId: subscription.planId,
-                },
-            });
-            createdJobs.push(job);
-        }
-        return NextResponse.json({
-            message: `Successfully created ${createdJobs.length} service jobs`,
-            jobs: createdJobs,
-        });
+import prisma from '@/lib/prisma';
+
+export async function GET(request) {
+  try {
+    const user = await requireRole('ADMIN');
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    catch (error) {
-        console.error('Error scheduling jobs:', error);
-        return NextResponse.json({ error: 'Failed to schedule jobs' }, { status: 500 });
+
+    const { searchParams } = new URL(request.url);
+    const date = searchParams.get('date');
+
+    if (!date) {
+      return NextResponse.json(
+        { error: 'Date parameter is required' },
+        { status: 400 }
+      );
     }
+
+    const startDate = new Date(date);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(startDate);
+    endDate.setHours(23, 59, 59, 999);
+
+    const schedule = await prisma.service.findMany({
+      where: {
+        scheduledDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      include: {
+        customer: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        employee: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        scheduledDate: 'asc',
+      },
+    });
+
+    return NextResponse.json(schedule);
+  } catch (error) {
+    console.error('Error fetching schedule:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch schedule' },
+      { status: 500 }
+    );
+  }
 }

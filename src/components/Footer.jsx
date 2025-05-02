@@ -92,6 +92,11 @@ export default function Footer() {
                 {item.name}
               </Link>
             </div>))}
+          <div className="pb-6">
+            <Link href="/business-signup" className="text-sm leading-6 text-blue-600 hover:text-blue-900 font-semibold" data-testid="footer-business-partner-signup">
+              Business Partner Signup
+            </Link>
+          </div>
         </nav>
         <div className="mt-10 flex justify-center space-x-10">
           {navigation.legal.map((item) => (<Link key={item.name} href={item.href} className="text-sm leading-6 text-gray-600 hover:text-gray-900" data-testid={`footer-${item.name.toLowerCase()}`}>

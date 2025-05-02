@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { revokeUserTokenByFingerprint, verifyToken } from '@/lib/auth';
+import { revokeUserTokenByFingerprint, verifyToken } from '@/lib/api-auth';
 
 export async function POST(request) {
     try {

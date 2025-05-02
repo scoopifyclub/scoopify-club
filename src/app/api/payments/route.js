@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { createCashAppPayment, getCashAppPayment } from '@/lib/cashapp';
 export async function POST(req) {
     var _a;

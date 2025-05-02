@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import bcrypt from 'bcryptjs';
-import { generateAdminToken } from '@/lib/auth';
+import { signToken } from '@/lib/api-auth';
+import { cookies } from 'next/headers';
+
 export async function POST(request) {
     try {
         console.log('Admin login request received');
@@ -28,41 +30,26 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
         }
         console.log('Admin login successful for:', email);
-        const token = await generateAdminToken(user);
+        const token = await signToken({
+            userId: user.id,
+            role: user.role,
+        });
+        const cookieStore = cookies();
+        cookieStore.set('accessToken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 7 * 24 * 60 * 60, // 7 days
+        });
         // Create response with user data and token
         const response = NextResponse.json({
-            success: true,
             user: {
                 id: user.id,
+                name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
             },
-            token // Include token in response
         }, { status: 200 });
-        // Set HTTP-only adminToken cookie
-        response.cookies.set('adminToken', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 24 * 60 * 60 // 24 hours
-        });
-        // Set accessToken cookie for middleware compatibility
-        response.cookies.set('accessToken', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 24 * 60 * 60 // 24 hours
-        });
-        // Set client-accessible cookie
-        response.cookies.set('accessToken_client', token, {
-            httpOnly: false,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 24 * 60 * 60 // 24 hours
-        });
         console.log('Admin login cookies set, returning response');
         return response;
     }
@@ -71,6 +58,7 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
+
 // Handle OPTIONS request for CORS preflight
 export async function OPTIONS(request) {
     const response = new NextResponse(null, { status: 204 });

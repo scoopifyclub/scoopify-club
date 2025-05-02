@@ -1,128 +1,81 @@
+import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
-import { validateUser } from '@/lib/auth';
-import { cookies } from 'next/headers';
-import { parseISO, format, differenceInDays, addDays, subDays } from 'date-fns';
-// Helper to generate random numbers within a range
-const randomInRange = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-const randomDecimal = (min, max) => +(Math.random() * (max - min) + min).toFixed(2);
+import prisma from '@/lib/prisma';
+
 export async function GET(request) {
-    var _a;
-    try {
-        // Verify admin authorization
-        // Get access token from cookies
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Validate the token and check role
-        const { userId, role } = await validateUser(accessToken);
-        if (!userId || role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Get query parameters
-        const url = new URL(request.url);
-        const startParam = url.searchParams.get('start');
-        const endParam = url.searchParams.get('end');
-        // Default to last 30 days if no dates provided
-        const end = endParam ? parseISO(endParam) : new Date();
-        const start = startParam ? parseISO(startParam) : subDays(end, 30);
-        // Calculate the date range
-        const dayCount = differenceInDays(end, start) + 1;
-        // Generate daily data for the charts
-        const dailyRevenueData = [];
-        const dailyCustomerData = [];
-        const dailyServiceData = [];
-        let totalRevenue = 0;
-        let recurringRevenue = 0;
-        let oneTimeRevenue = 0;
-        let newCustomers = 0;
-        let churnedCustomers = 0;
-        let totalServices = 0;
-        let completedServices = 0;
-        let cancelledServices = 0;
-        for (let i = 0; i < dayCount; i++) {
-            const currentDate = addDays(start, i);
-            const dateStr = format(currentDate, 'MMM dd');
-            // Generate revenue data for this day
-            const dailyRecurring = randomInRange(500, 2000);
-            const dailyOneTime = randomInRange(100, 1000);
-            const dailyTotal = dailyRecurring + dailyOneTime;
-            recurringRevenue += dailyRecurring;
-            oneTimeRevenue += dailyOneTime;
-            totalRevenue += dailyTotal;
-            dailyRevenueData.push({
-                date: dateStr,
-                total: dailyTotal,
-                recurring: dailyRecurring,
-                oneTime: dailyOneTime
-            });
-            // Generate customer data for this day
-            const dailyNew = randomInRange(1, 10);
-            const dailyChurned = randomInRange(0, 5);
-            newCustomers += dailyNew;
-            churnedCustomers += dailyChurned;
-            dailyCustomerData.push({
-                date: dateStr,
-                new: dailyNew,
-                churned: dailyChurned
-            });
-            // Generate service data for this day
-            const serviceDailyTotal = randomInRange(10, 30);
-            const dailyCompleted = randomInRange(Math.floor(serviceDailyTotal * 0.7), serviceDailyTotal);
-            const dailyCancelled = randomInRange(0, serviceDailyTotal - dailyCompleted);
-            totalServices += serviceDailyTotal;
-            completedServices += dailyCompleted;
-            cancelledServices += dailyCancelled;
-            dailyServiceData.push({
-                date: dateStr,
-                total: serviceDailyTotal,
-                completed: dailyCompleted,
-                cancelled: dailyCancelled,
-                avgDuration: randomInRange(30, 60)
-            });
-        }
-        // Generate employee performance data
-        const employeeNames = ['John Smith', 'Sarah Johnson', 'Michael Williams', 'Jessica Brown', 'David Miller'];
-        const employeePerformance = employeeNames.map(name => ({
-            name,
-            completedJobs: randomInRange(10, 100),
-            avgDuration: randomInRange(30, 60),
-            rating: randomDecimal(3.5, 5),
-            revenue: randomInRange(1000, 5000)
-        }));
-        // Calculate retention rate
-        const activeCustomers = 100 + newCustomers - churnedCustomers;
-        const retentionRate = Math.min(1, Math.max(0, 1 - (churnedCustomers / (100 + newCustomers))));
-        // Assemble the analytics object
-        const analytics = {
-            revenue: {
-                total: totalRevenue,
-                recurring: recurringRevenue,
-                oneTime: oneTimeRevenue,
-                dailyData: dailyRevenueData
-            },
-            customers: {
-                total: 100 + newCustomers,
-                active: activeCustomers,
-                churned: churnedCustomers,
-                retentionRate,
-                acquisitionData: dailyCustomerData
-            },
-            services: {
-                total: totalServices,
-                completed: completedServices,
-                cancelled: cancelledServices,
-                dailyData: dailyServiceData
-            },
-            employees: {
-                performance: employeePerformance
-            }
-        };
-        return NextResponse.json(analytics);
+  try {
+    const user = await requireRole('ADMIN');
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    catch (error) {
-        console.error('Error generating analytics:', error);
-        return NextResponse.json({ error: 'Failed to generate analytics data' }, { status: 500 });
-    }
+
+    // Get analytics data
+    const [
+      totalCustomers,
+      totalEmployees,
+      totalServices,
+      recentServices,
+      recentCustomers,
+      recentEmployees,
+      servicesByStatus,
+      customersByStatus,
+      employeesByStatus
+    ] = await Promise.all([
+      prisma.customer.count(),
+      prisma.employee.count(),
+      prisma.service.count(),
+      prisma.service.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          customer: {
+            include: { user: true }
+          },
+          employee: {
+            include: { user: true }
+          }
+        }
+      }),
+      prisma.customer.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: { user: true }
+      }),
+      prisma.employee.findMany({
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: { user: true }
+      }),
+      prisma.service.groupBy({
+        by: ['status'],
+        _count: true
+      }),
+      prisma.customer.groupBy({
+        by: ['status'],
+        _count: true
+      }),
+      prisma.employee.groupBy({
+        by: ['status'],
+        _count: true
+      })
+    ]);
+
+    return NextResponse.json({
+      totalCustomers,
+      totalEmployees,
+      totalServices,
+      recentServices,
+      recentCustomers,
+      recentEmployees,
+      servicesByStatus,
+      customersByStatus,
+      employeesByStatus
+    });
+  } catch (error) {
+    console.error('Analytics error:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch analytics data' },
+      { status: 500 }
+    );
+  }
 }

@@ -1,193 +1,122 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import prisma from "@/lib/prisma";
-import { stripe } from "@/lib/stripe";
-import { validateRequest, validateToken } from '@/lib/auth';
+import { requireRole } from '@/lib/api-auth';
+import { NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { stripe } from '@/lib/stripe';
+
 // POST /api/admin/payments/batch/[batchId]/process
 // Process all payments in a batch
-export async function POST(req, { params }) {
+export async function POST(request, { params }) {
     try {
-        const token = req.headers.get('Authorization')?.replace('Bearer ', '');
-        if (!token) {
-            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
-        }
-
-        const user = await validateToken(token);
-        if (!user || user.role !== 'ADMIN') {
-            return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+        const user = await requireRole('ADMIN');
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { batchId } = params;
-        // First check if the batch exists and is ready for processing
+        if (!batchId) {
+            return NextResponse.json(
+                { error: 'Batch ID is required' },
+                { status: 400 }
+            );
+        }
+
         const batch = await prisma.paymentBatch.findUnique({
-            where: { id: batchId }
-        });
-        if (!batch) {
-            return NextResponse.json({ error: "Payment batch not found" }, { status: 404 });
-        }
-        if (batch.status !== "DRAFT" && batch.status !== "FAILED") {
-            return NextResponse.json({ error: "Batch is already being processed or is completed" }, { status: 400 });
-        }
-        // Get request data
-        const data = await req.json();
-        const { paymentMethod } = data;
-        if (!paymentMethod) {
-            return NextResponse.json({ error: "Payment method is required" }, { status: 400 });
-        }
-        // Validate payment method
-        if (!["STRIPE", "CASH_APP", "CASH", "CHECK"].includes(paymentMethod)) {
-            return NextResponse.json({ error: "Invalid payment method" }, { status: 400 });
-        }
-        // Get all payments in the batch
-        const payments = await prisma.payment.findMany({
-            where: { batchId }
-        });
-        if (payments.length === 0) {
-            return NextResponse.json({ error: "No payments in batch" }, { status: 400 });
-        }
-        // Start a transaction to update batch status and begin processing
-        await prisma.$transaction(async (tx) => {
-            // Update batch status to PROCESSING
-            await tx.paymentBatch.update({
-                where: { id: batchId },
-                data: {
-                    status: "PROCESSING",
-                    processingStartedAt: new Date()
-                }
-            });
-            // Update all payments with the payment method
-            await tx.payment.updateMany({
-                where: { batchId },
-                data: {
-                    paymentMethod,
-                    status: "PROCESSING"
-                }
-            });
-        });
-        // Process each payment (this will be enhanced with actual payment processing logic)
-        let successCount = 0;
-        let failedCount = 0;
-        const results = [];
-        for (const payment of payments) {
-            try {
-                let result = null;
-                // Process payment based on payment method
-                if (paymentMethod === "STRIPE") {
-                    // Process with Stripe - this is a simplified example
-                    if (payment.type === "REFERRAL") {
-                        // For referral payments, transfer to the referrer
-                        const referral = await prisma.referral.findUnique({
-                            where: { id: payment.referredId },
+            where: { id: batchId },
+            include: {
+                payments: {
+                    include: {
+                        service: {
                             include: {
-                                referrer: {
-                                    include: { user: true }
-                                }
-                            }
-                        });
-                        if (!referral || !referral.referrer || !referral.referrer.stripeCustomerId) {
-                            throw new Error("Referrer does not have a Stripe customer account");
-                        }
-                        // Create a transfer through the customer account
-                        result = { id: "customer-payment", status: "succeeded" };
-                    }
-                    else if (payment.type === "EARNINGS") {
-                        // For earnings payments, transfer to the employee
-                        const employee = await prisma.employee.findUnique({
-                            where: { id: payment.employeeId },
-                            include: { user: true }
-                        });
-                        if (!employee) {
-                            throw new Error("Employee not found");
-                        }
-                        if (employee.stripeAccountId) {
-                            // Transfer the money via Stripe Connect
-                            result = await stripe.transfers.create({
-                                amount: Math.round(payment.amount * 100), // Convert to cents
-                                currency: "usd",
-                                destination: employee.stripeAccountId,
-                                transfer_group: `earnings-${payment.id}`,
-                            });
-                        }
-                        else {
-                            // No Stripe account, record a manual payment
-                            result = { id: "manual-employee-payment", status: "succeeded" };
-                        }
-                    }
-                }
-                else if (paymentMethod === "CASH_APP" || paymentMethod === "CASH" || paymentMethod === "CHECK") {
-                    // For manual payment methods, just record that the payment was made
-                    result = { id: "manual-payment", status: "succeeded" };
-                }
-                // Update payment status to PAID
-                await prisma.payment.update({
-                    where: { id: payment.id },
-                    data: {
-                        status: "PAID",
-                        paidAt: new Date(),
-                        notes: paymentMethod === "STRIPE"
-                            ? `Paid via Stripe. Transaction ID: ${result.id}`
-                            : `Paid via ${paymentMethod}. Manually marked as paid.`
-                    }
-                });
-                successCount++;
-                results.push({
-                    paymentId: payment.id,
-                    status: "success",
-                    method: paymentMethod,
-                    details: result
-                });
-            }
-            catch (error) {
-                console.error(`Error processing payment ${payment.id}:`, error);
-                // Update payment status to FAILED
-                await prisma.payment.update({
-                    where: { id: payment.id },
-                    data: {
-                        status: "FAILED",
-                        notes: `Failed to process via ${paymentMethod}: ${error.message}`
-                    }
-                });
-                failedCount++;
-                results.push({
-                    paymentId: payment.id,
-                    status: "failed",
-                    method: paymentMethod,
-                    error: error.message
-                });
-            }
+                                customer: {
+                                    include: {
+                                        user: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!batch) {
+            return NextResponse.json(
+                { error: 'Batch not found' },
+                { status: 404 }
+            );
         }
-        // Update batch status based on results
-        const finalStatus = failedCount === 0 ? "COMPLETED" :
-            successCount === 0 ? "FAILED" : "PARTIAL";
+
+        if (batch.status !== 'PENDING') {
+            return NextResponse.json(
+                { error: 'Batch is not in pending status' },
+                { status: 400 }
+            );
+        }
+
+        // Process each payment in the batch
+        const results = await Promise.all(
+            batch.payments.map(async (payment) => {
+                try {
+                    if (payment.paymentMethod === 'STRIPE' && payment.service?.customer?.stripeCustomerId) {
+                        const paymentIntent = await stripe.paymentIntents.create({
+                            amount: Math.round(payment.amount * 100),
+                            currency: 'usd',
+                            customer: payment.service.customer.stripeCustomerId,
+                            payment_method: payment.service.customer.defaultPaymentMethodId,
+                            off_session: true,
+                            confirm: true,
+                        });
+
+                        await prisma.payment.update({
+                            where: { id: payment.id },
+                            data: {
+                                status: 'PAID',
+                                stripePaymentIntentId: paymentIntent.id,
+                                paidAt: new Date(),
+                            },
+                        });
+
+                        return {
+                            paymentId: payment.id,
+                            status: 'success',
+                            stripePaymentIntentId: paymentIntent.id,
+                        };
+                    }
+
+                    return {
+                        paymentId: payment.id,
+                        status: 'skipped',
+                        reason: 'Not a Stripe payment or missing customer info',
+                    };
+                } catch (error) {
+                    console.error(`Error processing payment ${payment.id}:`, error);
+                    return {
+                        paymentId: payment.id,
+                        status: 'error',
+                        error: error.message,
+                    };
+                }
+            })
+        );
+
+        // Update batch status
         await prisma.paymentBatch.update({
             where: { id: batchId },
             data: {
-                status: finalStatus,
-                completedAt: finalStatus !== "FAILED" ? new Date() : null,
-                notes: `Processed ${successCount} payments successfully. ${failedCount} payments failed.`
-            }
+                status: 'PROCESSED',
+                processedAt: new Date(),
+            },
         });
+
         return NextResponse.json({
-            message: `Batch processing ${finalStatus.toLowerCase()}`,
             batchId,
-            totalPayments: payments.length,
-            successCount,
-            failedCount,
-            status: finalStatus,
-            results
+            results,
         });
-    }
-    catch (error) {
-        console.error("Error processing batch:", error);
-        // Update batch status to FAILED
-        await prisma.paymentBatch.update({
-            where: { id: batchId },
-            data: {
-                status: "FAILED",
-                notes: `Batch processing failed: ${error.message}`
-            }
-        });
-        return NextResponse.json({ error: "Failed to process payment batch", details: error.message }, { status: 500 });
+    } catch (error) {
+        console.error('Error processing batch:', error);
+        return NextResponse.json(
+            { error: 'Failed to process batch' },
+            { status: 500 }
+        );
     }
 }

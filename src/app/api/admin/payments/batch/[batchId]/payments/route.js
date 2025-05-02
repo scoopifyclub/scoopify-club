@@ -1,23 +1,22 @@
+import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from "next/server";
-import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 // GET /api/admin/payments/batch/[batchId]/payments
 // Get all payments in a specific batch
 export async function GET(request, { params }) {
-    var _a;
     try {
-        // Verify user is admin
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const user = await requireRole('ADMIN');
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const { role } = await validateUser(accessToken, 'ADMIN');
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const { batchId } = params;
+        if (!batchId) {
+            return NextResponse.json(
+                { error: 'Batch ID is required' },
+                { status: 400 }
+            );
         }
-        const { batchId } = await params;
         // First check if the batch exists
         const batch = await prisma.paymentBatch.findUnique({
             where: { id: batchId }
@@ -27,23 +26,28 @@ export async function GET(request, { params }) {
         }
         // Get all payments in the batch
         const payments = await prisma.payment.findMany({
-            where: { batchId },
-            include: {
-                employee: {
-                    select: {
-                        id: true,
-                        user: { select: { id: true, name: true, email: true, image: true } }
-                    }
-                },
-                customer: {
-                    select: {
-                        id: true,
-                        user: { select: { id: true, name: true, email: true, image: true } }
-                    }
-                },
-                service: true
+            where: {
+                batchId,
             },
-            orderBy: { createdAt: "desc" }
+            include: {
+                service: {
+                    include: {
+                        customer: {
+                            include: {
+                                user: {
+                                    select: {
+                                        name: true,
+                                        email: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
         });
         return NextResponse.json(payments);
     }
@@ -63,7 +67,7 @@ export async function POST(request, { params }) {
         if (!accessToken) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-        const { role } = await validateUser(accessToken, 'ADMIN');
+        const { role } = await requireRole('ADMIN');
         if (role !== 'ADMIN') {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
@@ -116,7 +120,7 @@ export async function DELETE(request, { params }) {
         if (!accessToken) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-        const { role } = await validateUser(accessToken, 'ADMIN');
+        const { role } = await requireRole('ADMIN');
         if (role !== 'ADMIN') {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }

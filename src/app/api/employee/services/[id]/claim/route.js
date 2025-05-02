@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/auth';
+import { verifyToken } from '@/lib/api-auth';
 import { addMinutes, setHours, startOfDay, endOfDay, isAfter, isBefore } from 'date-fns';
 import { sendServiceNotificationEmail } from '@/lib/email';
 // API endpoint for employee to claim a service

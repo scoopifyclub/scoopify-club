@@ -14,7 +14,7 @@ import prisma, { executeQuery } from "@/lib/prisma";
 import { withErrorHandler, ApiError, ErrorCode } from '@/lib/error-handler';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
-import { validateUser } from '@/lib/auth';
+import { validateUser } from '@/lib/api-auth';
 import { getCache, setCache, generateCacheKey, invalidateCache } from '@/lib/cache';
 
 // Specify the runtime - use 'edge' for lightweight API routes

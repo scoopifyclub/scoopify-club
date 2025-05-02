@@ -1,75 +1,101 @@
+"use client";
+
 import React from 'react';
 import { cn } from '@/lib/utils';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { toast } from 'sonner';
 
-export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('rounded-lg border bg-card text-card-foreground shadow-sm', className)} {...props} />
-));
-Card.displayName = 'Card';
+export * from './accordion';
+export * from './alert';
+export * from './avatar';
+export * from './badge';
+export * from './button';
+export * from './card';
+export * from './checkbox';
+export * from './dialog';
+export * from './dropdown-menu';
+export * from './form';
+export * from './input';
+export * from './label';
+export * from './popover';
+export * from './progress';
+export * from './radio-group';
+export * from './scroll-area';
+export * from './select';
+export * from './separator';
+export * from './sheet';
+export * from './skeleton';
+export * from './switch';
+export * from './table';
+export * from './tabs';
+export * from './textarea';
+export * from './toast';
+export * from './tooltip';
 
-export const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('flex flex-col space-y-1.5 p-6', className)} {...props} />
-));
-CardHeader.displayName = 'CardHeader';
 
-export const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(({ className, ...props }, ref) => (
-  <h3 ref={ref} className={cn('text-2xl font-semibold leading-none tracking-tight', className)} {...props} />
-));
-CardTitle.displayName = 'CardTitle';
 
-export const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('p-6 pt-0', className)} {...props} />
-));
-CardContent.displayName = 'CardContent';
 
-export const Button = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(({ className, ...props }, ref) => (
-  <button
-    ref={ref}
-    className={cn(
-      'inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
-      'bg-primary text-primary-foreground shadow hover:bg-primary/90',
-      className
-    )}
-    {...props}
-  />
-));
-Button.displayName = 'Button';
+export default function UIComponents() {
+  const [components, setComponents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(({ className, type, ...props }, ref) => (
-  <input
-    type={type}
-    className={cn(
-      'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-      className
-    )}
-    ref={ref}
-    {...props}
-  />
-));
-Input.displayName = 'Input';
+  useEffect(() => {
+    fetchComponents();
+  }, []);
 
-export const Select = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('relative', className)} {...props} />
-));
-Select.displayName = 'Select';
+  const fetchComponents = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/ui/components', {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch components');
+      const data = await response.json();
+      setComponents(data);
+    } catch (error) {
+      setError(error.message);
+      toast.error('Failed to load components');
+    }
+    setLoading(false);
+  };
 
-export const SelectTrigger = React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement>>(({ className, ...props }, ref) => (
-  <button
-    ref={ref}
-    className={cn(
-      'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&>span]:line-clamp-1',
-      className
-    )}
-    {...props}
-  />
-));
-SelectTrigger.displayName = 'SelectTrigger';
-
-export const SelectValue = React.forwardRef<HTMLSpanElement, React.HTMLAttributes<HTMLSpanElement>>(({ className, ...props }, ref) => (
-  <span ref={ref} className={cn('flex items-center', className)} {...props} />
-));
-SelectValue.displayName = 'SelectValue';
-
-export const SelectItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('relative flex cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50', className)} {...props} />
-));
-SelectItem.displayName = 'SelectItem';
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>UI Components</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="animate-pulse space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-16 bg-gray-100 rounded" />
+              ))}
+            </div>
+          ) : components.length === 0 ? (
+            <p className="text-center text-gray-500">No components found</p>
+          ) : (
+            <div className="space-y-4">
+              {components.map((component) => (
+                <div key={component.id} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <p className="font-medium">{component.name}</p>
+                    <p className="text-sm text-gray-500">
+                      {component.description}
+                    </p>
+                  </div>
+                  <Button variant="outline" size="sm">
+                    View
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

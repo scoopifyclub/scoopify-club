@@ -15,6 +15,16 @@ const transporter = nodemailer.createTransport({
 
 // Email Templates
 const templates = {
+  customerAtRisk: ({ name, zipCode }) => ({
+    subject: 'Heads up: Possible Service Delay',
+    html: `
+      <h1>Hello${name ? ` ${name}` : ''},</h1>
+      <p>We wanted to let you know that due to high demand in your area (zip code ${zipCode}), your service may experience a slight delay this week.</p>
+      <p>We're actively recruiting more team members to meet the needs of your neighborhood. If you know anyone who might be interested in joining Scoopify Club as a scooper, please have them apply at <a href="${process.env.NEXT_PUBLIC_APP_URL}/apply">${process.env.NEXT_PUBLIC_APP_URL}/apply</a>.</p>
+      <p>We appreciate your patience and your support as we grow!</p>
+      <p>Best regards,<br>Scoopify Club Team</p>
+    `
+  }),
     welcome: (name) => ({
         subject: 'Welcome to Scoopify Club! 🎉',
         html: `
@@ -167,6 +177,47 @@ templates.custom = (data) => ({
     html: data.html
 });
 
+/**
+ * Send business signup confirmation email
+ */
+export async function sendBusinessSignupEmail({
+  to,
+  businessName,
+  contactFirstName,
+  contactLastName,
+  phone,
+  payoutMethod,
+  stripeAccountId,
+  cashAppUsername,
+  code,
+}) {
+  const subject = 'Welcome to Scoopify Club Business Partner Program!';
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">Welcome, ${businessName}!</h2>
+      <p>Thank you for signing up as a business partner. Here are your details for your records:</p>
+      <ul>
+        <li><strong>Business Name:</strong> ${businessName}</li>
+        <li><strong>Contact Name:</strong> ${contactFirstName} ${contactLastName}</li>
+        <li><strong>Phone:</strong> ${phone}</li>
+        <li><strong>Email:</strong> ${to}</li>
+        <li><strong>Payout Method:</strong> ${payoutMethod === 'STRIPE' ? 'Stripe' : 'Cash App'}</li>
+        ${payoutMethod === 'STRIPE' ? `<li><strong>Stripe Account ID:</strong> ${stripeAccountId}</li>` : ''}
+        ${payoutMethod === 'CASH_APP' ? `<li><strong>Cash App Username:</strong> ${cashAppUsername}</li>` : ''}
+        <li><strong>Referral Code:</strong> <span style="font-size: 1.2em; color: #1d4ed8;">${code}</span></li>
+      </ul>
+      <p>Share your referral code with clients and start earning rewards!</p>
+      <p>If you have questions, reply to this email or contact support@scoopify.com.</p>
+      <p>Best regards,<br>Scoopify Club Team</p>
+    </div>
+  `;
+  return sendEmail({
+    to,
+    template: 'custom',
+    data: { subject, html }
+  });
+}
+
 export const sendAdminNotification = async (subject, message) => {
     const html = `
     <h1>${subject}</h1>
@@ -209,6 +260,18 @@ export async function sendPaymentFailedEmail(customerEmail, customerName, retryD
     catch (error) {
         console.error('Error sending payment failed emails:', error);
     }
+}
+
+export async function sendCustomerAtRiskEmail(customerEmail, customerName, zipCode) {
+  try {
+    await sendEmail({
+      to: customerEmail,
+      template: 'customerAtRisk',
+      data: { name: customerName, zipCode }
+    });
+  } catch (error) {
+    console.error('Error sending at-risk customer email:', error);
+  }
 }
 
 export async function sendPaymentRetryEmail(customerEmail, customerName) {

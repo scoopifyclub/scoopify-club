@@ -4,6 +4,14 @@ generator client {
   output          = "./node_modules/@prisma/client"
 }
 
+model UncoveredInterest {
+  id        String   @id @default(uuid())
+  email     String
+  name      String?
+  zipCode   String
+  createdAt DateTime @default(now())
+}
+
 datasource db {
   provider     = "postgresql"
   url          = env("DATABASE_URL")
@@ -61,6 +69,11 @@ model CleanupTask {
   notes        String?
 }
 
+model CoveragePriority {
+  zipCode   String   @id
+  createdAt DateTime @default(now())
+}
+
 model CoverageArea {
   id         String   @id
   zipCode    String
@@ -85,6 +98,7 @@ model Customer {
   serviceDay       String?
   cashAppName      String?
   referralCode     String?  @unique
+  creditsDepletedAt DateTime?
   referrerId       String?
   referredId       String?
   User             User     @relation("UserToCustomer", fields: [userId], references: [id])
@@ -276,16 +290,22 @@ model RateLimit {
 }
 
 model Referral {
-  payoutAmount Float?
-  payoutStatus String?   @default("PENDING")
-  payoutDate   DateTime?
-  id           String    @id
-  referrerId   String
-  referredId   String?
-  code         String    @unique
-  status       String    @default("PENDING")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime
+  id            String   @id @default(uuid())
+  referrerId    String
+  referredId    String?
+  code          String   @unique
+  status        String   @default("PENDING") // PENDING, APPROVED, PAID, INVALID
+  payoutAmount  Float?
+  payoutStatus  String?  @default("PENDING") // PENDING, PAID, FAILED
+  payoutDate    DateTime?
+  payoutMethod  String?  // STRIPE, BANK, CASH_APP, etc.
+  type          String   // CUSTOMER, EMPLOYEE, PARTNER
+  notes         String?
+  payoutBatchId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+
+  ReferralPayout ReferralPayout? @relation(fields: [payoutBatchId], references: [id])
 
   @@index([code])
   @@index([referredId])
@@ -293,19 +313,68 @@ model Referral {
   @@index([status])
 }
 
+model ReferralPayout {
+  id            String   @id @default(uuid())
+  payoutDate    DateTime @default(now())
+  method        String   // STRIPE, BANK, CASH_APP, etc.
+  status        String   // PENDING, PAID, FAILED
+  totalAmount   Float
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime
+  referrals     Referral[]
+}
+
+model ServiceArea {
+  id        String   @id @default(uuid())
+  name      String
+  zipCodes  String[]
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  scoopers  User[]   @relation("ScooperServiceAreas")
+}
+
+model BusinessPartner {
+  id                String   @id @default(uuid())
+  businessName      String
+  contactFirstName  String
+  contactLastName   String
+  phone             String
+  email             String
+  payoutMethod      BusinessPayoutMethod
+  stripeAccountId   String?
+  cashAppUsername   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  referralCodes     ReferralCode[]
+}
+
+enum BusinessPayoutMethod {
+  STRIPE
+  CASH_APP
+}
+
 model ReferralCode {
-  id              String           @id
-  code            String           @unique
-  type            String
-  ownerId         String?
-  partnerId       String?
-  uses            Int              @default(0)
-  maxUses         Int?
-  totalEarned     Float            @default(0)
-  active          Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime
-  ReferralPartner ReferralPartner? @relation(fields: [partnerId], references: [id])
+  id                String          @id
+  code              String          @unique
+  type              String
+  status            String
+  customerId        String?
+  employeeId        String?
+  partnerId         String?
+  businessPartnerId String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime
+  expiresAt         DateTime?
+  businessPartner   BusinessPartner? @relation(fields: [businessPartnerId], references: [id])
+  referralPartner   ReferralPartner? @relation(fields: [partnerId], references: [id])
+  
+  @@index([code])
+  @@index([customerId])
+  @@index([employeeId])
+  @@index([partnerId])
+  @@index([businessPartnerId])
 }
 
 model ReferralPartner {
@@ -363,14 +432,6 @@ model Service {
   @@index([employeeId])
   @@index([paymentStatus])
   @@index([serviceAreaId])
-}
-
-model ServiceArea {
-  id         String   @id
-  employeeId String
-  zipCode    String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime
 }
 
 model ServiceChecklist {
@@ -468,6 +529,7 @@ model TimeExtension {
 }
 
 model User {
+  serviceAreas ServiceArea[] @relation("ScooperServiceAreas")
   id                      String         @id
   email                   String         @unique
   name                    String?

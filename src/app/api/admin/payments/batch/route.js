@@ -1,5 +1,5 @@
+import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from "next/server";
-import { validateUser } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { logPaymentEvent } from '@/lib/payment-audit';
@@ -7,46 +7,43 @@ import { logger } from '@/lib/logger';
 // GET /api/admin/payments/batch
 // Get all payment batches with optional filters
 export async function GET(request) {
-    var _a;
     try {
-        // Verify user is admin
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-        const { userId, role } = await validateUser(accessToken, 'ADMIN');
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const user = await requireRole('ADMIN');
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
         const page = parseInt(searchParams.get("page") || "1");
         const limit = parseInt(searchParams.get("limit") || "10");
         const skip = (page - 1) * limit;
-        // Build the query
-        const query = {};
-        if (status) {
-            query.status = status;
-        }
+        const where = status ? { status } : {};
         // Get total count for pagination
         const totalCount = await prisma.paymentBatch.count({
-            where: query
+            where: where
         });
         // Get batches with payments count
         const batches = await prisma.paymentBatch.findMany({
-            where: query,
+            where,
             include: {
-                _count: {
-                    select: { payments: true }
+                payments: {
+                    include: {
+                        service: {
+                            include: {
+                                customer: {
+                                    include: {
+                                        user: {
+                                            select: {
+                                                name: true,
+                                                email: true,
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
                 },
-                createdBy: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true
-                    }
-                }
             },
             orderBy: {
                 createdAt: 'desc'
@@ -81,17 +78,10 @@ export async function GET(request) {
 // POST /api/admin/payments/batch
 // Create a new payment batch
 export async function POST(request) {
-    var _a;
     try {
-        // Verify user is admin
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-        const { userId, role } = await validateUser(accessToken, 'ADMIN');
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        const user = await requireRole('ADMIN');
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         const data = await request.json();
         const { name, description } = data;
@@ -101,11 +91,25 @@ export async function POST(request) {
         // Create new payment batch
         const batch = await prisma.paymentBatch.create({
             data: {
-                name,
-                description,
-                status: "DRAFT",
-                createdById: userId
-            }
+                ...data,
+                status: 'PENDING',
+                createdAt: new Date(),
+            },
+            include: {
+                payments: {
+                    include: {
+                        service: {
+                            include: {
+                                customer: {
+                                    include: {
+                                        user: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
         });
         return NextResponse.json(batch);
     }
@@ -124,7 +128,7 @@ export async function PUT(request) {
         if (!accessToken) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
-        const { userId, role } = await validateUser(accessToken, 'ADMIN');
+        const { userId, role } = await requireRole('ADMIN');
         if (role !== 'ADMIN') {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }

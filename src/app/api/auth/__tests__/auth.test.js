@@ -4,14 +4,14 @@ import { cleanupDatabase, setupTestDatabase } from '@/tests/setup';
 import { createTestUser } from '@/tests/setup';
 import { NextRequest } from 'next/server';
 import { GET } from '../session/route';
-import { verifyToken } from '@/lib/auth';
+import { verifyJWT } from '@/lib/auth-server';
 // Mock the email sending function
 jest.mock('@/lib/email', () => ({
     sendEmail: jest.fn().mockResolvedValue(true)
 }));
 // Mock auth functions
-jest.mock('@/lib/auth', () => ({
-    verifyToken: jest.fn()
+jest.mock('@/lib/auth-server', () => ({
+    verifyJWT: jest.fn()
 }));
 // Mock Request object
 const mockRequest = (body) => ({
@@ -221,19 +221,28 @@ describe('Authentication', () => {
         beforeEach(() => {
             mockRequest = new NextRequest('http://localhost:3000/api/auth/session');
         });
-        it('should return 401 if no token is provided', async () => {
+        it('should return null for invalid token', async () => {
+            verifyJWT.mockResolvedValue(null);
             const response = await GET(mockRequest);
-            expect(response.status).toBe(401);
             const data = await response.json();
-            expect(data.error).toBe('No session found');
+            expect(response.status).toBe(200);
+            expect(data).toEqual({ user: null });
         });
-        it('should return 401 if token is invalid', async () => {
-            verifyToken.mockResolvedValue(null);
-            mockRequest.cookies.set('accessToken', 'invalid-token');
+        it('should return user data for valid token', async () => {
+            const user = await createTestUser();
+            verifyJWT.mockResolvedValue({
+                id: user.id,
+                email: user.email,
+                role: user.role
+            });
             const response = await GET(mockRequest);
-            expect(response.status).toBe(401);
             const data = await response.json();
-            expect(data.error).toBe('Invalid session');
+            expect(response.status).toBe(200);
+            expect(data.user).toEqual({
+                id: user.id,
+                email: user.email,
+                role: user.role
+            });
         });
     });
 });

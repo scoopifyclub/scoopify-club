@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import prisma from "@/lib/prisma";
-import { validateUser } from '@/lib/auth';
+import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 const s3Client = new S3Client({
     region: process.env.AWS_REGION,

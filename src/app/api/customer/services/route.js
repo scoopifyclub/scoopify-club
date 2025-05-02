@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { validateUser } from '@/lib/auth';
+import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
@@ -112,10 +112,13 @@ export async function POST(request) {
         const { userId } = await validateUser(accessToken, 'CUSTOMER');
         const customer = await prisma.customer.findFirst({
             where: { userId },
-            select: { id: true }
+            select: { id: true, serviceCredits: true }
         });
         if (!customer) {
             return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+        }
+        if (customer.serviceCredits !== undefined && customer.serviceCredits <= 0) {
+            return NextResponse.json({ error: 'No remaining service credits. Please update your subscription or payment method.' }, { status: 403 });
         }
         const body = await request.json();
         const validatedData = createServiceSchema.parse(body);

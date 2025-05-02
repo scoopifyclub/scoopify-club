@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,6 +10,9 @@ export default function ScooperOnboardingTable() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [reminding, setReminding] = useState({}); // { [employeeId]: true }
+  const [editingEmployee, setEditingEmployee] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [remindAllLoading, setRemindAllLoading] = useState(false);
 
   useEffect(() => {
     fetchOnboarding();
@@ -41,8 +46,6 @@ export default function ScooperOnboardingTable() {
     </Card>
   );
   if (error) return <Card className="p-4 text-red-500">{error}</Card>;
-
-  const [remindAllLoading, setRemindAllLoading] = useState(false);
 
   return (
     <Card className="mt-6">
