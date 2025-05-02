@@ -6,16 +6,28 @@ export async function GET(request) {
         // Add verbose logging for debugging
         console.log('Session check API called');
         
-        // Get all cookies for debugging
-        const cookieHeader = request.headers.get('cookie') || '';
-        const cookies = parseCookies(cookieHeader);
+        // Try both methods of getting cookies for maximum compatibility
+        let token = null;
         
-        console.log('Cookies received in session check:', 
-            Object.keys(cookies).map(name => ({ name, length: cookies[name].length }))
-        );
+        // Method 1: Use request.cookies directly if available
+        try {
+            token = request.cookies.get('token')?.value || 
+                   request.cookies.get('adminToken')?.value;
+        } catch (e) {
+            console.log('Error getting cookies directly:', e.message);
+        }
         
-        // Check for token in cookies
-        const token = cookies.token || cookies.adminToken || null;
+        // Method 2: Parse from cookie header as fallback
+        if (!token) {
+            const cookieHeader = request.headers.get('cookie') || '';
+            const cookies = parseCookies(cookieHeader);
+            
+            console.log('Cookies received in session check:', 
+                Object.keys(cookies).map(name => ({ name, length: cookies[name]?.length || 0 }))
+            );
+            
+            token = cookies.token || cookies.adminToken;
+        }
         
         if (!token) {
             console.log('No token cookie found in request');

@@ -46,20 +46,16 @@ export async function POST(request) {
         );
 
         // Determine domain for cookies
-        // For www.scoopify.club or scoopify.club, set domain to .scoopify.club
         const host = request.headers.get('host') || '';
         const hostname = host.split(':')[0]; // Remove port if present
         
-        // Get domain for cookies (strip 'www.' if present, and include the root domain)
+        // Get domain for cookies
         let cookieDomain = null;
-        if (hostname.includes('scoopify.club')) {
-            // For production, set the root domain to allow sharing between subdomains
-            cookieDomain = hostname.replace('www.', '');
-            
-            // Add leading dot for subdomain sharing if not a localhost domain
-            if (!cookieDomain.includes('localhost') && !cookieDomain.startsWith('.')) {
-                cookieDomain = `.${cookieDomain}`;
-            }
+        
+        // Only set specific domain in production for scoopify.club
+        if (process.env.NODE_ENV === 'production' && hostname.includes('scoopify.club')) {
+            // For production scoopify.club domain, use root domain
+            cookieDomain = 'scoopify.club';
         }
         
         console.log(`Setting cookies with domain: ${cookieDomain || '(default)'}`);
