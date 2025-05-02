@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, Calendar, CreditCard, User } from 'lucide-react';
+import { Home, Calendar, CreditCard, User, LogOut } from 'lucide-react';
 
 /**
  * @typedef {Object} CustomerDashboardLayoutProps
@@ -19,6 +19,26 @@ export function CustomerDashboardLayout({ children }) {
     const [activeTab, setActiveTab] = useState('overview');
     // Determine if on dashboard
     const isDashboard = pathname === '/customer/dashboard';
+    
+    // Add handleLogout function
+    const handleLogout = async () => {
+        try {
+            // Call logout API
+            const response = await fetch('/api/auth/logout', {
+                method: 'POST',
+                credentials: 'include',
+            });
+            
+            // Always navigate to login page, even if API call fails
+            router.push('/login');
+            
+        } catch (error) {
+            console.error('Logout failed:', error);
+            // Still redirect to login on failure
+            router.push('/login');
+        }
+    };
+    
     // Function to set active tab and update URL
     const setDashboardTab = (tab) => {
         setActiveTab(tab);
@@ -34,6 +54,7 @@ export function CustomerDashboardLayout({ children }) {
             storageArea: localStorage
         }));
     };
+    
     // Listen for tab changes
     useEffect(() => {
         const handleStorageChange = (event) => {
@@ -91,6 +112,16 @@ export function CustomerDashboardLayout({ children }) {
             : 'text-gray-700 hover:bg-blue-50'}`}>
               <User className={`w-5 h-5 mr-3 ${activeTab === 'profile' ? 'text-white' : 'text-blue-500'}`}/>
               <span className="font-medium">Profile Settings</span>
+            </button>
+            
+            {/* Add Logout Button */}
+            <button 
+              onClick={handleLogout} 
+              className="w-full flex items-center px-4 py-3 rounded-xl transition-colors text-red-600 hover:bg-red-50"
+              data-testid="logout-button"
+            >
+              <LogOut className="w-5 h-5 mr-3 text-red-600"/>
+              <span className="font-medium">Sign Out</span>
             </button>
           </nav>
           

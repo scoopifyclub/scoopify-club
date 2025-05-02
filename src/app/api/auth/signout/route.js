@@ -3,7 +3,7 @@ import { revokeUserTokenByFingerprint, verifyToken } from '@/lib/auth';
 
 export async function POST(request) {
     try {
-        console.log('Logout API called');
+        console.log('Signout API called');
         
         // Get tokens from cookies - check all possible cookie names
         const token = request.cookies.get('token')?.value;
@@ -64,11 +64,11 @@ export async function POST(request) {
 
         return response;
     } catch (error) {
-        console.error('Logout error:', error);
+        console.error('Signout error:', error);
         
         // Even if there's an error, try to clear cookies
         const response = NextResponse.json(
-            { error: 'An error occurred during logout' },
+            { error: 'An error occurred during signout' },
             { status: 500 }
         );
 
@@ -105,4 +105,4 @@ export async function OPTIONS() {
             'Access-Control-Max-Age': '86400',
         },
     });
-}
+} 
