@@ -1,6 +1,7 @@
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
+  output          = "./node_modules/@prisma/client"
 }
 
 datasource db {
@@ -73,19 +74,19 @@ model CoverageArea {
 }
 
 model Customer {
-  id                String   @id
-  userId            String   @unique
-  subscriptionId    String?  @unique
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime
-  stripeCustomerId  String?  @unique
-  gateCode          String?
-  phone             String?
-  serviceDay        String?
-  cashAppName       String?
-  referralCode      String?  @unique
-  referrerId        String?
-  referredId        String?
+  id               String   @id
+  userId           String   @unique
+  subscriptionId   String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime
+  stripeCustomerId String?  @unique
+  gateCode         String?
+  phone            String?
+  serviceDay       String?
+  cashAppName      String?
+  referralCode     String?  @unique
+  referrerId       String?
+  referredId       String?
 
   @@index([subscriptionId])
 }
