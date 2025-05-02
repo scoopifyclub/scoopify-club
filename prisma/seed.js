@@ -1,18 +1,18 @@
 console.log('Executing seed file:', __filename);
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { v4: uuidv4 } = require('uuid');
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('Starting database seed...');
 
-  const timestamp = Date.now();
-
   try {
     // Create admin user
     const admin = await prisma.user.create({
       data: {
+        id: uuidv4(),
         email: 'admin@scoopify.club',
         name: 'Admin User',
         password: await bcrypt.hash('admin123', 10),
@@ -26,6 +26,7 @@ async function main() {
     // Create demo/customer user
     const customer = await prisma.user.create({
       data: {
+        id: uuidv4(),
         email: 'demo@example.com',
         name: 'Demo Customer',
         password: await bcrypt.hash('demo123', 10),
@@ -39,6 +40,7 @@ async function main() {
     // Create employee user
     const employee = await prisma.user.create({
       data: {
+        id: uuidv4(),
         email: 'employee@scoopify.club',
         name: 'Test Employee',
         password: await bcrypt.hash('employee123', 10),
@@ -52,6 +54,7 @@ async function main() {
     // Create service plan
     const basicPlan = await prisma.servicePlan.create({
       data: {
+        id: uuidv4(),
         name: 'Basic Plan',
         description: 'Basic service plan',
         price: 99.99,
@@ -66,14 +69,15 @@ async function main() {
     // Create customer profile
     const customerProfile = await prisma.customer.create({
       data: {
+        id: uuidv4(),
         userId: customer.id,
         subscriptionId: null,
-        stripeCustomerId: `cus_test_${timestamp}`,
+        stripeCustomerId: `cus_test_${Date.now()}`,
         gateCode: '1234',
         phone: '123-456-7890',
         serviceDay: 'Monday',
         cashAppName: 'democustomer',
-        referralCode: `REF_${timestamp}`,
+        referralCode: `REF_${Date.now()}`,
         referrerId: null,
         referredId: null,
         createdAt: new Date(),
@@ -84,6 +88,7 @@ async function main() {
     // Create address
     const address = await prisma.address.create({
       data: {
+        id: uuidv4(),
         street: '123 Main St',
         city: 'Example City',
         state: 'EX',
@@ -97,6 +102,7 @@ async function main() {
     // Create employee profile
     const employeeProfile = await prisma.employee.create({
       data: {
+        id: uuidv4(),
         userId: employee.id,
         phone: '987-654-3210',
         status: 'ACTIVE',
@@ -109,6 +115,7 @@ async function main() {
     // Create a payment
     await prisma.payment.create({
       data: {
+        id: uuidv4(),
         amount: basicPlan.price,
         type: 'SUBSCRIPTION',
         serviceId: null,
