@@ -87,6 +87,7 @@ model Customer {
   referralCode     String?  @unique
   referrerId       String?
   referredId       String?
+  User             User     @relation("UserToCustomer", fields: [userId], references: [id])
 
   @@index([subscriptionId])
 }
@@ -127,6 +128,7 @@ model Employee {
   preferredPaymentMethod PaymentMethod?
   status                 EmployeeStatus @default(ACTIVE)
   hasSetServiceArea      Boolean        @default(false)
+  User                   User           @relation("UserToEmployee", fields: [userId], references: [id])
 }
 
 model Location {
@@ -327,6 +329,7 @@ model RefreshToken {
   createdAt         DateTime @default(now())
   updatedAt         DateTime
   deviceFingerprint String?
+  isRevoked         Boolean  @default(false)
   User              User     @relation(fields: [userId], references: [id])
 
   @@index([token])
@@ -482,6 +485,8 @@ model User {
   verificationTokenExpiry DateTime?      @db.Timestamp(6)
   role                    String
   RefreshToken            RefreshToken[]
+  customer                Customer?      @relation("UserToCustomer")
+  employee                Employee?      @relation("UserToEmployee")
 }
 
 model EarningToPayment {
