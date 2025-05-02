@@ -77,6 +77,7 @@ export default function ScooperOnboardingTable() {
             {remindAllLoading ? 'Sending...' : 'Remind All'}
           </Button>
         </div>
+      </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-sm md:text-base">
