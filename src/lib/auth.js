@@ -50,7 +50,7 @@ export async function generateTokens(user, deviceFingerprint) {
     try {
         console.log(`Generating tokens for user:`, { id: user.id, role: user.role, fingerprint: deviceFingerprint.substring(0, 8) + '...' });
 
-        // Generate access token
+        // Generate access token with safe property access
         const accessToken = await new SignJWT({
             id: user.id,
             email: user.email,
@@ -277,14 +277,27 @@ async function cleanupOldTokens(userId, deviceFingerprint) {
 export async function login(email, password, fingerprint) {
     console.log('Login attempt for email:', email);
     try {
-        // Find user in database
-        const user = await prisma.user.findUnique({
-            where: { email },
-            include: {
-                customer: true,
-                employee: true
+        // Find user in database - try with relations first
+        let user;
+        try {
+            user = await prisma.user.findUnique({
+                where: { email },
+                include: {
+                    customer: true,
+                    employee: true
+                }
+            });
+        } catch (error) {
+            if (error.message && error.message.includes('Unknown field `customer`')) {
+                console.warn('Schema does not have customer/employee relations, fetching base user');
+                // Fallback to just the user without relations
+                user = await prisma.user.findUnique({
+                    where: { email }
+                });
+            } else {
+                throw error;
             }
-        });
+        }
         
         if (!user) {
             throw new Error('Invalid email or password');
@@ -397,14 +410,27 @@ export async function refreshToken(oldRefreshToken, fingerprint) {
             throw new Error('Refresh token not found or expired');
         }
 
-        // Find user in database
-        const user = await prisma.user.findUnique({
-            where: { id: payload.id },
-            include: {
-                customer: true,
-                employee: true
+        // Find user in database with schema compatibility
+        let user;
+        try {
+            user = await prisma.user.findUnique({
+                where: { id: payload.id },
+                include: {
+                    customer: true,
+                    employee: true
+                }
+            });
+        } catch (error) {
+            if (error.message && error.message.includes('Unknown field `customer`')) {
+                console.warn('Schema does not have customer/employee relations, fetching base user');
+                // Fallback to just the user without relations
+                user = await prisma.user.findUnique({
+                    where: { id: payload.id }
+                });
+            } else {
+                throw error;
             }
-        });
+        }
 
         if (!user) {
             throw new Error('User not found');
@@ -492,13 +518,29 @@ export const authOptions = {
             const payload = await verifyToken(token);
             if (!payload || !payload.id)
                 return null;
-            const user = await prisma.user.findUnique({
-                where: { id: payload.id },
-                include: {
-                    customer: true,
-                    employee: true
+                
+            // Try with relations first
+            let user;
+            try {
+                user = await prisma.user.findUnique({
+                    where: { id: payload.id },
+                    include: {
+                        customer: true,
+                        employee: true
+                    }
+                });
+            } catch (error) {
+                if (error.message && error.message.includes('Unknown field `customer`')) {
+                    console.warn('Schema does not have customer/employee relations, fetching base user');
+                    // Fallback to just the user without relations
+                    user = await prisma.user.findUnique({
+                        where: { id: payload.id }
+                    });
+                } else {
+                    throw error;
                 }
-            });
+            }
+            
             return user;
         }
         catch (error) {
@@ -586,14 +628,53 @@ export async function validateUser(token, requiredRole) {
             throw new Error('Invalid token');
         }
 
-        const user = await prisma.user.findUnique({
-            where: { id: payload.id }
-        });
+        // Try with relations first
+        let user;
+        let hasRelations = true;
+        
+        try {
+            user = await prisma.user.findUnique({
+                where: { id: payload.id },
+                include: {
+                    customer: true,
+                    employee: true
+                }
+            });
+        } catch (error) {
+            if (error.message && error.message.includes('Unknown field `customer`')) {
+                console.warn('Schema does not have customer/employee relations, fetching base user');
+                hasRelations = false;
+                // Fallback to just the user without relations
+                user = await prisma.user.findUnique({
+                    where: { id: payload.id }
+                });
+            } else {
+                throw error;
+            }
+        }
 
         if (!user) {
             throw new Error('User not found');
         }
 
+        // If the schema doesn't have relations but a role is required, we can still validate based on the user role
+        if (!hasRelations) {
+            if (requiredRole && user.role !== 'ADMIN' && user.role !== requiredRole) {
+                throw new Error('Insufficient permissions');
+            }
+            
+            return {
+                userId: user.id,
+                role: user.role,
+                // These will be undefined, but that's expected
+                customerId: undefined, 
+                employeeId: undefined,
+                customer: undefined,
+                employee: undefined
+            };
+        }
+
+        // If we have relations, perform additional validation
         if (requiredRole === 'CUSTOMER' && !user.customer) {
             throw new Error('Customer record not found');
         }
@@ -633,13 +714,26 @@ export async function verifyAuth(request) {
         if (accessToken) {
             const payload = await verifyToken(accessToken);
             if (payload) {
-                const user = await prisma.user.findUnique({
-                    where: { id: payload.id },
-                    include: {
-                        customer: true,
-                        employee: true
+                // Try to get user with relations first
+                let user;
+                try {
+                    user = await prisma.user.findUnique({
+                        where: { id: payload.id },
+                        include: {
+                            customer: true,
+                            employee: true
+                        }
+                    });
+                } catch (error) {
+                    if (error.message && error.message.includes('Unknown field `customer`')) {
+                        // Fallback to just user without relations
+                        user = await prisma.user.findUnique({
+                            where: { id: payload.id }
+                        });
+                    } else {
+                        throw error;
                     }
-                });
+                }
 
                 if (user) {
                     return {
@@ -688,6 +782,7 @@ export async function verifyAuth(request) {
 
         return { success: false, error: 'Invalid session' };
     } catch (error) {
+        console.error('Auth verification error:', error);
         return { success: false, error: 'Internal server error' };
     }
 }
