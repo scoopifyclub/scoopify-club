@@ -15,6 +15,8 @@ function validateLoginData(data) {
 
 export async function POST(request) {
     try {
+        console.log('Login API called');
+        
         // Get client IP for rate limiting
         const ip = request.headers.get('x-forwarded-for') || request.ip || 'unknown';
         
@@ -43,6 +45,25 @@ export async function POST(request) {
             validatedData.fingerprint
         );
 
+        // Determine domain for cookies
+        // For www.scoopify.club or scoopify.club, set domain to .scoopify.club
+        const host = request.headers.get('host') || '';
+        const hostname = host.split(':')[0]; // Remove port if present
+        
+        // Get domain for cookies (strip 'www.' if present, and include the root domain)
+        let cookieDomain = null;
+        if (hostname.includes('scoopify.club')) {
+            // For production, set the root domain to allow sharing between subdomains
+            cookieDomain = hostname.replace('www.', '');
+            
+            // Add leading dot for subdomain sharing if not a localhost domain
+            if (!cookieDomain.includes('localhost') && !cookieDomain.startsWith('.')) {
+                cookieDomain = `.${cookieDomain}`;
+            }
+        }
+        
+        console.log(`Setting cookies with domain: ${cookieDomain || '(default)'}`);
+
         // Create successful response
         const response = NextResponse.json(
             {
@@ -59,39 +80,40 @@ export async function POST(request) {
             { status: 200 }
         );
 
-        // Set refresh token cookie
-        response.cookies.set('refreshToken', refreshToken, {
+        // Cookie options
+        const cookieOptions = {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'lax', // Changed from 'strict' to 'lax' to allow redirects
             path: '/',
+        };
+        
+        // Add domain if we have one
+        if (cookieDomain) {
+            cookieOptions.domain = cookieDomain;
+        }
+
+        // Set refresh token cookie
+        response.cookies.set('refreshToken', refreshToken, {
+            ...cookieOptions,
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
 
         // Set access token cookie
         if (user.role === 'ADMIN') {
             response.cookies.set('adminToken', accessToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                path: '/',
+                ...cookieOptions,
                 maxAge: 15 * 60 // 15 minutes
             });
         } else {
             response.cookies.set('token', accessToken, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
-                path: '/',
+                ...cookieOptions,
                 maxAge: 15 * 60 // 15 minutes
             });
         }
 
         response.cookies.set('fingerprint', deviceFingerprint, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
+            ...cookieOptions,
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
 

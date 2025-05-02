@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
 // Helper function to generate a stable fingerprint for the device
 function getDeviceFingerprint() {
     // Check if we already have a fingerprint in localStorage
@@ -40,48 +41,48 @@ export default function LoginPage() {
         }
         // Check for existing session
         const checkSession = async () => {
-            var _a;
             try {
-                setDebugInfo('Checking for existing session...');
+                console.log('Checking for existing session...');
                 const response = await fetch('/api/auth/session', {
-                    credentials: 'include'
+                    method: 'GET',
+                    credentials: 'include',
+                    headers: {
+                        'Cache-Control': 'no-cache',
+                        'Pragma': 'no-cache'
+                    },
                 });
-                setDebugInfo(`Session check response status: ${response.status}`);
+
+                console.log('Session check response status:', response.status);
+                
                 if (response.ok) {
                     const data = await response.json();
-                    setDebugInfo(`Session data: ${JSON.stringify(data)}`);
-                    if (data.user) {
-                        // Don't redirect automatically if we have a callbackUrl query param
-                        // This prevents redirect loops if the destination page has auth issues
-                        const callbackUrl = searchParams.get('callbackUrl');
-                        if (callbackUrl) {
-                            setDebugInfo(`Found active session, but not redirecting automatically because callbackUrl=${callbackUrl} is present. This prevents redirect loops.`);
-                            return;
+                    
+                    if (data.authenticated && data.user) {
+                        console.log('Existing session found, redirecting to dashboard...');
+                        setDebugInfo('Session exists, redirecting to dashboard');
+                        
+                        // Check user role to determine where to redirect
+                        const role = data.user.role?.toUpperCase();
+                        switch(role) {
+                            case 'ADMIN':
+                                router.push('/admin/dashboard');
+                                break;
+                            case 'EMPLOYEE':
+                                router.push('/employee/dashboard');
+                                break;
+                            case 'CUSTOMER':
+                            default:
+                                router.push('/dashboard');
+                                break;
                         }
-                        // Determine redirect path based on user role
-                        let redirectPath = '/customer/dashboard';
-                        if (data.user.role === 'EMPLOYEE') {
-                            redirectPath = '/employee/dashboard';
-                        }
-                        else if (data.user.role === 'ADMIN') {
-                            redirectPath = '/admin/dashboard';
-                        }
-                        // Create a debugging button instead of automatic redirect
-                        setDebugInfo(`Found active session for ${data.user.email} (${data.user.role}). You can click "Continue to Dashboard" to proceed.`);
-                        // Add a continue button that users can click
-                        (_a = document.getElementById('continue-button')) === null || _a === void 0 ? void 0 : _a.classList.remove('hidden');
-                        // Store the redirect path for the continue button to use
-                        sessionStorage.setItem('dashboardRedirectPath', redirectPath);
-                    }
-                    else {
+                    } else {
                         setDebugInfo('Session exists but no user data found, showing login form');
                     }
+                } else {
+                    const errorData = await response.json().catch(() => ({}));
+                    setDebugInfo(`Session check failed with status ${response.status}: ${errorData.error || 'Unknown error'}, showing login form`);
                 }
-                else {
-                    setDebugInfo(`Session check failed with status ${response.status}, showing login form`);
-                }
-            }
-            catch (error) {
+            } catch (error) {
                 console.error('Error checking session:', error);
                 setDebugInfo(`Error checking session: ${error instanceof Error ? error.message : 'Unknown error'}`);
             }
@@ -90,31 +91,64 @@ export default function LoginPage() {
         if (searchParams.get('signup') === 'success') {
             setError('Account created successfully! Please log in.');
         }
-    }, [searchParams]);
+    }, [searchParams, router]);
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFormData(prev => (Object.assign(Object.assign({}, prev), { [name]: value })));
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setLoading(true);
+        setError(null);
+        
         try {
+            console.log('Submitting login form...');
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({ email: formData.email, password: formData.password }),
+                credentials: 'include'
             });
 
+            const data = await response.json();
+            console.log('Login response status:', response.status);
+            
             if (response.ok) {
-                const data = await response.json();
+                console.log('Login successful, redirecting...');
+                
+                // After successful login, check if cookies are set correctly
+                const cookieCheck = document.cookie;
+                console.log('Cookies after login:', cookieCheck ? 'Present' : 'None');
+                
                 // Redirect based on user role
-                router.push(data.redirectUrl || '/dashboard');
+                if (data.user && data.user.role) {
+                    const role = data.user.role.toUpperCase();
+                    switch(role) {
+                        case 'ADMIN':
+                            router.push('/admin/dashboard');
+                            break;
+                        case 'EMPLOYEE':
+                            router.push('/employee/dashboard');
+                            break;
+                        case 'CUSTOMER':
+                        default:
+                            router.push('/dashboard');
+                            break;
+                    }
+                } else {
+                    router.push('/dashboard');
+                }
             } else {
-                setError('Invalid email or password');
+                console.error('Login failed:', data.error);
+                setError(data.error || 'Invalid email or password');
             }
         } catch (error) {
-            setError('An error occurred during login');
+            console.error('Login error:', error);
+            setError('An error occurred during login. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
     // Add a continue to dashboard handler 
@@ -123,52 +157,65 @@ export default function LoginPage() {
         setDebugInfo(`Manually continuing to ${redirectPath}...`);
         window.location.href = redirectPath;
     };
-    return (<div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sign in to your account
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Or{' '}
-          <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
-            create a new account
-          </Link>
-        </p>
-      </div>
+    return (<div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-blue-50 to-white">
+      <Card className="max-w-md w-full p-8">
+        <div className="space-y-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold tracking-tight">Welcome to Scoopify</h1>
+            <p className="text-sm text-gray-500 mt-2">Sign in to your account</p>
+          </div>
 
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            {error && (<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
-                <span className="block sm:inline">{error}</span>
-              </div>)}
-            
-            {debugInfo && (<div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded relative" role="alert">
-                <span className="block sm:inline">Debug: {debugInfo}</span>
-              </div>)}
-
-            <div id="continue-button" className="hidden">
-              <Button type="button" onClick={continueToDashboard} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
-                Continue to Dashboard
-              </Button>
+          {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+              {error}
             </div>
+          )}
+          
+          {debugInfo && (
+            <div className="bg-blue-50 text-blue-600 p-3 rounded-md text-sm">
+              Debug: {debugInfo}
+            </div>
+          )}
 
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="email">Email address</Label>
               <div className="mt-1">
-                <Input id="email" name="email" type="email" autoComplete="email" required value={formData.email} onChange={handleChange} className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"/>
+                <Input 
+                  id="email" 
+                  name="email" 
+                  type="email" 
+                  autoComplete="email" 
+                  required 
+                  value={formData.email} 
+                  onChange={handleChange} 
+                  className="w-full"
+                />
               </div>
             </div>
 
             <div>
               <Label htmlFor="password">Password</Label>
               <div className="mt-1">
-                <Input id="password" name="password" type="password" autoComplete="current-password" required value={formData.password} onChange={handleChange} className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"/>
+                <Input 
+                  id="password" 
+                  name="password" 
+                  type="password" 
+                  autoComplete="current-password" 
+                  required 
+                  value={formData.password} 
+                  onChange={handleChange} 
+                  className="w-full"
+                />
               </div>
             </div>
 
             <div>
-              <Button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+              <Button 
+                type="submit" 
+                disabled={loading} 
+                className="w-full"
+              >
                 {loading ? 'Signing in...' : 'Sign in'}
               </Button>
             </div>
@@ -181,6 +228,6 @@ export default function LoginPage() {
             </div>
           </form>
         </div>
-      </div>
+      </Card>
     </div>);
 }
