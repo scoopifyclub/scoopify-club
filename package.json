@@ -18,7 +18,7 @@
     "restart": "node restart-dev.js",
     "proxy": "local-ssl-proxy --source 3001 --target 3000",
     "build": "npm run check-deploy && next build",
-    "vercel-build": "rm -rf .next && npm install autoprefixer postcss tailwindcss --no-save && npx prisma generate && next build",
+    "vercel-build": "rm -rf .next && node scripts/prepare-vercel-build.js && npx prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
