@@ -75,23 +75,28 @@ export default function LoginPage() {
                     const data = await response.json();
                     
                     if (data.authenticated && data.user) {
-                        console.log('Existing session found, redirecting to dashboard...');
-                        setDebugInfo('Session exists, redirecting to dashboard');
+                        console.log('Existing session found, showing dashboard button...');
+                        setDebugInfo('Session exists, click button to continue to dashboard');
                         
-                        // Check user role to determine where to redirect
+                        // Store the redirect path in session storage based on role
                         const role = data.user.role?.toUpperCase();
+                        let redirectPath = '/dashboard';
+                        
                         switch(role) {
                             case 'ADMIN':
-                                router.push('/admin/dashboard');
+                                redirectPath = '/admin/dashboard';
                                 break;
                             case 'EMPLOYEE':
-                                router.push('/employee/dashboard');
+                                redirectPath = '/employee/dashboard';
                                 break;
                             case 'CUSTOMER':
                             default:
-                                router.push('/dashboard');
+                                redirectPath = '/dashboard';
                                 break;
                         }
+                        
+                        // Store the path but don't redirect automatically
+                        sessionStorage.setItem('dashboardRedirectPath', redirectPath);
                     } else {
                         setDebugInfo('Session exists but no user data found, showing login form');
                     }
@@ -191,6 +196,17 @@ export default function LoginPage() {
           {debugInfo && (
             <div className="bg-blue-50 text-blue-600 p-3 rounded-md text-sm">
               Debug: {debugInfo}
+            </div>
+          )}
+
+          {debugInfo && debugInfo.includes('Session exists') && (
+            <div className="mt-4">
+              <Button 
+                onClick={continueToDashboard}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                Continue to Dashboard
+              </Button>
             </div>
           )}
 
