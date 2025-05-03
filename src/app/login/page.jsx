@@ -21,7 +21,25 @@ function getDeviceFingerprint() {
     localStorage.setItem('deviceFingerprint', newFingerprint);
     return newFingerprint;
 }
+import { useEffect, useState } from 'react';
+
 export default function LoginPage() {
+    const [hasStaleCookie, setHasStaleCookie] = useState(false);
+
+    useEffect(() => {
+        // Check for stale cookies
+        const cookies = document.cookie.split(';').map(c => c.trim());
+        const hasToken = cookies.some(c => c.startsWith('token='));
+        const hasAdminToken = cookies.some(c => c.startsWith('adminToken='));
+        setHasStaleCookie(hasToken || hasAdminToken);
+    }, []);
+
+    const handleClearCookies = () => {
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'adminToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        window.location.reload();
+    };
+
     const router = useRouter();
     const searchParams = useSearchParams();
     const [loading, setLoading] = useState(false);
@@ -177,6 +195,20 @@ export default function LoginPage() {
             </div>
           )}
 
+          {hasStaleCookie && (
+            <div className="p-4 mb-4 bg-red-100 border border-red-300 text-red-700 rounded">
+                <p>
+                    We detected a stuck session. Click below to clear your session and try logging in again.
+                </p>
+                <button
+                    onClick={handleClearCookies}
+                    className="mt-2 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    type="button"
+                >
+                    Clear Session & Retry
+                </button>
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Label htmlFor="email">Email address</Label>
