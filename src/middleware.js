@@ -34,17 +34,29 @@ export async function middleware(request) {
     return NextResponse.next()
   }
 
-  // Check for authentication token
-  const token = request.cookies.get('token')?.value || null
+  // Determine if this is an admin route
+  const isAdminRoute = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
+  const token = isAdminRoute
+    ? request.cookies.get('adminToken')?.value
+    : request.cookies.get('token')?.value;
+
   if (!token) {
-    return redirectToLogin(request)
+    // Clear cookies if missing token for admin route
+    const response = redirectToLogin(request);
+    response.cookies.set('adminToken', '', { maxAge: 0, path: '/' });
+    response.cookies.set('token', '', { maxAge: 0, path: '/' });
+    return response;
   }
 
   try {
     // Verify token and get user data
-    const user = await verifyToken(token)
+    const user = await verifyToken(token);
     if (!user) {
-      return redirectToLogin(request)
+      // Clear cookies if invalid token for admin route
+      const response = redirectToLogin(request);
+      response.cookies.set('adminToken', '', { maxAge: 0, path: '/' });
+      response.cookies.set('token', '', { maxAge: 0, path: '/' });
+      return response;
     }
 
     // Check role restrictions
