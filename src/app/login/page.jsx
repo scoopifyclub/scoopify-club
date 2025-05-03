@@ -21,7 +21,6 @@ function getDeviceFingerprint() {
     localStorage.setItem('deviceFingerprint', newFingerprint);
     return newFingerprint;
 }
-import { useEffect, useState } from 'react';
 
 export default function LoginPage() {
     const [hasStaleCookie, setHasStaleCookie] = useState(false);
