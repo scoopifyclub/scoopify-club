@@ -3,9 +3,27 @@ import prisma from "@/lib/prisma";
 import bcrypt from 'bcryptjs';
 import { signJWT } from '@/lib/auth-server';
 import { cookies } from 'next/headers';
+import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 
 export async function POST(request) {
     try {
+        const rateLimiter = new AuthRateLimiter();
+        const rateLimitResult = await rateLimiter.isAllowed(request);
+        
+        if (!rateLimitResult.success) {
+            const response = NextResponse.json(
+                { error: 'Too many login attempts. Please try again later.' },
+                { status: 429 }
+            );
+            
+            // Add rate limit headers to response
+            rateLimitResult.headers.forEach((value, key) => {
+                response.headers.set(key, value);
+            });
+            
+            return response;
+        }
+
         const { email, password } = await request.json();
         
         if (!email || !password) {
@@ -54,10 +72,17 @@ export async function POST(request) {
         // Return user data without sensitive information
         const { password: _, ...userWithoutPassword } = user;
         
-        return NextResponse.json({
+        const response = NextResponse.json({
             user: userWithoutPassword,
             redirectTo: '/admin/dashboard'
         });
+
+        // Add rate limit headers to successful response
+        rateLimitResult.headers.forEach((value, key) => {
+            response.headers.set(key, value);
+        });
+
+        return response;
     } catch (error) {
         console.error('Admin login error:', error);
         return NextResponse.json(

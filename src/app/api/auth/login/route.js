@@ -17,12 +17,20 @@ function validateLoginData(data) {
 export async function POST(request) {
     try {
         const rateLimiter = new AuthRateLimiter();
-        const isAllowed = await rateLimiter.isAllowed(request);
-        if (!isAllowed) {
-            return NextResponse.json(
+        const rateLimitResult = await rateLimiter.isAllowed(request);
+        
+        if (!rateLimitResult.success) {
+            const response = NextResponse.json(
                 { error: 'Too many login attempts. Please try again later.' },
                 { status: 429 }
             );
+            
+            // Add rate limit headers to response
+            rateLimitResult.headers.forEach((value, key) => {
+                response.headers.set(key, value);
+            });
+            
+            return response;
         }
 
         const data = await request.json();
@@ -47,10 +55,17 @@ export async function POST(request) {
         const url = new URL(request.url);
         const callbackUrl = url.searchParams.get('callbackUrl') || '/dashboard';
 
-        return NextResponse.json({
+        const response = NextResponse.json({
             user: userWithoutPassword,
             redirectTo: callbackUrl
         });
+
+        // Add rate limit headers to successful response
+        rateLimitResult.headers.forEach((value, key) => {
+            response.headers.set(key, value);
+        });
+
+        return response;
     } catch (error) {
         console.error('Login error:', error);
         return NextResponse.json(
