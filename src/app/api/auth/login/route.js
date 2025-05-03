@@ -26,13 +26,23 @@ export async function POST(request) {
 
         const { user, token } = await authenticateUser(data.email, data.password);
 
-        // Set the token in an HTTP-only cookie
+        // Set the token in an HTTP-only cookie for all users
         cookies().set('token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             maxAge: 7 * 24 * 60 * 60, // 7 days
         });
+
+        // If the user is an admin, also set the adminToken cookie
+        if (user.role === 'ADMIN') {
+            cookies().set('adminToken', token, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === 'production',
+                sameSite: 'lax',
+                maxAge: 7 * 24 * 60 * 60, // 7 days
+            });
+        }
 
         // Return user data without sensitive information
         const { password: _, ...userWithoutPassword } = user;
