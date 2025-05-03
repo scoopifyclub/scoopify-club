@@ -1,20 +1,17 @@
 import { NextResponse } from 'next/server'
-import { NextRequest } from 'next/server'
-import { verifyToken } from '@/lib/api-auth'
+import { verifyJWT } from '@/lib/auth-server'
 
 // Define paths that don't require authentication
 const publicPaths = [
+  '/auth/signin',
+  '/auth/signup',
+  '/api/auth/signin',
+  '/api/auth/signup',
+  '/api/auth/signout',
   '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
-  '/verify-email',
+  '/admin/login',
   '/',
-  '/api/auth/login',
-  '/api/auth/register',
-  '/api/auth/forgot-password',
-  '/api/auth/reset-password',
-  '/api/auth/verify-email',
+  '/favicon.ico'
 ]
 
 // Define paths that require specific roles
@@ -34,42 +31,54 @@ export async function middleware(request) {
     return NextResponse.next()
   }
 
-  // Determine if this is an admin route
-  const isAdminRoute = pathname.startsWith('/admin') || pathname.startsWith('/api/admin');
-  const token = isAdminRoute
-    ? request.cookies.get('adminToken')?.value
-    : request.cookies.get('token')?.value;
+  // Check for authentication token
+  const token = request.cookies.get('token')?.value;
 
+  // API routes handling
+  if (pathname.startsWith('/api/')) {
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    return NextResponse.next();
+  }
+
+  // Protected routes handling
   if (!token) {
-    // Clear cookies if missing token for admin route
-    const response = redirectToLogin(request);
-    response.cookies.set('adminToken', '', { maxAge: 0, path: '/' });
-    response.cookies.set('token', '', { maxAge: 0, path: '/' });
-    return response;
+    // Store the original URL to redirect back after login
+    const url = new URL('/auth/signin', request.url);
+    url.searchParams.set('callbackUrl', pathname);
+    return NextResponse.redirect(url);
   }
 
   try {
-    // Verify token and get user data
-    const user = await verifyToken(token);
-    if (!user) {
-      // Clear cookies if invalid token for admin route
-      const response = redirectToLogin(request);
-      response.cookies.set('adminToken', '', { maxAge: 0, path: '/' });
-      response.cookies.set('token', '', { maxAge: 0, path: '/' });
-      return response;
+    const payload = await verifyJWT(token);
+    
+    // Admin routes protection
+    if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+
+    // Employee routes protection
+    if (pathname.startsWith('/employee') && payload.role !== 'EMPLOYEE') {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+
+    // Customer routes protection
+    if (pathname.startsWith('/customer') && payload.role !== 'CUSTOMER') {
+      return NextResponse.redirect(new URL('/', request.url));
     }
 
     // Check role restrictions
     for (const [path, roles] of Object.entries(roleRestrictedPaths)) {
-      if (pathname.startsWith(path) && !roles.includes(user.role)) {
+      if (pathname.startsWith(path) && !roles.includes(payload.role)) {
         return new NextResponse(null, { status: 403 })
       }
     }
 
     // Add user info to headers for downstream use
     const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-user-id', user.id)
-    requestHeaders.set('x-user-role', user.role)
+    requestHeaders.set('x-user-id', payload.id)
+    requestHeaders.set('x-user-role', payload.role)
 
     // Apply scheduling validation for service scheduling routes
 
@@ -79,16 +88,11 @@ export async function middleware(request) {
       },
     })
   } catch (error) {
-    console.error('Middleware error:', error)
-    return redirectToLogin(request)
+    // If token verification fails, clear the token and redirect to login
+    const response = NextResponse.redirect(new URL('/auth/signin', request.url));
+    response.cookies.delete('token');
+    return response;
   }
-}
-
-function redirectToLogin(request) {
-  const url = request.nextUrl.clone()
-  url.pathname = '/login'
-  url.search = `?from=${encodeURIComponent(request.nextUrl.pathname)}`
-  return NextResponse.redirect(url)
 }
 
 export const config = {

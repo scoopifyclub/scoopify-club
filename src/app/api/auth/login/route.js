@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { authenticateUser } from '@/lib/auth-server';
-import { edgeRateLimit } from '@/lib/edge-rate-limit';
+import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 
 // Validation function for login request
 function validateLoginData(data) {
@@ -16,9 +16,13 @@ function validateLoginData(data) {
 
 export async function POST(request) {
     try {
-        const rateLimitResult = await edgeRateLimit.limit(request);
-        if (rateLimitResult) {
-            return rateLimitResult;
+        const rateLimiter = new AuthRateLimiter();
+        const isAllowed = await rateLimiter.isAllowed(request);
+        if (!isAllowed) {
+            return NextResponse.json(
+                { error: 'Too many login attempts. Please try again later.' },
+                { status: 429 }
+            );
         }
 
         const data = await request.json();
@@ -26,27 +30,27 @@ export async function POST(request) {
 
         const { user, token } = await authenticateUser(data.email, data.password);
 
-        // Set the token in an HTTP-only cookie for all users
-        cookies().set('token', token, {
+        // Set the token in an HTTP-only cookie
+        const cookieStore = cookies();
+        cookieStore.set('token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
-            maxAge: 7 * 24 * 60 * 60, // 7 days
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 // 7 days
         });
-
-        // If the user is an admin, also set the adminToken cookie
-        if (user.role === 'ADMIN') {
-            cookies().set('adminToken', token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
-                maxAge: 7 * 24 * 60 * 60, // 7 days
-            });
-        }
 
         // Return user data without sensitive information
         const { password: _, ...userWithoutPassword } = user;
-        return NextResponse.json({ user: userWithoutPassword });
+        
+        // Get the callback URL if it exists
+        const url = new URL(request.url);
+        const callbackUrl = url.searchParams.get('callbackUrl') || '/dashboard';
+
+        return NextResponse.json({
+            user: userWithoutPassword,
+            redirectTo: callbackUrl
+        });
     } catch (error) {
         console.error('Login error:', error);
         return NextResponse.json(

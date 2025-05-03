@@ -1,61 +1,69 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import bcrypt from 'bcryptjs';
-import { signToken } from '@/lib/api-auth';
+import { signJWT } from '@/lib/auth-server';
 import { cookies } from 'next/headers';
 
 export async function POST(request) {
     try {
-        console.log('Admin login request received');
         const { email, password } = await request.json();
-        console.log('Login attempt for:', email);
+        
         if (!email || !password) {
-            console.log('Missing email or password');
-            return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+            return NextResponse.json(
+                { error: 'Email and password are required' },
+                { status: 400 }
+            );
         }
+
         const user = await prisma.user.findUnique({
             where: { email }
         });
-        if (!user) {
-            console.log('User not found:', email);
-            return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+
+        if (!user || user.role !== 'ADMIN') {
+            return NextResponse.json(
+                { error: 'Invalid credentials' },
+                { status: 401 }
+            );
         }
-        if (user.role !== 'ADMIN') {
-            console.log('User is not an admin. Role:', user.role);
-            return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
-        }
+
         const isValidPassword = await bcrypt.compare(password, user.password);
         if (!isValidPassword) {
-            console.log('Invalid password for user:', email);
-            return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+            return NextResponse.json(
+                { error: 'Invalid credentials' },
+                { status: 401 }
+            );
         }
-        console.log('Admin login successful for:', email);
-        const token = await signToken({
-            userId: user.id,
+
+        // Generate JWT token
+        const token = await signJWT({
+            id: user.id,
+            email: user.email,
             role: user.role,
         });
+
+        // Set the token cookie
         const cookieStore = cookies();
-        cookieStore.set('accessToken', token, {
+        cookieStore.set('token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60, // 7 days
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 // 7 days
         });
-        // Create response with user data and token
-        const response = NextResponse.json({
-            user: {
-                id: user.id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-            },
-        }, { status: 200 });
-        console.log('Admin login cookies set, returning response');
-        return response;
-    }
-    catch (error) {
-        console.error('Login error:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+
+        // Return user data without sensitive information
+        const { password: _, ...userWithoutPassword } = user;
+        
+        return NextResponse.json({
+            user: userWithoutPassword,
+            redirectTo: '/admin/dashboard'
+        });
+    } catch (error) {
+        console.error('Admin login error:', error);
+        return NextResponse.json(
+            { error: 'Internal server error' },
+            { status: 500 }
+        );
     }
 }
 
