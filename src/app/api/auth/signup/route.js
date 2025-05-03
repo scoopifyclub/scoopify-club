@@ -17,7 +17,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import Stripe from 'stripe';
-import { AuthRateLimiter } from '@/lib/auth-rate-limit';
+import { edgeRateLimit } from '@/lib/edge-rate-limit';
 const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2023-10-16',
 });
@@ -27,11 +27,9 @@ export async function POST(request) {
         const ip = request.headers.get('x-forwarded-for') || request.ip || 'unknown';
         
         // Apply rate limiting
-        const rateLimiter = new AuthRateLimiter('signup');
-        const rateLimitResult = await rateLimiter.limit(ip, 'signup');
-        
-        if (rateLimitResult?.response) {
-            return rateLimitResult.response;
+        const rateLimitResult = await edgeRateLimit.limit(request);
+        if (rateLimitResult) {
+            return rateLimitResult;
         }
 
         const body = await request.json();

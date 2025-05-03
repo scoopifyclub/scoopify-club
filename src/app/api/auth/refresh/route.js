@@ -1,24 +1,16 @@
 import { NextResponse } from 'next/server';
 import { verifyToken, refreshToken } from '@/lib/api-auth';
-import { AuthRateLimiter } from '@/lib/auth-rate-limit';
+import { edgeRateLimit } from '@/lib/edge-rate-limit';
 
 export async function POST(request) {
     try {
         // Get client IP for rate limiting
         const ip = request.headers.get('x-forwarded-for') || request.ip || 'unknown';
         
-        // Apply rate limiting
-        const rateLimiter = new AuthRateLimiter('refresh');
-        const rateLimitResult = await rateLimiter.limit(ip);
-        
-        if (rateLimitResult?.blocked) {
-            return NextResponse.json(
-                { error: 'Too many refresh attempts. Please try again later.' },
-                { 
-                    status: 429,
-                    headers: rateLimitResult.headers
-                }
-            );
+        // Apply in-memory rate limiting
+        const edgeRateLimitResult = await edgeRateLimit.limit(request);
+        if (edgeRateLimitResult) {
+            return edgeRateLimitResult;
         }
 
         // Get refresh token from cookies
@@ -72,8 +64,8 @@ export async function POST(request) {
         });
 
         // Add rate limit headers if available
-        if (rateLimitResult?.headers) {
-            Object.entries(rateLimitResult.headers).forEach(([key, value]) => {
+        if (edgeRateLimitResult?.headers) {
+            Object.entries(edgeRateLimitResult.headers).forEach(([key, value]) => {
                 response.headers.set(key, value);
             });
         }

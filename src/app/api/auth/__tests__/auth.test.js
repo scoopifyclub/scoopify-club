@@ -5,6 +5,7 @@ import { createTestUser } from '@/tests/setup';
 import { NextRequest } from 'next/server';
 import { GET } from '../session/route';
 import { verifyJWT } from '@/lib/auth-server';
+import { edgeRateLimit } from '@/lib/edge-rate-limit';
 // Mock the email sending function
 jest.mock('@/lib/email', () => ({
     sendEmail: jest.fn().mockResolvedValue(true)
@@ -12,6 +13,9 @@ jest.mock('@/lib/email', () => ({
 // Mock auth functions
 jest.mock('@/lib/auth-server', () => ({
     verifyJWT: jest.fn()
+}));
+jest.mock('@/lib/edge-rate-limit', () => ({
+    edgeRateLimit: jest.fn()
 }));
 // Mock Request object
 const mockRequest = (body) => ({

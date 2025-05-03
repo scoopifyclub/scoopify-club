@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { authenticateUser } from '@/lib/auth-server';
-import { AuthRateLimiter } from '@/lib/auth-rate-limit';
+import { edgeRateLimit } from '@/lib/edge-rate-limit';
 
 // Validation function for login request
 function validateLoginData(data) {
@@ -16,13 +16,9 @@ function validateLoginData(data) {
 
 export async function POST(request) {
     try {
-        const rateLimiter = new AuthRateLimiter();
-        const isAllowed = await rateLimiter.isAllowed(request);
-        if (!isAllowed) {
-            return NextResponse.json(
-                { error: 'Too many login attempts. Please try again later.' },
-                { status: 429 }
-            );
+        const rateLimitResult = await edgeRateLimit.limit(request);
+        if (rateLimitResult) {
+            return rateLimitResult;
         }
 
         const data = await request.json();
