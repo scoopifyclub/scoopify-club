@@ -81,6 +81,29 @@ export default function AdminDashboard() {
         const interval = setInterval(fetchDashboardStats, 30000); // Refresh every 30 seconds
         return () => clearInterval(interval);
     }, []);
+
+    // Admin verify fallback: check /api/admin/verify and handle 401
+    useEffect(() => {
+        const checkAdminVerify = async () => {
+            try {
+                const res = await fetch('/api/admin/verify', { credentials: 'include' });
+                if (res.status === 401) {
+                    setError('Session issue detected. Click below to reset your session and continue.');
+                }
+            } catch (e) {
+                setError('Session verification error.');
+            }
+        };
+        checkAdminVerify();
+    }, []);
+
+    const handleSessionReset = () => {
+        // Expire both adminToken and token cookies for all paths
+        document.cookie = 'adminToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        window.location.reload();
+    };
+
     const fetchDashboardStats = async () => {
         setLoading(true);
         setError(null);
@@ -139,22 +162,19 @@ export default function AdminDashboard() {
         <div className="flex items-center justify-center min-h-[50vh]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading dashboard...</p>
-          </div>
-        </div>
-      </AdminDashboardLayout>);
     }
     if (error) {
-        return (<AdminDashboardLayout>
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="text-center text-red-600">
-            <p>{error}</p>
-            <Button onClick={fetchDashboardStats} className="mt-4">
-              Retry
-            </Button>
-          </div>
-        </div>
-      </AdminDashboardLayout>);
+        return (
+            <div className="p-8 text-center text-red-600">
+                {error}<br />
+                <button
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    onClick={handleSessionReset}
+                >
+                    Continue to Dashboard
+                </button>
+            </div>
+        );
     }
     if (!stats) {
         return (<AdminDashboardLayout>
