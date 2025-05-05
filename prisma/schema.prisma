@@ -87,24 +87,24 @@ model CoverageArea {
 }
 
 model Customer {
-  id               String   @id
-  userId           String   @unique
-  subscriptionId   String?  @unique
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime
-  stripeCustomerId String?  @unique
-  gateCode         String?
-  phone            String?
-  serviceDay       String?
-  cashAppName      String?
-  referralCode     String?  @unique
+  id                String    @id
+  userId            String    @unique
+  subscriptionId    String?   @unique
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime
+  stripeCustomerId  String?   @unique
+  gateCode          String?
+  phone             String?
+  serviceDay        String?
+  cashAppName       String?
+  referralCode      String?   @unique
   creditsDepletedAt DateTime?
-  referrerId       String?
-  referredId       String?
-  User             User     @relation("UserToCustomer", fields: [userId], references: [id])
-  
+  referrerId        String?
+  referredId        String?
+  User              User      @relation("UserToCustomer", fields: [userId], references: [id])
+
   // Add the services relation
-  services         Service[]
+  services Service[]
 
   @@index([subscriptionId])
 }
@@ -146,9 +146,9 @@ model Employee {
   status                 EmployeeStatus @default(ACTIVE)
   hasSetServiceArea      Boolean        @default(false)
   User                   User           @relation("UserToEmployee", fields: [userId], references: [id])
-  
+
   // Add the services relation
-  services               Service[]
+  services Service[]
 }
 
 model Location {
@@ -296,19 +296,19 @@ model RateLimit {
 }
 
 model Referral {
-  id            String   @id @default(uuid())
+  id            String    @id @default(uuid())
   referrerId    String
   referredId    String?
-  code          String   @unique
-  status        String   @default("PENDING") // PENDING, APPROVED, PAID, INVALID
+  code          String    @unique
+  status        String    @default("PENDING") // PENDING, APPROVED, PAID, INVALID
   payoutAmount  Float?
-  payoutStatus  String?  @default("PENDING") // PENDING, PAID, FAILED
+  payoutStatus  String?   @default("PENDING") // PENDING, PAID, FAILED
   payoutDate    DateTime?
-  payoutMethod  String?  // STRIPE, BANK, CASH_APP, etc.
-  type          String   // CUSTOMER, EMPLOYEE, PARTNER
+  payoutMethod  String? // STRIPE, BANK, CASH_APP, etc.
+  type          String // CUSTOMER, EMPLOYEE, PARTNER
   notes         String?
   payoutBatchId String?
-  createdAt     DateTime @default(now())
+  createdAt     DateTime  @default(now())
   updatedAt     DateTime
 
   ReferralPayout ReferralPayout? @relation(fields: [payoutBatchId], references: [id])
@@ -320,15 +320,15 @@ model Referral {
 }
 
 model ReferralPayout {
-  id            String   @id @default(uuid())
-  payoutDate    DateTime @default(now())
-  method        String   // STRIPE, BANK, CASH_APP, etc.
-  status        String   // PENDING, PAID, FAILED
-  totalAmount   Float
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime
-  referrals     Referral[]
+  id          String     @id @default(uuid())
+  payoutDate  DateTime   @default(now())
+  method      String // STRIPE, BANK, CASH_APP, etc.
+  status      String // PENDING, PAID, FAILED
+  totalAmount Float
+  notes       String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  referrals   Referral[]
 }
 
 model ServiceArea {
@@ -342,18 +342,18 @@ model ServiceArea {
 }
 
 model BusinessPartner {
-  id                String   @id @default(uuid())
-  businessName      String
-  contactFirstName  String
-  contactLastName   String
-  phone             String
-  email             String
-  payoutMethod      BusinessPayoutMethod
-  stripeAccountId   String?
-  cashAppUsername   String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  referralCodes     ReferralCode[]
+  id               String               @id @default(uuid())
+  businessName     String
+  contactFirstName String
+  contactLastName  String
+  phone            String
+  email            String
+  payoutMethod     BusinessPayoutMethod
+  stripeAccountId  String?
+  cashAppUsername  String?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  referralCodes    ReferralCode[]
 }
 
 enum BusinessPayoutMethod {
@@ -362,20 +362,20 @@ enum BusinessPayoutMethod {
 }
 
 model ReferralCode {
-  id                String          @id
-  code              String          @unique
+  id                String           @id
+  code              String           @unique
   type              String
   status            String
   customerId        String?
   employeeId        String?
   partnerId         String?
   businessPartnerId String?
-  createdAt         DateTime        @default(now())
+  createdAt         DateTime         @default(now())
   updatedAt         DateTime
   expiresAt         DateTime?
   businessPartner   BusinessPartner? @relation(fields: [businessPartnerId], references: [id])
   referralPartner   ReferralPartner? @relation(fields: [partnerId], references: [id])
-  
+
   @@index([code])
   @@index([customerId])
   @@index([employeeId])
@@ -434,11 +434,11 @@ model Service {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime
   status             ServiceStatus @default(SCHEDULED)
-  
-  customer           Customer      @relation(fields: [customerId], references: [id])
-  employee           Employee?     @relation(fields: [employeeId], references: [id])
-  servicePlan        ServicePlan   @relation(fields: [servicePlanId], references: [id])
-  
+
+  customer    Customer    @relation(fields: [customerId], references: [id])
+  employee    Employee?   @relation(fields: [employeeId], references: [id])
+  servicePlan ServicePlan @relation(fields: [servicePlanId], references: [id])
+
   @@index([customerId])
   @@index([employeeId])
   @@index([paymentStatus])
@@ -499,9 +499,9 @@ model ServicePlan {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime
-  
+
   // Add the services relation
-  services    Service[]
+  services Service[]
 }
 
 model ServiceRating {
@@ -543,7 +543,7 @@ model TimeExtension {
 }
 
 model User {
-  serviceAreas ServiceArea[] @relation("ScooperServiceAreas")
+  serviceAreas            ServiceArea[]  @relation("ScooperServiceAreas")
   id                      String         @id
   email                   String         @unique
   name                    String?
