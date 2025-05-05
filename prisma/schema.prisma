@@ -102,6 +102,9 @@ model Customer {
   referrerId       String?
   referredId       String?
   User             User     @relation("UserToCustomer", fields: [userId], references: [id])
+  
+  // Add the services relation
+  services         Service[]
 
   @@index([subscriptionId])
 }
@@ -143,6 +146,9 @@ model Employee {
   status                 EmployeeStatus @default(ACTIVE)
   hasSetServiceArea      Boolean        @default(false)
   User                   User           @relation("UserToEmployee", fields: [userId], references: [id])
+  
+  // Add the services relation
+  services               Service[]
 }
 
 model Location {
@@ -428,7 +434,12 @@ model Service {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime
   status             ServiceStatus @default(SCHEDULED)
-
+  
+  customer           Customer      @relation(fields: [customerId], references: [id])
+  employee           Employee?     @relation(fields: [employeeId], references: [id])
+  servicePlan        ServicePlan   @relation(fields: [servicePlanId], references: [id])
+  
+  @@index([customerId])
   @@index([employeeId])
   @@index([paymentStatus])
   @@index([serviceAreaId])
@@ -488,6 +499,9 @@ model ServicePlan {
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime
+  
+  // Add the services relation
+  services    Service[]
 }
 
 model ServiceRating {
