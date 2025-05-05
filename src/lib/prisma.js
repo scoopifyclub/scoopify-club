@@ -104,33 +104,3 @@ export async function withRetry(fn, retries = 5) {
 export async function executeQuery(queryFn) {
     return withRetry(queryFn);
 }
-
-// Add configuration for connection pooling
-const prismaClientSingleton = () => {
-  return new PrismaClient({
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
-      },
-    },
-    // Add connection pool configuration
-    log: ['error', 'warn'],
-    connectionTimeout: 20000, // 20 seconds
-    // Prevent too many concurrent connections
-    __internal: {
-      engine: {
-        connectionLimit: 5,
-      },
-    },
-  });
-};
-
-// PrismaClient is attached to the `global` object in development to prevent
-// exhausting your database connection limit.
-const globalForPrisma = global;
-
-const prisma = globalForPrisma.prisma || prismaClientSingleton();
-
-export default prisma;
-
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
