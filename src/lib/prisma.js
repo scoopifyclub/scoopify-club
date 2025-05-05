@@ -1,13 +1,13 @@
 import { PrismaClient } from '@prisma/client';
 import { isEdgeRuntime, isVercel, isProduction } from './vercel-runtime';
 // Maximum connection retries
-const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 500;
+const MAX_RETRIES = 5;
+const RETRY_DELAY_MS = 1000;
 // Connection pool configuration for different environments
 const POOL_CONFIG = {
     connection_limit: isVercel() && isProduction() ? 7 : 5, // Reduced for better serverless performance
-    pool_timeout: 10, // 10 seconds
-    idle_timeout: 20, // 20 seconds
+    pool_timeout: 20, // 20 seconds
+    idle_timeout: 30, // 30 seconds
 };
 // Create a variable to hold our client
 let prisma;
@@ -43,11 +43,12 @@ if (!isEdgeRuntime()) {
                 url: process.env.DIRECT_URL || process.env.DATABASE_URL
             }
         },
-        // Optimize for serverless
+        // Optimize for serverless with increased timeouts
         __internal: {
             engine: {
-                connectionTimeout: 5000, // 5 seconds
+                connectionTimeout: 10000, // 10 seconds
                 pollInterval: 100, // 100ms
+                connectionLimit: POOL_CONFIG.connection_limit
             }
         }
     });
@@ -58,7 +59,8 @@ if (!isEdgeRuntime()) {
     // This allows the app to start even if the database is not available
     connectWithRetry(prisma).catch((err) => {
         console.error('Failed to initiate database connection:', err);
-        process.exit(1);
+        // Changed from process.exit(1) to allow app to continue
+        console.warn('App will continue but database operations may fail');
     });
 }
 else {
@@ -78,8 +80,8 @@ else {
 export { prisma };
 export default prisma;
 // Helper for transactions with optimized retry logic
-export async function withRetry(fn, retries = 3) {
-    const delays = [500, 1000, 2000]; // Progressive delay
+export async function withRetry(fn, retries = 5) {
+    const delays = [500, 1000, 2000, 4000, 8000]; // Progressive delay - added longer delays
     
     try {
         return await fn();
@@ -92,7 +94,7 @@ export async function withRetry(fn, retries = 3) {
             error.code === 'P2024'    // Connection pool timeout
         )) {
             console.log(`Database operation failed with ${error.code}, retrying... (${retries} attempts left)`);
-            await new Promise(resolve => setTimeout(resolve, delays[3 - retries]));
+            await new Promise(resolve => setTimeout(resolve, delays[5 - retries]));
             return withRetry(fn, retries - 1);
         }
         throw error;
@@ -102,3 +104,33 @@ export async function withRetry(fn, retries = 3) {
 export async function executeQuery(queryFn) {
     return withRetry(queryFn);
 }
+
+// Add configuration for connection pooling
+const prismaClientSingleton = () => {
+  return new PrismaClient({
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+    // Add connection pool configuration
+    log: ['error', 'warn'],
+    connectionTimeout: 20000, // 20 seconds
+    // Prevent too many concurrent connections
+    __internal: {
+      engine: {
+        connectionLimit: 5,
+      },
+    },
+  });
+};
+
+// PrismaClient is attached to the `global` object in development to prevent
+// exhausting your database connection limit.
+const globalForPrisma = global;
+
+const prisma = globalForPrisma.prisma || prismaClientSingleton();
+
+export default prisma;
+
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
