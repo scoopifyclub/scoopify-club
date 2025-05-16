@@ -42,12 +42,25 @@ export default function ScooperSignUp() {
             return;
         }
         try {
+            // Create the payload with the required fields
+            const payload = {
+                ...formData,
+                name: `${formData.firstName} ${formData.lastName}`,
+                deviceFingerprint: window.navigator.userAgent, // Use user agent as device fingerprint
+                address: {
+                    street: formData.street,
+                    city: formData.city,
+                    state: formData.state,
+                    zipCode: formData.zipCode
+                }
+            };
+            
             const response = await fetch('/api/auth/signup', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify(payload),
             });
             const data = await response.json();
             if (!response.ok) {

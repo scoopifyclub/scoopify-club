@@ -1,7 +1,13 @@
 generator client {
   provider        = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
   output          = "./node_modules/@prisma/client"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider     = "postgresql"
+  url          = env("DATABASE_URL")
+  relationMode = "foreignKeys"
 }
 
 model UncoveredInterest {
@@ -10,12 +16,6 @@ model UncoveredInterest {
   name      String?
   zipCode   String
   createdAt DateTime @default(now())
-}
-
-datasource db {
-  provider     = "postgresql"
-  url          = env("DATABASE_URL")
-  relationMode = "foreignKeys"
 }
 
 model Address {
@@ -102,9 +102,7 @@ model Customer {
   referrerId        String?
   referredId        String?
   User              User      @relation("UserToCustomer", fields: [userId], references: [id])
-
-  // Add the services relation
-  services Service[]
+  services          Service[]
 
   @@index([subscriptionId])
 }
@@ -146,9 +144,7 @@ model Employee {
   status                 EmployeeStatus @default(ACTIVE)
   hasSetServiceArea      Boolean        @default(false)
   User                   User           @relation("UserToEmployee", fields: [userId], references: [id])
-
-  // Add the services relation
-  services Service[]
+  services               Service[]
 }
 
 model Location {
@@ -296,21 +292,20 @@ model RateLimit {
 }
 
 model Referral {
-  id            String    @id @default(uuid())
-  referrerId    String
-  referredId    String?
-  code          String    @unique
-  status        String    @default("PENDING") // PENDING, APPROVED, PAID, INVALID
-  payoutAmount  Float?
-  payoutStatus  String?   @default("PENDING") // PENDING, PAID, FAILED
-  payoutDate    DateTime?
-  payoutMethod  String? // STRIPE, BANK, CASH_APP, etc.
-  type          String // CUSTOMER, EMPLOYEE, PARTNER
-  notes         String?
-  payoutBatchId String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime
-
+  id             String          @id @default(uuid())
+  referrerId     String
+  referredId     String?
+  code           String          @unique
+  status         String          @default("PENDING")
+  payoutAmount   Float?
+  payoutStatus   String?         @default("PENDING")
+  payoutDate     DateTime?
+  payoutMethod   String?
+  type           String
+  notes          String?
+  payoutBatchId  String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime
   ReferralPayout ReferralPayout? @relation(fields: [payoutBatchId], references: [id])
 
   @@index([code])
@@ -322,8 +317,8 @@ model Referral {
 model ReferralPayout {
   id          String     @id @default(uuid())
   payoutDate  DateTime   @default(now())
-  method      String // STRIPE, BANK, CASH_APP, etc.
-  status      String // PENDING, PAID, FAILED
+  method      String
+  status      String
   totalAmount Float
   notes       String?
   createdAt   DateTime   @default(now())
@@ -354,11 +349,6 @@ model BusinessPartner {
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
   referralCodes    ReferralCode[]
-}
-
-enum BusinessPayoutMethod {
-  STRIPE
-  CASH_APP
 }
 
 model ReferralCode {
@@ -434,10 +424,9 @@ model Service {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime
   status             ServiceStatus @default(SCHEDULED)
-
-  customer    Customer    @relation(fields: [customerId], references: [id])
-  employee    Employee?   @relation(fields: [employeeId], references: [id])
-  servicePlan ServicePlan @relation(fields: [servicePlanId], references: [id])
+  customer           Customer      @relation(fields: [customerId], references: [id])
+  employee           Employee?     @relation(fields: [employeeId], references: [id])
+  servicePlan        ServicePlan   @relation(fields: [servicePlanId], references: [id])
 
   @@index([customerId])
   @@index([employeeId])
@@ -490,18 +479,16 @@ model ServicePhoto {
 }
 
 model ServicePlan {
-  id          String   @id
+  id          String    @id
   name        String
   description String?
   price       Float
   duration    Int
   type        String
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
   updatedAt   DateTime
-
-  // Add the services relation
-  services Service[]
+  services    Service[]
 }
 
 model ServiceRating {
@@ -543,7 +530,6 @@ model TimeExtension {
 }
 
 model User {
-  serviceAreas            ServiceArea[]  @relation("ScooperServiceAreas")
   id                      String         @id
   email                   String         @unique
   name                    String?
@@ -560,9 +546,10 @@ model User {
   verificationToken       String?        @unique
   verificationTokenExpiry DateTime?      @db.Timestamp(6)
   role                    String
-  RefreshToken            RefreshToken[]
   customer                Customer?      @relation("UserToCustomer")
   employee                Employee?      @relation("UserToEmployee")
+  RefreshToken            RefreshToken[]
+  serviceAreas            ServiceArea[]  @relation("ScooperServiceAreas")
 }
 
 model EarningToPayment {
@@ -572,6 +559,11 @@ model EarningToPayment {
   @@unique([A, B], map: "_EarningToPayment_AB_unique")
   @@index([B], map: "_EarningToPayment_B_index")
   @@map("_EarningToPayment")
+}
+
+enum BusinessPayoutMethod {
+  STRIPE
+  CASH_APP
 }
 
 enum EmployeeStatus {
