@@ -69,55 +69,52 @@ export async function POST(request) {
         const verificationToken = uuidv4();
         const verificationTokenExpiry = new Date();
         verificationTokenExpiry.setHours(verificationTokenExpiry.getHours() + 24);
-        // Create Stripe customer
-        const stripeCustomer = await stripeInstance.customers.create({
-            email,
-            name: `${firstName} ${lastName}`,
-            phone,
-            payment_method: paymentMethodId,
-            invoice_settings: {
-                default_payment_method: paymentMethodId,
-            },
-        });
-        // Find referrer if referral code provided
+
+        let stripeCustomer = null;
         let referrerId = null;
-        if (referralCode) {
-            const referrer = await prisma.customer.findFirst({
-                where: { referralCode },
-                select: { id: true },
+        let newReferralCode = null;
+
+        // Only create Stripe customer and handle referrals for customer signups
+        if (role === 'CUSTOMER') {
+            // Create Stripe customer
+            stripeCustomer = await stripeInstance.customers.create({
+                email,
+                name: `${firstName} ${lastName}`,
+                phone,
+                payment_method: paymentMethodId,
+                invoice_settings: {
+                    default_payment_method: paymentMethodId,
+                },
             });
-            if (referrer) {
-                referrerId = referrer.id;
+
+            // Find referrer if referral code provided
+            if (referralCode) {
+                const referrer = await prisma.customer.findFirst({
+                    where: { referralCode },
+                    select: { id: true },
+                });
+                if (referrer) {
+                    referrerId = referrer.id;
+                }
             }
+
+            // Create a unique referral code for this new customer
+            newReferralCode = `${firstName.substring(0, 3)}${lastName.substring(0, 3)}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`.toUpperCase();
         }
-        // Create a unique referral code for this new customer
-        const newReferralCode = `${firstName.substring(0, 3)}${lastName.substring(0, 3)}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`.toUpperCase();
-        // Create user and customer in transaction
-        const { user, customer } = await prisma.$transaction(async (tx) => {
+
+        // Create user and profile in transaction
+        const { user, customer, employee } = await prisma.$transaction(async (tx) => {
             // Create user
             const newUser = await tx.user.create({
-                data: Object.assign(Object.assign({ email,
-                    name, password: hashedPassword, role,
+                data: {
+                    email,
+                    name,
+                    password: hashedPassword,
+                    role,
                     deviceFingerprint,
                     verificationToken,
-                    verificationTokenExpiry }, (role === 'CUSTOMER' && {
-                    customer: {
-                        create: {
-                            address: address && {
-                                create: {
-                                    street: address.street,
-                                    city: address.city,
-                                    state: address.state,
-                                    zipCode: address.zipCode
-                                }
-                            }
-                        }
-                    }
-                })), (role === 'EMPLOYEE' && {
-                    employee: {
-                        create: {}
-                    }
-                })),
+                    verificationTokenExpiry
+                },
                 include: {
                     customer: {
                         include: {
@@ -127,147 +124,178 @@ export async function POST(request) {
                     employee: true
                 }
             });
-            // Create customer
-            const newCustomer = await tx.customer.create({
-                data: {
-                    userId: newUser.id,
-                    stripeCustomerId: stripeCustomer.id,
-                    phone,
-                    gateCode,
-                    serviceDay,
-                    referralCode: newReferralCode,
-                    address: {
-                        create: {
-                            street: address === null || address === void 0 ? void 0 : address.street,
-                            city: address === null || address === void 0 ? void 0 : address.city,
-                            state: address === null || address === void 0 ? void 0 : address.state,
-                            zipCode: address === null || address === void 0 ? void 0 : address.zipCode
-                        }
-                    },
-                },
-            });
-            return { user: newUser, customer: newCustomer };
-        });
-        // Create referral record if referrerId is provided
-        if (referrerId) {
-            try {
-                await prisma.referral.create({
+
+            let newCustomer = null;
+            let newEmployee = null;
+
+            if (role === 'CUSTOMER') {
+                // Create customer profile
+                newCustomer = await tx.customer.create({
                     data: {
-                        referrerId: referrerId,
-                        referredId: customer.id,
-                        code: newReferralCode,
-                        status: 'COMPLETED'
+                        userId: newUser.id,
+                        stripeCustomerId: stripeCustomer?.id,
+                        phone,
+                        gateCode,
+                        serviceDay,
+                        referralCode: newReferralCode,
+                        address: address ? {
+                            create: {
+                                street: address.street,
+                                city: address.city,
+                                state: address.state,
+                                zipCode: address.zipCode
+                            }
+                        } : undefined,
+                    },
+                });
+            } else if (role === 'EMPLOYEE') {
+                // Create employee profile
+                newEmployee = await tx.employee.create({
+                    data: {
+                        userId: newUser.id,
+                        phone,
+                        status: 'PENDING',
                     }
                 });
             }
-            catch (error) {
-                console.error('Error creating referral:', error);
-                // Continue execution, don't fail signup if referral creation fails
-            }
-        }
-        // Create and charge for first-time setup fee - $30
-        const setupFeeAmount = 3000; // $30.00 in cents
-        const setupFeePaymentIntent = await stripeInstance.paymentIntents.create({
-            amount: setupFeeAmount,
-            currency: 'usd',
-            customer: stripeCustomer.id,
-            payment_method: paymentMethodId,
-            description: 'Initial Cleanup Fee',
-            metadata: {
-                customerId: customer.id,
-                userId: user.id,
-                type: 'SETUP_FEE'
-            },
-            confirm: true,
+
+            return { 
+                user: newUser, 
+                customer: newCustomer, 
+                employee: newEmployee 
+            };
         });
-        // Create subscription or one-time service
-        let subscription = null;
-        if (!isOneTimeService) {
-            // Get price ID based on service type
-            let priceId;
-            switch (serviceType) {
-                case 'weekly-1':
-                    priceId = process.env.STRIPE_WEEKLY_1_DOG_PRICE_ID;
-                    break;
-                case 'weekly-2':
-                    priceId = process.env.STRIPE_WEEKLY_2_DOGS_PRICE_ID;
-                    break;
-                case 'weekly-3':
-                    priceId = process.env.STRIPE_WEEKLY_3_PLUS_DOGS_PRICE_ID;
-                    break;
-                case 'one-time-1':
-                    priceId = process.env.STRIPE_ONE_TIME_1_DOG_PRICE_ID;
-                    break;
-                case 'one-time-2':
-                    priceId = process.env.STRIPE_ONE_TIME_2_DOGS_PRICE_ID;
-                    break;
-                case 'one-time-3':
-                    priceId = process.env.STRIPE_ONE_TIME_3_PLUS_DOGS_PRICE_ID;
-                    break;
-                default:
-                    return NextResponse.json({ error: 'Invalid service type' }, { status: 400 });
+
+        // Only handle subscriptions and payments for customers
+        if (role === 'CUSTOMER') {
+            // Create referral record if referrerId is provided
+            if (referrerId) {
+                try {
+                    await prisma.referral.create({
+                        data: {
+                            referrerId: referrerId,
+                            referredId: customer.id,
+                            code: newReferralCode,
+                            status: 'COMPLETED'
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error creating referral:', error);
+                }
             }
-            // Create subscription
-            const stripeSubscription = await stripeInstance.subscriptions.create({
-                customer: stripeCustomer.id,
-                items: [{ price: priceId }],
-                default_payment_method: paymentMethodId,
-                metadata: {
-                    customerId: customer.id,
-                    userId: user.id,
-                },
-            });
-            // Save subscription to DB
-            subscription = await prisma.subscription.create({
-                data: {
-                    customerId: customer.id,
-                    status: stripeSubscription.status,
-                    planId: serviceType,
-                    startDate: new Date()
-                },
-            });
-            // Schedule first service based on preferred day
-            await prisma.service.create({
-                data: {
-                    customerId: customer.id,
-                    scheduledDate: new Date(startDate),
-                    status: 'SCHEDULED',
-                    servicePlanId: serviceType
-                },
-            });
-        }
-        else {
-            // Handle one-time service
-            const oneTimeAmount = serviceType === 'one-time-basic' ? 5000 : 7500; // $50 or $75
-            const paymentIntent = await stripeInstance.paymentIntents.create({
-                amount: oneTimeAmount,
+
+            // Handle customer-specific operations (setup fee, subscription, etc.)
+            // Create and charge for first-time setup fee - $30
+            const setupFeeAmount = 3000; // $30.00 in cents
+            const setupFeePaymentIntent = await stripeInstance.paymentIntents.create({
+                amount: setupFeeAmount,
                 currency: 'usd',
                 customer: stripeCustomer.id,
                 payment_method: paymentMethodId,
-                description: serviceType === 'one-time-basic' ? 'Basic One-Time Service' : 'Premium One-Time Service',
+                description: 'Initial Cleanup Fee',
                 metadata: {
                     customerId: customer.id,
                     userId: user.id,
-                    type: 'ONE_TIME'
+                    type: 'SETUP_FEE'
                 },
                 confirm: true,
             });
-            // Create one-time service
-            await prisma.service.create({
-                data: {
-                    customerId: customer.id,
-                    scheduledDate: new Date(startDate),
-                    status: 'SCHEDULED',
-                    servicePlanId: serviceType
-                },
-            });
+            // Create subscription or one-time service
+            let subscription = null;
+            if (!isOneTimeService) {
+                // Get price ID based on service type
+                let priceId;
+                switch (serviceType) {
+                    case 'weekly-1':
+                        priceId = process.env.STRIPE_WEEKLY_1_DOG_PRICE_ID;
+                        break;
+                    case 'weekly-2':
+                        priceId = process.env.STRIPE_WEEKLY_2_DOGS_PRICE_ID;
+                        break;
+                    case 'weekly-3':
+                        priceId = process.env.STRIPE_WEEKLY_3_PLUS_DOGS_PRICE_ID;
+                        break;
+                    case 'one-time-1':
+                        priceId = process.env.STRIPE_ONE_TIME_1_DOG_PRICE_ID;
+                        break;
+                    case 'one-time-2':
+                        priceId = process.env.STRIPE_ONE_TIME_2_DOGS_PRICE_ID;
+                        break;
+                    case 'one-time-3':
+                        priceId = process.env.STRIPE_ONE_TIME_3_PLUS_DOGS_PRICE_ID;
+                        break;
+                    default:
+                        return NextResponse.json({ error: 'Invalid service type' }, { status: 400 });
+                }
+                // Create subscription
+                const stripeSubscription = await stripeInstance.subscriptions.create({
+                    customer: stripeCustomer.id,
+                    items: [{ price: priceId }],
+                    default_payment_method: paymentMethodId,
+                    metadata: {
+                        customerId: customer.id,
+                        userId: user.id,
+                    },
+                });
+                // Save subscription to DB
+                subscription = await prisma.subscription.create({
+                    data: {
+                        customerId: customer.id,
+                        status: stripeSubscription.status,
+                        planId: serviceType,
+                        startDate: new Date()
+                    },
+                });
+                // Schedule first service based on preferred day
+                await prisma.service.create({
+                    data: {
+                        customerId: customer.id,
+                        scheduledDate: new Date(startDate),
+                        status: 'SCHEDULED',
+                        servicePlanId: serviceType
+                    },
+                });
+            }
+            else {
+                // Handle one-time service
+                const oneTimeAmount = serviceType === 'one-time-basic' ? 5000 : 7500; // $50 or $75
+                const paymentIntent = await stripeInstance.paymentIntents.create({
+                    amount: oneTimeAmount,
+                    currency: 'usd',
+                    customer: stripeCustomer.id,
+                    payment_method: paymentMethodId,
+                    description: serviceType === 'one-time-basic' ? 'Basic One-Time Service' : 'Premium One-Time Service',
+                    metadata: {
+                        customerId: customer.id,
+                        userId: user.id,
+                        type: 'ONE_TIME'
+                    },
+                    confirm: true,
+                });
+                // Create one-time service
+                await prisma.service.create({
+                    data: {
+                        customerId: customer.id,
+                        scheduledDate: new Date(startDate),
+                        status: 'SCHEDULED',
+                        servicePlanId: serviceType
+                    },
+                });
+            }
         }
+
         // Create JWT token for authentication
         const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-        const token = await new SignJWT({ userId: user.id, role: user.role, customerId: customer.id })
+        const token = await new SignJWT({ 
+            userId: user.id, 
+            role: user.role,
+            customerId: customer?.id,
+            employeeId: employee?.id
+        })
             .setProtectedHeader({ alg: 'HS256' })
             .setExpirationTime('1d')
             .sign(secret);
+
         // Set cookie
         const cookieStore = await cookies();
         cookieStore.set({
@@ -278,26 +306,14 @@ export async function POST(request) {
             secure: process.env.NODE_ENV === 'production',
             maxAge: 60 * 60 * 24, // 1 day
         });
-        // Fetch customer with address
-        const customerWithAddress = await prisma.customer.findUnique({
-            where: { id: customer.id },
-            include: { address: true }
-        });
+
         // Remove sensitive data before sending response
-        const { password: _ } = user, userWithoutPassword = __rest(user, ["password"]);
+        const { password: _, ...userWithoutPassword } = user;
+        
         const response = NextResponse.json({
             user: userWithoutPassword,
-            customer: {
-                id: customer.id,
-                phone: customer.phone,
-                address: (customerWithAddress === null || customerWithAddress === void 0 ? void 0 : customerWithAddress.address) ? {
-                    street: customerWithAddress.address.street,
-                    city: customerWithAddress.address.city,
-                    state: customerWithAddress.address.state,
-                    zipCode: customerWithAddress.address.zipCode
-                } : null,
-            },
-            subscription,
+            customer,
+            employee,
             token,
         }, { status: 201 });
 
