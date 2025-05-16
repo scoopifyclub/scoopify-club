@@ -113,7 +113,36 @@ export async function POST(request) {
                     role,
                     deviceFingerprint,
                     verificationToken,
-                    verificationTokenExpiry
+                    verificationTokenExpiry,
+                    ...(role === 'EMPLOYEE' && {
+                        employee: {
+                            create: {
+                                phone,
+                                status: 'PENDING'
+                            }
+                        }
+                    }),
+                    ...(role === 'CUSTOMER' && {
+                        customer: {
+                            create: {
+                                stripeCustomerId: stripeCustomer?.id,
+                                phone,
+                                gateCode,
+                                serviceDay,
+                                referralCode: newReferralCode,
+                                ...(address && {
+                                    address: {
+                                        create: {
+                                            street: address.street,
+                                            city: address.city,
+                                            state: address.state,
+                                            zipCode: address.zipCode
+                                        }
+                                    }
+                                })
+                            }
+                        }
+                    })
                 },
                 include: {
                     customer: {
@@ -125,44 +154,10 @@ export async function POST(request) {
                 }
             });
 
-            let newCustomer = null;
-            let newEmployee = null;
-
-            if (role === 'CUSTOMER') {
-                // Create customer profile
-                newCustomer = await tx.customer.create({
-                    data: {
-                        userId: newUser.id,
-                        stripeCustomerId: stripeCustomer?.id,
-                        phone,
-                        gateCode,
-                        serviceDay,
-                        referralCode: newReferralCode,
-                        address: address ? {
-                            create: {
-                                street: address.street,
-                                city: address.city,
-                                state: address.state,
-                                zipCode: address.zipCode
-                            }
-                        } : undefined,
-                    },
-                });
-            } else if (role === 'EMPLOYEE') {
-                // Create employee profile
-                newEmployee = await tx.employee.create({
-                    data: {
-                        userId: newUser.id,
-                        phone,
-                        status: 'PENDING',
-                    }
-                });
-            }
-
             return { 
                 user: newUser, 
-                customer: newCustomer, 
-                employee: newEmployee 
+                customer: newUser.customer, 
+                employee: newUser.employee 
             };
         });
 
