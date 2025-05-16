@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import { generateTokens, validateUser } from '@/lib/api-auth';
 import { getZipCodesWithinRadiusGoogle } from '@/lib/googleZipRadius';
+import crypto from 'crypto';
 
 export async function POST(request) {
     try {
@@ -16,12 +17,12 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        // Check if employee already exists
-        const existingEmployee = await prisma.employee.findUnique({
+        // Check if user already exists
+        const existingUser = await prisma.user.findUnique({
             where: { email }
         });
-        if (existingEmployee) {
-            return NextResponse.json({ error: 'Employee already exists' }, { status: 400 });
+        if (existingUser) {
+            return NextResponse.json({ error: 'User with this email already exists' }, { status: 400 });
         }
 
         // Hash password
@@ -44,40 +45,61 @@ export async function POST(request) {
         if (!serviceAreaId && (!createdZipCodes || !Array.isArray(createdZipCodes) || createdZipCodes.length === 0)) {
             return NextResponse.json({ error: 'Please select a service area or provide zip codes.' }, { status: 400 });
         }
-        // If zip codes are present, create a new ServiceArea
-        if (!linkedServiceAreaId && createdZipCodes && Array.isArray(createdZipCodes) && createdZipCodes.length > 0) {
-            const newArea = await prisma.serviceArea.create({
+        // Create user and employee in a transaction
+        const result = await prisma.$transaction(async (tx) => {
+            // Create user first
+            const newUser = await tx.user.create({
                 data: {
-                    name: `${name}'s Area`,
-                    zipCodes: createdZipCodes,
-                    active: true
+                    id: crypto.randomUUID(),
+                    email,
+                    name,
+                    password: hashedPassword,
+                    role: 'EMPLOYEE',
+                    emailVerified: true
                 }
             });
-            linkedServiceAreaId = newArea.id;
-        }
-        // Create employee and link to the service area
-        const employee = await prisma.employee.create({
-            data: {
-                email,
-                password: hashedPassword,
-                name,
-                phone,
-                serviceAreas: {
-                    connect: linkedServiceAreaId ? [{ id: linkedServiceAreaId }] : []
-                }
-            },
-            include: {
-                serviceAreas: true
+
+            // If zip codes are present, create a new ServiceArea
+            if (!linkedServiceAreaId && createdZipCodes && Array.isArray(createdZipCodes) && createdZipCodes.length > 0) {
+                const newArea = await tx.serviceArea.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        name: `${name}'s Area`,
+                        zipCodes: createdZipCodes,
+                        active: true
+                    }
+                });
+                linkedServiceAreaId = newArea.id;
             }
+
+            // Create employee
+            const employee = await tx.employee.create({
+                data: {
+                    id: crypto.randomUUID(),
+                    userId: newUser.id,
+                    status: 'ACTIVE',
+                    phone,
+                    serviceAreas: {
+                        connect: linkedServiceAreaId ? [{ id: linkedServiceAreaId }] : []
+                    }
+                },
+                include: {
+                    user: true,
+                    serviceAreas: true
+                }
+            });
+
+            return employee;
         });
+
         return NextResponse.json({
             message: 'Employee created successfully',
             employee: {
-                id: employee.id,
-                email: employee.email,
-                name: employee.name,
-                phone: employee.phone,
-                serviceAreas: employee.serviceAreas
+                id: result.id,
+                email: result.user.email,
+                name: result.user.name,
+                phone: result.phone,
+                serviceAreas: result.serviceAreas
             }
         });
     } catch (error) {

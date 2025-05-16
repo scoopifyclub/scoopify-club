@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import crypto from 'crypto';
 
 export async function GET(request) {
     try {
@@ -41,46 +42,53 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-    var _a;
     try {
-        const token = (_a = request.headers.get('authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
-        if (!token) {
+        const user = await requireRole('ADMIN');
+        if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const decoded = await verifyToken(token);
-        if (!decoded || decoded.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+
         const body = await request.json();
         const { name, email, phone, serviceAreas } = body;
-        // Create user first
-        const user = await prisma.user.create({
-            data: {
-                name,
-                email,
-                role: 'EMPLOYEE',
-                password: 'temporary_password', // This should be changed on first login
-                emailVerified: true
-            }
-        });
-        // Then create employee
-        const employee = await prisma.employee.create({
-            data: {
-                userId: user.id,
-                status: 'ACTIVE',
-                phone,
-                serviceAreas: {
-                    create: serviceAreas.map((zipCode) => ({
-                        zipCode
-                    }))
+
+        // Create user and employee in a transaction
+        const result = await prisma.$transaction(async (tx) => {
+            // Create user first
+            const newUser = await tx.user.create({
+                data: {
+                    id: crypto.randomUUID(),
+                    name,
+                    email,
+                    role: 'EMPLOYEE',
+                    password: 'temporary_password', // This should be changed on first login
+                    emailVerified: true
                 }
-            },
-            include: {
-                user: true,
-                serviceAreas: true
-            }
+            });
+
+            // Then create employee
+            const employee = await tx.employee.create({
+                data: {
+                    id: crypto.randomUUID(),
+                    userId: newUser.id,
+                    status: 'ACTIVE',
+                    phone,
+                    serviceAreas: {
+                        create: serviceAreas?.map((zipCode) => ({
+                            id: crypto.randomUUID(),
+                            zipCode
+                        })) || []
+                    }
+                },
+                include: {
+                    user: true,
+                    serviceAreas: true
+                }
+            });
+
+            return employee;
         });
-        return NextResponse.json({ employee });
+
+        return NextResponse.json({ employee: result });
     }
     catch (error) {
         console.error('Error creating employee:', error);

@@ -18,6 +18,7 @@ import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
 import Stripe from 'stripe';
 import { edgeRateLimit } from '@/lib/edge-rate-limit';
+import crypto from 'crypto';
 const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2023-10-16',
 });
@@ -66,9 +67,8 @@ export async function POST(request) {
         // Hash password
         const hashedPassword = await hash(password, 12);
         // Generate verification token
-        const verificationToken = uuidv4();
-        const verificationTokenExpiry = new Date();
-        verificationTokenExpiry.setHours(verificationTokenExpiry.getHours() + 24);
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
         let stripeCustomer = null;
         let referrerId = null;
@@ -85,6 +85,9 @@ export async function POST(request) {
                 invoice_settings: {
                     default_payment_method: paymentMethodId,
                 },
+                metadata: {
+                    deviceFingerprint
+                }
             });
 
             // Find referrer if referral code provided
@@ -99,7 +102,7 @@ export async function POST(request) {
             }
 
             // Create a unique referral code for this new customer
-            newReferralCode = `${firstName.substring(0, 3)}${lastName.substring(0, 3)}${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`.toUpperCase();
+            newReferralCode = crypto.randomBytes(4).toString('hex').toUpperCase();
         }
 
         // Create user and profile in transaction
@@ -107,6 +110,7 @@ export async function POST(request) {
             // Create user
             const newUser = await tx.user.create({
                 data: {
+                    id: crypto.randomUUID(),
                     email,
                     name,
                     password: hashedPassword,
@@ -117,6 +121,7 @@ export async function POST(request) {
                     ...(role === 'EMPLOYEE' && {
                         employee: {
                             create: {
+                                id: crypto.randomUUID(),
                                 phone,
                                 status: 'PENDING'
                             }
@@ -125,6 +130,7 @@ export async function POST(request) {
                     ...(role === 'CUSTOMER' && {
                         customer: {
                             create: {
+                                id: crypto.randomUUID(),
                                 stripeCustomerId: stripeCustomer?.id,
                                 phone,
                                 gateCode,
@@ -133,6 +139,7 @@ export async function POST(request) {
                                 ...(address && {
                                     address: {
                                         create: {
+                                            id: crypto.randomUUID(),
                                             street: address.street,
                                             city: address.city,
                                             state: address.state,
@@ -168,6 +175,7 @@ export async function POST(request) {
                 try {
                     await prisma.referral.create({
                         data: {
+                            id: crypto.randomUUID(),
                             referrerId: referrerId,
                             referredId: customer.id,
                             code: newReferralCode,
@@ -244,6 +252,7 @@ export async function POST(request) {
                 // Schedule first service based on preferred day
                 await prisma.service.create({
                     data: {
+                        id: crypto.randomUUID(),
                         customerId: customer.id,
                         scheduledDate: new Date(startDate),
                         status: 'SCHEDULED',
@@ -270,6 +279,7 @@ export async function POST(request) {
                 // Create one-time service
                 await prisma.service.create({
                     data: {
+                        id: crypto.randomUUID(),
                         customerId: customer.id,
                         scheduledDate: new Date(startDate),
                         status: 'SCHEDULED',
