@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger, } from "@/components/ui/alert-dialog";
 import { Loader2, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { LoadingState, ErrorState, EmptyState, FeedbackState } from "@/components/ui/states";
 // Status badge colors
 const statusColors = {
     DRAFT: "bg-gray-500",
@@ -113,27 +114,20 @@ export default function BatchProcessClient({ batchId }) {
         }
     };
     if (isLoading) {
-        return (<div className="container py-6">
-        <div className="flex justify-center items-center min-h-[200px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary"/>
-        </div>
-      </div>);
+        return <LoadingState message="Loading batch details..." />;
     }
     if (!batch) {
-        return (<div className="container py-6">
-        <div className="text-center py-8">
-          <h2 className="text-lg font-semibold mb-2">Batch Not Found</h2>
-          <p className="text-muted-foreground mb-4">
-            The requested payment batch could not be found.
-          </p>
-          <Button asChild>
-            <Link href="/admin/payments/batches">
-              <ArrowLeft className="h-4 w-4 mr-2"/>
-              Return to Batches
-            </Link>
-          </Button>
-        </div>
-      </div>);
+        return (
+            <EmptyState
+                title="Batch Not Found"
+                message="The requested payment batch could not be found."
+                action={{
+                    label: "Return to Batches",
+                    onClick: () => router.push('/admin/payments/batches'),
+                    variant: "outline"
+                }}
+            />
+        );
     }
     // Check if batch can be processed
     const canProcess = ["DRAFT", "FAILED"].includes(batch.status) && payments.length > 0;
@@ -152,9 +146,9 @@ export default function BatchProcessClient({ batchId }) {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Process Batch: {batch.name}</CardTitle>
+                <CardTitle>Process Payment Batch</CardTitle>
                 <CardDescription>
-                  Process payments in this batch
+                  Review and process payments in this batch
                 </CardDescription>
               </div>
               <Badge className={statusColors[batch.status] || "bg-gray-500"}>
@@ -163,30 +157,15 @@ export default function BatchProcessClient({ batchId }) {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
-              {!canProcess && (<div className="bg-amber-50 text-amber-800 p-4 rounded-md">
-                  <div className="flex items-start">
-                    <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0"/>
-                    <div>
-                      <h3 className="font-medium">Cannot process batch</h3>
-                      <p className="text-sm mt-1">
-                        {batch.status !== "DRAFT" && batch.status !== "FAILED"
-                ? "This batch has already been processed or is currently processing."
-                : "There are no payments in this batch to process."}
-                      </p>
-                      <div className="mt-3">
-                        <Button asChild variant="outline" size="sm">
-                          <Link href={`/admin/payments/batches/${batchId}`}>
-                            <ArrowLeft className="h-4 w-4 mr-2"/>
-                            Back to Batch Details
-                          </Link>
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>)}
+            {!canProcess && (
+                <FeedbackState
+                    type="warning"
+                    message={`This batch cannot be processed because it is ${batch.status.toLowerCase()} or has no payments.`}
+                    className="mb-4"
+                />
+            )}
 
-              {canProcess && (<>
+            {canProcess && (<>
                   <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
                     <div className="space-y-2 w-full max-w-xs">
                       <label className="block text-sm font-medium">
@@ -293,7 +272,6 @@ export default function BatchProcessClient({ batchId }) {
                     </div>
                   </div>
                 </>)}
-            </div>
           </CardContent>
         </Card>
       </div>

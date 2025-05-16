@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Loader2, ArrowLeft, Clock, Play, Edit, Trash2, PlusCircle, Check, X } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { LoadingState, ErrorState, EmptyState } from "@/components/ui/states";
 // Status badge colors
 const statusColors = {
     DRAFT: "bg-gray-500",
@@ -192,27 +193,20 @@ export default function BatchDetailClient({ batchId }) {
             : [...prev, paymentId]);
     };
     if (isLoading) {
-        return (<div className="container py-6">
-        <div className="flex justify-center items-center min-h-[200px]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary"/>
-        </div>
-      </div>);
+        return <LoadingState message="Loading batch details..." />;
     }
     if (!batch) {
-        return (<div className="container py-6">
-        <div className="text-center py-8">
-          <h2 className="text-lg font-semibold mb-2">Batch Not Found</h2>
-          <p className="text-muted-foreground mb-4">
-            The requested payment batch could not be found.
-          </p>
-          <Button asChild>
-            <Link href="/admin/payments/batches">
-              <ArrowLeft className="h-4 w-4 mr-2"/>
-              Return to Batches
-            </Link>
-          </Button>
-        </div>
-      </div>);
+        return (
+            <EmptyState
+                title="Batch Not Found"
+                message="The requested payment batch could not be found."
+                action={{
+                    label: "Return to Batches",
+                    onClick: () => router.push('/admin/payments/batches'),
+                    variant: "outline"
+                }}
+            />
+        );
     }
     // Determine if batch is editable
     const isEditable = batch.status === "DRAFT";

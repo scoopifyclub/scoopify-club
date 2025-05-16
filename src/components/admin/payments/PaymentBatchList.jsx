@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, } from "@/components/ui/alert-dialog";
 import { MoreVertical, Edit, Trash2, Eye, Play, AlertTriangle, } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { LoadingState, ErrorState, EmptyState } from "@/components/ui/states";
 
 /**
  * @typedef {Object} User
@@ -155,15 +156,19 @@ export default function PaymentBatchList() {
         }
     };
     if (isLoading && batches.length === 0) {
-        return <div className="text-center py-6">Loading batches...</div>;
+        return <LoadingState message="Loading payment batches..." />;
     }
     if (batches.length === 0) {
-        return (<div className="text-center py-8">
-        <p className="text-muted-foreground mb-4">No payment batches found</p>
-        <p className="text-sm">
-          Create a new batch to start managing employee and referral payments.
-        </p>
-      </div>);
+        return (
+            <EmptyState
+                title="No Payment Batches"
+                message="Create a new batch to start managing employee and referral payments."
+                action={{
+                    label: "Create Batch",
+                    onClick: () => router.push('/admin/payments/batches/new')
+                }}
+            />
+        );
     }
     return (<div>
       <div className="rounded-md border">
