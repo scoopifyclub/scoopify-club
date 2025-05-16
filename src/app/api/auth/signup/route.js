@@ -34,9 +34,13 @@ export async function POST(request) {
 
         const body = await request.json();
         const { email, name, password, deviceFingerprint, role = 'CUSTOMER', address, firstName, lastName, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, } = body;
-        // Validate required fields
-        if (!email || !name || !password || !deviceFingerprint) {
-            return NextResponse.json({ error: 'All required fields must be provided' }, { status: 400 });
+        // Validate required fields based on role
+        if (!email || !name || !password) {
+            return NextResponse.json({ error: 'Email, name, and password are required' }, { status: 400 });
+        }
+        // deviceFingerprint is only required for customers
+        if (role === 'CUSTOMER' && !deviceFingerprint) {
+            return NextResponse.json({ error: 'Device fingerprint is required for customers' }, { status: 400 });
         }
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
