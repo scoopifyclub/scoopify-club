@@ -54,8 +54,8 @@ const navigation = {
 const contactInfo = [
     {
         icon: Mail,
-        text: 'support@scoopify.com',
-        href: 'mailto:support@scoopify.com',
+        text: 'services@scoopify.club',
+        href: 'mailto:services@scoopify.club',
     },
     {
         icon: Phone,
@@ -64,7 +64,7 @@ const contactInfo = [
     },
     {
         icon: MapPin,
-        text: '123 Pet Care Ave, City, State 12345',
+        text: 'Peyton, Colorado',
         href: 'https://maps.google.com',
     },
 ];

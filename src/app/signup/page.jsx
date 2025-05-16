@@ -218,11 +218,13 @@ function SignupForm({ onUncoveredZip }) {
               </SelectTrigger>
               <SelectContent>
                 {isOneTime ? (<>
-                    <SelectItem value="one-time-basic">Basic One-Time Service - $50</SelectItem>
-                    <SelectItem value="one-time-premium">Premium One-Time Service - $75</SelectItem>
+                    <SelectItem value="one-time-1">One-Time Service (1 Dog) - $75</SelectItem>
+                    <SelectItem value="one-time-2">One-Time Service (2 Dogs) - $90</SelectItem>
+                    <SelectItem value="one-time-3">One-Time Service (3+ Dogs) - $120</SelectItem>
                   </>) : (<>
-                    <SelectItem value="weekly">Weekly Service - $50/week</SelectItem>
-                    <SelectItem value="biweekly">Bi-Weekly Service - $75/bi-week</SelectItem>
+                    <SelectItem value="weekly-1">Weekly Service (1 Dog) - $55/month</SelectItem>
+                    <SelectItem value="weekly-2">Weekly Service (2 Dogs) - $70/month</SelectItem>
+                    <SelectItem value="weekly-3">Weekly Service (3+ Dogs) - $100/month</SelectItem>
                   </>)}
               </SelectContent>
             </Select>

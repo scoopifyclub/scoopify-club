@@ -69,7 +69,7 @@ export default function ContactPage() {
                   <Mail className="h-6 w-6 text-gray-400 mt-1"/>
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">Email</h3>
-                    <p className="mt-1 text-gray-600">support@scoopify.com</p>
+                    <p className="mt-1 text-gray-600">services@scoopify.club</p>
                   </div>
                 </div>
                 <div className="flex items-start">
@@ -84,8 +84,7 @@ export default function ContactPage() {
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">Address</h3>
                     <p className="mt-1 text-gray-600">
-                      123 Pet Care Ave<br />
-                      City, State 12345
+                      Peyton, Colorado
                     </p>
                   </div>
                 </div>
@@ -97,8 +96,8 @@ export default function ContactPage() {
                 Business Hours
               </h2>
               <div className="space-y-2">
-                <p className="text-gray-600">Monday - Friday: 9:00 AM - 5:00 PM</p>
-                <p className="text-gray-600">Saturday: 10:00 AM - 2:00 PM</p>
+                <p className="text-gray-600">Monday - Friday: 8:00 AM - 7:00 PM</p>
+                <p className="text-gray-600">Saturday: Closed</p>
                 <p className="text-gray-600">Sunday: Closed</p>
               </div>
             </div>

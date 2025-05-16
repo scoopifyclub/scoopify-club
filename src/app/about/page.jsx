@@ -85,37 +85,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Team Section */}
-      <section className="py-24 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-neutral-900">
-              Meet Our Team
-            </h2>
-            <p className="mt-4 text-lg text-neutral-600">
-              The dedicated professionals behind Scoopify
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="h-32 w-32 mx-auto rounded-full bg-neutral-200 mb-4"></div>
-              <h3 className="text-xl font-semibold">John Smith</h3>
-              <p className="text-neutral-600">Founder & CEO</p>
-            </div>
-            <div className="text-center">
-              <div className="h-32 w-32 mx-auto rounded-full bg-neutral-200 mb-4"></div>
-              <h3 className="text-xl font-semibold">Sarah Johnson</h3>
-              <p className="text-neutral-600">Operations Manager</p>
-            </div>
-            <div className="text-center">
-              <div className="h-32 w-32 mx-auto rounded-full bg-neutral-200 mb-4"></div>
-              <h3 className="text-xl font-semibold">Mike Davis</h3>
-              <p className="text-neutral-600">Customer Success</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* CTA Section */}
       <section className="py-24 bg-brand-primary">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

@@ -92,9 +92,7 @@ export default function TermsPage() {
               For questions about these Terms of Service, please contact us at:
             </p>
             <p className="text-gray-600">
-              Email: legal@scoopify.com<br />
-              Phone: (555) 123-4567<br />
-              Address: 123 Pet Care Ave, City, State 12345
+              Email: services@scoopify.club
             </p>
           </section>
         </div>

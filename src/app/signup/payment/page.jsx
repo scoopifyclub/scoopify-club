@@ -15,11 +15,33 @@ export default function Payment() {
     const preferredDay = searchParams.get('day') || 'MONDAY';
     // If present, show a warning that the initial cleanup date was bumped
     const wasBumped = searchParams.get('bumped') === 'true';
-    // Example: get base prices (replace with dynamic logic as needed)
-    const monthlyAmount = 129.0; // $129.00
-    const fullCleanupFee = 69.0; // $69.00
-    const discountedCleanupFee = Math.round(fullCleanupFee * 0.5 * 100) / 100; // 50% off, rounded to 2 decimals
-    const total = monthlyAmount + discountedCleanupFee;
+
+    // Calculate prices based on service type and number of dogs
+    const getPrices = () => {
+        const isOneTime = plan?.startsWith('one-time');
+        const basePrices = {
+            'weekly-1': 55.00,
+            'weekly-2': 70.00,
+            'weekly-3': 100.00,
+            'one-time-1': 75.00,
+            'one-time-2': 90.00,
+            'one-time-3': 120.00
+        };
+
+        const monthlyAmount = isOneTime ? 0 : basePrices[plan] || 55.00;
+        const fullCleanupFee = isOneTime ? basePrices[plan] || 75.00 : 69.00;
+        const discountedCleanupFee = isOneTime ? 0 : Math.round(fullCleanupFee * 0.5 * 100) / 100; // 50% off for subscription customers
+
+        return {
+            monthlyAmount,
+            fullCleanupFee,
+            discountedCleanupFee,
+            total: monthlyAmount + discountedCleanupFee
+        };
+    };
+
+    const prices = getPrices();
+
     useEffect(() => {
         if (!plan || !numberOfDogs) {
             router.push('/signup');
@@ -42,7 +64,7 @@ export default function Payment() {
                     plan,
                     numberOfDogs,
                     preferredDay,
-                    price,
+                    price: prices.total,
                 }),
             });
             const session = await response.json();
@@ -75,7 +97,7 @@ export default function Payment() {
           {wasBumped && (
             <div className="rounded-md bg-yellow-50 p-4 mb-4">
               <div className="text-sm text-yellow-800 font-semibold">
-                Heads up! Your requested initial cleanup date was less than 3 days away, so we bumped it to the same day next week to ensure proper scheduling. You’ll receive a confirmation email with the new date.
+                Heads up! Your requested initial cleanup date was less than 3 days away, so we bumped it to the same day next week to ensure proper scheduling. You'll receive a confirmation email with the new date.
               </div>
             </div>
           )}
@@ -101,15 +123,15 @@ export default function Payment() {
               {/* Show initial cleanup fee with discount */}
               <div className="flex justify-between">
                 <span className="text-gray-600">Initial Cleanup Fee (50% off)</span>
-                <span className="font-medium">${discountedCleanupFee.toFixed(2)} <span className="line-through text-gray-400 ml-1 text-xs">${fullCleanupFee.toFixed(2)}</span></span>
+                <span className="font-medium">${prices.discountedCleanupFee.toFixed(2)} <span className="line-through text-gray-400 ml-1 text-xs">${prices.fullCleanupFee.toFixed(2)}</span></span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">First Month Subscription</span>
-                <span className="font-medium">${monthlyAmount.toFixed(2)}</span>
+                <span className="font-medium">${prices.monthlyAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between border-t border-gray-200 pt-4">
                 <span className="text-lg font-semibold">Total Due Today</span>
-                <span className="text-lg font-semibold">${total.toFixed(2)}</span>
+                <span className="text-lg font-semibold">${prices.total.toFixed(2)}</span>
               </div>
             </div>
           </div>

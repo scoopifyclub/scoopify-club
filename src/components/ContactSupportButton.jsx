@@ -1,6 +1,6 @@
 import { Mail } from 'lucide-react';
 
-export default function ContactSupportButton({ email = 'support@scoopifyclub.com' }) {
+export default function ContactSupportButton({ email = 'services@scoopify.club' }) {
   const handleClick = () => {
     window.open(`mailto:${email}?subject=Scoopify%20Club%20Customer%20Support`, '_blank');
   };

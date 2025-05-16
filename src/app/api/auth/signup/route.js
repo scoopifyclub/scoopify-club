@@ -182,11 +182,23 @@ export async function POST(request) {
             // Get price ID based on service type
             let priceId;
             switch (serviceType) {
-                case 'weekly':
-                    priceId = process.env.STRIPE_WEEKLY_PRICE_ID;
+                case 'weekly-1':
+                    priceId = process.env.STRIPE_WEEKLY_1_DOG_PRICE_ID;
                     break;
-                case 'biweekly':
-                    priceId = process.env.STRIPE_BIWEEKLY_PRICE_ID;
+                case 'weekly-2':
+                    priceId = process.env.STRIPE_WEEKLY_2_DOGS_PRICE_ID;
+                    break;
+                case 'weekly-3':
+                    priceId = process.env.STRIPE_WEEKLY_3_PLUS_DOGS_PRICE_ID;
+                    break;
+                case 'one-time-1':
+                    priceId = process.env.STRIPE_ONE_TIME_1_DOG_PRICE_ID;
+                    break;
+                case 'one-time-2':
+                    priceId = process.env.STRIPE_ONE_TIME_2_DOGS_PRICE_ID;
+                    break;
+                case 'one-time-3':
+                    priceId = process.env.STRIPE_ONE_TIME_3_PLUS_DOGS_PRICE_ID;
                     break;
                 default:
                     return NextResponse.json({ error: 'Invalid service type' }, { status: 400 });

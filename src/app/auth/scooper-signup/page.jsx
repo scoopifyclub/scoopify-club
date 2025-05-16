@@ -76,9 +76,7 @@ export default function ScooperSignUp() {
             <ul className="text-sm text-gray-700 space-y-2 list-disc pl-5">
               <li>Earn 75% of service fees after deductions</li>
               <li>Flexible schedule - claim jobs that work for you</li>
-              <li>Get paid weekly through your preferred payment method</li>
-              <li>Access to our batch payment system for reliable income</li>
-              <li>Multiple payment options: Stripe, Cash App, Cash, or Check</li>
+              <li>Get paid weekly through stripe direct deposit or daily via cash app</li>
               <li>Real-time notifications for new job opportunities</li>
               <li>Track your earnings and completed services</li>
             </ul>
