@@ -9,6 +9,8 @@
     "STRIPE_WEBHOOK_SECRET": "${STRIPE_WEBHOOK_SECRET}",
     "STRIPE_PUBLISHABLE_KEY": "${STRIPE_PUBLISHABLE_KEY}"
   },
+  "buildCommand": "npm run vercel-build",
+  "installCommand": "npm install --prefer-offline --no-audit",
   "builds": [
     {
       "src": "next.config.js",
