@@ -55,7 +55,9 @@ export async function POST(request) {
                     name,
                     password: hashedPassword,
                     role: 'EMPLOYEE',
-                    emailVerified: true
+                    emailVerified: true,
+                    updatedAt: new Date(),
+                    createdAt: new Date()
                 }
             });
 
@@ -79,6 +81,8 @@ export async function POST(request) {
                     userId: newUser.id,
                     status: 'ACTIVE',
                     phone,
+                    updatedAt: new Date(),
+                    createdAt: new Date(),
                     serviceAreas: {
                         connect: linkedServiceAreaId ? [{ id: linkedServiceAreaId }] : []
                     }

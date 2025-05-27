@@ -118,12 +118,15 @@ export async function POST(request) {
                     deviceFingerprint,
                     verificationToken,
                     verificationTokenExpiry,
+                    updatedAt: new Date(),
                     ...(role === 'EMPLOYEE' && {
                         employee: {
                             create: {
                                 id: crypto.randomUUID(),
                                 phone,
-                                status: 'PENDING'
+                                status: 'PENDING',
+                                updatedAt: new Date(),
+                                createdAt: new Date()
                             }
                         }
                     }),
