@@ -16,6 +16,7 @@ export default function ScooperSignUp() {
         state: '',
         zipCode: '',
         role: 'EMPLOYEE',
+        travelDistance: ''
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -55,7 +56,8 @@ export default function ScooperSignUp() {
                     city: formData.city,
                     state: formData.state,
                     zipCode: formData.zipCode
-                }
+                },
+                travelDistance: formData.travelDistance
             };
             
             const response = await fetch('/api/auth/signup', {
@@ -178,6 +180,13 @@ export default function ScooperSignUp() {
                 ZIP Code
               </label>
               <input id="zipCode" name="zipCode" type="text" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm" value={formData.zipCode} onChange={handleChange}/>
+            </div>
+
+            <div>
+              <label htmlFor="travelDistance" className="block text-sm font-medium text-gray-700">
+                Travel Distance (miles)
+              </label>
+              <input id="travelDistance" name="travelDistance" type="number" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm" value={formData.travelDistance} onChange={handleChange}/>
             </div>
           </div>
 

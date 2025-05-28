@@ -34,7 +34,7 @@ export async function POST(request) {
         }
 
         const body = await request.json();
-        const { email, name, password, deviceFingerprint, role = 'CUSTOMER', address, firstName, lastName, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, } = body;
+        const { email, name, password, deviceFingerprint, role = 'CUSTOMER', address, firstName, lastName, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, travelDistance } = body;
         // Validate required fields based on role
         if (!email || !name || !password) {
             return NextResponse.json({ error: 'Email, name, and password are required' }, { status: 400 });
@@ -142,7 +142,8 @@ export async function POST(request) {
                                 zipCode: address.zipCode,
                                 active: true,
                                 createdAt: new Date(),
-                                updatedAt: new Date()
+                                updatedAt: new Date(),
+                                travelDistance: travelDistance
                             }
                         }
                     }
