@@ -84,6 +84,7 @@ model CoverageArea {
 
   @@index([employeeId])
   @@index([zipCode])
+  Employee   Employee @relation("EmployeeToServiceAreas", fields: [employeeId], references: [id])
 }
 
 model Customer {
@@ -145,6 +146,7 @@ model Employee {
   hasSetServiceArea      Boolean        @default(false)
   User                   User           @relation("UserToEmployee", fields: [userId], references: [id])
   services               Service[]
+  serviceAreas           CoverageArea[] @relation("EmployeeToServiceAreas")
 }
 
 model Location {
