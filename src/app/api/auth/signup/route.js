@@ -132,7 +132,7 @@ export async function POST(request) {
                         id: crypto.randomUUID(),
                         userId: newUser.id,
                         phone,
-                        status: 'PENDING',
+                        status: 'ACTIVE',
                         updatedAt: new Date(),
                         createdAt: new Date(),
                         hasSetServiceArea: false,
