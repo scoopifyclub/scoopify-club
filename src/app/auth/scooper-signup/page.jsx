@@ -44,9 +44,12 @@ export default function ScooperSignUp() {
         try {
             // Create the payload with the required fields
             const payload = {
-                ...formData,
+                email: formData.email,
                 name: `${formData.firstName} ${formData.lastName}`,
-                deviceFingerprint: window.navigator.userAgent, // Use user agent as device fingerprint
+                password: formData.password,
+                phone: formData.phone,
+                role: 'EMPLOYEE',
+                deviceFingerprint: window.navigator.userAgent,
                 address: {
                     street: formData.street,
                     city: formData.city,

@@ -119,55 +119,69 @@ export async function POST(request) {
                     verificationToken,
                     verificationTokenExpiry,
                     updatedAt: new Date(),
-                    ...(role === 'EMPLOYEE' && {
-                        employee: {
-                            create: {
-                                id: crypto.randomUUID(),
-                                phone,
-                                status: 'PENDING',
-                                updatedAt: new Date(),
-                                createdAt: new Date()
-                            }
-                        }
-                    }),
-                    ...(role === 'CUSTOMER' && {
-                        customer: {
-                            create: {
-                                id: crypto.randomUUID(),
-                                stripeCustomerId: stripeCustomer?.id,
-                                phone,
-                                gateCode,
-                                serviceDay,
-                                referralCode: newReferralCode,
-                                ...(address && {
-                                    address: {
-                                        create: {
-                                            id: crypto.randomUUID(),
-                                            street: address.street,
-                                            city: address.city,
-                                            state: address.state,
-                                            zipCode: address.zipCode
-                                        }
-                                    }
-                                })
-                            }
-                        }
-                    })
-                },
-                include: {
-                    customer: {
-                        include: {
-                            address: true
-                        }
-                    },
-                    employee: true
+                    createdAt: new Date()
                 }
             });
 
+            let customer = null;
+            let employee = null;
+
+            if (role === 'EMPLOYEE') {
+                employee = await tx.employee.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: newUser.id,
+                        phone,
+                        status: 'PENDING',
+                        updatedAt: new Date(),
+                        createdAt: new Date(),
+                        hasSetServiceArea: false,
+                        serviceAreas: {
+                            create: {
+                                id: crypto.randomUUID(),
+                                zipCode: address.zipCode,
+                                active: true,
+                                createdAt: new Date(),
+                                updatedAt: new Date()
+                            }
+                        }
+                    }
+                });
+            } else if (role === 'CUSTOMER') {
+                customer = await tx.customer.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        userId: newUser.id,
+                        stripeCustomerId: stripeCustomer?.id,
+                        phone,
+                        gateCode,
+                        serviceDay,
+                        referralCode: newReferralCode,
+                        updatedAt: new Date(),
+                        createdAt: new Date(),
+                        ...(address && {
+                            address: {
+                                create: {
+                                    id: crypto.randomUUID(),
+                                    street: address.street,
+                                    city: address.city,
+                                    state: address.state,
+                                    zipCode: address.zipCode,
+                                    updatedAt: new Date()
+                                }
+                            }
+                        })
+                    },
+                    include: {
+                        address: true
+                    }
+                });
+            }
+
             return { 
                 user: newUser, 
-                customer: newUser.customer, 
-                employee: newUser.employee 
+                customer, 
+                employee 
             };
         });
 
