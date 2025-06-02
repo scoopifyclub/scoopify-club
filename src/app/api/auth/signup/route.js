@@ -127,6 +127,7 @@ export async function POST(request) {
             let employee = null;
 
             if (role === 'EMPLOYEE') {
+                // Create employee first
                 employee = await tx.employee.create({
                     data: {
                         id: crypto.randomUUID(),
@@ -135,17 +136,20 @@ export async function POST(request) {
                         status: 'ACTIVE',
                         updatedAt: new Date(),
                         createdAt: new Date(),
-                        hasSetServiceArea: false,
-                        serviceAreas: {
-                            create: {
-                                id: crypto.randomUUID(),
-                                zipCode: address.zipCode,
-                                active: true,
-                                travelDistance: parseInt(travelDistance) || 20, // Use provided travel distance or default to 20 miles
-                                createdAt: new Date(),
-                                updatedAt: new Date()
-                            }
-                        }
+                        hasSetServiceArea: false
+                    }
+                });
+
+                // Then create the coverage area separately
+                await tx.coverageArea.create({
+                    data: {
+                        id: crypto.randomUUID(),
+                        employeeId: employee.id,
+                        zipCode: address.zipCode,
+                        active: true,
+                        travelDistance: parseInt(travelDistance) || 20,
+                        createdAt: new Date(),
+                        updatedAt: new Date()
                     }
                 });
             } else if (role === 'CUSTOMER') {
