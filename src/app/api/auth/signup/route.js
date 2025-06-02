@@ -136,7 +136,7 @@ export async function POST(request) {
                         updatedAt: new Date(),
                         createdAt: new Date(),
                         hasSetServiceArea: false,
-                        CoverageArea: {
+                        serviceAreas: {
                             create: {
                                 id: crypto.randomUUID(),
                                 zipCode: address.zipCode,
