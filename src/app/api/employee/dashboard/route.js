@@ -270,7 +270,7 @@ export async function GET(request) {
         completedServices,
         earnings: earnings._sum.amount || 0,
         customerCount,
-        hasSetServiceArea: employee.hasSetServiceArea || false,
+        hasSetServiceArea: (employee.hasSetServiceArea || false) || (employee.serviceAreas && employee.serviceAreas.length > 0),
         serviceAreas: employee.serviceAreas || []
       },
       services: employee.services || [],
