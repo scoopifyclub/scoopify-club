@@ -114,11 +114,16 @@ export default function EmployeeDashboard() {
 
     // Fetch all dashboard data
     const fetchDashboardData = async () => {
-        if (!user?.id) return;
+        if (!user?.id) {
+            console.log('❌ fetchDashboardData: No user ID');
+            return;
+        }
         
+        console.log('🔄 fetchDashboardData: Starting fetch for user:', user.id);
         setIsLoading(true);
         try {
             setError(null);
+            console.log('📡 Making API call to /api/employee/dashboard');
             const response = await fetch('/api/employee/dashboard', {
                 credentials: 'include',
                 headers: {
@@ -126,18 +131,23 @@ export default function EmployeeDashboard() {
                 }
             });
             
+            console.log('📡 API response status:', response.status);
+            
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 throw new Error(errorData.error || `Failed to fetch dashboard data: ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('✅ Dashboard data received:', data);
             setDashboardData(data);
+            console.log('✅ Dashboard data set in state');
         } catch (error) {
-            console.error('Error fetching dashboard data:', error);
+            console.error('❌ Error fetching dashboard data:', error);
             setError(error.message);
             retryFetch(() => fetchDashboardData(), 'dashboard');
         } finally {
+            console.log('🏁 fetchDashboardData: Setting isLoading to false');
             setIsLoading(false);
         }
     };
@@ -171,11 +181,13 @@ export default function EmployeeDashboard() {
 
     // Show loading state
     if (loading || isLoading) {
+        console.log('🔄 Rendering loading state - auth loading:', loading, 'dashboard loading:', isLoading);
         return <DashboardSkeleton />;
     }
 
     // Show error state
     if (error) {
+        console.log('❌ Rendering error state:', error);
         return (
             <Alert variant="destructive" className="m-4">
                 <AlertCircle className="h-4 w-4" />
@@ -204,6 +216,8 @@ export default function EmployeeDashboard() {
             </Alert>
         );
     }
+
+    console.log('✅ Rendering main dashboard - dashboardData:', dashboardData ? 'present' : 'null');
 
     // Show onboarding block if needed - TEMPORARILY DISABLED for debugging
     // if (!dashboardData?.stats.hasSetServiceArea || dashboardData?.stats.serviceAreas.length === 0) {
