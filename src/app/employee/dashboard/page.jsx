@@ -106,6 +106,10 @@ export default function EmployeeDashboard() {
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 2000; // 2 seconds
 
+    console.log('🚀 Employee Dashboard component loaded');
+    console.log('👤 User:', user);
+    console.log('🔄 Loading states - auth:', loading, 'dashboard:', isLoading);
+
     // Set isClient to true on mount and initialize date
     useEffect(() => {
         setIsClient(true);
@@ -114,40 +118,37 @@ export default function EmployeeDashboard() {
 
     // Fetch all dashboard data
     const fetchDashboardData = async () => {
+        console.log('🔄 fetchDashboardData called');
         if (!user?.id) {
-            console.log('❌ fetchDashboardData: No user ID');
+            console.log('❌ No user ID, skipping fetch');
             return;
         }
         
-        console.log('🔄 fetchDashboardData: Starting fetch for user:', user.id);
+        console.log('📡 Starting API call...');
         setIsLoading(true);
+        
         try {
-            setError(null);
-            console.log('📡 Making API call to /api/employee/dashboard');
             const response = await fetch('/api/employee/dashboard', {
                 credentials: 'include',
-                headers: {
-                    'Cache-Control': 'no-cache'
-                }
             });
             
-            console.log('📡 API response status:', response.status);
+            console.log('📡 API Response:', response.status);
             
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `Failed to fetch dashboard data: ${response.status}`);
+                throw new Error(`API Error: ${response.status}`);
             }
             
             const data = await response.json();
-            console.log('✅ Dashboard data received:', data);
+            console.log('✅ Data received:', data);
+            
             setDashboardData(data);
-            console.log('✅ Dashboard data set in state');
-        } catch (error) {
-            console.error('❌ Error fetching dashboard data:', error);
-            setError(error.message);
+            setError(null);
+        } catch (err) {
+            console.error('❌ API Error:', err);
+            setError(err.message);
             retryFetch(() => fetchDashboardData(), 'dashboard');
         } finally {
-            console.log('🏁 fetchDashboardData: Setting isLoading to false');
+            console.log('🏁 Setting loading to false');
             setIsLoading(false);
         }
     };
@@ -174,66 +175,48 @@ export default function EmployeeDashboard() {
 
     // Fetch data when user is available
     useEffect(() => {
+        console.log('📍 useEffect triggered - loading:', loading, 'user:', !!user);
         if (!loading && user) {
             fetchDashboardData();
         }
     }, [user, loading]);
 
+    console.log('🎨 About to render - loading:', loading, 'isLoading:', isLoading, 'error:', error, 'data:', !!dashboardData);
+
     // Show loading state
     if (loading || isLoading) {
-        console.log('🔄 Rendering loading state - auth loading:', loading, 'dashboard loading:', isLoading);
-        return <DashboardSkeleton />;
+        console.log('🔄 Rendering loading...');
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-lg">Loading your dashboard...</p>
+                    <p className="text-sm text-gray-500">Auth loading: {loading ? 'yes' : 'no'}, Dashboard loading: {isLoading ? 'yes' : 'no'}</p>
+                </div>
+            </div>
+        );
     }
 
     // Show error state
     if (error) {
-        console.log('❌ Rendering error state:', error);
+        console.log('❌ Rendering error:', error);
         return (
-            <Alert variant="destructive" className="m-4">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error Loading Dashboard</AlertTitle>
-                <AlertDescription>
-                    {error}
-                    {isRetrying && (
-                        <div className="mt-2">
-                            Retrying... ({retryCount + 1}/{MAX_RETRIES})
-                        </div>
-                    )}
-                </AlertDescription>
-                <Button 
-                    variant="outline" 
-                    className="mt-2"
-                    onClick={() => {
-                        setError(null);
-                        setRetryCount(0);
-                        fetchDashboardData();
-                    }}
-                    disabled={isRetrying}
-                >
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    Try Again
-                </Button>
-            </Alert>
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center text-red-600">
+                    <h2 className="text-xl font-bold">Error Loading Dashboard</h2>
+                    <p>{error}</p>
+                    <button 
+                        onClick={fetchDashboardData}
+                        className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                        Try Again
+                    </button>
+                </div>
+            </div>
         );
     }
 
-    console.log('✅ Rendering main dashboard - dashboardData:', dashboardData ? 'present' : 'null');
-
-    // Show onboarding block if needed - TEMPORARILY DISABLED for debugging
-    // if (!dashboardData?.stats.hasSetServiceArea || dashboardData?.stats.serviceAreas.length === 0) {
-    //     return (
-    //         <div className="flex flex-col items-center justify-center min-h-screen">
-    //             <h2 className="text-2xl font-bold mb-4">Complete Your Onboarding</h2>
-    //             <p className="mb-6 text-gray-600">You must set up at least one active service area before you can access your dashboard.</p>
-    //             <div className="w-full max-w-md">
-    //                 <ServiceAreaManager 
-    //                     employeeId={user.id} 
-    //                     onOnboardingComplete={fetchDashboardData} 
-    //                 />
-    //             </div>
-    //         </div>
-    //     );
-    // }
+    console.log('✅ Rendering main dashboard');
 
     // Main dashboard content
     return (
