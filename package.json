@@ -3,6 +3,7 @@
   "version": "0.1.2",
   "description": "A comprehensive system for managing dog waste removal services, employee scheduling, and customer subscriptions.",
   "private": true,
+  "deploymentTimestamp": "2025-01-06T17:40:00Z",
   "engines": {
     "node": ">=20.x"
   },
@@ -18,7 +19,7 @@
     "restart": "node restart-dev.js",
     "proxy": "local-ssl-proxy --source 3001 --target 3000",
     "build": "next build",
-    "vercel-build": "prisma generate && prisma db push && next build",
+    "vercel-build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
