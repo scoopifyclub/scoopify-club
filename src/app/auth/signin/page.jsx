@@ -47,15 +47,20 @@ export default function SignIn() {
                 throw new Error(data.error || 'Failed to sign in');
             }
 
+            // Check if user data exists
+            if (!data || !data.id) {
+                throw new Error('Invalid response from server');
+            }
+
             // Show success message if user just registered
             if (searchParams.get('registered') === 'true') {
                 toast.success('Account created successfully!');
             }
 
             // Redirect based on role
-            const redirectPath = data.user.role === 'CUSTOMER'
+            const redirectPath = data.role === 'CUSTOMER'
                 ? '/customer/dashboard'
-                : data.user.role === 'EMPLOYEE'
+                : data.role === 'EMPLOYEE'
                     ? '/employee/dashboard'
                     : '/admin/dashboard';
 
