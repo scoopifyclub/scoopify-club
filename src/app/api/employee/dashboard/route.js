@@ -263,6 +263,11 @@ export async function GET(request) {
     }
 
     console.log('✅ Dashboard data calculated successfully');
+    console.log('🔍 Employee hasSetServiceArea field:', employee.hasSetServiceArea);
+    console.log('🔍 Service areas count:', employee.serviceAreas ? employee.serviceAreas.length : 0);
+    
+    const hasServiceAreaFinal = (employee.hasSetServiceArea || false) || (employee.serviceAreas && employee.serviceAreas.length > 0);
+    console.log('🔍 Final hasSetServiceArea value:', hasServiceAreaFinal);
 
     return NextResponse.json({
       stats: {
@@ -270,7 +275,7 @@ export async function GET(request) {
         completedServices,
         earnings: earnings._sum.amount || 0,
         customerCount,
-        hasSetServiceArea: (employee.hasSetServiceArea || false) || (employee.serviceAreas && employee.serviceAreas.length > 0),
+        hasSetServiceArea: hasServiceAreaFinal,
         serviceAreas: employee.serviceAreas || []
       },
       services: employee.services || [],

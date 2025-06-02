@@ -205,21 +205,21 @@ export default function EmployeeDashboard() {
         );
     }
 
-    // Show onboarding block if needed
-    if (!dashboardData?.stats.hasSetServiceArea || dashboardData?.stats.serviceAreas.length === 0) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen">
-                <h2 className="text-2xl font-bold mb-4">Complete Your Onboarding</h2>
-                <p className="mb-6 text-gray-600">You must set up at least one active service area before you can access your dashboard.</p>
-                <div className="w-full max-w-md">
-                    <ServiceAreaManager 
-                        employeeId={user.id} 
-                        onOnboardingComplete={fetchDashboardData} 
-                    />
-                </div>
-            </div>
-        );
-    }
+    // Show onboarding block if needed - TEMPORARILY DISABLED for debugging
+    // if (!dashboardData?.stats.hasSetServiceArea || dashboardData?.stats.serviceAreas.length === 0) {
+    //     return (
+    //         <div className="flex flex-col items-center justify-center min-h-screen">
+    //             <h2 className="text-2xl font-bold mb-4">Complete Your Onboarding</h2>
+    //             <p className="mb-6 text-gray-600">You must set up at least one active service area before you can access your dashboard.</p>
+    //             <div className="w-full max-w-md">
+    //                 <ServiceAreaManager 
+    //                     employeeId={user.id} 
+    //                     onOnboardingComplete={fetchDashboardData} 
+    //                 />
+    //             </div>
+    //         </div>
+    //     );
+    // }
 
     // Main dashboard content
     return (
