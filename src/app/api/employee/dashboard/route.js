@@ -156,14 +156,12 @@ export async function GET(request) {
         where: { employeeId: employee.id }
       }),
       
-      // Customer count
-      prisma.customer.count({ 
-        where: { 
-          services: { 
-            some: { employeeId: employee.id } 
-          } 
-        } 
-      }),
+      // Customer count - count services by this employee, then get unique customers
+      prisma.service.findMany({
+        where: { employeeId: employee.id },
+        select: { customerId: true },
+        distinct: ['customerId']
+      }).then(services => services.length),
       
       // Notifications
       prisma.notification.findMany({
