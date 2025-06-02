@@ -168,7 +168,7 @@ export async function GET(request) {
       // Notifications
       prisma.notification.findMany({
         where: {
-          employeeId: employee.id,
+          userId: user.id,
           read: false
         },
         orderBy: {
@@ -180,7 +180,7 @@ export async function GET(request) {
 
     // Get notification settings
     const notificationSettings = await prisma.notificationSettings.findUnique({
-      where: { employeeId: employee.id }
+      where: { userId: user.id }
     });
 
     console.log('✅ Dashboard data calculated successfully');
