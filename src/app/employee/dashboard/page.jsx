@@ -97,7 +97,7 @@ export default function EmployeeDashboard() {
     const router = useRouter();
     const { user, loading } = useAuth();
     const [dashboardData, setDashboardData] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isRetrying, setIsRetrying] = useState(false);
     const [retryCount, setRetryCount] = useState(0);
@@ -116,7 +116,7 @@ export default function EmployeeDashboard() {
     const fetchDashboardData = async () => {
         if (!user?.id) return;
         
-        setLoading(true);
+        setIsLoading(true);
         try {
             setError(null);
             const response = await fetch('/api/employee/dashboard', {
@@ -138,7 +138,7 @@ export default function EmployeeDashboard() {
             setError(error.message);
             retryFetch(() => fetchDashboardData(), 'dashboard');
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
@@ -164,13 +164,13 @@ export default function EmployeeDashboard() {
 
     // Fetch data when user is available
     useEffect(() => {
-        if (user?.id) {
+        if (!loading && user) {
             fetchDashboardData();
         }
-    }, [user]);
+    }, [user, loading]);
 
     // Show loading state
-    if (loading || !isClient) {
+    if (loading || isLoading) {
         return <DashboardSkeleton />;
     }
 
@@ -373,7 +373,7 @@ export default function EmployeeDashboard() {
                     </CardHeader>
                     <CardContent>
                         <ScrollArea className="h-[400px]">
-                            {loading ? (
+                            {isLoading ? (
                                 <div className="animate-pulse space-y-2">
                                     {[...Array(5)].map((_, i) => (
                                         <div key={i} className="h-16 bg-gray-100 rounded" />
