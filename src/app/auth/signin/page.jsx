@@ -17,16 +17,22 @@ export default function SignIn() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
+        
+        console.log('🔐 Starting login process...');
 
         try {
             // Generate device fingerprint with error handling
             let deviceFingerprint;
             try {
                 deviceFingerprint = await generateDeviceFingerprint();
+                console.log('📱 Device fingerprint generated:', deviceFingerprint);
             } catch (error) {
-                console.error('Error generating device fingerprint:', error);
+                console.error('❌ Error generating device fingerprint:', error);
                 deviceFingerprint = `fallback-${Math.random().toString(36).substring(2)}`;
+                console.log('📱 Using fallback fingerprint:', deviceFingerprint);
             }
+
+            console.log('📤 Sending login request with:', { email, hasPassword: !!password });
 
             const response = await fetch('/api/auth/signin', {
                 method: 'POST',
@@ -41,7 +47,10 @@ export default function SignIn() {
                 credentials: 'include',
             });
 
+            console.log('📥 Login response status:', response.status, response.statusText);
+
             const data = await response.json();
+            console.log('📥 Login response data:', data);
             
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to sign in');
@@ -49,8 +58,11 @@ export default function SignIn() {
 
             // Check if user data exists
             if (!data || !data.id) {
+                console.error('❌ Invalid response structure:', data);
                 throw new Error('Invalid response from server');
             }
+
+            console.log('✅ Login successful, user role:', data.role);
 
             // Show success message if user just registered
             if (searchParams.get('registered') === 'true') {
@@ -64,9 +76,10 @@ export default function SignIn() {
                     ? '/employee/dashboard'
                     : '/admin/dashboard';
 
+            console.log('🔄 Redirecting to:', redirectPath);
             router.push(redirectPath);
         } catch (error) {
-            console.error('Login error:', error);
+            console.error('❌ Login error:', error);
             toast.error(error instanceof Error ? error.message : 'An error occurred during login');
         } finally {
             setLoading(false);
