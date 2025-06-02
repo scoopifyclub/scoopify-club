@@ -5,10 +5,27 @@ import { NextResponse } from 'next/server';
 export async function POST(request) {
   try {
     const { email, password } = await request.json();
-    const { user, token } = await authenticateUser(email, password);
+    
+    if (!email || !password) {
+      return NextResponse.json(
+        { error: 'Email and password are required' },
+        { status: 400 }
+      );
+    }
 
-    const cookieStore = cookies();
-    cookieStore.set('token', token, {
+    const authResult = await authenticateUser(email, password);
+    
+    if (!authResult) {
+      return NextResponse.json(
+        { error: 'Invalid email or password' },
+        { status: 401 }
+      );
+    }
+
+    const { user, accessToken } = authResult;
+
+    const cookieStore = await cookies();
+    cookieStore.set('token', accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -22,9 +39,10 @@ export async function POST(request) {
       role: user.role,
     });
   } catch (error) {
+    console.error('Signin error:', error);
     return NextResponse.json(
-      { error: error.message },
-      { status: 401 }
+      { error: 'Internal server error' },
+      { status: 500 }
     );
   }
 }

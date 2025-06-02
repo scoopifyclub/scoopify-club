@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from './prisma';
 import { jwtVerify, SignJWT } from 'jose';
+import { compare } from 'bcryptjs';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
 
@@ -120,6 +121,12 @@ export async function login(email, password) {
       return null;
     }
 
+    // Verify password
+    const isValidPassword = await compare(password, user.password);
+    if (!isValidPassword) {
+      return null;
+    }
+
     // Then fetch employee and customer separately if needed
     let employee = null;
     let customer = null;
@@ -149,8 +156,6 @@ export async function login(email, password) {
       customer
     };
 
-    // In a real app, you would verify the password here
-    // For now, we'll just return the user
     const tokens = await generateTokens(user);
     return { user: userWithRelations, ...tokens };
   } catch (error) {
