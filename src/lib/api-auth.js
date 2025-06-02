@@ -111,22 +111,48 @@ export async function generateTokens(user) {
 
 export async function login(email, password) {
   try {
+    // First get the user without includes
     const user = await prisma.user.findUnique({
-      where: { email },
-      include: {
-        employee: true,
-        customer: true,
-      },
+      where: { email }
     });
 
     if (!user) {
       return null;
     }
 
+    // Then fetch employee and customer separately if needed
+    let employee = null;
+    let customer = null;
+    
+    if (user.role === 'EMPLOYEE') {
+      try {
+        employee = await prisma.employee.findUnique({
+          where: { userId: user.id }
+        });
+      } catch (error) {
+        console.log('Employee fetch error:', error.message);
+      }
+    } else if (user.role === 'CUSTOMER') {
+      try {
+        customer = await prisma.customer.findUnique({
+          where: { userId: user.id }
+        });
+      } catch (error) {
+        console.log('Customer fetch error:', error.message);
+      }
+    }
+
+    // Add the relationships to the user object
+    const userWithRelations = {
+      ...user,
+      employee,
+      customer
+    };
+
     // In a real app, you would verify the password here
     // For now, we'll just return the user
     const tokens = await generateTokens(user);
-    return { user, ...tokens };
+    return { user: userWithRelations, ...tokens };
   } catch (error) {
     console.error('Error logging in:', error);
     return null;
