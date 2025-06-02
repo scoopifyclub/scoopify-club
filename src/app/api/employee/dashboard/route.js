@@ -38,33 +38,59 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get employee data with service areas
-    const employee = await prisma.employee.findUnique({
-      where: { userId: user.id },
-      include: { 
-        serviceAreas: true,
-        services: {
-          where: {
-            status: {
-              in: ['SCHEDULED', 'IN_PROGRESS']
-            }
-          },
-          include: {
-            customer: {
-              include: {
-                address: true,
-                user: true
+    // Get employee data with service areas - handle potential schema issues
+    let employee;
+    try {
+      employee = await prisma.employee.findUnique({
+        where: { userId: user.id },
+        include: { 
+          serviceAreas: true,
+          services: {
+            where: {
+              status: {
+                in: ['SCHEDULED', 'IN_PROGRESS']
               }
             },
-            servicePlan: true,
-            photos: true
-          },
-          orderBy: {
-            scheduledDate: 'asc'
+            include: {
+              customer: {
+                include: {
+                  address: true,
+                  user: true
+                }
+              },
+              servicePlan: true,
+              photos: true
+            },
+            orderBy: {
+              scheduledDate: 'asc'
+            }
           }
         }
+      });
+    } catch (schemaError) {
+      console.log('❌ Schema error with serviceAreas, trying without includes:', schemaError.message);
+      
+      // Fallback: get employee without complex includes
+      employee = await prisma.employee.findUnique({
+        where: { userId: user.id }
+      });
+      
+      if (employee) {
+        // Try to get serviceAreas separately
+        try {
+          const coverageAreas = await prisma.coverageArea.findMany({
+            where: { employeeId: employee.id }
+          });
+          employee.serviceAreas = coverageAreas;
+        } catch (coverageError) {
+          console.log('❌ Could not fetch coverage areas:', coverageError.message);
+          employee.serviceAreas = [];
+        }
+        
+        // Set empty services for now
+        employee.services = [];
       }
-    });
+    }
 
     if (!employee) {
       console.log('❌ Employee profile not found for user:', user.email);
