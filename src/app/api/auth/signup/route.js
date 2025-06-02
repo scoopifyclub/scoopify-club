@@ -136,14 +136,14 @@ export async function POST(request) {
                         updatedAt: new Date(),
                         createdAt: new Date(),
                         hasSetServiceArea: false,
-                        serviceAreas: {
+                        CoverageArea: {
                             create: {
                                 id: crypto.randomUUID(),
                                 zipCode: address.zipCode,
                                 active: true,
+                                travelDistance: parseInt(travelDistance) || 20, // Use provided travel distance or default to 20 miles
                                 createdAt: new Date(),
-                                updatedAt: new Date(),
-                                travelDistance: travelDistance
+                                updatedAt: new Date()
                             }
                         }
                     }

@@ -75,16 +75,17 @@ model CoveragePriority {
 }
 
 model CoverageArea {
-  id         String   @id
-  zipCode    String
-  employeeId String
-  active     Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime
+  id             String   @id
+  zipCode        String   @db.VarChar(5) // Ensure 5-digit zip code
+  employeeId     String
+  active         Boolean  @default(true)
+  travelDistance Int      @default(20) // Distance in miles, must be positive
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
 
   @@index([employeeId])
   @@index([zipCode])
-  Employee   Employee @relation("EmployeeToServiceAreas", fields: [employeeId], references: [id])
+  Employee       Employee @relation("EmployeeToServiceAreas", fields: [employeeId], references: [id])
 }
 
 model Customer {
@@ -552,6 +553,8 @@ model User {
   employee                Employee?      @relation("UserToEmployee")
   RefreshToken            RefreshToken[]
   serviceAreas            ServiceArea[]  @relation("ScooperServiceAreas")
+
+  @@index([role])
 }
 
 model EarningToPayment {
