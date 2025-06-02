@@ -147,7 +147,6 @@ export async function POST(request) {
                         employeeId: employee.id,
                         zipCode: address.zipCode,
                         active: true,
-                        travelDistance: parseInt(travelDistance) || 20,
                         createdAt: new Date(),
                         updatedAt: new Date()
                     }
