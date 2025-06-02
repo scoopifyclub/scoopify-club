@@ -9,7 +9,8 @@ import {
   Calendar,
   Settings,
   AlertCircle,
-  DollarSign
+  DollarSign,
+  MapPin
 } from 'lucide-react';
 
 /**
@@ -33,6 +34,11 @@ const navItems = [
     title: 'Employees',
     href: '/admin/employees',
     icon: Users
+  },
+  {
+    title: 'Coverage Areas',
+    href: '/admin/dashboard/coverage',
+    icon: MapPin
   },
   {
     title: 'Schedule',

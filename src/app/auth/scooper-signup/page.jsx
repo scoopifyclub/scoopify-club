@@ -1,8 +1,25 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import PasswordStrength from '@/components/auth/PasswordStrength';
+
+// Placeholder for ZIP code radius calculation
+async function fetchZipCodesInRadius(zipCode, distance) {
+  // Replace this with a real API call or local calculation
+  // For now, return the entered ZIP code as a single-item array
+  if (!zipCode || !distance) return [];
+  try {
+    // Example: Use Zipcodebase or similar API here
+    // const response = await fetch(`https://app.zipcodebase.com/api/v1/radius?apikey=YOUR_API_KEY&code=${zipCode}&radius=${distance}&country=US`);
+    // const data = await response.json();
+    // return data.results.map(z => z.code);
+    return [zipCode];
+  } catch (e) {
+    return [zipCode];
+  }
+}
+
 export default function ScooperSignUp() {
     const [formData, setFormData] = useState({
         firstName: '',
@@ -21,6 +38,7 @@ export default function ScooperSignUp() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [isPasswordValid, setIsPasswordValid] = useState(false);
+    const [coveredZips, setCoveredZips] = useState([]);
     const router = useRouter();
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -57,7 +75,8 @@ export default function ScooperSignUp() {
                     state: formData.state,
                     zipCode: formData.zipCode
                 },
-                travelDistance: formData.travelDistance
+                travelDistance: formData.travelDistance,
+                coveredZips: coveredZips
             };
             
             const response = await fetch('/api/auth/signup', {
@@ -81,6 +100,19 @@ export default function ScooperSignUp() {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+      async function updateCoveredZips() {
+        if (formData.zipCode && formData.travelDistance) {
+          const zips = await fetchZipCodesInRadius(formData.zipCode, formData.travelDistance);
+          setCoveredZips(zips);
+        } else {
+          setCoveredZips([]);
+        }
+      }
+      updateCoveredZips();
+    }, [formData.zipCode, formData.travelDistance]);
+
     return (<div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
@@ -189,6 +221,17 @@ export default function ScooperSignUp() {
               <input id="travelDistance" name="travelDistance" type="number" required className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 sm:text-sm" value={formData.travelDistance} onChange={handleChange}/>
             </div>
           </div>
+
+          {coveredZips.length > 0 && (
+            <div className="mt-4 p-2 bg-blue-50 rounded border border-blue-100">
+              <div className="text-sm font-medium text-blue-700 mb-1">ZIP codes you will cover:</div>
+              <div className="flex flex-wrap gap-2">
+                {coveredZips.map(zip => (
+                  <span key={zip} className="px-2 py-1 bg-blue-200 rounded text-xs font-mono">{zip}</span>
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && (<div className="text-red-500 text-sm text-center">{error}</div>)}
 

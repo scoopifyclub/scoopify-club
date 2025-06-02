@@ -1,13 +1,38 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthUserFromCookies } from '@/lib/api-auth';
+import { verifyToken } from '@/lib/api-auth';
 
 export async function GET(request) {
   try {
     console.log('📊 Fetching employee stats...');
     
-    const user = await getAuthUserFromCookies(request);
-    console.log('👤 User from cookies:', user);
+    // Try to get user from either token or accessToken cookie
+    const token = request.cookies.get('token')?.value || request.cookies.get('accessToken')?.value;
+    if (!token) {
+      console.log('❌ No token found in cookies');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const decoded = await verifyToken(token);
+    if (!decoded) {
+      console.log('❌ Token verification failed');
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('👤 Looking up user with ID:', decoded.userId);
+    
+    // Get the full user data from database
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+      }
+    });
+
+    console.log('👤 User found:', user ? `${user.email} (${user.role})` : 'not found');
     
     if (!user || user.role !== 'EMPLOYEE') {
       console.log('❌ Unauthorized - user:', user);

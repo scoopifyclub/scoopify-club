@@ -34,7 +34,7 @@ export async function POST(request) {
         }
 
         const body = await request.json();
-        const { email, name, password, deviceFingerprint, role = 'CUSTOMER', address, firstName, lastName, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, travelDistance } = body;
+        const { email, name, password, deviceFingerprint, role = 'CUSTOMER', address, firstName, lastName, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, travelDistance, coveredZips } = body;
         // Validate required fields based on role
         if (!email || !name || !password) {
             return NextResponse.json({ error: 'Email, name, and password are required' }, { status: 400 });
@@ -76,6 +76,19 @@ export async function POST(request) {
 
         // Only create Stripe customer and handle referrals for customer signups
         if (role === 'CUSTOMER') {
+            // Check if the customer's ZIP code is covered by any active scooper
+            if (!address?.zipCode) {
+                return NextResponse.json({ error: 'ZIP code is required for customers' }, { status: 400 });
+            }
+            const isCovered = await prisma.coverageArea.findFirst({
+                where: {
+                    zipCode: address.zipCode,
+                    active: true
+                }
+            });
+            if (!isCovered) {
+                return NextResponse.json({ error: 'Sorry, we do not currently service your area.' }, { status: 400 });
+            }
             // Create Stripe customer
             stripeCustomer = await stripeInstance.customers.create({
                 email,
@@ -140,13 +153,14 @@ export async function POST(request) {
                     }
                 });
 
-                // Create coverage area if address provided
-                if (address?.zipCode) {
+                // Create coverage areas for all zip codes in coveredZips, or just the entered zip if not provided
+                const zipCodesToCover = Array.isArray(coveredZips) && coveredZips.length > 0 ? coveredZips : (address?.zipCode ? [address.zipCode] : []);
+                for (const zip of zipCodesToCover) {
                     await tx.coverageArea.create({
                         data: {
                             id: crypto.randomUUID(),
                             employeeId: employee.id,
-                            zipCode: address.zipCode,
+                            zipCode: zip,
                             active: true,
                             travelDistance: travelDistance || 20, // Default to 20 miles
                             createdAt: new Date(),
