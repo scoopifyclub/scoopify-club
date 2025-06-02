@@ -6,6 +6,11 @@ export const viewport = {
 export const metadata = {
     title: "Scoopify Club - Professional Dog Waste Removal",
     description: "Professional dog waste removal service. Keep your yard clean and enjoy more time with your pets.",
+    icons: {
+        icon: '/favicon.ico',
+        shortcut: '/favicon.ico',
+        apple: '/favicon.ico',
+    },
 };
 
 import { Inter } from "next/font/google";

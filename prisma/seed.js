@@ -154,6 +154,76 @@ async function main() {
     },
   });
 
+  // Create additional test services for employee dashboard
+  console.log('Creating additional test services...');
+  
+  // Create some pending services for employees to claim
+  const pendingServices = [
+    {
+      id: uuidv4(),
+      customerId: customer.id,
+      scheduledDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
+      servicePlanId: basicPlan.id,
+      status: 'PENDING',
+      potentialEarnings: 25.00,
+      workflowStatus: 'AVAILABLE',
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: uuidv4(),
+      customerId: customer.id,
+      scheduledDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // Day after tomorrow
+      servicePlanId: basicPlan.id,
+      status: 'PENDING',
+      potentialEarnings: 30.00,
+      workflowStatus: 'AVAILABLE',
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+
+  for (const serviceData of pendingServices) {
+    await prisma.service.create({
+      data: serviceData,
+    });
+  }
+
+  // Create a completed service for the employee
+  const completedService = await prisma.service.create({
+    data: {
+      id: uuidv4(),
+      customerId: customer.id,
+      scheduledDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last week
+      servicePlanId: basicPlan.id,
+      employeeId: employee.id,
+      status: 'COMPLETED',
+      completedDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      potentialEarnings: 25.00,
+      workflowStatus: 'COMPLETED',
+      paymentStatus: 'PAID',
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  // Create test earnings for completed service
+  await prisma.earning.create({
+    data: {
+      id: uuidv4(),
+      amount: 25.00,
+      status: 'PAID',
+      serviceId: completedService.id,
+      employeeId: employee.id,
+      paidAt: new Date(),
+      approvedAt: new Date(),
+      createdAt: now,
+      updatedAt: now,
+    },
+  });
+
+  console.log('Test services created successfully!');
+
   // Create a payment
   await prisma.payment.create({
     data: {

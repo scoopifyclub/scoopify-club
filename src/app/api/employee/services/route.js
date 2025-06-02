@@ -1,25 +1,24 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/api-auth';
+import { verifyToken, getAuthUserFromCookies } from '@/lib/api-auth';
+
 export async function GET(request) {
-    var _a;
     try {
-        // Verify employee authorization
-        const token = (_a = request.headers.get('Authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
-        if (!token) {
+        // Verify employee authorization using cookies
+        const user = await getAuthUserFromCookies(request);
+        if (!user || user.role !== 'EMPLOYEE') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const decoded = await verifyToken(token);
-        if (!decoded || decoded.role !== 'EMPLOYEE') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+
         // Get query parameters
         const { searchParams } = new URL(request.url);
-        const status = searchParams.get('status') || 'AVAILABLE';
+        const status = searchParams.get('status') || 'PENDING';
+
         // Get available services
         const services = await prisma.service.findMany({
             where: {
                 status: status,
+                employeeId: null, // Only show unassigned services
                 // TODO: Add area filtering when implemented
             },
             include: {
@@ -36,28 +35,35 @@ export async function GET(request) {
                 scheduledDate: 'asc'
             }
         });
+
         return NextResponse.json(services);
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Error fetching services:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
+
 export async function POST(req) {
-    var _a;
     try {
-        const token = (_a = req.headers.get('authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
-        if (!token) {
+        const user = await getAuthUserFromCookies(req);
+        if (!user || user.role !== 'EMPLOYEE') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const decoded = await verifyToken(token);
-        if (!decoded || decoded.role !== 'EMPLOYEE') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const { id } = await req.json();
+
+        const { serviceId } = await req.json();
         if (!serviceId) {
             return NextResponse.json({ error: 'Service ID is required' }, { status: 400 });
         }
+
+        // Get employee record
+        const employee = await prisma.employee.findUnique({
+            where: { userId: user.id }
+        });
+
+        if (!employee) {
+            return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
+        }
+
         // Claim the service
         const updatedService = await prisma.service.update({
             where: {
@@ -66,8 +72,8 @@ export async function POST(req) {
                 employeeId: null,
             },
             data: {
-                employeeId: decoded.userId,
-                status: 'CLAIMED',
+                employeeId: employee.id,
+                status: 'SCHEDULED',
             },
             include: {
                 customer: {
@@ -78,12 +84,13 @@ export async function POST(req) {
                 },
             },
         });
+
         if (!updatedService) {
             return NextResponse.json({ error: 'Service not available for claiming' }, { status: 400 });
         }
+
         return NextResponse.json(updatedService);
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Error claiming service:', error);
         return NextResponse.json({ error: 'Failed to claim service' }, { status: 500 });
     }

@@ -48,6 +48,48 @@ export async function getAuthUser(request) {
   }
 }
 
+export async function getAuthUserFromCookies(request) {
+  try {
+    console.log('🍪 Getting auth user from cookies...');
+    
+    const token = request.cookies.get('token')?.value;
+    console.log('🎫 Token from cookies:', token ? 'found' : 'not found');
+    
+    if (!token) {
+      console.log('❌ No token found in cookies');
+      return null;
+    }
+
+    const decoded = await verifyToken(token);
+    console.log('🔓 Token decoded:', decoded ? 'success' : 'failed');
+    
+    if (!decoded) {
+      console.log('❌ Token verification failed');
+      return null;
+    }
+
+    console.log('👤 Looking up user with ID:', decoded.userId);
+    
+    // Get the full user data from database
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+      }
+    });
+
+    console.log('👤 User found:', user ? `${user.email} (${user.role})` : 'not found');
+    
+    return user;
+  } catch (error) {
+    console.error('❌ Error getting auth user from cookies:', error);
+    return null;
+  }
+}
+
 export async function validateUser(token) {
   try {
     const decoded = await verifyToken(token);
@@ -188,7 +230,7 @@ export async function refreshToken(token) {
 }
 
 export async function getSession(request) {
-  const user = await getAuthUser(request);
+  const user = await getAuthUserFromCookies(request);
   return user ? { user } : null;
 }
 

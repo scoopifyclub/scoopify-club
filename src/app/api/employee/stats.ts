@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthUser } from '@/lib/api-auth';
+import { getAuthUserFromCookies } from '@/lib/api-auth';
 
 export async function GET(request) {
-  const user = await getAuthUser(request);
-  if (!user?.userId) {
+  const user = await getAuthUserFromCookies(request);
+  if (!user || user.role !== 'EMPLOYEE') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     const employee = await prisma.employee.findUnique({
-      where: { userId: user.userId },
+      where: { userId: user.id },
       include: { serviceAreas: true }
     });
 
