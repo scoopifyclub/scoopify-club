@@ -48,6 +48,9 @@ export default function ScooperSignUp() {
         e.preventDefault();
         setLoading(true);
         setError('');
+        
+        console.log('Form data on submit:', formData);
+        
         // Validate passwords match
         if (formData.password !== formData.confirmPassword) {
             setError('Passwords do not match');
@@ -60,6 +63,17 @@ export default function ScooperSignUp() {
             setLoading(false);
             return;
         }
+        
+        // Check if all required fields are filled
+        const requiredFields = ['firstName', 'lastName', 'email', 'phone', 'password', 'street', 'city', 'state', 'zipCode', 'travelDistance'];
+        const missingFields = requiredFields.filter(field => !formData[field]);
+        
+        if (missingFields.length > 0) {
+            setError(`Please fill in all required fields: ${missingFields.join(', ')}`);
+            setLoading(false);
+            return;
+        }
+        
         try {
             // Create the payload with the required fields
             const payload = {
@@ -79,6 +93,8 @@ export default function ScooperSignUp() {
                 coveredZips: coveredZips
             };
             
+            console.log('Sending payload:', payload);
+            
             const response = await fetch('/api/auth/signup', {
                 method: 'POST',
                 headers: {
@@ -86,7 +102,11 @@ export default function ScooperSignUp() {
                 },
                 body: JSON.stringify(payload),
             });
+            
+            console.log('Response status:', response.status);
             const data = await response.json();
+            console.log('Response data:', data);
+            
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to create account');
             }
@@ -94,6 +114,7 @@ export default function ScooperSignUp() {
             router.push('/auth/signin?registered=true');
         }
         catch (error) {
+            console.error('Signup error:', error);
             setError(error instanceof Error ? error.message : 'An error occurred');
         }
         finally {
