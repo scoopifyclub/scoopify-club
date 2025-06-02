@@ -1,10 +1,10 @@
 import { getSession } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    const user = await getSession();
-    if (!user) {
+    const session = await getSession(request);
+    if (!session || !session.user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -12,14 +12,17 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        role: session.user.role,
+      }
     });
   } catch (error) {
+    console.error('Auth me error:', error);
     return NextResponse.json(
-      { error: error.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
