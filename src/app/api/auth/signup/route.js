@@ -136,21 +136,24 @@ export async function POST(request) {
                         status: 'ACTIVE',
                         updatedAt: new Date(),
                         createdAt: new Date(),
-                        hasSetServiceArea: false
+                        hasSetServiceArea: !!address?.zipCode // Set to true if zipCode provided
                     }
                 });
 
-                // Then create the coverage area separately
-                await tx.coverageArea.create({
-                    data: {
-                        id: crypto.randomUUID(),
-                        employeeId: employee.id,
-                        zipCode: address.zipCode,
-                        active: true,
-                        createdAt: new Date(),
-                        updatedAt: new Date()
-                    }
-                });
+                // Create coverage area if address provided
+                if (address?.zipCode) {
+                    await tx.coverageArea.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            employeeId: employee.id,
+                            zipCode: address.zipCode,
+                            active: true,
+                            travelDistance: travelDistance || 20, // Default to 20 miles
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }
+                    });
+                }
             } else if (role === 'CUSTOMER') {
                 customer = await tx.customer.create({
                     data: {
@@ -325,7 +328,7 @@ export async function POST(request) {
         // Set cookie
         const cookieStore = await cookies();
         cookieStore.set({
-            name: 'accessToken',
+            name: 'token',
             value: token,
             httpOnly: true,
             path: '/',
