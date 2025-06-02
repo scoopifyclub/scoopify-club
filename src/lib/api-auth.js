@@ -52,7 +52,7 @@ export async function getAuthUserFromCookies(request) {
   try {
     console.log('🍪 Getting auth user from cookies...');
     
-    const token = request.cookies.get('token')?.value;
+    const token = request.cookies.get('token')?.value || request.cookies.get('accessToken')?.value;
     console.log('🎫 Token from cookies:', token ? 'found' : 'not found');
     
     if (!token) {

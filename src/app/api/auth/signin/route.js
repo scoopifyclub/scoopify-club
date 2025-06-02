@@ -25,12 +25,16 @@ export async function POST(request) {
     const { user, accessToken } = authResult;
 
     const cookieStore = await cookies();
-    cookieStore.set('token', accessToken, {
+    const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60, // 7 days
-    });
+    };
+
+    // Set both cookies for compatibility
+    cookieStore.set('token', accessToken, cookieOptions);
+    cookieStore.set('accessToken', accessToken, cookieOptions);
 
     return NextResponse.json({
       id: user.id,
