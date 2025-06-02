@@ -5,7 +5,18 @@ import { verifyToken } from '@/lib/api-auth';
 export async function GET(request) {
   try {
     console.log('📊 Fetching consolidated dashboard data...');
+    console.log('🔍 Prisma client type:', typeof prisma);
+    console.log('🔍 Prisma client:', prisma ? 'exists' : 'undefined');
     
+    // Check if prisma is properly imported
+    if (!prisma) {
+      console.error('❌ Prisma client is undefined!');
+      return NextResponse.json({ 
+        error: 'Database client initialization failed',
+        details: 'Prisma client is undefined' 
+      }, { status: 500 });
+    }
+
     // Get token from either cookie
     const token = request.cookies.get('token')?.value || request.cookies.get('accessToken')?.value;
     if (!token) {
