@@ -40,13 +40,14 @@ if (!isEdgeRuntime()) {
         log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
         datasources: {
             db: {
+                // Use DIRECT_URL for non-pooled connections to avoid connection issues
                 url: process.env.DIRECT_URL || process.env.DATABASE_URL
             }
         },
         // Optimize for serverless with increased timeouts
         __internal: {
             engine: {
-                connectionTimeout: 10000, // 10 seconds
+                connectionTimeout: 20000, // Increased to 20 seconds
                 pollInterval: 100, // 100ms
                 connectionLimit: POOL_CONFIG.connection_limit
             }

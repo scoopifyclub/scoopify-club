@@ -34,27 +34,39 @@ export async function middleware(request) {
   // ADMIN routes: check for accessToken
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
     const accessToken = request.cookies.get('accessToken')?.value;
-    if (!accessToken) {
+    const refreshToken = request.cookies.get('refreshToken')?.value;
+    
+    // If no tokens found, redirect to login
+    if (!accessToken && !refreshToken) {
+      console.log('No access or refresh token found, redirecting to login');
       const url = new URL('/admin/login', request.url);
       url.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(url);
     }
+
     try {
-      const payload = await verifyJWT(accessToken);
-      if (payload.role !== 'ADMIN') {
+      // Try access token first, then refresh token
+      const token = accessToken || refreshToken;
+      const payload = await verifyJWT(token);
+      
+      if (!payload || payload.role !== 'ADMIN') {
+        console.log('Invalid token or non-admin role, redirecting to home');
         return NextResponse.redirect(new URL('/', request.url));
       }
+
       // Add user info to headers for downstream use
       const requestHeaders = new Headers(request.headers);
       requestHeaders.set('x-user-id', payload.id);
       requestHeaders.set('x-user-role', payload.role);
+      
       return NextResponse.next({
         request: {
           headers: requestHeaders,
         },
       });
     } catch (error) {
-      // If token verification fails, clear the accessToken and redirect to login
+      console.error('Token verification failed:', error);
+      // Clear both tokens and redirect to login
       const response = NextResponse.redirect(new URL('/admin/login', request.url));
       response.cookies.delete('accessToken');
       response.cookies.delete('refreshToken');
