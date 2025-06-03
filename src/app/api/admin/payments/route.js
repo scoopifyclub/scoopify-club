@@ -31,7 +31,7 @@ export async function GET(request) {
             include: {
                 employee: {
                     include: {
-                        user: {
+                        User: {
                             select: {
                                 name: true,
                                 email: true
@@ -41,7 +41,7 @@ export async function GET(request) {
                 },
                 customer: {
                     include: {
-                        user: {
+                        User: {
                             select: {
                                 name: true,
                                 email: true
@@ -55,7 +55,7 @@ export async function GET(request) {
                         scheduledDate: true,
                         customer: {
                             select: {
-                                user: {
+                                User: {
                                     select: {
                                         name: true,
                                     }
@@ -82,9 +82,9 @@ export async function GET(request) {
             return ({
                 id: payment.id,
                 employeeId: payment.employeeId,
-                employeeName: ((_b = (_a = payment.employee) === null || _a === void 0 ? void 0 : _a.user) === null || _b === void 0 ? void 0 : _b.name) || 'N/A',
+                employeeName: ((_b = (_a = payment.employee) === null || _a === void 0 ? void 0 : _a.User) === null || _b === void 0 ? void 0 : _b.name) || 'N/A',
                 customerId: payment.customerId,
-                customerName: ((_d = (_c = payment.customer) === null || _c === void 0 ? void 0 : _c.user) === null || _d === void 0 ? void 0 : _d.name) || ((_g = (_f = (_e = payment.service) === null || _e === void 0 ? void 0 : _e.customer) === null || _f === void 0 ? void 0 : _f.user) === null || _g === void 0 ? void 0 : _g.name) || 'N/A',
+                customerName: ((_d = (_c = payment.customer) === null || _c === void 0 ? void 0 : _c.User) === null || _d === void 0 ? void 0 : _d.name) || ((_g = (_f = (_e = payment.service) === null || _e === void 0 ? void 0 : _e.customer) === null || _f === void 0 ? void 0 : _f.User) === null || _g === void 0 ? void 0 : _g.name) || 'N/A',
                 referralId: payment.referredId,
                 referrerName: ((_h = payment.referredBy) === null || _h === void 0 ? void 0 : _h.name) || 'N/A',
                 amount: payment.amount,

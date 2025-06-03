@@ -27,7 +27,7 @@ export async function GET(request) {
             // Then get the full data
             const customers = await prisma.customer.findMany({
                 include: {
-                    user: {
+                    User: {
                         select: {
                             id: true,
                             name: true,
@@ -43,17 +43,17 @@ export async function GET(request) {
             const formattedCustomers = customers.map(customer => {
                 // Log each customer's data structure for debugging
                 console.log(`Processing customer ${customer.id}:`, {
-                    hasUser: !!customer.user,
+                    hasUser: !!customer.User,
                     hasAddress: !!customer.address,
                     hasSubscription: !!customer.subscription
                 });
                 return {
                     id: customer.id,
-                    user: customer.user ? {
-                        id: customer.user.id,
-                        name: customer.user.name,
-                        email: customer.user.email,
-                        role: customer.user.role
+                    user: customer.User ? {
+                        id: customer.User.id,
+                        name: customer.User.name,
+                        email: customer.User.email,
+                        role: customer.User.role
                     } : null,
                     address: customer.address ? {
                         street: customer.address.street,

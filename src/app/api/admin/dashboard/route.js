@@ -123,7 +123,7 @@ export async function GET(request) {
                 include: {
                     customer: {
                         include: {
-                            user: {
+                            User: {
                                 select: {
                                     name: true,
                                     email: true
@@ -133,7 +133,7 @@ export async function GET(request) {
                     },
                     employee: {
                         include: {
-                            user: {
+                            User: {
                                 select: {
                                     name: true
                                 }
@@ -186,23 +186,23 @@ export async function GET(request) {
             switch (service.status) {
                 case 'COMPLETED':
                     type = 'service_completed';
-                    description = `Service completed for ${service.customer?.user?.name || 'Unknown Customer'}`;
+                    description = `Service completed for ${service.customer?.User?.name || 'Unknown Customer'}`;
                     break;
                 case 'SCHEDULED':
                     type = 'service_scheduled';
-                    description = `Service scheduled for ${service.customer?.user?.name || 'Unknown Customer'}`;
+                    description = `Service scheduled for ${service.customer?.User?.name || 'Unknown Customer'}`;
                     break;
                 case 'IN_PROGRESS':
                     type = 'service_in_progress';
-                    description = `Service in progress for ${service.customer?.user?.name || 'Unknown Customer'}`;
+                    description = `Service in progress for ${service.customer?.User?.name || 'Unknown Customer'}`;
                     break;
                 case 'PENDING':
                     type = 'service_pending';
-                    description = `Service pending for ${service.customer?.user?.name || 'Unknown Customer'}`;
+                    description = `Service pending for ${service.customer?.User?.name || 'Unknown Customer'}`;
                     break;
                 default:
                     type = 'service_updated';
-                    description = `Service updated for ${service.customer?.user?.name || 'Unknown Customer'}`;
+                    description = `Service updated for ${service.customer?.User?.name || 'Unknown Customer'}`;
             }
 
             return {
