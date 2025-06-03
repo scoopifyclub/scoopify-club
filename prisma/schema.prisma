@@ -27,6 +27,7 @@ model Address {
   customerId String   @unique
   createdAt  DateTime @default(now())
   updatedAt  DateTime
+  customer   Customer @relation("CustomerToAddress", fields: [customerId], references: [id])
 
   @@index([customerId])
 }
@@ -103,8 +104,10 @@ model Customer {
   creditsDepletedAt DateTime?
   referrerId        String?
   referredId        String?
+  serviceCredits    Int       @default(0)
   User              User      @relation("UserToCustomer", fields: [userId], references: [id])
-  services          Service[]
+  services          Service[] @relation("ServiceToCustomer")
+  address           Address?  @relation("CustomerToAddress")
 
   @@index([subscriptionId])
 }
@@ -146,7 +149,7 @@ model Employee {
   status                 EmployeeStatus @default(ACTIVE)
   hasSetServiceArea      Boolean        @default(false)
   User                   User           @relation("UserToEmployee", fields: [userId], references: [id])
-  services               Service[]
+  services               Service[]      @relation("ServiceToEmployee")
   serviceAreas           CoverageArea[] @relation("EmployeeToServiceAreas")
 }
 
@@ -158,6 +161,7 @@ model Location {
   address   String?
   createdAt DateTime @default(now())
   updatedAt DateTime
+  service   Service  @relation("ServiceToLocation", fields: [serviceId], references: [id])
 }
 
 model Notification {
@@ -202,6 +206,7 @@ model Payment {
   status                PaymentStatus  @default(PENDING)
   paymentMethod         PaymentMethod?
   refundStatus          RefundStatus?
+  service               Service?       @relation("ServiceToPayments", fields: [serviceId], references: [id])
 
   @@index([batchId])
   @@index([customerId])
@@ -336,6 +341,7 @@ model ServiceArea {
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  services  Service[] @relation("ServiceToArea")
   scoopers  User[]   @relation("ScooperServiceAreas")
 }
 
@@ -405,12 +411,6 @@ model RefreshToken {
 }
 
 model Service {
-  workflowStatus     String        @default("AVAILABLE")
-  arrivedAt          DateTime?
-  checklistCompleted Boolean       @default(false)
-  beforePhotoIds     String[]
-  afterPhotoIds      String[]
-  gatePhotoId        String?
   id                 String        @id
   customerId         String
   scheduledDate      DateTime
@@ -427,9 +427,27 @@ model Service {
   createdAt          DateTime      @default(now())
   updatedAt          DateTime
   status             ServiceStatus @default(SCHEDULED)
-  customer           Customer      @relation(fields: [customerId], references: [id])
-  employee           Employee?     @relation(fields: [employeeId], references: [id])
-  servicePlan        ServicePlan   @relation(fields: [servicePlanId], references: [id])
+  workflowStatus     String        @default("AVAILABLE")
+  arrivedAt          DateTime?
+  checklistCompleted Boolean       @default(false)
+  beforePhotoIds     String[]
+  afterPhotoIds      String[]
+  gatePhotoId        String?
+  notes              String?
+  rated              Boolean       @default(false)
+  
+  // Relations with proper names
+  customer           Customer      @relation("ServiceToCustomer", fields: [customerId], references: [id])
+  employee           Employee?     @relation("ServiceToEmployee", fields: [employeeId], references: [id])
+  servicePlan        ServicePlan   @relation("ServiceToPlan", fields: [servicePlanId], references: [id])
+  location           Location?     @relation("ServiceToLocation")
+  serviceArea        ServiceArea?  @relation("ServiceToArea", fields: [serviceAreaId], references: [id])
+  checklist          ServiceChecklist? @relation("ServiceToChecklist")
+  delays             ServiceDelay[] @relation("ServiceToDelays")
+  timeExtensions     TimeExtension[] @relation("ServiceToExtensions")
+  photos             ServicePhoto[] @relation("ServiceToPhotos")
+  payments           Payment[]     @relation("ServiceToPayments")
+  rating             ServiceRating? @relation("ServiceToRating")
 
   @@index([customerId])
   @@index([employeeId])
@@ -445,6 +463,7 @@ model ServiceChecklist {
   updatedAt   DateTime
   completedAt DateTime?
   notes       String?
+  service     Service   @relation("ServiceToChecklist", fields: [serviceId], references: [id])
 }
 
 model ServiceDelay {
@@ -454,6 +473,7 @@ model ServiceDelay {
   type         String
   reportedAt   DateTime @default(now())
   reportedById String
+  service      Service  @relation("ServiceToDelays", fields: [serviceId], references: [id])
 
   @@index([reportedById])
   @@index([serviceId])
@@ -479,6 +499,7 @@ model ServicePhoto {
   createdAt DateTime  @default(now())
   updatedAt DateTime
   expiresAt DateTime?
+  service   Service   @relation("ServiceToPhotos", fields: [serviceId], references: [id])
 }
 
 model ServicePlan {
@@ -491,7 +512,7 @@ model ServicePlan {
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime
-  services    Service[]
+  services    Service[] @relation("ServiceToPlan")
 }
 
 model ServiceRating {
@@ -503,6 +524,7 @@ model ServiceRating {
   serviceId  String   @unique
   customerId String
   employeeId String
+  service    Service  @relation("ServiceToRating", fields: [serviceId], references: [id])
 
   @@index([customerId])
   @@index([employeeId])
@@ -527,6 +549,7 @@ model TimeExtension {
   reason     String
   createdAt  DateTime @default(now())
   updatedAt  DateTime
+  service    Service  @relation("ServiceToExtensions", fields: [serviceId], references: [id])
 
   @@index([employeeId])
   @@index([serviceId])
