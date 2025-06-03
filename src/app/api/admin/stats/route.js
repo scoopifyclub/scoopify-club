@@ -66,7 +66,7 @@ export async function GET(request) {
                 include: {
                     customer: {
                         include: {
-                            User: {  // Capital U as per schema
+                            user: {
                                 select: {
                                     name: true,
                                     email: true
@@ -76,7 +76,7 @@ export async function GET(request) {
                     },
                     employee: {
                         include: {
-                            User: {  // Capital U as per schema
+                            user: {
                                 select: {
                                     name: true
                                 }
@@ -161,8 +161,8 @@ export async function GET(request) {
             id: service.id,
             type: 'service',
             status: service.status,
-            customerName: service.customer?.User?.name || 'Unknown',  // Updated to use User with capital U
-            employeeName: service.employee?.User?.name || 'Unassigned',  // Updated to use User with capital U
+            customerName: service.customer?.user?.name || 'Unknown',  // Updated to use user with capital U
+            employeeName: service.employee?.user?.name || 'Unassigned',  // Updated to use user with capital U
             date: service.createdAt
         }));
         
