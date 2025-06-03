@@ -18,7 +18,6 @@ export async function GET(request) {
       recentCustomers,
       recentEmployees,
       servicesByStatus,
-      customersByStatus,
       employeesByStatus
     ] = await Promise.all([
       prisma.customer.count(),
@@ -29,28 +28,24 @@ export async function GET(request) {
         orderBy: { createdAt: 'desc' },
         include: {
           customer: {
-            include: { user: true }
+            include: { User: true }
           },
           employee: {
-            include: { user: true }
+            include: { User: true }
           }
         }
       }),
       prisma.customer.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
-        include: { user: true }
+        include: { User: true }
       }),
       prisma.employee.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
-        include: { user: true }
+        include: { User: true }
       }),
       prisma.service.groupBy({
-        by: ['status'],
-        _count: true
-      }),
-      prisma.customer.groupBy({
         by: ['status'],
         _count: true
       }),
@@ -68,7 +63,6 @@ export async function GET(request) {
       recentCustomers,
       recentEmployees,
       servicesByStatus,
-      customersByStatus,
       employeesByStatus
     });
   } catch (error) {

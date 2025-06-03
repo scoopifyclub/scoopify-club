@@ -37,7 +37,7 @@ export async function GET(request, { params }) {
         orderBy: { scheduledDate: 'desc' },
         include: {
           customer: {
-            include: { user: true }
+            include: { User: true }
           }
         }
       })

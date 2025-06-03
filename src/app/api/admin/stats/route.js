@@ -57,47 +57,34 @@ export async function GET(request) {
         
         let recentActivity = [];
         try {
-            // Try querying services with relations separately - simplified approach
+            // Query services with the correct relationship names from schema
             recentActivity = await prisma.service.findMany({
                 take: 5,
                 orderBy: {
                     createdAt: "desc"
-                }
-            });
-            
-            // Then get customer and employee data separately
-            for (let service of recentActivity) {
-                // Get customer data
-                if (service.customerId) {
-                    const customer = await prisma.customer.findUnique({
-                        where: { id: service.customerId },
+                },
+                include: {
+                    customer: {
                         include: {
-                            user: {
+                            User: {  // Capital U as per schema
                                 select: {
                                     name: true,
                                     email: true
                                 }
                             }
                         }
-                    });
-                    service.customer = customer;
-                }
-                
-                // Get employee data
-                if (service.employeeId) {
-                    const employee = await prisma.employee.findUnique({
-                        where: { id: service.employeeId },
+                    },
+                    employee: {
                         include: {
-                            user: {
+                            User: {  // Capital U as per schema
                                 select: {
                                     name: true
                                 }
                             }
                         }
-                    });
-                    service.employee = employee;
+                    }
                 }
-            }
+            });
             
             console.log('Recent activity query successful, found:', recentActivity.length);
         } catch (error) {
@@ -174,8 +161,8 @@ export async function GET(request) {
             id: service.id,
             type: 'service',
             status: service.status,
-            customerName: service.customer?.user?.name || 'Unknown',
-            employeeName: service.employee?.user?.name || 'Unassigned',
+            customerName: service.customer?.User?.name || 'Unknown',  // Updated to use User with capital U
+            employeeName: service.employee?.User?.name || 'Unassigned',  // Updated to use User with capital U
             date: service.createdAt
         }));
         

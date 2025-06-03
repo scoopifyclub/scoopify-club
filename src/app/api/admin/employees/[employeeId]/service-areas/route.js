@@ -15,7 +15,7 @@ export async function GET(request, { params }) {
       where: { employeeId },
       include: {
         employee: {
-          include: { user: true }
+          include: { User: true }
         }
       }
     });
@@ -47,7 +47,7 @@ export async function POST(request, { params }) {
       },
       include: {
         employee: {
-          include: { user: true }
+          include: { User: true }
         }
       }
     });

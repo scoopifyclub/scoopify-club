@@ -9,19 +9,38 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
-        const activities = await prisma.employeeActivity.findMany({
+        // Since employeeActivity model doesn't exist, use Service model to track employee activity
+        const activities = await prisma.service.findMany({
+            where: {
+                employeeId: { not: null }  // Only services with assigned employees
+            },
             include: {
                 employee: {
-                    include: { user: true }
+                    include: { User: true }
+                },
+                customer: {
+                    include: { User: true }
                 }
             },
             orderBy: {
-                timestamp: 'desc'
+                updatedAt: 'desc'
             },
             take: 50
         });
 
-        return NextResponse.json(activities);
+        // Transform to activity format
+        const formattedActivities = activities.map(service => ({
+            id: service.id,
+            type: 'service_update',
+            employeeId: service.employeeId,
+            employeeName: service.employee?.User?.name || 'Unknown',
+            customerName: service.customer?.User?.name || 'Unknown',
+            status: service.status,
+            timestamp: service.updatedAt,
+            serviceId: service.id
+        }));
+
+        return NextResponse.json(formattedActivities);
     }
     catch (error) {
         console.error('Error fetching employee activities:', error);
