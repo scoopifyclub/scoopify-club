@@ -1,366 +1,394 @@
-'use client';
+"use client";
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
-import { ChevronDown, Download, DollarSign, BarChart3, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useAuth } from '@/hooks/useAuth';
-
-export const dynamic = 'force-dynamic';
+import { 
+    DollarSign, 
+    TrendingUp, 
+    Calendar, 
+    Clock, 
+    Download,
+    CreditCard,
+    Banknote,
+    PiggyBank,
+    BarChart3
+} from 'lucide-react';
 
 export default function EarningsPage() {
-    const { user, loading: authLoading } = useAuth({ 
-        requiredRole: 'EMPLOYEE',
-        redirectTo: '/auth/login?callbackUrl=/employee/dashboard/earnings'
-    });
-
-    const [isClient, setIsClient] = useState(false);
-    const [earningsData, setEarningsData] = useState(null);
-    const [timeframe, setTimeframe] = useState('monthly');
+    const [earnings, setEarnings] = useState({});
+    const [payouts, setPayouts] = useState([]);
+    const [recentServices, setRecentServices] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
 
-    // Set isClient to true on mount
     useEffect(() => {
-        setIsClient(true);
+        // Simulate loading earnings data
+        setTimeout(() => {
+            setEarnings({
+                today: 75.00,
+                thisWeek: 320.00,
+                thisMonth: 1285.00,
+                totalEarnings: 5420.00,
+                pending: 125.00,
+                avgPerService: 42.50,
+                totalServices: 128,
+                topCustomerValue: 180.00
+            });
+
+            setPayouts([
+                {
+                    id: 1,
+                    amount: 890.00,
+                    date: '2024-01-15',
+                    status: 'completed',
+                    method: 'Direct Deposit',
+                    periodStart: '2024-01-01',
+                    periodEnd: '2024-01-14'
+                },
+                {
+                    id: 2,
+                    amount: 1240.00,
+                    date: '2024-01-01',
+                    status: 'completed',
+                    method: 'Direct Deposit',
+                    periodStart: '2023-12-15',
+                    periodEnd: '2023-12-31'
+                },
+                {
+                    id: 3,
+                    amount: 765.00,
+                    date: '2023-12-15',
+                    status: 'completed',
+                    method: 'Direct Deposit',
+                    periodStart: '2023-12-01',
+                    periodEnd: '2023-12-14'
+                },
+                {
+                    id: 4,
+                    amount: 125.00,
+                    date: '2024-01-29',
+                    status: 'pending',
+                    method: 'Direct Deposit',
+                    periodStart: '2024-01-15',
+                    periodEnd: '2024-01-28'
+                }
+            ]);
+
+            setRecentServices([
+                {
+                    id: 1,
+                    customer: 'John Smith',
+                    service: 'Weekly Cleanup',
+                    date: '2024-01-20',
+                    amount: 45.00,
+                    duration: '45 min',
+                    status: 'paid'
+                },
+                {
+                    id: 2,
+                    customer: 'Sarah Johnson',
+                    service: 'One-time Cleanup',
+                    date: '2024-01-19',
+                    amount: 60.00,
+                    duration: '60 min',
+                    status: 'paid'
+                },
+                {
+                    id: 3,
+                    customer: 'Mike Wilson',
+                    service: 'Bi-weekly Cleanup',
+                    date: '2024-01-19',
+                    amount: 35.00,
+                    duration: '30 min',
+                    status: 'paid'
+                },
+                {
+                    id: 4,
+                    customer: 'Lisa Brown',
+                    service: 'Weekly Cleanup',
+                    date: '2024-01-18',
+                    amount: 45.00,
+                    duration: '40 min',
+                    status: 'pending'
+                },
+                {
+                    id: 5,
+                    customer: 'David Lee',
+                    service: 'Monthly Cleanup',
+                    date: '2024-01-17',
+                    amount: 80.00,
+                    duration: '75 min',
+                    status: 'paid'
+                }
+            ]);
+            setLoading(false);
+        }, 1000);
     }, []);
 
-    useEffect(() => {
-        const fetchData = async () => {
-            if (!user) return;
-            
-            try {
-                setError(null);
-                setLoading(true);
-                
-                const response = await fetch(`/api/employee/earnings?timeframe=${timeframe}`);
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch earnings data');
-                }
-
-                const data = await response.json();
-                setEarningsData(data);
-            } catch (err) {
-                const errorMessage = err instanceof Error ? err.message : 'Failed to load earnings data';
-                setError(errorMessage);
-                toast.error(errorMessage);
-                console.error('Error fetching earnings data:', err);
-                
-                // Fallback to mock data in development
-                if (process.env.NODE_ENV === 'development') {
-                    setEarningsData({
-                        currentPeriodEarnings: 1250.75,
-                        previousPeriodEarnings: 1100.50,
-                        percentageChange: 13.7,
-                        totalEarnings: 6752.25,
-                        projectedEarnings: 1500.00,
-                        transactions: [
-                            {
-                                id: '1',
-                                date: format(subDays(new Date(), 2), 'yyyy-MM-dd'),
-                                amount: 45.00,
-                                status: 'completed',
-                                description: 'Payment for job #1234',
-                                type: 'payment'
-                            },
-                            {
-                                id: '2',
-                                date: format(subDays(new Date(), 3), 'yyyy-MM-dd'),
-                                amount: 35.50,
-                                status: 'completed',
-                                description: 'Payment for job #1235',
-                                type: 'payment'
-                            },
-                            {
-                                id: '3',
-                                date: format(subDays(new Date(), 5), 'yyyy-MM-dd'),
-                                amount: 10.00,
-                                status: 'completed',
-                                description: 'Customer tip',
-                                type: 'bonus'
-                            },
-                            {
-                                id: '4',
-                                date: format(subDays(new Date(), 7), 'yyyy-MM-dd'),
-                                amount: 42.25,
-                                status: 'completed',
-                                description: 'Payment for job #1236',
-                                type: 'payment'
-                            },
-                            {
-                                id: '5',
-                                date: format(subDays(new Date(), 9), 'yyyy-MM-dd'),
-                                amount: 50.00,
-                                status: 'completed',
-                                description: 'Payment for job #1237',
-                                type: 'payment'
-                            }
-                        ],
-                        weeklyEarnings: [
-                            { week: 'Week 1', amount: 325.50 },
-                            { week: 'Week 2', amount: 275.00 },
-                            { week: 'Week 3', amount: 350.25 },
-                            { week: 'Week 4', amount: 300.00 }
-                        ]
-                    });
-                }
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [user, timeframe]);
-
-    const handleDownloadStatement = async () => {
-        try {
-            toast.promise(
-                fetch('/api/employee/earnings/statement', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ timeframe })
-                }).then(res => {
-                    if (!res.ok) throw new Error('Failed to generate statement');
-                    return res.blob();
-                }).then(blob => {
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `earnings-statement-${timeframe}-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
-                    document.body.appendChild(a);
-                    a.click();
-                    window.URL.revokeObjectURL(url);
-                    document.body.removeChild(a);
-                }),
-                {
-                    loading: 'Generating statement...',
-                    success: 'Statement downloaded successfully',
-                    error: 'Failed to download statement'
-                }
-            );
-        } catch (error) {
-            console.error('Error downloading statement:', error);
-        }
-    };
-
-    // If not client-side yet, show loading state
-    if (!isClient) {
-        return (
-            <div className="flex items-center justify-center h-[400px]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
-            </div>
-        );
-    }
-
-    if (authLoading || loading) {
-        return (
-            <div className="flex items-center justify-center h-[400px] transition-opacity duration-300">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
-            </div>
-        );
-    }
-
-    if (!earningsData && !error) {
-        return (
-            <div className="p-6">
-                <div className="bg-amber-50 text-amber-800 p-4 rounded-md">
-                    No earnings data available. Please try again later.
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="p-6">
-                <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
-                    <p className="font-medium">Error loading earnings data</p>
-                    <p>{error}</p>
-                    <Button 
-                        variant="outline" 
-                        className="mt-2" 
-                        onClick={() => {
-                            setError(null);
-                            setLoading(true);
-                            fetchData();
-                        }}
-                    >
-                        Try Again
-                    </Button>
-                </div>
-            </div>
-        );
-    }
-
-    const getStatusColor = (status) => {
+    const getStatusBadge = (status) => {
         switch (status) {
             case 'completed':
-                return 'text-green-600';
+                return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
             case 'pending':
-                return 'text-amber-600';
-            case 'failed':
-                return 'text-red-600';
+                return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+            case 'paid':
+                return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
             default:
-                return 'text-gray-600';
+                return <Badge variant="secondary">{status}</Badge>;
         }
     };
 
-    const getTypeIcon = (type) => {
-        switch (type) {
-            case 'payment':
-                return <DollarSign className="h-4 w-4 text-green-500"/>;
-            case 'bonus':
-                return <ArrowUpRight className="h-4 w-4 text-blue-500"/>;
-            case 'refund':
-                return <ArrowDownRight className="h-4 w-4 text-red-500"/>;
-            default:
-                return <DollarSign className="h-4 w-4 text-gray-500"/>;
-        }
-    };
+    if (loading) {
+        return (
+            <div className="p-6">
+                <div className="animate-pulse space-y-4">
+                    <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+                    <div className="h-32 bg-gray-200 rounded"></div>
+                    <div className="h-32 bg-gray-200 rounded"></div>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="p-6 space-y-6 animate-fade-in">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Earnings</h1>
-                    <p className="text-gray-500">
-                        Track your income and payment history
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <div className="flex items-center bg-white px-3 py-2 rounded-lg border cursor-pointer">
-                                <span className="font-medium">
-                                    {timeframe === 'weekly' ? 'This Week' :
-                                    timeframe === 'monthly' ? `${format(startOfMonth(new Date()), 'MMM')} - ${format(endOfMonth(new Date()), 'MMM yyyy')}` :
-                                    'This Year'}
-                                </span>
-                                <ChevronDown className="ml-2 h-4 w-4 text-gray-500"/>
+        <div className="p-6">
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold mb-2">Earnings</h1>
+                <p className="text-gray-600">Track your income and payment history</p>
+            </div>
+
+            {/* Earnings Overview */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <DollarSign className="h-8 w-8 text-green-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Today's Earnings</p>
+                                <p className="text-2xl font-bold">${earnings.today?.toFixed(2)}</p>
                             </div>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setTimeframe('weekly')}>
-                                Weekly
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setTimeframe('monthly')}>
-                                Monthly
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setTimeframe('yearly')}>
-                                Yearly
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button 
-                        variant="outline" 
-                        size="icon" 
-                        onClick={handleDownloadStatement}
-                    >
-                        <Download className="h-4 w-4"/>
-                    </Button>
-                </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardDescription>Current {timeframe} earnings</CardDescription>
-                        <CardTitle className="text-3xl font-bold">
-                            ${earningsData.currentPeriodEarnings.toFixed(2)}
-                        </CardTitle>
-                        <div className="flex items-center gap-2 text-sm">
-                            <span className={earningsData.percentageChange >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                {earningsData.percentageChange >= 0 ? '↑' : '↓'} {Math.abs(earningsData.percentageChange)}%
-                            </span>
-                            <span className="text-gray-500">vs last {timeframe}</span>
                         </div>
-                    </CardHeader>
+                    </CardContent>
                 </Card>
 
                 <Card>
-                    <CardHeader className="pb-2">
-                        <CardDescription>Total earnings</CardDescription>
-                        <CardTitle className="text-3xl font-bold">
-                            ${earningsData.totalEarnings.toFixed(2)}
-                        </CardTitle>
-                        <div className="text-sm text-gray-500">
-                            Lifetime earnings
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <TrendingUp className="h-8 w-8 text-blue-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">This Week</p>
+                                <p className="text-2xl font-bold">${earnings.thisWeek?.toFixed(2)}</p>
+                            </div>
                         </div>
-                    </CardHeader>
+                    </CardContent>
                 </Card>
 
                 <Card>
-                    <CardHeader className="pb-2">
-                        <CardDescription>Projected earnings</CardDescription>
-                        <CardTitle className="text-3xl font-bold">
-                            ${earningsData.projectedEarnings.toFixed(2)}
-                        </CardTitle>
-                        <div className="text-sm text-gray-500">
-                            Based on scheduled jobs
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <Calendar className="h-8 w-8 text-purple-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">This Month</p>
+                                <p className="text-2xl font-bold">${earnings.thisMonth?.toFixed(2)}</p>
+                            </div>
                         </div>
-                    </CardHeader>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <PiggyBank className="h-8 w-8 text-orange-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Total Earnings</p>
+                                <p className="text-2xl font-bold">${earnings.totalEarnings?.toFixed(2)}</p>
+                            </div>
+                        </div>
+                    </CardContent>
                 </Card>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Recent Transactions</CardTitle>
-                    <CardDescription>
-                        Your latest payments and earnings
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        {earningsData.transactions.map((transaction) => (
-                            <div key={transaction.id} className="flex items-center justify-between py-2">
-                                <div className="flex items-center gap-3">
-                                    {getTypeIcon(transaction.type)}
-                                    <div>
-                                        <p className="font-medium">{transaction.description}</p>
-                                        <p className="text-sm text-gray-500">
-                                            {format(new Date(transaction.date), 'MMM d, yyyy')}
-                                        </p>
+            {/* Additional Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <Clock className="h-8 w-8 text-yellow-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Pending Payments</p>
+                                <p className="text-2xl font-bold">${earnings.pending?.toFixed(2)}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <BarChart3 className="h-8 w-8 text-indigo-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Avg per Service</p>
+                                <p className="text-2xl font-bold">${earnings.avgPerService?.toFixed(2)}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <Banknote className="h-8 w-8 text-teal-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Total Services</p>
+                                <p className="text-2xl font-bold">{earnings.totalServices}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Earnings Details */}
+            <Tabs defaultValue="recent" className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="recent">Recent Services</TabsTrigger>
+                    <TabsTrigger value="payouts">Payment History</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="recent" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <CardTitle>Recent Services</CardTitle>
+                                <Button variant="outline" size="sm">
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Export
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {recentServices.map((service) => (
+                                    <div key={service.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <h3 className="font-medium">{service.customer}</h3>
+                                                    {getStatusBadge(service.status)}
+                                                </div>
+                                                <p className="text-sm text-gray-600 mb-1">{service.service}</p>
+                                                <div className="flex items-center gap-4 text-sm text-gray-500">
+                                                    <span>{new Date(service.date).toLocaleDateString()}</span>
+                                                    <span>• Duration: {service.duration}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-lg font-bold text-green-600">
+                                                    ${service.amount.toFixed(2)}
+                                                </p>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="text-right">
-                                    <p className="font-medium">
-                                        ${transaction.amount.toFixed(2)}
-                                    </p>
-                                    <p className={`text-sm ${getStatusColor(transaction.status)}`}>
-                                        {transaction.status}
-                                    </p>
-                                </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
 
-            <Card>
+                <TabsContent value="payouts" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <div className="flex items-center justify-between">
+                                <CardTitle>Payment History</CardTitle>
+                                <Button variant="outline" size="sm">
+                                    <Download className="h-4 w-4 mr-2" />
+                                    Download Statements
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {payouts.map((payout) => (
+                                    <div key={payout.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <CreditCard className="h-4 w-4 text-gray-500" />
+                                                    <span className="font-medium">{payout.method}</span>
+                                                    {getStatusBadge(payout.status)}
+                                                </div>
+                                                <p className="text-sm text-gray-600 mb-1">
+                                                    Period: {new Date(payout.periodStart).toLocaleDateString()} - {new Date(payout.periodEnd).toLocaleDateString()}
+                                                </p>
+                                                <p className="text-sm text-gray-500">
+                                                    {payout.status === 'completed' ? 'Paid on' : 'Expected'}: {new Date(payout.date).toLocaleDateString()}
+                                                </p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-lg font-bold text-green-600">
+                                                    ${payout.amount.toFixed(2)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            </Tabs>
+
+            {/* Earnings Insights */}
+            <Card className="mt-6">
                 <CardHeader>
-                    <CardTitle>Weekly Breakdown</CardTitle>
-                    <CardDescription>
-                        Your earnings for each week this month
-                    </CardDescription>
+                    <CardTitle>Earnings Insights</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-4">
-                        {earningsData.weeklyEarnings.map((week) => (
-                            <div key={week.week} className="flex items-center justify-between">
-                                <p className="font-medium">{week.week}</p>
-                                <div className="flex items-center gap-2">
-                                    <BarChart3 className="h-4 w-4 text-gray-400" />
-                                    <p className="font-medium">${week.amount.toFixed(2)}</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-4">
+                            <h4 className="font-medium text-gray-700">Performance Metrics</h4>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Average service value</span>
+                                    <span className="font-medium">${earnings.avgPerService?.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Services this month</span>
+                                    <span className="font-medium">30</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Growth vs last month</span>
+                                    <span className="font-medium text-green-600">+12%</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Top customer value</span>
+                                    <span className="font-medium">${earnings.topCustomerValue?.toFixed(2)}</span>
                                 </div>
                             </div>
-                        ))}
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <h4 className="font-medium text-gray-700">Payment Information</h4>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Payment method</span>
+                                    <span className="font-medium">Direct Deposit</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Payment frequency</span>
+                                    <span className="font-medium">Bi-weekly</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Next payout</span>
+                                    <span className="font-medium">Jan 29, 2024</span>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-gray-600">Pending amount</span>
+                                    <span className="font-medium text-yellow-600">${earnings.pending?.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </CardContent>
             </Card>

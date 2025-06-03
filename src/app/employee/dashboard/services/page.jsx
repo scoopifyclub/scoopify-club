@@ -1,185 +1,324 @@
-'use client';
+"use client";
+
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { toast } from 'sonner';
+import { MapPin, Clock, User, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
 
 export default function ServicesPage() {
-    const { user, loading } = useAuth({
-        required: true,
-        role: 'EMPLOYEE',
-        redirectTo: '/auth/signin'
-    });
-
-    const [services, setServices] = useState([]);
-    const [loadingServices, setLoadingServices] = useState(true);
-    const [hasInProgressJob, setHasInProgressJob] = useState(false);
+    const [activeServices, setActiveServices] = useState([]);
+    const [completedServices, setCompletedServices] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (user?.id) {
-            fetchServices();
-        }
-    }, [user]);
+        // Simulate loading services data
+        setTimeout(() => {
+            setActiveServices([
+                {
+                    id: 1,
+                    customer: 'John Smith',
+                    address: '123 Main St, Denver, CO 80831',
+                    serviceType: 'Weekly Cleanup',
+                    scheduledTime: '9:00 AM',
+                    date: 'Today',
+                    status: 'in-progress',
+                    estimatedDuration: '45 min',
+                    specialInstructions: 'Gate code: 1234. Please close gate after service.'
+                },
+                {
+                    id: 2,
+                    customer: 'Sarah Johnson',
+                    address: '456 Oak Ave, Denver, CO 80831',
+                    serviceType: 'One-time Cleanup',
+                    scheduledTime: '2:00 PM',
+                    date: 'Today',
+                    status: 'scheduled',
+                    estimatedDuration: '60 min',
+                    specialInstructions: 'Dog is friendly but may bark initially.'
+                },
+                {
+                    id: 3,
+                    customer: 'Mike Wilson',
+                    address: '789 Pine Rd, Denver, CO 80831',
+                    serviceType: 'Bi-weekly Cleanup',
+                    scheduledTime: '10:00 AM',
+                    date: 'Tomorrow',
+                    status: 'scheduled',
+                    estimatedDuration: '30 min',
+                    specialInstructions: 'Key under mat. Please lock door when finished.'
+                }
+            ]);
 
-    const fetchServices = async () => {
-        try {
-            const response = await fetch('/api/employee/services', {
-                credentials: 'include'
-            });
-            if (!response.ok) {
-                throw new Error('Failed to fetch services');
-            }
-            const data = await response.json();
-            setServices(data);
-            // Check if employee has any in-progress jobs
-            setHasInProgressJob(data.some(service => service.status === 'IN_PROGRESS'));
-        } catch (error) {
-            console.error('Error fetching services:', error);
-            toast.error('Failed to load services');
-        } finally {
-            setLoadingServices(false);
-        }
-    };
-
-    const handleServiceAction = async (serviceId, action) => {
-        try {
-            const response = await fetch(`/api/employee/services/${id}/${action}`, {
-                method: 'POST',
-                credentials: 'include'
-            });
-            if (!response.ok) {
-                throw new Error(`Failed to ${action} service`);
-            }
-            await fetchServices(); // Refresh services list
-            toast.success(`Service ${action} successfully`);
-        } catch (error) {
-            console.error(`Error ${action}ing service:`, error);
-            toast.error(`Failed to ${action} service`);
-        }
-    };
+            setCompletedServices([
+                {
+                    id: 4,
+                    customer: 'Lisa Brown',
+                    address: '321 Elm St, Denver, CO 80831',
+                    serviceType: 'Weekly Cleanup',
+                    completedTime: '11:30 AM',
+                    date: 'Yesterday',
+                    status: 'completed',
+                    duration: '40 min',
+                    rating: 5,
+                    notes: 'Great service as always!'
+                },
+                {
+                    id: 5,
+                    customer: 'David Lee',
+                    address: '654 Maple Dr, Denver, CO 80831',
+                    serviceType: 'One-time Cleanup',
+                    completedTime: '3:15 PM',
+                    date: '2 days ago',
+                    status: 'completed',
+                    duration: '55 min',
+                    rating: 4,
+                    notes: 'Good work, thorough cleanup.'
+                }
+            ]);
+            setLoading(false);
+        }, 1000);
+    }, []);
 
     const getStatusBadge = (status) => {
-        const statusConfig = {
-            PENDING: { class: 'bg-yellow-100 text-yellow-800', text: 'Pending' },
-            SCHEDULED: { class: 'bg-blue-100 text-blue-800', text: 'Available' },
-            IN_PROGRESS: { class: 'bg-purple-100 text-purple-800', text: 'In Progress' },
-            COMPLETED: { class: 'bg-green-100 text-green-800', text: 'Completed' },
-            CANCELLED: { class: 'bg-red-100 text-red-800', text: 'Cancelled' }
-        };
-        const config = statusConfig[status] || statusConfig.PENDING;
-        return (
-            <Badge className={config.class}>
-                {config.text}
-            </Badge>
-        );
+        switch (status) {
+            case 'scheduled':
+                return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Scheduled</Badge>;
+            case 'in-progress':
+                return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">In Progress</Badge>;
+            case 'completed':
+                return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Completed</Badge>;
+            case 'cancelled':
+                return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelled</Badge>;
+            default:
+                return <Badge variant="outline">{status}</Badge>;
+        }
     };
 
-    if (loading || loadingServices) {
-        return <div className="p-6">Loading...</div>;
+    const getStatusIcon = (status) => {
+        switch (status) {
+            case 'scheduled':
+                return <Clock className="h-4 w-4 text-blue-600" />;
+            case 'in-progress':
+                return <AlertCircle className="h-4 w-4 text-yellow-600" />;
+            case 'completed':
+                return <CheckCircle className="h-4 w-4 text-green-600" />;
+            case 'cancelled':
+                return <XCircle className="h-4 w-4 text-red-600" />;
+            default:
+                return <Clock className="h-4 w-4 text-gray-600" />;
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="p-6">
+                <div className="animate-pulse space-y-4">
+                    <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+                    <div className="h-32 bg-gray-200 rounded"></div>
+                    <div className="h-32 bg-gray-200 rounded"></div>
+                </div>
+            </div>
+        );
     }
 
-    const availableJobs = services.filter(service => service.status === 'SCHEDULED');
-    const myJobs = services.filter(service => 
-        service.status === 'IN_PROGRESS' || 
-        (service.status === 'COMPLETED' && service.employeeId === user?.employeeId)
-    );
-
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold">Services</h1>
-                <Button onClick={() => fetchServices()}>
-                    Refresh
-                </Button>
+        <div className="p-6">
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold mb-2">Services</h1>
+                <p className="text-gray-600">Manage your active and completed services</p>
             </div>
 
-            <Tabs defaultValue="available" className="w-full">
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <Clock className="h-8 w-8 text-blue-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Active Services</p>
+                                <p className="text-2xl font-bold">{activeServices.length}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <CheckCircle className="h-8 w-8 text-green-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Completed Today</p>
+                                <p className="text-2xl font-bold">0</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <User className="h-8 w-8 text-purple-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Total Customers</p>
+                                <p className="text-2xl font-bold">{new Set([...activeServices, ...completedServices].map(s => s.customer)).size}</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <MapPin className="h-8 w-8 text-orange-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Service Areas</p>
+                                <p className="text-2xl font-bold">1</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Services Tabs */}
+            <Tabs defaultValue="active" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="available">Available Jobs</TabsTrigger>
-                    <TabsTrigger value="my-jobs">My Jobs</TabsTrigger>
+                    <TabsTrigger value="active">Active Services ({activeServices.length})</TabsTrigger>
+                    <TabsTrigger value="completed">Completed Services ({completedServices.length})</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="available">
-                    <Card className="p-6">
-                        <ScrollArea className="h-[600px] pr-4">
-                            <div className="space-y-4">
-                                {availableJobs.length === 0 ? (
-                                    <p className="text-center text-gray-500">No available jobs</p>
-                                ) : (
-                                    availableJobs.map((service) => (
-                                        <div
-                                            key={service.id}
-                                            className="p-4 border rounded-lg hover:shadow-md transition-shadow"
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <h3 className="font-semibold">{service.customerName}</h3>
-                                                        {getStatusBadge(service.status)}
-                                                    </div>
-                                                    <p className="text-gray-600">{service.address}</p>
-                                                    <p className="text-sm text-gray-500">
-                                                        Scheduled: {new Date(service.scheduledTime).toLocaleString()}
-                                                    </p>
+                <TabsContent value="active" className="space-y-4">
+                    {activeServices.map((service) => (
+                        <Card key={service.id}>
+                            <CardContent className="p-6">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            {getStatusIcon(service.status)}
+                                            <h3 className="text-lg font-semibold">{service.customer}</h3>
+                                            {getStatusBadge(service.status)}
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                                                    <MapPin className="h-4 w-4" />
+                                                    <span>{service.address}</span>
                                                 </div>
-                                                <Button
-                                                    onClick={() => handleServiceAction(service.id, 'claim')}
-                                                    variant="outline"
-                                                    disabled={hasInProgressJob}
-                                                >
-                                                    {hasInProgressJob ? 'Complete Current Job First' : 'Claim Job'}
-                                                </Button>
+                                                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                                                    <Clock className="h-4 w-4" />
+                                                    <span>{service.date} at {service.scheduledTime}</span>
+                                                </div>
+                                                <p className="text-sm"><strong>Service:</strong> {service.serviceType}</p>
+                                                <p className="text-sm"><strong>Duration:</strong> {service.estimatedDuration}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-700 mb-1">Special Instructions:</p>
+                                                <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                                                    {service.specialInstructions}
+                                                </p>
                                             </div>
                                         </div>
-                                    ))
-                                )}
-                            </div>
-                        </ScrollArea>
-                    </Card>
+                                    </div>
+                                    
+                                    <div className="flex flex-col gap-2 ml-4">
+                                        {service.status === 'scheduled' && (
+                                            <Button size="sm">
+                                                Start Service
+                                            </Button>
+                                        )}
+                                        {service.status === 'in-progress' && (
+                                            <Button size="sm" variant="outline" className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100">
+                                                Complete Service
+                                            </Button>
+                                        )}
+                                        <Button variant="outline" size="sm">
+                                            View Details
+                                        </Button>
+                                        <Button variant="outline" size="sm">
+                                            Contact Customer
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+
+                    {activeServices.length === 0 && (
+                        <Card>
+                            <CardContent className="p-8 text-center">
+                                <CheckCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-gray-600 mb-2">No Active Services</h3>
+                                <p className="text-gray-500">All services are completed or none are scheduled.</p>
+                            </CardContent>
+                        </Card>
+                    )}
                 </TabsContent>
 
-                <TabsContent value="my-jobs">
-                    <Card className="p-6">
-                        <ScrollArea className="h-[600px] pr-4">
-                            <div className="space-y-4">
-                                {myJobs.length === 0 ? (
-                                    <p className="text-center text-gray-500">No jobs assigned</p>
-                                ) : (
-                                    myJobs.map((service) => (
-                                        <div
-                                            key={service.id}
-                                            className="p-4 border rounded-lg hover:shadow-md transition-shadow"
-                                        >
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <h3 className="font-semibold">{service.customerName}</h3>
-                                                        {getStatusBadge(service.status)}
-                                                    </div>
-                                                    <p className="text-gray-600">{service.address}</p>
-                                                    <p className="text-sm text-gray-500">
-                                                        Scheduled: {new Date(service.scheduledTime).toLocaleString()}
-                                                    </p>
-                                                </div>
-                                                {service.status === 'IN_PROGRESS' && (
-                                                    <Button
-                                                        onClick={() => handleServiceAction(service.id, 'complete')}
-                                                        variant="outline"
-                                                    >
-                                                        Complete
-                                                    </Button>
-                                                )}
+                <TabsContent value="completed" className="space-y-4">
+                    {completedServices.map((service) => (
+                        <Card key={service.id}>
+                            <CardContent className="p-6">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-3">
+                                            {getStatusIcon(service.status)}
+                                            <h3 className="text-lg font-semibold">{service.customer}</h3>
+                                            {getStatusBadge(service.status)}
+                                            <div className="flex items-center gap-1">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <span key={i} className={`text-sm ${i < service.rating ? 'text-yellow-400' : 'text-gray-300'}`}>
+                                                        ★
+                                                    </span>
+                                                ))}
                                             </div>
                                         </div>
-                                    ))
-                                )}
-                            </div>
-                        </ScrollArea>
-                    </Card>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                            <div>
+                                                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                                                    <MapPin className="h-4 w-4" />
+                                                    <span>{service.address}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                                                    <Clock className="h-4 w-4" />
+                                                    <span>Completed {service.date} at {service.completedTime}</span>
+                                                </div>
+                                                <p className="text-sm"><strong>Service:</strong> {service.serviceType}</p>
+                                                <p className="text-sm"><strong>Duration:</strong> {service.duration}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-700 mb-1">Customer Notes:</p>
+                                                <p className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                                                    {service.notes}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex flex-col gap-2 ml-4">
+                                        <Button variant="outline" size="sm">
+                                            View Details
+                                        </Button>
+                                        <Button variant="outline" size="sm">
+                                            Contact Customer
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+
+                    {completedServices.length === 0 && (
+                        <Card>
+                            <CardContent className="p-8 text-center">
+                                <Clock className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                                <h3 className="text-lg font-medium text-gray-600 mb-2">No Completed Services</h3>
+                                <p className="text-gray-500">Completed services will appear here.</p>
+                            </CardContent>
+                        </Card>
+                    )}
                 </TabsContent>
             </Tabs>
         </div>

@@ -1,187 +1,165 @@
-'use client';
+"use client";
+
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { format, startOfWeek, endOfWeek, eachDayOfInterval, addWeeks, subWeeks, isSameDay } from 'date-fns';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/hooks/useAuth';
-import { toast } from 'sonner';
+import { Calendar, Clock, MapPin, User } from 'lucide-react';
 
 export default function SchedulePage() {
-    const { user, loading } = useAuth({ requiredRole: 'EMPLOYEE' });
-    const router = useRouter();
-    const [currentWeek, setCurrentWeek] = useState(new Date());
-    const [appointments, setAppointments] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [upcomingServices, setUpcomingServices] = useState([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Fetch appointments data
-        const fetchAppointments = async () => {
-            try {
-                const response = await fetch('/api/employee/appointments');
-                if (!response.ok) {
-                    throw new Error('Failed to fetch appointments');
+        // Simulate loading upcoming services
+        setTimeout(() => {
+            setUpcomingServices([
+                {
+                    id: 1,
+                    customer: 'John Smith',
+                    address: '123 Main St, Denver, CO 80831',
+                    time: '9:00 AM',
+                    date: 'Today',
+                    service: 'Weekly Cleanup',
+                    status: 'confirmed'
+                },
+                {
+                    id: 2,
+                    customer: 'Sarah Johnson',
+                    address: '456 Oak Ave, Denver, CO 80831',
+                    time: '2:00 PM',
+                    date: 'Tomorrow',
+                    service: 'One-time Cleanup',
+                    status: 'pending'
                 }
-                const data = await response.json();
-                setAppointments(data);
-            } catch (error) {
-                console.error('Error fetching appointments:', error);
-                toast.error('Failed to load appointments');
-                // Fallback to mock data in development
-                if (process.env.NODE_ENV === 'development') {
-                    const mockAppointments = [
-                        {
-                            id: '1',
-                            date: new Date(),
-                            customerName: 'John Smith',
-                            address: '123 Main St, Anytown, USA',
-                            serviceType: 'Weekly Cleanup',
-                            status: 'scheduled',
-                            startTime: '09:00',
-                            endTime: '10:30'
-                        },
-                        {
-                            id: '2',
-                            date: new Date(),
-                            customerName: 'Jane Doe',
-                            address: '456 Oak Ave, Anytown, USA',
-                            serviceType: 'Bi-Weekly Cleanup',
-                            status: 'completed',
-                            startTime: '11:00',
-                            endTime: '12:30'
-                        },
-                        {
-                            id: '3',
-                            date: addWeeks(new Date(), 1),
-                            customerName: 'Bob Wilson',
-                            address: '789 Pine Rd, Anytown, USA',
-                            serviceType: 'One-Time Cleanup',
-                            status: 'scheduled',
-                            startTime: '14:00',
-                            endTime: '16:00'
-                        }
-                    ];
-                    setAppointments(mockAppointments);
-                }
-            } finally {
-                setIsLoading(false);
-            }
-        };
+            ]);
+            setLoading(false);
+        }, 1000);
+    }, []);
 
-        if (user?.role === 'EMPLOYEE') {
-            fetchAppointments();
-        }
-    }, [user]);
-
-    const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 }); // Start on Monday
-    const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
-    const daysInWeek = eachDayOfInterval({ start: weekStart, end: weekEnd });
-
-    const getAppointmentsForDay = (date) => {
-        return appointments.filter(appointment => 
-            isSameDay(new Date(appointment.date), date)
-        ).sort((a, b) => a.startTime.localeCompare(b.startTime));
-    };
-
-    const handlePreviousWeek = () => {
-        setCurrentWeek(subWeeks(currentWeek, 1));
-    };
-
-    const handleNextWeek = () => {
-        setCurrentWeek(addWeeks(currentWeek, 1));
-    };
-
-    const getStatusBadgeColor = (status) => {
-        switch (status.toLowerCase()) {
-            case 'completed':
-                return 'bg-green-500';
-            case 'scheduled':
-                return 'bg-blue-500';
-            case 'cancelled':
-                return 'bg-red-500';
-            default:
-                return 'bg-gray-500';
-        }
-    };
-
-    if (loading || isLoading) {
+    if (loading) {
         return (
-            <div className="flex items-center justify-center h-[400px] transition-opacity duration-300">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
+            <div className="p-6">
+                <div className="animate-pulse space-y-4">
+                    <div className="h-8 bg-gray-200 rounded w-1/4"></div>
+                    <div className="h-32 bg-gray-200 rounded"></div>
+                    <div className="h-32 bg-gray-200 rounded"></div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="container mx-auto px-4 py-8">
-            <div className="flex items-center justify-between mb-8">
-                <h1 className="text-2xl font-bold">Schedule</h1>
-                <div className="flex items-center gap-4">
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handlePreviousWeek}
-                        className="h-8 w-8"
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <div className="flex items-center">
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        <span>
-                            {format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
-                        </span>
-                    </div>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={handleNextWeek}
-                        className="h-8 w-8"
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
+        <div className="p-6">
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold mb-2">Schedule</h1>
+                <p className="text-gray-600">Manage your upcoming service appointments</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
-                {daysInWeek.map((day) => (
-                    <div key={day.toString()} className="space-y-4">
-                        <div className="text-center font-semibold p-2 bg-gray-100 rounded-t-lg">
-                            {format(day, 'EEE')}<br />
-                            {format(day, 'MMM d')}
+            {/* Quick Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <Calendar className="h-8 w-8 text-blue-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Today's Services</p>
+                                <p className="text-2xl font-bold">1</p>
+                            </div>
                         </div>
-                        <div className="space-y-2">
-                            {getAppointmentsForDay(day).map((appointment) => (
-                                <Card key={appointment.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                                    <CardContent className="p-4">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <Badge className={getStatusBadgeColor(appointment.status)}>
-                                                {appointment.status}
-                                            </Badge>
-                                            <div className="flex items-center text-sm text-gray-500">
-                                                <Clock className="h-4 w-4 mr-1" />
-                                                {appointment.startTime} - {appointment.endTime}
-                                            </div>
-                                        </div>
-                                        <h3 className="font-medium mb-1">{appointment.customerName}</h3>
-                                        <p className="text-sm text-gray-600 mb-2">{appointment.serviceType}</p>
-                                        <div className="flex items-start text-sm text-gray-500">
-                                            <MapPin className="h-4 w-4 mr-1 mt-1 flex-shrink-0" />
-                                            <span>{appointment.address}</span>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                            {getAppointmentsForDay(day).length === 0 && (
-                                <div className="text-center text-gray-500 text-sm py-4">
-                                    No appointments
-                                </div>
-                            )}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <Clock className="h-8 w-8 text-green-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">This Week</p>
+                                <p className="text-2xl font-bold">5</p>
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="flex items-center">
+                            <User className="h-8 w-8 text-purple-600" />
+                            <div className="ml-4">
+                                <p className="text-sm font-medium text-gray-600">Total Customers</p>
+                                <p className="text-2xl font-bold">12</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
+
+            {/* Upcoming Services */}
+            <Card>
+                <CardHeader>
+                    <CardTitle>Upcoming Services</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+                        {upcomingServices.map((service) => (
+                            <div key={service.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                                <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <User className="h-4 w-4 text-gray-500" />
+                                            <span className="font-medium">{service.customer}</span>
+                                            <span className={`px-2 py-1 rounded-full text-xs ${
+                                                service.status === 'confirmed' 
+                                                    ? 'bg-green-100 text-green-800' 
+                                                    : 'bg-yellow-100 text-yellow-800'
+                                            }`}>
+                                                {service.status}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm text-gray-600 mb-1">
+                                            <MapPin className="h-4 w-4" />
+                                            <span>{service.address}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                                            <Clock className="h-4 w-4" />
+                                            <span>{service.date} at {service.time}</span>
+                                        </div>
+                                        <p className="text-sm text-gray-500 mt-1">{service.service}</p>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button variant="outline" size="sm">
+                                            View Details
+                                        </Button>
+                                        <Button size="sm">
+                                            Start Service
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {upcomingServices.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                            No upcoming services scheduled
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Calendar View */}
+            <Card className="mt-6">
+                <CardHeader>
+                    <CardTitle>Calendar View</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="bg-gray-50 p-8 rounded-lg text-center">
+                        <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-600 mb-2">Full Calendar Coming Soon</h3>
+                        <p className="text-gray-500">We're working on a comprehensive calendar view for better schedule management.</p>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }
