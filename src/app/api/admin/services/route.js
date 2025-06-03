@@ -22,7 +22,7 @@ export async function GET(request) {
             include: {
                 customer: {
                     include: {
-                        user: {
+                        User: {
                             select: {
                                 name: true
                             }
@@ -32,7 +32,7 @@ export async function GET(request) {
                 },
                 employee: {
                     include: {
-                        user: {
+                        User: {
                             select: {
                                 name: true
                             }
@@ -61,11 +61,11 @@ export async function GET(request) {
                 payoutStatus: earning ? earning.status : 'Pending',
                 referralStatus,
                 customer: {
-                    name: service.customer.user.name,
+                    name: service.customer.User.name,
                     address: service.customer.address.street
                 },
                 employee: service.employee ? {
-                    name: service.employee.user.name
+                    name: service.employee.User.name
                 } : undefined,
                 completedAt: service.completedDate
             };

@@ -16,12 +16,12 @@ export async function GET(req) {
             include: {
                 referrer: {
                     include: {
-                        user: true,
+                        User: true,
                     },
                 },
                 referred: {
                     include: {
-                        user: true,
+                        User: true,
                     },
                 },
             },
@@ -68,12 +68,12 @@ export async function PATCH(req) {
             include: {
                 referrer: {
                     include: {
-                        user: true,
+                        User: true,
                     },
                 },
                 referred: {
                     include: {
-                        user: true,
+                        User: true,
                     },
                 },
             },
@@ -94,22 +94,7 @@ export async function PATCH(req) {
             // Create a notification for the referrer
             await prisma.notification.create({
                 data: {
-                    userId: referral.referrer.user.id,
+                    userId: referral.referrer.User.id,
                     type: 'REFERRAL_PAID',
                     title: 'Referral Reward Paid',
-                    message: `Your referral reward has been paid via Cash App.`,
-                    metadata: {
-                        paymentId: payment.id,
-                        amount: payment.amount,
-                        cashAppTransactionId,
-                    },
-                },
-            });
-        }
-        return NextResponse.json(referral);
-    }
-    catch (error) {
-        console.error('Error updating referral:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
-}
+                    message: `
