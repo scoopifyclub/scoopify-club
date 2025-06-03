@@ -97,4 +97,14 @@ export async function PATCH(req) {
                     userId: referral.referrer.User.id,
                     type: 'REFERRAL_PAID',
                     title: 'Referral Reward Paid',
-                    message: `
+                    message: `Your referral reward of $10.00 has been paid out via Cash App. Transaction ID: ${cashAppTransactionId || 'N/A'}`
+                }
+            });
+        }
+        return NextResponse.json(referral);
+    }
+    catch (error) {
+        console.error('Error updating referral:', error);
+        return NextResponse.json({ error: 'Failed to update referral' }, { status: 500 });
+    }
+}
