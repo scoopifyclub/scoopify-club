@@ -3,37 +3,102 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, MapPin, User } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, AlertCircle } from 'lucide-react';
 
 export default function SchedulePage() {
     const [upcomingServices, setUpcomingServices] = useState([]);
+    const [stats, setStats] = useState({});
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Simulate loading upcoming services
-        setTimeout(() => {
-            setUpcomingServices([
-                {
-                    id: 1,
-                    customer: 'John Smith',
-                    address: '123 Main St, Denver, CO 80831',
-                    time: '9:00 AM',
-                    date: 'Today',
-                    service: 'Weekly Cleanup',
-                    status: 'confirmed'
-                },
-                {
-                    id: 2,
-                    customer: 'Sarah Johnson',
-                    address: '456 Oak Ave, Denver, CO 80831',
-                    time: '2:00 PM',
-                    date: 'Tomorrow',
-                    service: 'One-time Cleanup',
-                    status: 'pending'
+        // Fetch real schedule data from existing APIs
+        const fetchScheduleData = async () => {
+            try {
+                // Get overall stats from dashboard API
+                const dashboardResponse = await fetch('/api/employee/dashboard', {
+                    credentials: 'include',
+                });
+                
+                // Get upcoming services from services API  
+                const servicesResponse = await fetch('/api/employee/services?status=SCHEDULED', {
+                    credentials: 'include',
+                });
+                
+                if (dashboardResponse.ok && servicesResponse.ok) {
+                    const dashboardData = await dashboardResponse.json();
+                    const servicesData = await servicesResponse.json();
+                    
+                    // Extract stats from dashboard
+                    const stats = dashboardData.stats || {};
+                    setStats({
+                        todayServices: 0, // Would need to calculate from services
+                        thisWeekServices: 0, // Would need to calculate from services
+                        totalCustomers: stats.customerCount || 0
+                    });
+                    
+                    // Format services data
+                    const formattedServices = (servicesData || []).map(service => {
+                        const serviceDate = new Date(service.scheduledDate || service.scheduledFor);
+                        const now = new Date();
+                        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(today.getDate() + 1);
+                        
+                        let dateDisplay = 'Upcoming';
+                        if (serviceDate >= today && serviceDate < tomorrow) {
+                            dateDisplay = 'Today';
+                        } else if (serviceDate >= tomorrow && serviceDate < new Date(tomorrow.getTime() + 24 * 60 * 60 * 1000)) {
+                            dateDisplay = 'Tomorrow';
+                        } else {
+                            dateDisplay = serviceDate.toLocaleDateString();
+                        }
+                        
+                        return {
+                            id: service.id,
+                            customer: service.customer?.user?.name || service.customer?.name || 'Unknown Customer',
+                            address: service.customer?.address ? 
+                                `${service.customer.address.street || ''}, ${service.customer.address.city || ''}, ${service.customer.address.state || ''} ${service.customer.address.zipCode || ''}`.trim().replace(/^,\s*/, '') :
+                                'Address not available',
+                            time: serviceDate.toLocaleTimeString([], { 
+                                hour: 'numeric', 
+                                minute: '2-digit',
+                                hour12: true 
+                            }),
+                            date: dateDisplay,
+                            service: service.serviceType || service.type || 'Pet Waste Cleanup',
+                            status: (service.status || 'scheduled').toLowerCase(),
+                            scheduledDate: service.scheduledDate || service.scheduledFor,
+                            price: service.price || 0
+                        };
+                    });
+                    
+                    setUpcomingServices(formattedServices);
+                } else {
+                    console.error('Failed to fetch schedule data');
+                    setError('Failed to load schedule data');
+                    setUpcomingServices([]);
+                    setStats({
+                        todayServices: 0,
+                        thisWeekServices: 0,
+                        totalCustomers: 0
+                    });
                 }
-            ]);
-            setLoading(false);
-        }, 1000);
+            } catch (error) {
+                console.error('Error fetching schedule data:', error);
+                setError('Failed to load schedule data');
+                setUpcomingServices([]);
+                setStats({
+                    todayServices: 0,
+                    thisWeekServices: 0,
+                    totalCustomers: 0
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        fetchScheduleData();
     }, []);
 
     if (loading) {
@@ -44,6 +109,28 @@ export default function SchedulePage() {
                     <div className="h-32 bg-gray-200 rounded"></div>
                     <div className="h-32 bg-gray-200 rounded"></div>
                 </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="p-6">
+                <div className="mb-6">
+                    <h1 className="text-2xl font-bold mb-2">Schedule</h1>
+                    <p className="text-gray-600">Manage your upcoming service appointments</p>
+                </div>
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="text-center">
+                            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                            <p className="text-red-600 mb-4">⚠️ {error}</p>
+                            <Button onClick={() => window.location.reload()}>
+                                Try Again
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
@@ -63,7 +150,7 @@ export default function SchedulePage() {
                             <Calendar className="h-8 w-8 text-blue-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Today's Services</p>
-                                <p className="text-2xl font-bold">1</p>
+                                <p className="text-2xl font-bold">{stats.todayServices || 0}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -75,7 +162,7 @@ export default function SchedulePage() {
                             <Clock className="h-8 w-8 text-green-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">This Week</p>
-                                <p className="text-2xl font-bold">5</p>
+                                <p className="text-2xl font-bold">{stats.thisWeekServices || 0}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -87,7 +174,7 @@ export default function SchedulePage() {
                             <User className="h-8 w-8 text-purple-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Total Customers</p>
-                                <p className="text-2xl font-bold">12</p>
+                                <p className="text-2xl font-bold">{stats.totalCustomers || 0}</p>
                             </div>
                         </div>
                     </CardContent>
