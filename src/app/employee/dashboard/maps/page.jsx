@@ -4,62 +4,117 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Navigation, Clock, User, Route, Zap } from 'lucide-react';
+import { MapPin, Navigation, Clock, User, Route, Zap, AlertCircle } from 'lucide-react';
 
 export default function MapsPage() {
     const [serviceAreas, setServiceAreas] = useState([]);
     const [nearbyServices, setNearbyServices] = useState([]);
+    const [stats, setStats] = useState({});
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Simulate loading map data
-        setTimeout(() => {
-            setServiceAreas([
-                {
-                    id: 1,
-                    zipCode: '80831',
-                    area: 'Denver South',
-                    isActive: true,
-                    totalCustomers: 12,
-                    todayServices: 3,
-                    address: 'Colorado Springs, CO 80831'
-                }
-            ]);
+        const fetchMapsData = async () => {
+            try {
+                // Get dashboard data for stats
+                const dashboardResponse = await fetch('/api/employee/dashboard', {
+                    credentials: 'include',
+                });
+                
+                // Get service areas
+                const serviceAreaResponse = await fetch('/api/employee/service-area', {
+                    credentials: 'include',
+                });
+                
+                // Get scheduled services for today/nearby
+                const servicesResponse = await fetch('/api/employee/services?status=SCHEDULED', {
+                    credentials: 'include',
+                });
 
-            setNearbyServices([
-                {
-                    id: 1,
-                    customer: 'John Smith',
-                    address: '123 Main St, Denver, CO 80831',
-                    distance: '0.5 miles',
-                    scheduledTime: '9:00 AM',
-                    status: 'scheduled',
-                    serviceType: 'Weekly Cleanup',
-                    estimatedDuration: '45 min'
-                },
-                {
-                    id: 2,
-                    customer: 'Sarah Johnson',
-                    address: '456 Oak Ave, Denver, CO 80831',
-                    distance: '1.2 miles',
-                    scheduledTime: '2:00 PM',
-                    status: 'in-progress',
-                    serviceType: 'One-time Cleanup',
-                    estimatedDuration: '60 min'
-                },
-                {
-                    id: 3,
-                    customer: 'Mike Wilson',
-                    address: '789 Pine Rd, Denver, CO 80831',
-                    distance: '2.1 miles',
-                    scheduledTime: '10:00 AM',
-                    status: 'scheduled',
-                    serviceType: 'Bi-weekly Cleanup',
-                    estimatedDuration: '30 min'
+                if (dashboardResponse.ok && serviceAreaResponse.ok && servicesResponse.ok) {
+                    const dashboardData = await dashboardResponse.json();
+                    const serviceAreaData = await serviceAreaResponse.json();
+                    const servicesData = await servicesResponse.json();
+                    
+                    // Format service areas
+                    const formattedServiceAreas = (serviceAreaData || []).map(area => ({
+                        id: area.id,
+                        zipCode: area.zipCode || area.zip || 'N/A',
+                        area: area.name || area.area || `Area ${area.zipCode || area.zip}`,
+                        isActive: area.isActive !== false,
+                        totalCustomers: area.customerCount || area.totalCustomers || 0,
+                        todayServices: area.todayServices || 0,
+                        address: area.address || (area.zipCode ? `${area.city || 'Unknown City'}, ${area.state || 'CO'} ${area.zipCode}` : 'Address not available')
+                    }));
+                    
+                    // Format nearby services (today's scheduled services)
+                    const today = new Date().toDateString();
+                    const todayServices = (servicesData || []).filter(service => {
+                        const serviceDate = new Date(service.scheduledDate || service.scheduledFor);
+                        return serviceDate.toDateString() === today;
+                    });
+                    
+                    const formattedNearbyServices = todayServices.map(service => {
+                        const serviceDate = new Date(service.scheduledDate || service.scheduledFor);
+                        
+                        return {
+                            id: service.id,
+                            customer: service.customer?.user?.name || service.customer?.name || 'Unknown Customer',
+                            address: service.customer?.address ? 
+                                `${service.customer.address.street || ''}, ${service.customer.address.city || ''}, ${service.customer.address.state || ''} ${service.customer.address.zipCode || ''}`.trim().replace(/^,\s*/, '') :
+                                'Address not available',
+                            distance: service.distance || 'N/A',
+                            scheduledTime: serviceDate.toLocaleTimeString([], { 
+                                hour: 'numeric', 
+                                minute: '2-digit',
+                                hour12: true 
+                            }),
+                            status: (service.status || 'scheduled').toLowerCase(),
+                            serviceType: service.serviceType || service.type || 'Pet Waste Cleanup',
+                            estimatedDuration: service.estimatedDuration ? `${service.estimatedDuration} min` : '30-45 min'
+                        };
+                    });
+                    
+                    setServiceAreas(formattedServiceAreas);
+                    setNearbyServices(formattedNearbyServices);
+                    
+                    // Set stats from dashboard
+                    const dashboardStats = dashboardData.stats || {};
+                    setStats({
+                        activeAreas: formattedServiceAreas.filter(area => area.isActive).length,
+                        totalCustomers: dashboardStats.customerCount || 0,
+                        todayServices: formattedNearbyServices.length,
+                        avgDistance: '1.3mi' // This would need to be calculated from actual service locations
+                    });
+                } else {
+                    console.error('Failed to fetch maps data');
+                    setError('Failed to load maps data');
+                    setServiceAreas([]);
+                    setNearbyServices([]);
+                    setStats({
+                        activeAreas: 0,
+                        totalCustomers: 0,
+                        todayServices: 0,
+                        avgDistance: '0mi'
+                    });
                 }
-            ]);
-            setLoading(false);
-        }, 1000);
+            } catch (error) {
+                console.error('Error fetching maps data:', error);
+                setError('Failed to load maps data');
+                setServiceAreas([]);
+                setNearbyServices([]);
+                setStats({
+                    activeAreas: 0,
+                    totalCustomers: 0,
+                    todayServices: 0,
+                    avgDistance: '0mi'
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        fetchMapsData();
     }, []);
 
     if (loading) {
@@ -70,6 +125,28 @@ export default function MapsPage() {
                     <div className="h-64 bg-gray-200 rounded"></div>
                     <div className="h-32 bg-gray-200 rounded"></div>
                 </div>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="p-6">
+                <div className="mb-6">
+                    <h1 className="text-2xl font-bold mb-2">Maps & Route Planning</h1>
+                    <p className="text-gray-600">View your service areas and plan optimal routes</p>
+                </div>
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="text-center">
+                            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                            <p className="text-red-600 mb-4">⚠️ {error}</p>
+                            <Button onClick={() => window.location.reload()}>
+                                Try Again
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
             </div>
         );
     }
@@ -89,7 +166,7 @@ export default function MapsPage() {
                             <MapPin className="h-8 w-8 text-blue-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Active Areas</p>
-                                <p className="text-2xl font-bold">{serviceAreas.filter(area => area.isActive).length}</p>
+                                <p className="text-2xl font-bold">{stats.activeAreas || 0}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -101,7 +178,7 @@ export default function MapsPage() {
                             <User className="h-8 w-8 text-green-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Total Customers</p>
-                                <p className="text-2xl font-bold">{serviceAreas.reduce((sum, area) => sum + area.totalCustomers, 0)}</p>
+                                <p className="text-2xl font-bold">{stats.totalCustomers || 0}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -113,7 +190,7 @@ export default function MapsPage() {
                             <Clock className="h-8 w-8 text-purple-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Today's Services</p>
-                                <p className="text-2xl font-bold">{serviceAreas.reduce((sum, area) => sum + area.todayServices, 0)}</p>
+                                <p className="text-2xl font-bold">{stats.todayServices || 0}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -125,7 +202,7 @@ export default function MapsPage() {
                             <Route className="h-8 w-8 text-orange-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Avg Distance</p>
-                                <p className="text-2xl font-bold">1.3mi</p>
+                                <p className="text-2xl font-bold">{stats.avgDistance || '0mi'}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -201,6 +278,14 @@ export default function MapsPage() {
                                     </div>
                                 </div>
                             ))}
+                            
+                            {serviceAreas.length === 0 && (
+                                <div className="text-center p-8">
+                                    <MapPin className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                                    <h3 className="text-lg font-medium text-gray-600 mb-2">No Service Areas</h3>
+                                    <p className="text-gray-500">Service areas will appear here when assigned.</p>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
@@ -208,35 +293,36 @@ export default function MapsPage() {
                 {/* Nearby Services */}
                 <Card>
                     <CardHeader>
-                        <CardTitle>Nearby Services Today</CardTitle>
+                        <CardTitle>Today's Services</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
                             {nearbyServices.map((service) => (
                                 <div key={service.id} className="border rounded-lg p-4 hover:bg-gray-50">
-                                    <div className="flex justify-between items-start mb-2">
-                                        <h3 className="font-medium">{service.customer}</h3>
-                                        <Badge variant={service.status === 'in-progress' ? "default" : "outline"}>
-                                            {service.status === 'in-progress' ? 'Active' : 'Scheduled'}
-                                        </Badge>
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <h3 className="font-semibold">{service.customer}</h3>
+                                            <p className="text-sm text-gray-600 mb-1">{service.address}</p>
+                                            <div className="flex items-center gap-4 text-sm text-gray-500">
+                                                {service.distance !== 'N/A' && (
+                                                    <span className="flex items-center gap-1">
+                                                        <Route className="h-3 w-3" />
+                                                        {service.distance}
+                                                    </span>
+                                                )}
+                                                <span className="flex items-center gap-1">
+                                                    <Clock className="h-3 w-3" />
+                                                    {service.scheduledTime}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <Badge variant="outline" className="mb-2">
+                                                {service.status}
+                                            </Badge>
+                                            <p className="text-xs text-gray-500">{service.estimatedDuration}</p>
+                                        </div>
                                     </div>
-                                    
-                                    <div className="space-y-1 text-sm text-gray-600 mb-3">
-                                        <div className="flex items-center gap-2">
-                                            <MapPin className="h-3 w-3" />
-                                            <span>{service.address}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Navigation className="h-3 w-3" />
-                                            <span>{service.distance} away</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <Clock className="h-3 w-3" />
-                                            <span>{service.scheduledTime} ({service.estimatedDuration})</span>
-                                        </div>
-                                    </div>
-                                    
-                                    <p className="text-sm text-gray-500 mb-3">{service.serviceType}</p>
                                     
                                     <div className="flex gap-2">
                                         <Button variant="outline" size="sm">
@@ -244,55 +330,24 @@ export default function MapsPage() {
                                             Navigate
                                         </Button>
                                         <Button variant="outline" size="sm">
-                                            Details
+                                            <User className="h-3 w-3 mr-1" />
+                                            Contact
                                         </Button>
                                     </div>
                                 </div>
                             ))}
+                            
+                            {nearbyServices.length === 0 && (
+                                <div className="text-center p-8">
+                                    <Clock className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                                    <h3 className="text-lg font-medium text-gray-600 mb-2">No Services Today</h3>
+                                    <p className="text-gray-500">Today's scheduled services will appear here.</p>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
             </div>
-
-            {/* Route Optimization Tools */}
-            <Card className="mt-6">
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Route className="h-5 w-5" />
-                        Route Optimization Tools
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="text-center p-6 border rounded-lg hover:bg-gray-50">
-                            <Zap className="h-12 w-12 text-yellow-500 mx-auto mb-3" />
-                            <h3 className="font-medium mb-2">Auto-Optimize</h3>
-                            <p className="text-sm text-gray-600 mb-4">Automatically plan the most efficient route for your daily services</p>
-                            <Button variant="outline" size="sm">
-                                Optimize Routes
-                            </Button>
-                        </div>
-                        
-                        <div className="text-center p-6 border rounded-lg hover:bg-gray-50">
-                            <Navigation className="h-12 w-12 text-blue-500 mx-auto mb-3" />
-                            <h3 className="font-medium mb-2">Turn-by-Turn</h3>
-                            <p className="text-sm text-gray-600 mb-4">Get detailed navigation instructions for each service location</p>
-                            <Button variant="outline" size="sm">
-                                Start Navigation
-                            </Button>
-                        </div>
-                        
-                        <div className="text-center p-6 border rounded-lg hover:bg-gray-50">
-                            <Clock className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                            <h3 className="font-medium mb-2">Time Estimates</h3>
-                            <p className="text-sm text-gray-600 mb-4">View accurate travel time estimates between service locations</p>
-                            <Button variant="outline" size="sm">
-                                View Estimates
-                            </Button>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
         </div>
     );
 }
