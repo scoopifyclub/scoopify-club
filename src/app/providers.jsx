@@ -1,6 +1,7 @@
 'use client';
 
-import { ThemeProvider } from '@/components/providers/ThemeProvider';
+import { ThemeProvider } from 'next-themes';
+import { AuthProvider } from '@/lib/auth-client';
 
 export function Providers({ children }) {
     return (
@@ -10,7 +11,9 @@ export function Providers({ children }) {
             enableSystem
             disableTransitionOnChange
         >
-            {children}
+            <AuthProvider>
+                {children}
+            </AuthProvider>
         </ThemeProvider>
     );
 }

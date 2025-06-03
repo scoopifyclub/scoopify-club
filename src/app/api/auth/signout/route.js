@@ -1,12 +1,26 @@
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { revokeUserTokenByFingerprint, verifyToken } from '@/lib/api-auth';
 
 export async function POST() {
-    const cookieStore = cookies();
-    cookieStore.delete('token');
-
-    return NextResponse.json({ success: true });
+    try {
+        const cookieStore = await cookies();
+        
+        // Clear all authentication cookies
+        cookieStore.delete('token');
+        cookieStore.delete('accessToken');
+        cookieStore.delete('adminToken');
+        cookieStore.delete('accessToken_client');
+        
+        console.log('🔐 User signed out, all auth cookies cleared');
+        
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('Signout error:', error);
+        return NextResponse.json({ 
+            success: false, 
+            error: 'Failed to sign out' 
+        }, { status: 500 });
+    }
 }
 
 export async function OPTIONS() {
