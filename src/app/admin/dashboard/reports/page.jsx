@@ -34,13 +34,15 @@ export default function ReportsPage() {
         setIsLoading(true);
         try {
             const response = await fetch(`/api/admin/reports?range=${dateRange}`, {
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                 }
             });
 
             if (!response.ok) {
-                throw new Error('Failed to fetch report data');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to fetch report data');
             }
 
             const data = await response.json();
@@ -48,14 +50,35 @@ export default function ReportsPage() {
                 throw new Error(data.error || 'Failed to fetch report data');
             }
 
-            setReportData(data.reports);
+            // Transform the data to match the expected structure
+            const transformedData = {
+                revenueByDay: data.reports?.revenueByDay?.map(item => ({
+                    name: item.date,
+                    revenue: item.amount
+                })) || [],
+                servicesByType: data.reports?.servicesByType?.map(item => ({
+                    name: item.type,
+                    count: item.count
+                })) || [],
+                servicesByRegion: data.reports?.servicesByRegion?.map(item => ({
+                    name: item.region,
+                    count: item.count
+                })) || [],
+                topEmployees: data.reports?.topEmployees?.map(employee => ({
+                    name: employee.User?.name || 'Unknown Employee',
+                    completedServices: employee.completedServices || 0,
+                    revenue: employee.revenue || 0,
+                    rating: employee.rating || 0
+                })) || []
+            };
+
+            setReportData(transformedData);
         } catch (error) {
             console.error('Error fetching report data:', error);
-            toast({
-                title: "Error",
-                description: "Failed to load report data. Please try again.",
-                variant: "destructive"
+            toast.error('Failed to load report data', {
+                description: error.message
             });
+            setReportData(null);
         } finally {
             setIsLoading(false);
         }

@@ -21,7 +21,7 @@ export async function GET(request, { params }) {
                 employee: {
                     select: {
                         id: true,
-                        user: {
+                        User: {
                             select: {
                                 name: true,
                                 email: true
@@ -40,8 +40,8 @@ export async function GET(request, { params }) {
             id: coverageArea.id,
             zipCode: coverageArea.zipCode,
             employeeId: coverageArea.employeeId,
-            employeeName: coverageArea.employee?.user?.name,
-            employeeEmail: coverageArea.employee?.user?.email,
+            employeeName: coverageArea.employee?.User?.name,
+            employeeEmail: coverageArea.employee?.User?.email,
             travelDistance: coverageArea.travelDistance,
             active: coverageArea.active,
             createdAt: coverageArea.createdAt,
@@ -125,7 +125,7 @@ export async function PATCH(request, { params }) {
             include: {
                 employee: {
                     select: {
-                        user: {
+                        User: {
                             select: {
                                 name: true,
                                 email: true
@@ -140,8 +140,8 @@ export async function PATCH(request, { params }) {
             id: updatedArea.id,
             zipCode: updatedArea.zipCode,
             employeeId: updatedArea.employeeId,
-            employeeName: updatedArea.employee?.user?.name,
-            employeeEmail: updatedArea.employee?.user?.email,
+            employeeName: updatedArea.employee?.User?.name,
+            employeeEmail: updatedArea.employee?.User?.email,
             travelDistance: updatedArea.travelDistance,
             active: updatedArea.active,
             createdAt: updatedArea.createdAt,

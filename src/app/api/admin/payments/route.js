@@ -29,37 +29,26 @@ export async function GET(request) {
         const payments = await prisma.payment.findMany({
             where: filters,
             include: {
-                employee: {
-                    include: {
-                        User: {
-                            select: {
-                                name: true,
-                                email: true
-                            }
-                        }
-                    }
-                },
-                customer: {
-                    include: {
-                        User: {
-                            select: {
-                                name: true,
-                                email: true
-                            }
-                        }
-                    }
-                },
                 service: {
-                    select: {
-                        id: true,
-                        scheduledDate: true,
+                    include: {
                         customer: {
-                            select: {
+                            include: {
                                 User: {
                                     select: {
                                         name: true,
-                                    }
-                                }
+                                        email: true,
+                                    },
+                                },
+                            },
+                        },
+                        employee: {
+                            include: {
+                                User: {
+                                    select: {
+                                        name: true,
+                                        email: true,
+                                    },
+                                },
                             },
                         },
                     },
@@ -82,9 +71,9 @@ export async function GET(request) {
             return ({
                 id: payment.id,
                 employeeId: payment.employeeId,
-                employeeName: ((_b = (_a = payment.employee) === null || _a === void 0 ? void 0 : _a.User) === null || _b === void 0 ? void 0 : _b.name) || 'N/A',
+                employeeName: ((_b = (_a = payment.service) === null || _a === void 0 ? void 0 : _a.employee) === null || _b === void 0 ? void 0 : _b.User) === null || _b === void 0 ? void 0 : _b.name || 'Unknown Employee',
                 customerId: payment.customerId,
-                customerName: ((_d = (_c = payment.customer) === null || _c === void 0 ? void 0 : _c.User) === null || _d === void 0 ? void 0 : _d.name) || ((_g = (_f = (_e = payment.service) === null || _e === void 0 ? void 0 : _e.customer) === null || _f === void 0 ? void 0 : _f.User) === null || _g === void 0 ? void 0 : _g.name) || 'N/A',
+                customerName: ((_d = (_c = payment.service) === null || _c === void 0 ? void 0 : _c.customer) === null || _d === void 0 ? void 0 : _d.User) === null || _d === void 0 ? void 0 : _d.name || 'Unknown Customer',
                 referralId: payment.referredId,
                 referrerName: ((_h = payment.referredBy) === null || _h === void 0 ? void 0 : _h.name) || 'N/A',
                 amount: payment.amount,
@@ -93,7 +82,7 @@ export async function GET(request) {
                 status: payment.status,
                 type: payment.type,
                 paymentMethod: payment.paymentMethod,
-                preferredPaymentMethod: ((_j = payment.employee) === null || _j === void 0 ? void 0 : _j.preferredPaymentMethod) || null,
+                preferredPaymentMethod: ((_j = payment.service) === null || _j === void 0 ? void 0 : _j.employee) === null || _j === void 0 ? void 0 : _j.preferredPaymentMethod || null,
                 notes: payment.notes,
                 paidAt: payment.paidAt,
                 serviceId: payment.serviceId,

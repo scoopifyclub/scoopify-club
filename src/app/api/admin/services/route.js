@@ -24,8 +24,9 @@ export async function GET(request) {
                     include: {
                         User: {
                             select: {
-                                name: true
-                            }
+                                name: true,
+                                email: true,
+                            },
                         },
                         address: true
                     }
@@ -34,15 +35,16 @@ export async function GET(request) {
                     include: {
                         User: {
                             select: {
-                                name: true
-                            }
+                                name: true,
+                                email: true,
+                            },
                         }
                     }
                 }
             },
             orderBy: {
-                scheduledDate: 'asc'
-            }
+                createdAt: 'desc',
+            },
         });
         // For each service, get payout and referral status
         const formattedServices = await Promise.all(services.map(async service => {

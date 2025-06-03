@@ -94,24 +94,34 @@ export default function AdminDashboardLayout({ children }) {
             }
 
             // Verify admin authentication
-            fetch('/api/admin/verify', {
-                credentials: 'include'
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success && data.user?.role === 'ADMIN') {
+            const verifyAdmin = async () => {
+                try {
+                    const response = await fetch('/api/admin/verify', {
+                        credentials: 'include'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to verify admin access');
+                    }
+
+                    const data = await response.json();
+                    if (!data.success || data.user?.role !== 'ADMIN') {
+                        throw new Error('Unauthorized access');
+                    }
+
                     console.log('Admin token valid, loading dashboard');
-                    fetchQuickStats();
+                    await fetchQuickStats();
                     setIsLoading(false);
-                } else {
-                    console.log('Admin verification failed, redirecting to login');
+                } catch (error) {
+                    console.error('Error verifying admin token:', error);
+                    toast.error('Authentication failed', {
+                        description: 'Please log in again to access the admin dashboard'
+                    });
                     window.location.href = '/login?callbackUrl=/admin/dashboard';
                 }
-            })
-            .catch(error => {
-                console.error('Error verifying admin token:', error);
-                window.location.href = '/login?callbackUrl=/admin/dashboard';
-            });
+            };
+
+            verifyAdmin();
         }
     }, [pathname]);
 
@@ -122,19 +132,32 @@ export default function AdminDashboardLayout({ children }) {
             });
             
             if (!response.ok) {
-                throw new Error('Failed to fetch stats');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to fetch stats');
             }
 
             const data = await response.json();
-            setQuickStats(data);
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to fetch stats');
+            }
+
+            setQuickStats({
+                totalCustomers: data.totalCustomers || 0,
+                totalEmployees: data.totalEmployees || 0,
+                pendingServices: data.pendingServices || 0,
+                monthlyRevenue: data.monthlyRevenue || 0
+            });
         } catch (error) {
             console.error('Error fetching quick stats:', error);
-            // Fallback to demo data
+            toast.error('Failed to load dashboard stats', {
+                description: error.message
+            });
+            // Don't use demo data, just show empty state
             setQuickStats({
-                totalCustomers: 152,
-                totalEmployees: 18,
-                pendingServices: 47,
-                monthlyRevenue: 28540
+                totalCustomers: 0,
+                totalEmployees: 0,
+                pendingServices: 0,
+                monthlyRevenue: 0
             });
         }
     };

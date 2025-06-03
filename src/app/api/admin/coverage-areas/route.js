@@ -18,7 +18,7 @@ export async function GET(request) {
                 employee: {
                     select: {
                         id: true,
-                        user: {
+                        User: {
                             select: {
                                 name: true
                             }
@@ -36,7 +36,7 @@ export async function GET(request) {
             id: area.id,
             zipCode: area.zipCode,
             employeeId: area.employeeId,
-            employeeName: area.employee?.user?.name,
+            employeeName: area.employee?.User?.name,
             travelDistance: area.travelDistance,
             active: area.active,
             createdAt: area.createdAt,
@@ -120,7 +120,7 @@ export async function POST(request) {
             include: {
                 employee: {
                     select: {
-                        user: {
+                        User: {
                             select: {
                                 name: true
                             }
@@ -134,7 +134,7 @@ export async function POST(request) {
             id: coverageArea.id,
             zipCode: coverageArea.zipCode,
             employeeId: coverageArea.employeeId,
-            employeeName: coverageArea.employee?.user?.name,
+            employeeName: coverageArea.employee?.User?.name,
             travelDistance: coverageArea.travelDistance,
             active: coverageArea.active,
             createdAt: coverageArea.createdAt,

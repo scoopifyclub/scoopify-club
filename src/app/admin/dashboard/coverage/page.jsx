@@ -30,15 +30,38 @@ export default function CoverageManagementPage() {
     const fetchCoverageAreas = async () => {
         try {
             setLoading(true);
-            const response = await fetch('/api/admin/coverage-areas');
+            const response = await fetch('/api/admin/coverage-areas', {
+                credentials: 'include'
+            });
+
             if (!response.ok) {
-                throw new Error('Failed to fetch coverage areas');
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || 'Failed to fetch coverage areas');
             }
+
             const data = await response.json();
-            setCoverageAreas(data);
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to fetch coverage areas');
+            }
+
+            // Transform the data to match the expected structure
+            const transformedAreas = data.coverageAreas?.map(area => ({
+                id: area.id,
+                zipCode: area.zipCode,
+                status: area.status,
+                employeeName: area.employee?.User?.name || 'Unassigned',
+                employeeEmail: area.employee?.User?.email || 'N/A',
+                lastUpdated: area.updatedAt,
+                notes: area.notes || ''
+            })) || [];
+
+            setCoverageAreas(transformedAreas);
         } catch (error) {
-            toast.error('Error loading coverage areas');
             console.error('Error:', error);
+            toast.error('Failed to load coverage areas', {
+                description: error.message
+            });
+            setCoverageAreas([]);
         } finally {
             setLoading(false);
         }
@@ -46,15 +69,21 @@ export default function CoverageManagementPage() {
 
     const handleRefresh = async () => {
         setRefreshing(true);
-        await fetchCoverageAreas();
-        setRefreshing(false);
+        try {
+            await fetchCoverageAreas();
+            toast.success('Coverage areas refreshed');
+        } catch (error) {
+            // Error already handled in fetchCoverageAreas
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     const filteredAreas = coverageAreas.filter(area => {
         const matchesSearch = 
             area.zipCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
             area.employeeName?.toLowerCase().includes(searchQuery.toLowerCase());
-        const matchesStatus = statusFilter === 'all' || area.active === (statusFilter === 'active');
+        const matchesStatus = statusFilter === 'all' || area.status === (statusFilter === 'active');
         return matchesSearch && matchesStatus;
     });
 
@@ -125,12 +154,12 @@ export default function CoverageManagementPage() {
                                         <TableCell>{area.employeeName || 'Unassigned'}</TableCell>
                                         <TableCell>{area.travelDistance} miles</TableCell>
                                         <TableCell>
-                                            <Badge variant={area.active ? "success" : "secondary"}>
-                                                {area.active ? 'Active' : 'Inactive'}
+                                            <Badge variant={area.status === 'active' ? "success" : "secondary"}>
+                                                {area.status === 'active' ? 'Active' : 'Inactive'}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
-                                            {new Date(area.updatedAt).toLocaleDateString()}
+                                            {new Date(area.lastUpdated).toLocaleDateString()}
                                         </TableCell>
                                         <TableCell>
                                             <Button

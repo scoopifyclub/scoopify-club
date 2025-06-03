@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { toast } from 'react-hot-toast';
 
 export default function CustomerRetentionMenu() {
   const [staleCustomers, setStaleCustomers] = useState([]);
@@ -7,11 +8,42 @@ export default function CustomerRetentionMenu() {
   useEffect(() => {
     async function fetchStaleCustomers() {
       setLoading(true);
-      const res = await fetch('/api/admin/credits-report');
-      const { staleCustomers } = await res.json();
-      setStaleCustomers(staleCustomers);
-      setLoading(false);
+      try {
+        const response = await fetch('/api/admin/credits-report', {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to fetch stale customers');
+        }
+
+        const data = await response.json();
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to fetch stale customers');
+        }
+
+        // Transform the data to match the expected structure
+        const transformedCustomers = data.staleCustomers?.map(customer => ({
+          id: customer.id,
+          creditsDepletedAt: customer.creditsDepletedAt,
+          phone: customer.User?.phone || '-',
+          email: customer.User?.email || '-',
+          stripeCustomerId: customer.stripeCustomerId || '-'
+        })) || [];
+
+        setStaleCustomers(transformedCustomers);
+      } catch (error) {
+        console.error('Error fetching stale customers:', error);
+        toast.error('Failed to load customer retention data', {
+          description: error.message
+        });
+        setStaleCustomers([]);
+      } finally {
+        setLoading(false);
+      }
     }
+
     fetchStaleCustomers();
   }, []);
 

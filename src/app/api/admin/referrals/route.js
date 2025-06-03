@@ -16,12 +16,22 @@ export async function GET(req) {
             include: {
                 referrer: {
                     include: {
-                        User: true,
+                        User: {
+                            select: {
+                                name: true,
+                                email: true,
+                            },
+                        },
                     },
                 },
                 referred: {
                     include: {
-                        User: true,
+                        User: {
+                            select: {
+                                name: true,
+                                email: true,
+                            },
+                        },
                     },
                 },
             },
@@ -29,6 +39,11 @@ export async function GET(req) {
                 createdAt: 'desc',
             },
         });
+        const formattedReferrals = referrals.map(referral => ({
+            ...referral,
+            referrerName: referral.referrer?.User?.name || 'Unknown Referrer',
+            referredName: referral.referred?.User?.name || 'Unknown Referred',
+        }));
         const stats = {
             totalReferrals: referrals.length,
             pendingRewards: 0,
@@ -36,7 +51,7 @@ export async function GET(req) {
             totalAmount: 0,
         };
         return NextResponse.json({
-            referrals,
+            referrals: formattedReferrals,
             stats,
         });
     }

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowUpIcon, ArrowDownIcon, UsersIcon, CalendarIcon, CircleDollarSign, BarChart3, TrendingUp, AlertCircle, CheckIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'react-hot-toast';
 
 export default function AdminOverviewPage() {
     const { user, status } = useAuth({ required: true, role: 'ADMIN', redirectTo: '/login' });
@@ -40,87 +41,71 @@ export default function AdminOverviewPage() {
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch dashboard data');
+                    const errorData = await response.json().catch(() => ({}));
+                    throw new Error(errorData.error || 'Failed to fetch dashboard data');
                 }
 
                 const data = await response.json();
-                setStats(data);
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch dashboard data');
+                }
+
+                // The API now returns data in a stats object
+                const dashboardData = data.stats;
+                setStats({
+                    totalCustomers: dashboardData.totalCustomers || 0,
+                    totalEmployees: dashboardData.totalEmployees || 0,
+                    activeServices: dashboardData.activeServices || 0,
+                    monthlyRevenue: dashboardData.monthlyRevenue || 0,
+                    revenueChange: dashboardData.revenueChange || 0,
+                    customerChange: dashboardData.customerChange || 0,
+                    serviceCompletion: {
+                        completed: dashboardData.serviceCompletion?.completed || 0,
+                        total: dashboardData.serviceCompletion?.total || 0
+                    },
+                    recentActivity: dashboardData.recentActivity?.map(activity => ({
+                        id: activity.id,
+                        type: activity.type,
+                        status: activity.status,
+                        description: activity.description,
+                        time: activity.time
+                    })) || [],
+                    paymentStats: {
+                        total: dashboardData.paymentStats?.total || 0,
+                        amount: dashboardData.paymentStats?.amount || 0,
+                        pending: dashboardData.paymentStats?.pending || 0
+                    },
+                    alerts: dashboardData.alerts?.map(alert => ({
+                        id: alert.id,
+                        severity: alert.severity,
+                        message: alert.message,
+                        time: alert.time
+                    })) || []
+                });
             } catch (error) {
                 console.error('Error fetching dashboard data:', error);
-                // Fallback to demo data
+                toast.error('Failed to load dashboard data', {
+                    description: error.message
+                });
+                // Set empty state instead of demo data
                 setStats({
-                    totalCustomers: 152,
-                    totalEmployees: 18,
-                    activeServices: 47,
-                    monthlyRevenue: 28540,
-                    revenueChange: 12.5,
-                    customerChange: 8.2,
+                    totalCustomers: 0,
+                    totalEmployees: 0,
+                    activeServices: 0,
+                    monthlyRevenue: 0,
+                    revenueChange: 0,
+                    customerChange: 0,
                     serviceCompletion: {
-                        completed: 187,
-                        total: 223
+                        completed: 0,
+                        total: 0
                     },
-                    recentActivity: [
-                        {
-                            id: '1',
-                            type: 'service_completed',
-                            status: 'success',
-                            description: 'Service completed for John Doe',
-                            time: '2 hours ago'
-                        },
-                        {
-                            id: '2',
-                            type: 'payment_received',
-                            status: 'success',
-                            description: 'Payment of $125.00 received from Jane Smith',
-                            time: '4 hours ago'
-                        },
-                        {
-                            id: '3',
-                            type: 'customer_added',
-                            status: 'info',
-                            description: 'New customer Michael Johnson registered',
-                            time: '6 hours ago'
-                        },
-                        {
-                            id: '4',
-                            type: 'service_scheduled',
-                            status: 'info',
-                            description: 'New service scheduled for Emily Williams',
-                            time: '1 day ago'
-                        },
-                        {
-                            id: '5',
-                            type: 'payment_failed',
-                            status: 'error',
-                            description: 'Payment failed for Robert Brown',
-                            time: '1 day ago'
-                        }
-                    ],
+                    recentActivity: [],
                     paymentStats: {
-                        total: 143,
-                        amount: 28540,
-                        pending: 12
+                        total: 0,
+                        amount: 0,
+                        pending: 0
                     },
-                    alerts: [
-                        {
-                            id: '1',
-                            severity: 'high',
-                            message: '3 failed payment attempts for customer #5482',
-                            time: '2 hours ago'
-                        },
-                        {
-                            id: '2',
-                            severity: 'medium',
-                            message: 'Employee Jason Smith has 5 pending service reports',
-                            time: '1 day ago'
-                        },
-                        {
-                            id: '3',
-                            severity: 'low',
-                            message: 'System maintenance scheduled for tonight at 2 AM',
-                            time: '5 hours ago'
-                        }
-                    ]
+                    alerts: []
                 });
             } finally {
                 setIsLoading(false);

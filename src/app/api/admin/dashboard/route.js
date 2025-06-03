@@ -6,10 +6,10 @@ import { cookies } from 'next/headers';
 export async function GET(request) {
     try {
         const cookieStore = await cookies();
-        const token = cookieStore.get('adminToken')?.value;
+        const token = cookieStore.get('accessToken')?.value;
         
         if (!token) {
-            console.log('No admin token found in cookies');
+            console.log('No access token found in cookies');
             return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
         }
         
@@ -42,10 +42,16 @@ export async function GET(request) {
             pendingPayments
         ] = await Promise.all([
             // Total customers
-            prisma.customer.count(),
+            prisma.customer.count().catch(err => {
+                console.error('Error counting customers:', err);
+                return 0;
+            }),
             
             // Total employees
-            prisma.employee.count(),
+            prisma.employee.count().catch(err => {
+                console.error('Error counting employees:', err);
+                return 0;
+            }),
             
             // Active/scheduled services
             prisma.service.count({
@@ -54,6 +60,9 @@ export async function GET(request) {
                         in: ['SCHEDULED', 'IN_PROGRESS', 'PENDING']
                     }
                 }
+            }).catch(err => {
+                console.error('Error counting active services:', err);
+                return 0;
             }),
             
             // This month's revenue
@@ -68,6 +77,9 @@ export async function GET(request) {
                 _sum: {
                     amount: true
                 }
+            }).catch(err => {
+                console.error('Error calculating this month revenue:', err);
+                return { _sum: { amount: 0 } };
             }),
             
             // Last month's revenue for comparison
@@ -82,6 +94,9 @@ export async function GET(request) {
                 _sum: {
                     amount: true
                 }
+            }).catch(err => {
+                console.error('Error calculating last month revenue:', err);
+                return { _sum: { amount: 0 } };
             }),
             
             // This month's new customers
@@ -91,6 +106,9 @@ export async function GET(request) {
                         gte: thisMonth
                     }
                 }
+            }).catch(err => {
+                console.error('Error counting this month customers:', err);
+                return 0;
             }),
             
             // Last month's new customers for comparison
@@ -101,6 +119,9 @@ export async function GET(request) {
                         lt: thisMonth
                     }
                 }
+            }).catch(err => {
+                console.error('Error counting last month customers:', err);
+                return 0;
             }),
             
             // Service completion stats
@@ -112,6 +133,9 @@ export async function GET(request) {
                     }
                 },
                 _count: true
+            }).catch(err => {
+                console.error('Error getting service completion stats:', err);
+                return [];
             }),
             
             // Recent activity (last 5 services)
@@ -141,6 +165,9 @@ export async function GET(request) {
                         }
                     }
                 }
+            }).catch(err => {
+                console.error('Error fetching recent activity:', err);
+                return [];
             }),
             
             // Payment stats
@@ -154,6 +181,9 @@ export async function GET(request) {
                 _sum: {
                     amount: true
                 }
+            }).catch(err => {
+                console.error('Error getting payment stats:', err);
+                return { _count: 0, _sum: { amount: 0 } };
             }),
             
             // Pending payments
@@ -161,6 +191,9 @@ export async function GET(request) {
                 where: {
                     status: 'PENDING'
                 }
+            }).catch(err => {
+                console.error('Error counting pending payments:', err);
+                return 0;
             })
         ]);
 
@@ -214,7 +247,7 @@ export async function GET(request) {
             };
         });
 
-        // Generate some system alerts (you can customize this logic)
+        // Generate system alerts based on actual data
         const alerts = [];
         
         if (pendingPayments > 5) {
@@ -226,24 +259,48 @@ export async function GET(request) {
             });
         }
 
+        // Check for services that need attention
+        const pendingServices = serviceCompletion.find(s => s.status === 'PENDING')?._count || 0;
+        if (pendingServices > 10) {
+            alerts.push({
+                id: 'pending-services',
+                severity: 'medium',
+                message: `${pendingServices} services are pending assignment`,
+                time: new Date().toISOString()
+            });
+        }
+
+        // Check for low employee count
+        if (totalEmployees < 3) {
+            alerts.push({
+                id: 'low-employees',
+                severity: 'high',
+                message: 'Low employee count - consider hiring more staff',
+                time: new Date().toISOString()
+            });
+        }
+
         const response = {
-            totalCustomers,
-            totalEmployees,
-            activeServices,
-            monthlyRevenue: thisMonthRevenueAmount,
-            revenueChange: Number(revenueChange.toFixed(1)),
-            customerChange: Number(customerChange.toFixed(1)),
-            serviceCompletion: {
-                completed: completedServices,
-                total: totalServices
-            },
-            recentActivity: recentActivityFormatted,
-            paymentStats: {
-                total: payments._count,
-                amount: payments._sum.amount || 0,
-                pending: pendingPayments
-            },
-            alerts
+            success: true,
+            stats: {
+                totalCustomers,
+                totalEmployees,
+                activeServices,
+                monthlyRevenue: thisMonthRevenueAmount,
+                revenueChange: Number(revenueChange.toFixed(1)),
+                customerChange: Number(customerChange.toFixed(1)),
+                serviceCompletion: {
+                    completed: completedServices,
+                    total: totalServices
+                },
+                recentActivity: recentActivityFormatted,
+                paymentStats: {
+                    total: payments._count,
+                    amount: payments._sum.amount || 0,
+                    pending: pendingPayments
+                },
+                alerts
+            }
         };
 
         return NextResponse.json(response);
@@ -251,6 +308,7 @@ export async function GET(request) {
     } catch (error) {
         console.error('Error fetching admin dashboard data:', error);
         return NextResponse.json({ 
+            success: false,
             error: 'Failed to fetch dashboard data',
             details: error.message 
         }, { status: 500 });
