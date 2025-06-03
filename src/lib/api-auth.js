@@ -118,7 +118,7 @@ export async function requireAuth(request) {
   return user;
 }
 
-export async function requireRole(role) {
+export async function requireRole(request, role) {
   try {
     const token = request.headers.get('Authorization')?.split(' ')[1];
     if (!token) {

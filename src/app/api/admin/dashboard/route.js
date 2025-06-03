@@ -51,7 +51,7 @@ export async function GET(request) {
             prisma.service.count({
                 where: {
                     status: {
-                        in: ['SCHEDULED', 'ASSIGNED', 'IN_PROGRESS']
+                        in: ['SCHEDULED', 'IN_PROGRESS', 'PENDING']
                     }
                 }
             }),
@@ -192,9 +192,13 @@ export async function GET(request) {
                     type = 'service_scheduled';
                     description = `Service scheduled for ${service.customer?.user?.name || 'Unknown Customer'}`;
                     break;
-                case 'ASSIGNED':
-                    type = 'service_assigned';
-                    description = `Service assigned to ${service.employee?.user?.name || 'Unknown Employee'}`;
+                case 'IN_PROGRESS':
+                    type = 'service_in_progress';
+                    description = `Service in progress for ${service.customer?.user?.name || 'Unknown Customer'}`;
+                    break;
+                case 'PENDING':
+                    type = 'service_pending';
+                    description = `Service pending for ${service.customer?.user?.name || 'Unknown Customer'}`;
                     break;
                 default:
                     type = 'service_updated';
