@@ -10,75 +10,138 @@ import { MapPin, Clock, User, CheckCircle, AlertCircle, XCircle } from 'lucide-r
 export default function ServicesPage() {
     const [activeServices, setActiveServices] = useState([]);
     const [completedServices, setCompletedServices] = useState([]);
+    const [stats, setStats] = useState({});
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Simulate loading services data
-        setTimeout(() => {
-            setActiveServices([
-                {
-                    id: 1,
-                    customer: 'John Smith',
-                    address: '123 Main St, Denver, CO 80831',
-                    serviceType: 'Weekly Cleanup',
-                    scheduledTime: '9:00 AM',
-                    date: 'Today',
-                    status: 'in-progress',
-                    estimatedDuration: '45 min',
-                    specialInstructions: 'Gate code: 1234. Please close gate after service.'
-                },
-                {
-                    id: 2,
-                    customer: 'Sarah Johnson',
-                    address: '456 Oak Ave, Denver, CO 80831',
-                    serviceType: 'One-time Cleanup',
-                    scheduledTime: '2:00 PM',
-                    date: 'Today',
-                    status: 'scheduled',
-                    estimatedDuration: '60 min',
-                    specialInstructions: 'Dog is friendly but may bark initially.'
-                },
-                {
-                    id: 3,
-                    customer: 'Mike Wilson',
-                    address: '789 Pine Rd, Denver, CO 80831',
-                    serviceType: 'Bi-weekly Cleanup',
-                    scheduledTime: '10:00 AM',
-                    date: 'Tomorrow',
-                    status: 'scheduled',
-                    estimatedDuration: '30 min',
-                    specialInstructions: 'Key under mat. Please lock door when finished.'
+        // Fetch real services data from existing APIs
+        const fetchServicesData = async () => {
+            try {
+                // Get active/scheduled services
+                const activeResponse = await fetch('/api/employee/services?status=SCHEDULED', {
+                    credentials: 'include',
+                });
+                
+                // Get completed services history
+                const historyResponse = await fetch('/api/employee/services/history', {
+                    credentials: 'include',
+                });
+                
+                // Get dashboard stats
+                const dashboardResponse = await fetch('/api/employee/dashboard', {
+                    credentials: 'include',
+                });
+                
+                if (activeResponse.ok && historyResponse.ok && dashboardResponse.ok) {
+                    const activeData = await activeResponse.json();
+                    const historyData = await historyResponse.json();
+                    const dashboardData = await dashboardResponse.json();
+                    
+                    // Format active services
+                    const formattedActiveServices = (activeData || []).map(service => {
+                        const serviceDate = new Date(service.scheduledDate || service.scheduledFor);
+                        const now = new Date();
+                        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        const tomorrow = new Date(today);
+                        tomorrow.setDate(today.getDate() + 1);
+                        
+                        let dateDisplay = 'Upcoming';
+                        if (serviceDate >= today && serviceDate < tomorrow) {
+                            dateDisplay = 'Today';
+                        } else if (serviceDate >= tomorrow && serviceDate < new Date(tomorrow.getTime() + 24 * 60 * 60 * 1000)) {
+                            dateDisplay = 'Tomorrow';
+                        } else {
+                            dateDisplay = serviceDate.toLocaleDateString();
+                        }
+                        
+                        return {
+                            id: service.id,
+                            customer: service.customer?.user?.name || service.customer?.name || 'Unknown Customer',
+                            address: service.customer?.address ? 
+                                `${service.customer.address.street || ''}, ${service.customer.address.city || ''}, ${service.customer.address.state || ''} ${service.customer.address.zipCode || ''}`.trim().replace(/^,\s*/, '') :
+                                'Address not available',
+                            serviceType: service.serviceType || service.type || 'Pet Waste Cleanup',
+                            scheduledTime: serviceDate.toLocaleTimeString([], { 
+                                hour: 'numeric', 
+                                minute: '2-digit',
+                                hour12: true 
+                            }),
+                            date: dateDisplay,
+                            status: (service.status || 'scheduled').toLowerCase(),
+                            estimatedDuration: service.estimatedDuration ? `${service.estimatedDuration} min` : '30-45 min',
+                            specialInstructions: service.specialInstructions || service.notes || 'No special instructions'
+                        };
+                    });
+                    
+                    // Format completed services
+                    const formattedCompletedServices = (historyData || []).map(service => {
+                        const completedDate = new Date(service.completedAt || service.updatedAt);
+                        
+                        return {
+                            id: service.id,
+                            customer: service.customer?.user?.name || service.customer?.name || 'Unknown Customer',
+                            address: service.customer?.address ? 
+                                `${service.customer.address.street || ''}, ${service.customer.address.city || ''}, ${service.customer.address.state || ''} ${service.customer.address.zipCode || ''}`.trim().replace(/^,\s*/, '') :
+                                'Address not available',
+                            serviceType: service.serviceType || service.type || 'Pet Waste Cleanup',
+                            completedTime: completedDate.toLocaleTimeString([], { 
+                                hour: 'numeric', 
+                                minute: '2-digit',
+                                hour12: true 
+                            }),
+                            date: completedDate.toLocaleDateString(),
+                            status: 'completed',
+                            duration: service.duration ? `${service.duration} min` : 'N/A',
+                            rating: service.rating || 0,
+                            notes: service.notes || 'No notes available'
+                        };
+                    });
+                    
+                    setActiveServices(formattedActiveServices);
+                    setCompletedServices(formattedCompletedServices);
+                    
+                    // Set stats from dashboard
+                    const dashboardStats = dashboardData.stats || {};
+                    setStats({
+                        activeServices: formattedActiveServices.length,
+                        completedToday: formattedCompletedServices.filter(service => {
+                            const serviceDate = new Date(service.date);
+                            const today = new Date();
+                            return serviceDate.toDateString() === today.toDateString();
+                        }).length,
+                        totalCustomers: dashboardStats.customerCount || 0,
+                        serviceAreas: dashboardStats.serviceAreas?.length || 1
+                    });
+                } else {
+                    console.error('Failed to fetch services data');
+                    setError('Failed to load services data');
+                    setActiveServices([]);
+                    setCompletedServices([]);
+                    setStats({
+                        activeServices: 0,
+                        completedToday: 0,
+                        totalCustomers: 0,
+                        serviceAreas: 0
+                    });
                 }
-            ]);
-
-            setCompletedServices([
-                {
-                    id: 4,
-                    customer: 'Lisa Brown',
-                    address: '321 Elm St, Denver, CO 80831',
-                    serviceType: 'Weekly Cleanup',
-                    completedTime: '11:30 AM',
-                    date: 'Yesterday',
-                    status: 'completed',
-                    duration: '40 min',
-                    rating: 5,
-                    notes: 'Great service as always!'
-                },
-                {
-                    id: 5,
-                    customer: 'David Lee',
-                    address: '654 Maple Dr, Denver, CO 80831',
-                    serviceType: 'One-time Cleanup',
-                    completedTime: '3:15 PM',
-                    date: '2 days ago',
-                    status: 'completed',
-                    duration: '55 min',
-                    rating: 4,
-                    notes: 'Good work, thorough cleanup.'
-                }
-            ]);
-            setLoading(false);
-        }, 1000);
+            } catch (error) {
+                console.error('Error fetching services data:', error);
+                setError('Failed to load services data');
+                setActiveServices([]);
+                setCompletedServices([]);
+                setStats({
+                    activeServices: 0,
+                    completedToday: 0,
+                    totalCustomers: 0,
+                    serviceAreas: 0
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        fetchServicesData();
     }, []);
 
     const getStatusBadge = (status) => {
@@ -123,6 +186,28 @@ export default function ServicesPage() {
         );
     }
 
+    if (error) {
+        return (
+            <div className="p-6">
+                <div className="mb-6">
+                    <h1 className="text-2xl font-bold mb-2">Services</h1>
+                    <p className="text-gray-600">Manage your active and completed services</p>
+                </div>
+                <Card>
+                    <CardContent className="p-6">
+                        <div className="text-center">
+                            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+                            <p className="text-red-600 mb-4">⚠️ {error}</p>
+                            <Button onClick={() => window.location.reload()}>
+                                Try Again
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
     return (
         <div className="p-6">
             <div className="mb-6">
@@ -138,7 +223,7 @@ export default function ServicesPage() {
                             <Clock className="h-8 w-8 text-blue-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Active Services</p>
-                                <p className="text-2xl font-bold">{activeServices.length}</p>
+                                <p className="text-2xl font-bold">{stats.activeServices || 0}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -150,7 +235,7 @@ export default function ServicesPage() {
                             <CheckCircle className="h-8 w-8 text-green-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Completed Today</p>
-                                <p className="text-2xl font-bold">0</p>
+                                <p className="text-2xl font-bold">{stats.completedToday || 0}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -162,7 +247,7 @@ export default function ServicesPage() {
                             <User className="h-8 w-8 text-purple-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Total Customers</p>
-                                <p className="text-2xl font-bold">{new Set([...activeServices, ...completedServices].map(s => s.customer)).size}</p>
+                                <p className="text-2xl font-bold">{stats.totalCustomers || 0}</p>
                             </div>
                         </div>
                     </CardContent>
@@ -174,7 +259,7 @@ export default function ServicesPage() {
                             <MapPin className="h-8 w-8 text-orange-600" />
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-gray-600">Service Areas</p>
-                                <p className="text-2xl font-bold">1</p>
+                                <p className="text-2xl font-bold">{stats.serviceAreas || 0}</p>
                             </div>
                         </div>
                     </CardContent>
