@@ -49,6 +49,8 @@ export async function GET(request) {
                     id: true,
                     phone: true,
                     status: true,
+                    cashAppUsername: true,
+                    preferredPaymentMethod: true,
                     createdAt: true,
                     updatedAt: true
                 }
@@ -65,7 +67,14 @@ export async function GET(request) {
             address: '', // We'll need to add address to employee table or get from signup
             bio: '', // We'll need to add bio to employee table
             createdAt: employee?.createdAt || user.createdAt,
-            status: employee?.status || 'ACTIVE'
+            status: employee?.status || 'ACTIVE',
+            payment: {
+                method: employee?.preferredPaymentMethod || '',
+                cashAppUsername: employee?.cashAppUsername || '',
+                stripeEmail: user.email, // Default to user email for Stripe
+                frequency: 'weekly', // Default frequency
+                minimumPayout: 50 // Default minimum payout
+            }
         };
 
         console.log('✅ Profile data retrieved:', profileData);

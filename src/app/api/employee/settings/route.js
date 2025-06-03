@@ -64,9 +64,29 @@ export async function POST(request) {
         break;
 
       case 'payment':
-        // For now, just log the payment settings
-        // In a real app, you'd save these to a payment settings table
-        console.log('💳 Payment settings:', data);
+        // Save payment settings to Employee table
+        const paymentUpdateData = {};
+        
+        if (data.method) {
+          paymentUpdateData.preferredPaymentMethod = data.method;
+        }
+        
+        if (data.cashAppUsername && data.method === 'CASH_APP') {
+          paymentUpdateData.cashAppUsername = data.cashAppUsername;
+        }
+        
+        if (Object.keys(paymentUpdateData).length > 0) {
+          paymentUpdateData.updatedAt = new Date();
+          
+          await prisma.employee.update({
+            where: { userId: decoded.userId },
+            data: paymentUpdateData
+          });
+          
+          console.log('💳 Payment settings saved:', paymentUpdateData);
+        } else {
+          console.log('💳 No payment data to save');
+        }
         break;
 
       case 'privacy':

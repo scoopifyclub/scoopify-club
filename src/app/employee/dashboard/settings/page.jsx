@@ -643,68 +643,126 @@ export default function SettingsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <Label htmlFor="payment-method">Payment Method</Label>
-                                    <Select value={settings.payment?.method || ''}>
+                                    <Select 
+                                        value={settings.payment?.method || ''} 
+                                        onValueChange={(value) => setSettings(prev => ({
+                                            ...prev,
+                                            payment: { ...prev.payment, method: value }
+                                        }))}
+                                    >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select payment method" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Direct Deposit">Direct Deposit</SelectItem>
-                                            <SelectItem value="Check">Paper Check</SelectItem>
-                                            <SelectItem value="PayPal">PayPal</SelectItem>
+                                            <SelectItem value="CASH_APP">Cash App</SelectItem>
+                                            <SelectItem value="STRIPE">Stripe Transfer</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                    <p className="text-xs text-gray-500">
+                                        Choose how you want to receive payments
+                                    </p>
                                 </div>
 
                                 <div className="space-y-2">
                                     <Label htmlFor="payment-frequency">Payment Frequency</Label>
-                                    <Select value={settings.payment?.frequency || ''}>
+                                    <Select 
+                                        value={settings.payment?.frequency || 'weekly'} 
+                                        onValueChange={(value) => setSettings(prev => ({
+                                            ...prev,
+                                            payment: { ...prev.payment, frequency: value }
+                                        }))}
+                                    >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Select frequency" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="weekly">Weekly</SelectItem>
                                             <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
-                                            <SelectItem value="monthly">Monthly</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="bank-account">Bank Account</Label>
-                                    <Input
-                                        id="bank-account"
-                                        value={settings.payment?.bankAccount || ''}
-                                        disabled
-                                        className="bg-gray-50"
-                                    />
-                                    <p className="text-xs text-gray-500">Contact support to update bank details</p>
-                                </div>
+                                {settings.payment?.method === 'CASH_APP' && (
+                                    <div className="space-y-2 md:col-span-2">
+                                        <Label htmlFor="cash-app-username">Cash App Username</Label>
+                                        <Input
+                                            id="cash-app-username"
+                                            placeholder="$YourCashAppName"
+                                            value={settings.payment?.cashAppUsername || ''}
+                                            onChange={(e) => setSettings(prev => ({
+                                                ...prev,
+                                                payment: { ...prev.payment, cashAppUsername: e.target.value }
+                                            }))}
+                                        />
+                                        <p className="text-xs text-gray-500">
+                                            Enter your Cash App username (e.g., $JohnDoe) to receive payments
+                                        </p>
+                                    </div>
+                                )}
+
+                                {settings.payment?.method === 'STRIPE' && (
+                                    <div className="space-y-2 md:col-span-2">
+                                        <Label htmlFor="stripe-email">Email for Stripe Transfer</Label>
+                                        <Input
+                                            id="stripe-email"
+                                            type="email"
+                                            placeholder="your-email@example.com"
+                                            value={settings.payment?.stripeEmail || settings.profile?.email || ''}
+                                            onChange={(e) => setSettings(prev => ({
+                                                ...prev,
+                                                payment: { ...prev.payment, stripeEmail: e.target.value }
+                                            }))}
+                                        />
+                                        <p className="text-xs text-gray-500">
+                                            Payments will be sent to this email via Stripe
+                                        </p>
+                                    </div>
+                                )}
 
                                 <div className="space-y-2">
                                     <Label htmlFor="minimum-payout">Minimum Payout ($)</Label>
                                     <Input
                                         id="minimum-payout"
                                         type="number"
-                                        min="10"
-                                        max="1000"
-                                        value={settings.payment?.minimumPayout || ''}
+                                        min="25"
+                                        max="500"
+                                        value={settings.payment?.minimumPayout || 50}
                                         onChange={(e) => setSettings(prev => ({
                                             ...prev,
                                             payment: { ...prev.payment, minimumPayout: parseInt(e.target.value) }
                                         }))}
                                     />
+                                    <p className="text-xs text-gray-500">
+                                        Minimum amount before payment is sent (minimum $25)
+                                    </p>
                                 </div>
                             </div>
 
                             <div className="bg-blue-50 p-4 rounded-lg">
                                 <h4 className="font-medium text-blue-900 mb-2">Payment Information</h4>
                                 <ul className="text-sm text-blue-800 space-y-1">
-                                    <li>• Payments are processed every {settings.payment?.frequency || 'bi-weekly'}</li>
-                                    <li>• Next payment date: January 29, 2024</li>
-                                    <li>• Pending earnings: $125.00</li>
-                                    <li>• Payment method: {settings.payment?.method || 'Direct Deposit'}</li>
+                                    <li>• Payments are processed every {settings.payment?.frequency || 'weekly'}</li>
+                                    <li>• Payment method: {settings.payment?.method === 'CASH_APP' ? 'Cash App' : settings.payment?.method === 'STRIPE' ? 'Stripe Transfer' : 'Not selected'}</li>
+                                    <li>• Minimum payout: ${settings.payment?.minimumPayout || 50}</li>
+                                    <li>• All payments are processed by admin and sent within 2-3 business days</li>
                                 </ul>
                             </div>
+
+                            {(!settings.payment?.method || 
+                              (settings.payment?.method === 'CASH_APP' && !settings.payment?.cashAppUsername) ||
+                              (settings.payment?.method === 'STRIPE' && !settings.payment?.stripeEmail)) && (
+                                <div className="bg-yellow-50 border border-yellow-200 p-4 rounded-lg">
+                                    <div className="flex items-start">
+                                        <div className="text-yellow-600 mr-3">⚠️</div>
+                                        <div>
+                                            <h4 className="font-medium text-yellow-800">Payment Setup Required</h4>
+                                            <p className="text-sm text-yellow-700 mt-1">
+                                                Complete your payment information to receive earnings from completed services.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             <Button onClick={() => handleSave('payment')} className="w-full">
                                 <Save className="h-4 w-4 mr-2" />
