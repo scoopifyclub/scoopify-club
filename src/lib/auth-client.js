@@ -23,21 +23,28 @@ export function AuthProvider({ children }) {
   }, []);
 
   const checkAuth = async () => {
+    console.log('🔍 AUTH: Starting checkAuth...');
     try {
+      console.log('🔍 AUTH: Making request to /api/auth/me...');
       const response = await fetch('/api/auth/me', {
         credentials: 'include',
       });
+      console.log('🔍 AUTH: Response received:', response.status, response.ok);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('🔍 AUTH: User data received:', data);
         setUser(data.user);
       } else {
+        console.log('🔍 AUTH: Response not OK, setting user to null');
         setUser(null);
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error('🔍 AUTH: Auth check failed:', error);
       setError(error.message);
       setUser(null);
     } finally {
+      console.log('🔍 AUTH: Setting loading to false');
       setLoading(false);
     }
   };
