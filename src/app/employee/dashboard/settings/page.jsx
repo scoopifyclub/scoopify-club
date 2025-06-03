@@ -28,57 +28,192 @@ export default function SettingsPage() {
     const [settings, setSettings] = useState({});
     const [loading, setLoading] = useState(true);
     const [showPassword, setShowPassword] = useState(false);
+    const [user, setUser] = useState(null);
 
     useEffect(() => {
-        // Simulate loading settings data
-        setTimeout(() => {
-            setSettings({
-                profile: {
-                    name: 'MATTHEW DOLLOFF',
-                    email: 'matt29680@gmail.com',
-                    phone: '(555) 123-4567',
-                    address: '123 Main St, Colorado Springs, CO 80831',
-                    bio: 'Experienced pet waste removal specialist serving the Colorado Springs area.',
-                    profileImage: null
-                },
-                notifications: {
-                    emailNotifications: true,
-                    smsNotifications: true,
-                    pushNotifications: true,
-                    serviceReminders: true,
-                    paymentUpdates: true,
-                    customerMessages: true,
-                    weatherAlerts: true,
-                    scheduleChanges: true
-                },
-                privacy: {
-                    profileVisible: true,
-                    shareLocation: true,
-                    customerRatingsVisible: true,
-                    analyticsSharing: false
-                },
-                workPreferences: {
-                    preferredStartTime: '08:00',
-                    preferredEndTime: '17:00',
-                    maxDailyServices: 8,
-                    serviceRadius: 15,
-                    availableDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
-                    emergencyServices: false
-                },
-                payment: {
-                    method: 'Direct Deposit',
-                    bankAccount: '****1234',
-                    frequency: 'bi-weekly',
-                    minimumPayout: 50
+        // Fetch real user data from API
+        const fetchUserData = async () => {
+            try {
+                // Get current user info
+                const userResponse = await fetch('/api/auth/me', {
+                    credentials: 'include',
+                });
+                
+                if (userResponse.ok) {
+                    const userData = await userResponse.json();
+                    setUser(userData.user);
+                    
+                    // Get employee profile data
+                    const employeeResponse = await fetch('/api/employee/profile', {
+                        credentials: 'include',
+                    });
+                    
+                    let employeeData = {};
+                    if (employeeResponse.ok) {
+                        employeeData = await employeeResponse.json();
+                    }
+                    
+                    // Set real user data
+                    setSettings({
+                        profile: {
+                            name: userData.user.name || '',
+                            email: userData.user.email || '',
+                            phone: employeeData.phone || '',
+                            address: employeeData.address || '',
+                            bio: employeeData.bio || '',
+                            profileImage: null,
+                            createdAt: userData.user.createdAt || employeeData.createdAt
+                        },
+                        notifications: {
+                            emailNotifications: true,
+                            smsNotifications: true,
+                            pushNotifications: true,
+                            serviceReminders: true,
+                            paymentUpdates: true,
+                            customerMessages: true,
+                            weatherAlerts: true,
+                            scheduleChanges: true
+                        },
+                        privacy: {
+                            profileVisible: true,
+                            shareLocation: true,
+                            customerRatingsVisible: true,
+                            analyticsSharing: false
+                        },
+                        workPreferences: {
+                            preferredStartTime: '08:00',
+                            preferredEndTime: '17:00',
+                            maxDailyServices: 8,
+                            serviceRadius: 15,
+                            availableDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+                            emergencyServices: false
+                        },
+                        payment: {
+                            method: 'Direct Deposit',
+                            bankAccount: '****1234',
+                            frequency: 'bi-weekly',
+                            minimumPayout: 50
+                        }
+                    });
+                } else {
+                    // Fallback to empty data if API fails
+                    setSettings({
+                        profile: {
+                            name: '',
+                            email: '',
+                            phone: '',
+                            address: '',
+                            bio: '',
+                            profileImage: null
+                        },
+                        notifications: {
+                            emailNotifications: true,
+                            smsNotifications: true,
+                            pushNotifications: true,
+                            serviceReminders: true,
+                            paymentUpdates: true,
+                            customerMessages: true,
+                            weatherAlerts: true,
+                            scheduleChanges: true
+                        },
+                        privacy: {
+                            profileVisible: true,
+                            shareLocation: true,
+                            customerRatingsVisible: true,
+                            analyticsSharing: false
+                        },
+                        workPreferences: {
+                            preferredStartTime: '08:00',
+                            preferredEndTime: '17:00',
+                            maxDailyServices: 8,
+                            serviceRadius: 15,
+                            availableDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+                            emergencyServices: false
+                        },
+                        payment: {
+                            method: 'Direct Deposit',
+                            bankAccount: '****1234',
+                            frequency: 'bi-weekly',
+                            minimumPayout: 50
+                        }
+                    });
                 }
-            });
-            setLoading(false);
-        }, 1000);
+            } catch (error) {
+                console.error('Error fetching user data:', error);
+                // Set empty defaults on error
+                setSettings({
+                    profile: {
+                        name: '',
+                        email: '',
+                        phone: '',
+                        address: '',
+                        bio: '',
+                        profileImage: null
+                    },
+                    notifications: {
+                        emailNotifications: true,
+                        smsNotifications: true,
+                        pushNotifications: true,
+                        serviceReminders: true,
+                        paymentUpdates: true,
+                        customerMessages: true,
+                        weatherAlerts: true,
+                        scheduleChanges: true
+                    },
+                    privacy: {
+                        profileVisible: true,
+                        shareLocation: true,
+                        customerRatingsVisible: true,
+                        analyticsSharing: false
+                    },
+                    workPreferences: {
+                        preferredStartTime: '08:00',
+                        preferredEndTime: '17:00',
+                        maxDailyServices: 8,
+                        serviceRadius: 15,
+                        availableDays: ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+                        emergencyServices: false
+                    },
+                    payment: {
+                        method: 'Direct Deposit',
+                        bankAccount: '****1234',
+                        frequency: 'bi-weekly',
+                        minimumPayout: 50
+                    }
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+        
+        fetchUserData();
     }, []);
 
-    const handleSave = (section) => {
+    const handleSave = async (section) => {
         console.log(`Saving ${section} settings...`);
-        // Simulate save operation
+        try {
+            const response = await fetch('/api/employee/settings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
+                body: JSON.stringify({
+                    section,
+                    data: settings[section]
+                }),
+            });
+            
+            if (response.ok) {
+                console.log(`${section} settings saved successfully`);
+                // Show success message
+            } else {
+                console.error(`Failed to save ${section} settings`);
+                // Show error message
+            }
+        } catch (error) {
+            console.error(`Error saving ${section} settings:`, error);
+        }
     };
 
     const handleProfileImageUpload = (event) => {
@@ -86,6 +221,16 @@ export default function SettingsPage() {
         if (file) {
             console.log('Uploading profile image:', file.name);
             // Handle image upload
+        }
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return 'Recently';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+        } catch {
+            return 'Recently';
         }
     };
 
@@ -130,7 +275,7 @@ export default function SettingsPage() {
                             <div className="flex items-center gap-6">
                                 <div className="relative">
                                     <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-2xl font-bold">
-                                        {settings.profile?.name?.split(' ').map(n => n[0]).join('')}
+                                        {settings.profile?.name?.split(' ').map(n => n[0]).join('') || 'U'}
                                     </div>
                                     <label 
                                         htmlFor="profile-image"
@@ -147,8 +292,10 @@ export default function SettingsPage() {
                                     </label>
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-medium">{settings.profile?.name}</h3>
-                                    <p className="text-gray-600">Employee since October 2023</p>
+                                    <h3 className="text-lg font-medium">{settings.profile?.name || 'Employee'}</h3>
+                                    <p className="text-gray-600">
+                                        Employee since {formatDate(settings.profile?.createdAt)}
+                                    </p>
                                     <p className="text-sm text-gray-500">Click the camera icon to update your profile photo</p>
                                 </div>
                             </div>
