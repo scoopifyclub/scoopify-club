@@ -13,6 +13,7 @@ export async function GET(request) {
         if (!decoded || decoded.role !== 'EMPLOYEE') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
         // Get employee's service areas
         const employee = await prisma.employee.findUnique({
             where: { userId: decoded.userId || decoded.id },
@@ -20,68 +21,102 @@ export async function GET(request) {
                 serviceAreas: true
             }
         });
+
         if (!employee) {
             return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
         }
+
+        // Get the zip codes this employee covers
+        const coveredZipCodes = employee.serviceAreas.map(area => area.zipCode);
+        
+        if (coveredZipCodes.length === 0) {
+            return NextResponse.json([]);
+        }
+
         // Get all unclaimed services in employee's service areas
         const availableServices = await prisma.service.findMany({
             where: {
                 status: 'SCHEDULED',
                 employeeId: null, // Only unclaimed services
-                address: {
-                    zipCode: {
-                        in: employee.serviceAreas.map(area => area.zipCode)
+                customer: {
+                    address: {
+                        zipCode: {
+                            in: coveredZipCodes
+                        }
                     }
                 },
-                scheduledFor: {
+                scheduledDate: {
                     gte: new Date() // Only future services
                 }
             },
             include: {
-                address: true
+                customer: {
+                    include: {
+                        address: true,
+                        user: true
+                    }
+                }
             },
             orderBy: {
-                scheduledFor: 'asc'
+                scheduledDate: 'asc'
             }
         });
-        // Calculate payment for each service
-        const servicesWithPayment = availableServices.map(service => {
-            // Base payment calculation
-            let payment = 25; // Base rate for one-time service
+
+        console.log(`Found ${availableServices.length} available services for employee ${employee.id} in zip codes:`, coveredZipCodes);
+
+        // Format services for the employee dashboard
+        const formattedServices = availableServices.map(service => {
+            // Calculate payment based on service type and complexity
+            let payment = 25; // Base rate
+            
             // Adjust based on service type
-            if (service.type === 'regular') {
-                payment = 20; // Lower rate for regular services
+            const serviceType = service.serviceType || 'Pet Waste Cleanup';
+            if (serviceType.includes('weekly') || serviceType.includes('regular')) {
+                payment = 30; // Regular weekly service
+            } else if (serviceType.includes('one-time')) {
+                payment = 45; // One-time service
             }
-            else if (service.type === 'extra') {
-                payment = 30; // Higher rate for extra services
-            }
-            // Add per dog fee
-            payment += (service.numberOfDogs - 1) * 5; // $5 extra per additional dog
-            // Estimate duration based on number of dogs and service type
-            const estimatedDuration = service.type === 'one-time'
-                ? 45 + (service.numberOfDogs - 1) * 15 // Base 45 mins + 15 mins per additional dog
-                : 30 + (service.numberOfDogs - 1) * 10; // Base 30 mins + 10 mins per additional dog
+
+            // Estimate duration
+            const estimatedDuration = serviceType.includes('one-time') ? 45 : 30;
+
             return {
                 id: service.id,
-                scheduledFor: service.scheduledFor,
-                type: service.type,
-                numberOfDogs: service.numberOfDogs,
+                scheduledDate: service.scheduledDate,
+                scheduledFor: service.scheduledDate, // Maintain backward compatibility
+                serviceType: serviceType,
+                type: serviceType, // Maintain backward compatibility
                 estimatedDuration,
                 payment,
+                specialInstructions: service.specialInstructions,
+                customer: {
+                    name: service.customer.user.name,
+                    phone: service.customer.phone,
+                    address: {
+                        street: service.customer.address.street,
+                        city: service.customer.address.city,
+                        state: service.customer.address.state,
+                        zipCode: service.customer.address.zipCode
+                    },
+                    gateCode: service.customer.gateCode
+                },
+                // Legacy fields for backward compatibility
                 address: {
-                    street: service.address.street,
-                    city: service.address.city,
-                    state: service.address.state,
-                    zipCode: service.address.zipCode,
-                    latitude: service.address.latitude,
-                    longitude: service.address.longitude
+                    street: service.customer.address.street,
+                    city: service.customer.address.city,
+                    state: service.customer.address.state,
+                    zipCode: service.customer.address.zipCode
                 }
             };
         });
-        return NextResponse.json(servicesWithPayment);
+
+        return NextResponse.json(formattedServices);
     }
     catch (error) {
         console.error('Error fetching available jobs:', error);
-        return NextResponse.json({ error: 'Failed to fetch available jobs' }, { status: 500 });
+        return NextResponse.json({ 
+            error: 'Failed to fetch available jobs', 
+            details: error.message 
+        }, { status: 500 });
     }
 }

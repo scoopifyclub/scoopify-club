@@ -86,8 +86,10 @@ export default function AdminDashboardLayout({ children }) {
         if (typeof window !== 'undefined') {
             // Get the last part of the pathname
             const currentPath = pathname.split('/').pop();
-            // If it's a valid tab, set it as active
-            if (currentPath && ['overview', 'customers', 'employees', 'services', 'payments', 'reports', 'settings'].includes(currentPath)) {
+            // If we're at the root dashboard, set overview as active
+            if (pathname === '/admin/dashboard') {
+                setActiveTab('overview');
+            } else if (currentPath && ['overview', 'customers', 'employees', 'services', 'payments', 'reports', 'settings'].includes(currentPath)) {
                 setActiveTab(currentPath);
             }
 
