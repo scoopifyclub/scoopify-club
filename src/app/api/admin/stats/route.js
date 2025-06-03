@@ -37,10 +37,10 @@ async function logDiagnostics() {
 export async function GET(request) {
     try {
         const cookieStore = await cookies();
-        const token = cookieStore.get('adminToken')?.value;
+        const token = cookieStore.get('accessToken')?.value;
         
         if (!token) {
-            console.log('No admin token found in cookies');
+            console.log('No access token found in cookies');
             return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
         }
         
@@ -61,7 +61,7 @@ export async function GET(request) {
             recentActivity = await prisma.service.findMany({
                 take: 5,
                 orderBy: {
-                    createdAt: "desc"
+                    updatedAt: 'desc'
                 },
                 include: {
                     customer: {
@@ -89,6 +89,13 @@ export async function GET(request) {
             console.log('Recent activity query successful, found:', recentActivity.length);
         } catch (error) {
             console.error('Error fetching recent activity:', error);
+            // Log the full error details for debugging
+            console.error('Full error details:', {
+                name: error.name,
+                message: error.message,
+                code: error.code,
+                meta: error.meta
+            });
             // Continue with other stats if this one fails
             recentActivity = [];
         }
