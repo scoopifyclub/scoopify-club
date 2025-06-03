@@ -118,9 +118,39 @@ export async function requireAuth(request) {
   return user;
 }
 
-export async function requireRole(request, role) {
+export async function requireRole(requestOrRole, roleParam = null) {
   try {
-    const token = request.headers.get('Authorization')?.split(' ')[1];
+    // Handle both requireRole(request, role) and requireRole(role) patterns
+    let request, role;
+    
+    if (typeof requestOrRole === 'string') {
+      // Called as requireRole(role)
+      role = requestOrRole;
+      request = null;
+    } else {
+      // Called as requireRole(request, role)
+      request = requestOrRole;
+      role = roleParam;
+    }
+
+    let token;
+    
+    if (request) {
+      // Use Authorization header if request is provided
+      token = request.headers.get('Authorization')?.split(' ')[1];
+    } else {
+      // Use cookies if no request provided
+      const { cookies } = await import('next/headers');
+      const cookieStore = await cookies();
+      
+      // Try different cookie names based on the role
+      if (role === 'ADMIN') {
+        token = cookieStore.get('adminToken')?.value;
+      } else {
+        token = cookieStore.get('token')?.value || cookieStore.get('accessToken')?.value;
+      }
+    }
+
     if (!token) {
       return null;
     }

@@ -57,17 +57,21 @@ export async function GET(request) {
         
         let recentActivity = [];
         try {
-            // Try querying services with relations separately
+            // Try querying services with relations separately - simplified approach
             recentActivity = await prisma.service.findMany({
                 take: 5,
                 orderBy: {
                     createdAt: "desc"
-                },
-                include: {
-                    customer: {
-                        select: {
-                            id: true,
-                            userId: true,
+                }
+            });
+            
+            // Then get customer and employee data separately
+            for (let service of recentActivity) {
+                // Get customer data
+                if (service.customerId) {
+                    const customer = await prisma.customer.findUnique({
+                        where: { id: service.customerId },
+                        include: {
                             user: {
                                 select: {
                                     name: true,
@@ -75,20 +79,26 @@ export async function GET(request) {
                                 }
                             }
                         }
-                    },
-                    employee: {
-                        select: {
-                            id: true,
-                            userId: true,
+                    });
+                    service.customer = customer;
+                }
+                
+                // Get employee data
+                if (service.employeeId) {
+                    const employee = await prisma.employee.findUnique({
+                        where: { id: service.employeeId },
+                        include: {
                             user: {
                                 select: {
                                     name: true
                                 }
                             }
                         }
-                    }
+                    });
+                    service.employee = employee;
                 }
-            });
+            }
+            
             console.log('Recent activity query successful, found:', recentActivity.length);
         } catch (error) {
             console.error('Error fetching recent activity:', error);
