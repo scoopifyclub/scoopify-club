@@ -59,36 +59,44 @@ export async function POST(request) {
             role: user.role,
         });
 
-        // Set the token cookie
-        const cookieStore = cookies();
-        cookieStore.set('token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60 // 7 days
-        });
-        // Also set the adminToken cookie for admins
-        cookieStore.set('adminToken', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60 // 7 days
-        });
-
-        // Return user data without sensitive information
-        const { password: _, ...userWithoutPassword } = user;
-        
+        // Create response first
         const response = NextResponse.json({
-            user: userWithoutPassword,
+            user: {
+                id: user.id,
+                email: user.email,
+                role: user.role,
+                name: user.name
+            },
             redirectTo: '/admin/dashboard'
         });
 
-        // Add rate limit headers to successful response
-        rateLimitResult.headers.forEach((value, key) => {
-            response.headers.set(key, value);
+        // Set cookies with consistent settings
+        response.cookies.set('accessToken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 15 * 60 // 15 minutes
         });
+
+        response.cookies.set('refreshToken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 // 7 days
+        });
+
+        // Also set non-httpOnly cookies for client JS access
+        response.headers.append('Set-Cookie', `accessToken_client=${token}; Path=/; Max-Age=${15 * 60}; SameSite=Lax`);
+        response.headers.append('Set-Cookie', `refreshToken_client=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
+
+        // Add rate limit headers to successful response
+        if (rateLimitResult?.headers) {
+            rateLimitResult.headers.forEach((value, key) => {
+                response.headers.set(key, value);
+            });
+        }
 
         return response;
     } catch (error) {

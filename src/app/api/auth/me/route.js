@@ -8,19 +8,16 @@ export async function GET(request) {
     
     const cookieStore = await cookies();
     
-    // Try to get token from cookies (priority order: adminToken, token, accessToken)
+    // Try to get token from cookies (priority order: accessToken, refreshToken)
     let token = null;
     let tokenSource = '';
     
-    if (cookieStore.get('adminToken')) {
-      token = cookieStore.get('adminToken').value;
-      tokenSource = 'adminToken';
-    } else if (cookieStore.get('token')) {
-      token = cookieStore.get('token').value;
-      tokenSource = 'token';
-    } else if (cookieStore.get('accessToken')) {
+    if (cookieStore.get('accessToken')) {
       token = cookieStore.get('accessToken').value;
       tokenSource = 'accessToken';
+    } else if (cookieStore.get('refreshToken')) {
+      token = cookieStore.get('refreshToken').value;
+      tokenSource = 'refreshToken';
     }
 
     console.log('📋 Token found from:', tokenSource, 'exists:', !!token);

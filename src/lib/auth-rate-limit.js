@@ -28,8 +28,11 @@ export class AuthRateLimiter {
                  request.ip || 
                  'unknown';
 
+      // Ensure IP is a string and sanitize it
+      const sanitizedIp = String(ip).trim().split(',')[0] || 'unknown';
+
       // Get the result from rate limiter
-      const { success, limit, remaining, reset } = await this.rateLimiter.limit(ip);
+      const { success, limit, remaining, reset } = await this.rateLimiter.limit(sanitizedIp);
 
       // Add rate limit headers to the response
       const headers = new Headers();

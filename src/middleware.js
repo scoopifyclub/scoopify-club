@@ -31,16 +31,16 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  // ADMIN routes: check for adminToken
+  // ADMIN routes: check for accessToken
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
-    const adminToken = request.cookies.get('adminToken')?.value;
-    if (!adminToken) {
-      const url = new URL('/auth/signin', request.url);
+    const accessToken = request.cookies.get('accessToken')?.value;
+    if (!accessToken) {
+      const url = new URL('/admin/login', request.url);
       url.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(url);
     }
     try {
-      const payload = await verifyJWT(adminToken);
+      const payload = await verifyJWT(accessToken);
       if (payload.role !== 'ADMIN') {
         return NextResponse.redirect(new URL('/', request.url));
       }
@@ -54,9 +54,10 @@ export async function middleware(request) {
         },
       });
     } catch (error) {
-      // If token verification fails, clear the adminToken and redirect to login
-      const response = NextResponse.redirect(new URL('/auth/signin', request.url));
-      response.cookies.delete('adminToken');
+      // If token verification fails, clear the accessToken and redirect to login
+      const response = NextResponse.redirect(new URL('/admin/login', request.url));
+      response.cookies.delete('accessToken');
+      response.cookies.delete('refreshToken');
       return response;
     }
   }
