@@ -1,6 +1,5 @@
 'use client';
 import { useState } from 'react';
-import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -36,24 +35,24 @@ const menuItems = [
 
 export default function DashboardLayout({ children }) {
     const router = useRouter();
-    const { user, loading, logout } = useAuth({
-        required: true,
-        role: 'EMPLOYEE',
-        redirectTo: '/auth/signin'
-    });
-
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const handleLogout = async () => {
-        await logout();
-        router.push('/auth/signin');
+        try {
+            const response = await fetch('/api/auth/signout', {
+                method: 'POST',
+                credentials: 'include',
+            });
+            
+            if (response.ok) {
+                router.push('/auth/signin');
+            }
+        } catch (error) {
+            console.error('Logout failed:', error);
+            // Redirect anyway
+            router.push('/auth/signin');
+        }
     };
-
-    if (loading) {
-        console.log('🔄 Dashboard layout loading...', { loading, user });
-        // TEMPORARILY DISABLED - bypassing auth loading to fix dashboard
-        // return <div className="p-6">Loading...</div>;
-    }
 
     return (
         <div className="min-h-screen bg-gray-100">
@@ -104,8 +103,8 @@ export default function DashboardLayout({ children }) {
                         <div className="p-4 border-t mt-auto">
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="flex-1">
-                                    <p className="font-medium">{user?.name}</p>
-                                    <p className="text-sm text-gray-500">{user?.email}</p>
+                                    <p className="font-medium">Employee</p>
+                                    <p className="text-sm text-gray-500">Logged in via cookies</p>
                                 </div>
                             </div>
                             <Button 

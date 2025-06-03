@@ -2,7 +2,6 @@
 // Trigger new Vercel deployment - fix skeleton component
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -95,7 +94,8 @@ function DashboardSkeleton() {
 
 export default function EmployeeDashboard() {
     const router = useRouter();
-    const { user, loading } = useAuth();
+    const [user, setUser] = useState(null);
+    const [authLoading, setAuthLoading] = useState(true);
     const [dashboardData, setDashboardData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -105,7 +105,41 @@ export default function EmployeeDashboard() {
 
     console.log('🚀 Employee Dashboard component loaded successfully!');
     console.log('👤 User:', user);
-    console.log('🔄 Loading states - auth:', loading, 'dashboard:', isLoading);
+    console.log('🔄 Loading states - auth:', authLoading, 'dashboard:', isLoading);
+
+    // Check authentication using cookie-based API
+    const checkAuth = async () => {
+        console.log('🔍 DIRECT AUTH: Starting auth check...');
+        try {
+            const response = await fetch('/api/auth/me', {
+                credentials: 'include',
+            });
+            console.log('🔍 DIRECT AUTH: Response:', response.status, response.ok);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('🔍 DIRECT AUTH: User data:', data);
+                setUser(data.user);
+                
+                // Check if user is employee
+                if (data.user?.role !== 'EMPLOYEE') {
+                    router.push('/auth/signin');
+                    return;
+                }
+            } else {
+                console.log('🔍 DIRECT AUTH: Not authenticated, redirecting...');
+                router.push('/auth/signin');
+                return;
+            }
+        } catch (error) {
+            console.error('🔍 DIRECT AUTH: Auth check failed:', error);
+            router.push('/auth/signin');
+            return;
+        } finally {
+            console.log('🔍 DIRECT AUTH: Setting auth loading to false');
+            setAuthLoading(false);
+        }
+    };
 
     // Fetch dashboard data
     const fetchDashboardData = async () => {
@@ -153,25 +187,32 @@ export default function EmployeeDashboard() {
         }
     };
 
+    // Check auth on mount
+    useEffect(() => {
+        checkAuth();
+    }, []);
+
     // Fetch data when user is available
     useEffect(() => {
-        console.log('📍 useEffect triggered - loading:', loading, 'user:', !!user);
-        if (!loading && user) {
+        console.log('📍 useEffect triggered - authLoading:', authLoading, 'user:', !!user);
+        if (!authLoading && user) {
             fetchDashboardData();
         }
-    }, [user, loading]);
+    }, [user, authLoading]);
 
-    console.log('🎨 About to render - loading:', loading, 'isLoading:', isLoading, 'error:', error, 'data:', !!dashboardData);
+    console.log('🎨 About to render - authLoading:', authLoading, 'isLoading:', isLoading, 'error:', error, 'data:', !!dashboardData);
 
-    // Show loading state (but simplified)
-    if (loading || isLoading) {
+    // Show loading state while checking auth or fetching data
+    if (authLoading || isLoading) {
         console.log('🔄 Rendering loading...');
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                     <p className="text-lg">Loading your dashboard...</p>
-                    <p className="text-sm text-gray-500">API working, dashboard loading...</p>
+                    <p className="text-sm text-gray-500">
+                        {authLoading ? 'Checking authentication...' : 'Loading dashboard data...'}
+                    </p>
                 </div>
             </div>
         );
