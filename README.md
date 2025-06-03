@@ -1,5 +1,9 @@
 # ScoopifyClub
 
+Welcome to ScoopifyClub - Your Premier Pet Waste Management Service
+
+<!-- Force deployment - updated schema and database -->
+
 A comprehensive web application for managing dog waste removal services, employee scheduling, and customer subscriptions.
 
 ![ScoopifyClub Logo](public/logo.png)
