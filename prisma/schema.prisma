@@ -77,16 +77,16 @@ model CoveragePriority {
 
 model CoverageArea {
   id             String   @id
-  zipCode        String   @db.VarChar(5) // Ensure 5-digit zip code
+  zipCode        String   @db.VarChar(5)
   employeeId     String
   active         Boolean  @default(true)
-  travelDistance Int      @default(20) // Distance in miles, must be positive
+  travelDistance Int      @default(20)
   createdAt      DateTime @default(now())
   updatedAt      DateTime
+  Employee       Employee @relation("EmployeeToServiceAreas", fields: [employeeId], references: [id])
 
   @@index([employeeId])
   @@index([zipCode])
-  Employee       Employee @relation("EmployeeToServiceAreas", fields: [employeeId], references: [id])
 }
 
 model Customer {
@@ -105,9 +105,9 @@ model Customer {
   referrerId        String?
   referredId        String?
   serviceCredits    Int       @default(0)
+  address           Address?  @relation("CustomerToAddress")
   User              User      @relation("UserToCustomer", fields: [userId], references: [id])
   services          Service[] @relation("ServiceToCustomer")
-  address           Address?  @relation("CustomerToAddress")
 
   @@index([subscriptionId])
 }
@@ -148,9 +148,9 @@ model Employee {
   preferredPaymentMethod PaymentMethod?
   status                 EmployeeStatus @default(ACTIVE)
   hasSetServiceArea      Boolean        @default(false)
+  serviceAreas           CoverageArea[] @relation("EmployeeToServiceAreas")
   User                   User           @relation("UserToEmployee", fields: [userId], references: [id])
   services               Service[]      @relation("ServiceToEmployee")
-  serviceAreas           CoverageArea[] @relation("EmployeeToServiceAreas")
 }
 
 model Location {
@@ -335,14 +335,14 @@ model ReferralPayout {
 }
 
 model ServiceArea {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
   zipCodes  String[]
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   services  Service[] @relation("ServiceToArea")
-  scoopers  User[]   @relation("ScooperServiceAreas")
+  scoopers  User[]    @relation("ScooperServiceAreas")
 }
 
 model BusinessPartner {
@@ -411,7 +411,7 @@ model RefreshToken {
 }
 
 model Service {
-  id                 String        @id
+  id                 String            @id
   customerId         String
   scheduledDate      DateTime
   completedDate      DateTime?
@@ -421,33 +421,31 @@ model Service {
   potentialEarnings  Float?
   stripeFees         Float?
   netAmount          Float?
-  paymentStatus      String        @default("PENDING")
+  paymentStatus      String            @default("PENDING")
   paymentApprovedAt  DateTime?
   paymentApprovedBy  String?
-  createdAt          DateTime      @default(now())
+  createdAt          DateTime          @default(now())
   updatedAt          DateTime
-  status             ServiceStatus @default(SCHEDULED)
-  workflowStatus     String        @default("AVAILABLE")
+  status             ServiceStatus     @default(SCHEDULED)
+  workflowStatus     String            @default("AVAILABLE")
   arrivedAt          DateTime?
-  checklistCompleted Boolean       @default(false)
+  checklistCompleted Boolean           @default(false)
   beforePhotoIds     String[]
   afterPhotoIds      String[]
   gatePhotoId        String?
   notes              String?
-  rated              Boolean       @default(false)
-  
-  // Relations with proper names
-  customer           Customer      @relation("ServiceToCustomer", fields: [customerId], references: [id])
-  employee           Employee?     @relation("ServiceToEmployee", fields: [employeeId], references: [id])
-  servicePlan        ServicePlan   @relation("ServiceToPlan", fields: [servicePlanId], references: [id])
-  location           Location?     @relation("ServiceToLocation")
-  serviceArea        ServiceArea?  @relation("ServiceToArea", fields: [serviceAreaId], references: [id])
+  rated              Boolean           @default(false)
+  location           Location?         @relation("ServiceToLocation")
+  payments           Payment[]         @relation("ServiceToPayments")
+  customer           Customer          @relation("ServiceToCustomer", fields: [customerId], references: [id])
+  employee           Employee?         @relation("ServiceToEmployee", fields: [employeeId], references: [id])
+  serviceArea        ServiceArea?      @relation("ServiceToArea", fields: [serviceAreaId], references: [id])
+  servicePlan        ServicePlan       @relation("ServiceToPlan", fields: [servicePlanId], references: [id])
   checklist          ServiceChecklist? @relation("ServiceToChecklist")
-  delays             ServiceDelay[] @relation("ServiceToDelays")
-  timeExtensions     TimeExtension[] @relation("ServiceToExtensions")
-  photos             ServicePhoto[] @relation("ServiceToPhotos")
-  payments           Payment[]     @relation("ServiceToPayments")
-  rating             ServiceRating? @relation("ServiceToRating")
+  delays             ServiceDelay[]    @relation("ServiceToDelays")
+  photos             ServicePhoto[]    @relation("ServiceToPhotos")
+  rating             ServiceRating?    @relation("ServiceToRating")
+  timeExtensions     TimeExtension[]   @relation("ServiceToExtensions")
 
   @@index([customerId])
   @@index([employeeId])
