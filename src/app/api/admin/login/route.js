@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
+import { withAdminDatabase } from "@/lib/prisma";
 import bcrypt from 'bcryptjs';
 import { signJWT } from '@/lib/auth-server';
 import { cookies } from 'next/headers';
@@ -33,19 +33,37 @@ export async function POST(request) {
             );
         }
 
-        const user = await prisma.user.findUnique({
-            where: { email }
+        // Use database helper for authentication
+        const user = await withAdminDatabase(async (prisma) => {
+            console.log('🔐 Admin authentication attempt for:', email);
+            
+            const user = await prisma.user.findUnique({
+                where: { email },
+                select: {
+                    id: true,
+                    email: true,
+                    password: true,
+                    role: true,
+                    name: true
+                }
+            });
+
+            if (!user || user.role !== 'ADMIN') {
+                console.log('❌ Admin user not found or invalid role');
+                return null;
+            }
+
+            const isValidPassword = await bcrypt.compare(password, user.password);
+            if (!isValidPassword) {
+                console.log('❌ Invalid password for admin user');
+                return null;
+            }
+
+            console.log('✅ Admin authentication successful');
+            return user;
         });
 
-        if (!user || user.role !== 'ADMIN') {
-            return NextResponse.json(
-                { error: 'Invalid credentials' },
-                { status: 401 }
-            );
-        }
-
-        const isValidPassword = await bcrypt.compare(password, user.password);
-        if (!isValidPassword) {
+        if (!user) {
             return NextResponse.json(
                 { error: 'Invalid credentials' },
                 { status: 401 }
@@ -100,7 +118,15 @@ export async function POST(request) {
 
         return response;
     } catch (error) {
-        console.error('Admin login error:', error);
+        console.error('❌ Admin login error:', error);
+        
+        if (error.code === 'P2024') {
+            return NextResponse.json({ 
+                error: 'Database connection timeout. Please try again.',
+                code: 'CONNECTION_TIMEOUT' 
+            }, { status: 503 });
+        }
+        
         return NextResponse.json(
             { error: 'Internal server error' },
             { status: 500 }

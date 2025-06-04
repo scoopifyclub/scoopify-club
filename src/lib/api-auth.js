@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from './prisma';
+import { withDatabase } from './prisma';
 import { jwtVerify, SignJWT } from 'jose';
 import { compare } from 'bcryptjs';
 
@@ -70,15 +70,17 @@ export async function getAuthUserFromCookies(request) {
 
     console.log('👤 Looking up user with ID:', decoded.userId);
     
-    // Get the full user data from database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-      }
+    // Get the full user data from database using connection helper
+    const user = await withDatabase(async (prisma) => {
+      return await prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          role: true,
+        }
+      });
     });
 
     console.log('👤 User found:', user ? `${user.email} (${user.role})` : 'not found');
@@ -184,54 +186,29 @@ export async function generateTokens(user) {
 
 export async function login(email, password) {
   try {
-    // First get the user without includes
-    const user = await prisma.user.findUnique({
-      where: { email }
+    // Use database helper for login authentication
+    const user = await withDatabase(async (prisma) => {
+      // First get the user without includes
+      const user = await prisma.user.findUnique({
+        where: { email }
+      });
+
+      if (!user) {
+        return null;
+      }
+
+      // Verify password
+      const isValidPassword = await compare(password, user.password);
+      if (!isValidPassword) {
+        return null;
+      }
+
+      return user;
     });
 
-    if (!user) {
-      return null;
-    }
-
-    // Verify password
-    const isValidPassword = await compare(password, user.password);
-    if (!isValidPassword) {
-      return null;
-    }
-
-    // Then fetch employee and customer separately if needed
-    let employee = null;
-    let customer = null;
-    
-    if (user.role === 'EMPLOYEE') {
-      try {
-        employee = await prisma.employee.findUnique({
-          where: { userId: user.id }
-        });
-      } catch (error) {
-        console.log('Employee fetch error:', error.message);
-      }
-    } else if (user.role === 'CUSTOMER') {
-      try {
-        customer = await prisma.customer.findUnique({
-          where: { userId: user.id }
-        });
-      } catch (error) {
-        console.log('Customer fetch error:', error.message);
-      }
-    }
-
-    // Add the relationships to the user object
-    const userWithRelations = {
-      ...user,
-      employee,
-      customer
-    };
-
-    const tokens = await generateTokens(user);
-    return { user: userWithRelations, ...tokens };
+    return user;
   } catch (error) {
-    console.error('Error logging in:', error);
+    console.error('Login error:', error);
     return null;
   }
 }

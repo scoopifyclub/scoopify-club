@@ -5,9 +5,9 @@ const MAX_RETRIES = 5;
 const RETRY_DELAY_MS = 1000;
 // Connection pool configuration for different environments
 const POOL_CONFIG = {
-    connection_limit: isVercel() && isProduction() ? 7 : 5, // Reduced for better serverless performance
-    pool_timeout: 20, // 20 seconds
-    idle_timeout: 30, // 30 seconds
+    connection_limit: isVercel() && isProduction() ? 15 : 10, // Increased for better admin dashboard performance
+    pool_timeout: 30, // Increased to 30 seconds
+    idle_timeout: 60, // Increased to 60 seconds
 };
 // Create a variable to hold our client
 let prisma;
@@ -44,12 +44,14 @@ if (!isEdgeRuntime()) {
                 url: process.env.DIRECT_URL || process.env.DATABASE_URL
             }
         },
-        // Optimize for serverless with increased timeouts
+        // Optimize for serverless with increased timeouts and connection limits
         __internal: {
             engine: {
-                connectionTimeout: 20000, // Increased to 20 seconds
+                connectionTimeout: 30000, // Increased to 30 seconds
                 pollInterval: 100, // 100ms
-                connectionLimit: POOL_CONFIG.connection_limit
+                connectionLimit: POOL_CONFIG.connection_limit,
+                maxIdleTime: POOL_CONFIG.idle_timeout * 1000, // Convert to milliseconds
+                poolTimeout: POOL_CONFIG.pool_timeout * 1000, // Convert to milliseconds
             }
         }
     });
@@ -101,7 +103,31 @@ export async function withRetry(fn, retries = 5) {
         throw error;
     }
 }
-// Helper method for executing queries with retry logic
-export async function executeQuery(queryFn) {
-    return withRetry(queryFn);
+// Helper function to safely execute database operations with proper cleanup
+export async function withDatabase(operation) {
+    try {
+        return await operation(prisma);
+    } catch (error) {
+        // Log the error but don't disconnect here as it might be shared
+        console.error('Database operation failed:', error);
+        throw error;
+    }
+}
+// Helper for admin routes that need proper connection management
+export async function withAdminDatabase(operation) {
+    try {
+        console.log('🔧 Admin database operation starting...');
+        const result = await withRetry(() => operation(prisma));
+        console.log('✅ Admin database operation completed successfully');
+        return result;
+    } catch (error) {
+        console.error('❌ Admin database operation failed:', error);
+        
+        // Specific handling for connection pool timeouts
+        if (error.code === 'P2024') {
+            console.error('🚨 Connection pool timeout detected - consider increasing pool size');
+        }
+        
+        throw error;
+    }
 }
