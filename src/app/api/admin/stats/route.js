@@ -119,6 +119,8 @@ export async function GET(request) {
                     const customerIds = basicServices.map(s => s.customerId).filter(Boolean);
                     const employeeIds = basicServices.map(s => s.employeeId).filter(Boolean);
                     
+                    console.log(`Customer IDs to fetch: ${customerIds.length}, Employee IDs: ${employeeIds.length}`);
+                    
                     const [customers, employees] = await Promise.all([
                         customerIds.length > 0 ? prisma.customer.findMany({
                             where: { id: { in: customerIds } },
@@ -127,6 +129,29 @@ export async function GET(request) {
                                     select: { name: true, email: true }
                                 }
                             }
+                        }).catch(customerError => {
+                            console.error('Error fetching customers:', customerError);
+                            // If User relationship fails, try without it
+                            return prisma.customer.findMany({
+                                where: { id: { in: customerIds } },
+                                select: { id: true, userId: true }
+                            }).then(basicCustomers => {
+                                // Then fetch users separately
+                                const userIds = basicCustomers.map(c => c.userId).filter(Boolean);
+                                return Promise.all([
+                                    Promise.resolve(basicCustomers),
+                                    userIds.length > 0 ? prisma.user.findMany({
+                                        where: { id: { in: userIds } },
+                                        select: { id: true, name: true, email: true }
+                                    }) : []
+                                ]).then(([customers, users]) => {
+                                    const userMap = new Map(users.map(u => [u.id, u]));
+                                    return customers.map(customer => ({
+                                        ...customer,
+                                        User: userMap.get(customer.userId) || null
+                                    }));
+                                });
+                            }).catch(() => []);
                         }) : [],
                         employeeIds.length > 0 ? prisma.employee.findMany({
                             where: { id: { in: employeeIds } },
@@ -135,8 +160,33 @@ export async function GET(request) {
                                     select: { name: true }
                                 }
                             }
+                        }).catch(employeeError => {
+                            console.error('Error fetching employees:', employeeError);
+                            // If User relationship fails, try without it
+                            return prisma.employee.findMany({
+                                where: { id: { in: employeeIds } },
+                                select: { id: true, userId: true }
+                            }).then(basicEmployees => {
+                                // Then fetch users separately
+                                const userIds = basicEmployees.map(e => e.userId).filter(Boolean);
+                                return Promise.all([
+                                    Promise.resolve(basicEmployees),
+                                    userIds.length > 0 ? prisma.user.findMany({
+                                        where: { id: { in: userIds } },
+                                        select: { id: true, name: true }
+                                    }) : []
+                                ]).then(([employees, users]) => {
+                                    const userMap = new Map(users.map(u => [u.id, u]));
+                                    return employees.map(employee => ({
+                                        ...employee,
+                                        User: userMap.get(employee.userId) || null
+                                    }));
+                                });
+                            }).catch(() => []);
                         }) : []
                     ]);
+                    
+                    console.log(`✅ Fetched ${customers.length} customers and ${employees.length} employees`);
                     
                     // Create lookup maps
                     const customerMap = new Map(customers.map(c => [c.id, c]));

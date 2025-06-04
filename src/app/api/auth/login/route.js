@@ -38,8 +38,8 @@ export async function POST(request) {
 
         const { user, token } = await authenticateUser(data.email, data.password);
 
-        // Set the token in an HTTP-only cookie
-        const cookieStore = cookies();
+        // Set the token in an HTTP-only cookie using Next.js cookies API
+        const cookieStore = await cookies();
         
         // Always set accessToken for all users
         cookieStore.set('accessToken', token, {
@@ -67,6 +67,8 @@ export async function POST(request) {
             path: '/',
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
+
+        console.log('✅ Login cookies set successfully for user:', user.email, 'role:', user.role);
 
         // Return user data without sensitive information
         const { password: _, ...userWithoutPassword } = user;
