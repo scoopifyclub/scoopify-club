@@ -144,23 +144,30 @@ export default function LoginPage() {
                 const cookieCheck = document.cookie;
                 console.log('Cookies after login:', cookieCheck ? 'Present' : 'None');
                 
-                // Redirect based on user role
-                if (data.user && data.user.role) {
+                // Use window.location.href for redirect to ensure cookies are properly handled
+                if (data.redirectTo) {
+                    console.log('Redirecting to:', data.redirectTo);
+                    window.location.href = data.redirectTo;
+                } else if (data.user && data.user.role) {
                     const role = data.user.role.toUpperCase();
+                    let redirectPath = '/dashboard';
                     switch(role) {
                         case 'ADMIN':
-                            router.push('/admin/dashboard');
+                            redirectPath = '/admin/dashboard';
                             break;
                         case 'EMPLOYEE':
-                            router.push('/employee/dashboard');
+                            redirectPath = '/employee/dashboard';
                             break;
                         case 'CUSTOMER':
                         default:
-                            router.push('/dashboard');
+                            redirectPath = '/dashboard';
                             break;
                     }
+                    console.log('Redirecting to:', redirectPath);
+                    window.location.href = redirectPath;
                 } else {
-                    router.push('/dashboard');
+                    console.log('Redirecting to default dashboard');
+                    window.location.href = '/dashboard';
                 }
             } else {
                 console.error('Login failed:', data.error);
