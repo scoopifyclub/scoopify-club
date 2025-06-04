@@ -40,6 +40,26 @@ export async function POST(request) {
 
         // Set the token in an HTTP-only cookie
         const cookieStore = cookies();
+        
+        // Always set accessToken for all users
+        cookieStore.set('accessToken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 // 7 days
+        });
+        
+        // Set refreshToken as well for consistency
+        cookieStore.set('refreshToken', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            path: '/',
+            maxAge: 7 * 24 * 60 * 60 // 7 days
+        });
+
+        // Also set the general token for backwards compatibility
         cookieStore.set('token', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
@@ -47,27 +67,28 @@ export async function POST(request) {
             path: '/',
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
-        // If the user is an admin, also set the adminToken cookie
-        if (user.role === 'ADMIN') {
-            cookieStore.set('adminToken', token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === 'production',
-                sameSite: 'lax',
-                path: '/',
-                maxAge: 7 * 24 * 60 * 60 // 7 days
-            });
-        }
 
         // Return user data without sensitive information
         const { password: _, ...userWithoutPassword } = user;
         
-        // Get the callback URL if it exists
-        const url = new URL(request.url);
-        const callbackUrl = url.searchParams.get('callbackUrl') || '/dashboard';
+        // Get redirect URL based on user role
+        let redirectTo = '/dashboard';
+        switch(user.role?.toUpperCase()) {
+            case 'ADMIN':
+                redirectTo = '/admin/dashboard';
+                break;
+            case 'EMPLOYEE':
+                redirectTo = '/employee/dashboard';
+                break;
+            case 'CUSTOMER':
+            default:
+                redirectTo = '/dashboard';
+                break;
+        }
 
         const response = NextResponse.json({
             user: userWithoutPassword,
-            redirectTo: callbackUrl
+            redirectTo: redirectTo
         });
 
         // Add rate limit headers to successful response

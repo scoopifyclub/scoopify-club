@@ -31,27 +31,28 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  // ADMIN routes: check for accessToken
+  // ADMIN routes: check for accessToken, refreshToken, or general token
   if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
     const accessToken = request.cookies.get('accessToken')?.value;
     const refreshToken = request.cookies.get('refreshToken')?.value;
+    const generalToken = request.cookies.get('token')?.value;
     
     // If no tokens found, redirect to login
-    if (!accessToken && !refreshToken) {
-      console.log('No access or refresh token found, redirecting to login');
-      const url = new URL('/admin/login', request.url);
+    if (!accessToken && !refreshToken && !generalToken) {
+      console.log('No access, refresh, or general token found, redirecting to login');
+      const url = new URL('/login', request.url);
       url.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(url);
     }
 
     try {
-      // Try access token first, then refresh token
-      const token = accessToken || refreshToken;
+      // Try access token first, then refresh token, then general token
+      const token = accessToken || refreshToken || generalToken;
       const payload = await verifyJWT(token);
       
       if (!payload || payload.role !== 'ADMIN') {
-        console.log('Invalid token or non-admin role, redirecting to home');
-        return NextResponse.redirect(new URL('/', request.url));
+        console.log('Invalid token or non-admin role, redirecting to login');
+        return NextResponse.redirect(new URL('/login', request.url));
       }
 
       // Add user info to headers for downstream use
@@ -66,18 +67,23 @@ export async function middleware(request) {
       });
     } catch (error) {
       console.error('Token verification failed:', error);
-      // Clear both tokens and redirect to login
-      const response = NextResponse.redirect(new URL('/admin/login', request.url));
+      // Clear all tokens and redirect to login
+      const response = NextResponse.redirect(new URL('/login', request.url));
       response.cookies.delete('accessToken');
       response.cookies.delete('refreshToken');
+      response.cookies.delete('token');
       return response;
     }
   }
 
-  // All other protected routes: check for token
-  const token = request.cookies.get('token')?.value;
+  // All other protected routes: check for any available token
+  const accessToken = request.cookies.get('accessToken')?.value;
+  const refreshToken = request.cookies.get('refreshToken')?.value;
+  const generalToken = request.cookies.get('token')?.value;
+  const token = accessToken || refreshToken || generalToken;
+  
   if (!token) {
-    const url = new URL('/auth/signin', request.url);
+    const url = new URL('/login', request.url);
     url.searchParams.set('callbackUrl', pathname);
     return NextResponse.redirect(url);
   }
@@ -120,8 +126,10 @@ export async function middleware(request) {
       },
     })
   } catch (error) {
-    // If token verification fails, clear the token and redirect to login
-    const response = NextResponse.redirect(new URL('/auth/signin', request.url));
+    // If token verification fails, clear all tokens and redirect to login
+    const response = NextResponse.redirect(new URL('/login', request.url));
+    response.cookies.delete('accessToken');
+    response.cookies.delete('refreshToken');
     response.cookies.delete('token');
     return response;
   }

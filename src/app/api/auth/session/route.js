@@ -9,9 +9,11 @@ export async function GET(request) {
         // Try both methods of getting cookies for maximum compatibility
         let token = null;
         
-        // Method 1: Use request.cookies directly if available
+        // Method 1: Use request.cookies directly if available - check multiple cookie names
         try {
-            token = request.cookies.get('token')?.value || 
+            token = request.cookies.get('accessToken')?.value || 
+                   request.cookies.get('refreshToken')?.value ||
+                   request.cookies.get('token')?.value || 
                    request.cookies.get('adminToken')?.value;
         } catch (e) {
             console.log('Error getting cookies directly:', e.message);
@@ -26,7 +28,7 @@ export async function GET(request) {
                 Object.keys(cookies).map(name => ({ name, length: cookies[name]?.length || 0 }))
             );
             
-            token = cookies.token || cookies.adminToken;
+            token = cookies.accessToken || cookies.refreshToken || cookies.token || cookies.adminToken;
         }
         
         if (!token) {
