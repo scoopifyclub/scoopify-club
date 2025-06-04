@@ -60,6 +60,7 @@ export async function GET(request) {
             
             try {
                 // Query services with the correct relationship names from schema
+                // Based on the schema: customer (lowercase) and employee (lowercase) are correct
                 recentActivity = await prisma.service.findMany({
                     take: 5,
                     orderBy: {
@@ -89,10 +90,72 @@ export async function GET(request) {
                 });
                 
                 console.log('✅ Recent activity query successful, found:', recentActivity.length);
-            } catch (error) {
-                console.error('❌ Error fetching recent activity:', error);
-                // Continue with other stats if this one fails
-                recentActivity = [];
+            } catch (relationError) {
+                console.error('❌ Error with service relations:', relationError);
+                
+                // Fallback: try with different relationship approach
+                try {
+                    console.log('🔄 Trying fallback approach for recent activity...');
+                    
+                    // Get services first, then manually fetch related data
+                    const basicServices = await prisma.service.findMany({
+                        take: 5,
+                        orderBy: {
+                            updatedAt: 'desc'
+                        },
+                        select: {
+                            id: true,
+                            status: true,
+                            customerId: true,
+                            employeeId: true,
+                            createdAt: true,
+                            updatedAt: true
+                        }
+                    });
+                    
+                    console.log(`Found ${basicServices.length} basic services`);
+                    
+                    // Get related customers and employees separately
+                    const customerIds = basicServices.map(s => s.customerId).filter(Boolean);
+                    const employeeIds = basicServices.map(s => s.employeeId).filter(Boolean);
+                    
+                    const [customers, employees] = await Promise.all([
+                        customerIds.length > 0 ? prisma.customer.findMany({
+                            where: { id: { in: customerIds } },
+                            include: {
+                                User: {
+                                    select: { name: true, email: true }
+                                }
+                            }
+                        }) : [],
+                        employeeIds.length > 0 ? prisma.employee.findMany({
+                            where: { id: { in: employeeIds } },
+                            include: {
+                                User: {
+                                    select: { name: true }
+                                }
+                            }
+                        }) : []
+                    ]);
+                    
+                    // Create lookup maps
+                    const customerMap = new Map(customers.map(c => [c.id, c]));
+                    const employeeMap = new Map(employees.map(e => [e.id, e]));
+                    
+                    // Combine the data
+                    recentActivity = basicServices.map(service => ({
+                        ...service,
+                        customer: customerMap.get(service.customerId) || null,
+                        employee: employeeMap.get(service.employeeId) || null
+                    }));
+                    
+                    console.log('✅ Fallback recent activity successful');
+                    
+                } catch (fallbackError) {
+                    console.error('❌ Fallback approach also failed:', fallbackError);
+                    // Continue with empty recent activity
+                    recentActivity = [];
+                }
             }
             
             // Fetch all stats in parallel using batch operations to reduce connection usage
