@@ -383,6 +383,3 @@ async function getCoverageGaps() {
 } 
 
 export const GET = withApiSecurity(GET, { requireAuth: true, rateLimit: true });
-export const POST = withApiSecurity(POST, { requireAuth: true, rateLimit: true });
-export const PUT = withApiSecurity(PUT, { requireAuth: true, rateLimit: true });
-export const DELETE = withApiSecurity(DELETE, { requireAuth: true, rateLimit: true });

@@ -120,8 +120,36 @@ const emailTemplates = {
                 <p>Best regards,<br>The Scoopify Club Team</p>
             </div>
         `
+    },
+    'password-reset': {
+        subject: 'Reset Your Password - Scoopify Club 🔐',
+        html: (data) => `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #10b981;">Reset Your Password</h2>
+                <p>Hi ${data.userName},</p>
+                <p>We received a request to reset your password for your Scoopify Club account.</p>
+                <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3>Reset Your Password:</h3>
+                    <a href="${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${data.resetToken}" 
+                       style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                        Reset Password
+                    </a>
+                </div>
+                <p><strong>This link will expire in 1 hour.</strong></p>
+                <p>If you didn't request this password reset, please ignore this email.</p>
+                <p>Best regards,<br>The Scoopify Club Team</p>
+            </div>
+        `
     }
 };
+
+// Send password reset email
+export async function sendPasswordResetEmail(email, userName, resetToken) {
+    return await sendEmail(email, 'password-reset', {
+        userName,
+        resetToken
+    });
+}
 
 // Send email function
 export async function sendEmail(to, template, data = {}) {
