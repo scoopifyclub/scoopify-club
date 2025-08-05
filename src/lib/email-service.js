@@ -140,6 +140,27 @@ const emailTemplates = {
                 <p>Best regards,<br>The Scoopify Club Team</p>
             </div>
         `
+    },
+    'email-verification': {
+        subject: 'Verify Your Email Address - Scoopify Club',
+        html: (data) => `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #10b981;">Verify Your Email Address</h2>
+                <p>Hi ${data.userName},</p>
+                <p>Please click the button below to verify your email address:</p>
+                <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3>Verify Email Address:</h3>
+                    <a href="${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${data.token}&email=${data.email}" 
+                       style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                        Verify Email Address
+                    </a>
+                </div>
+                <p>If the button doesn't work, copy and paste this link into your browser:</p>
+                <p>${process.env.NEXT_PUBLIC_APP_URL}/verify-email?token=${data.token}&email=${data.email}</p>
+                <p><strong>This link will expire in 24 hours.</strong></p>
+                <p>Best regards,<br>The Scoopify Club Team</p>
+            </div>
+        `
     }
 };
 
@@ -148,6 +169,15 @@ export async function sendPasswordResetEmail(email, userName, resetToken) {
     return await sendEmail(email, 'password-reset', {
         userName,
         resetToken
+    });
+}
+
+// Send email verification
+export async function sendVerificationEmail(email, userName, token) {
+    return await sendEmail(email, 'email-verification', {
+        userName,
+        token,
+        email
     });
 }
 
