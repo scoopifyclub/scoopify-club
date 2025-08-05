@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import emailService from '@/lib/email-service';
+import { sendEmail, handleEmailRequest } from '@/lib/email-service';
 
 export async function POST(request) {
   try {
@@ -21,11 +21,7 @@ export async function POST(request) {
     }
 
     // Send test email
-    const result = await emailService.sendEmail({
-      to,
-      template,
-      data: data || {}
-    });
+    const result = await sendEmail(to, template, data || {});
 
     return NextResponse.json({
       success: true,
@@ -45,16 +41,16 @@ export async function POST(request) {
 export async function GET() {
   try {
     // Test email configuration
-    const configValid = await emailService.verifyConfig();
+    const configValid = !!process.env.NAMECHEAP_EMAIL_USER && !!process.env.NAMECHEAP_EMAIL_PASS;
     
     return NextResponse.json({
       success: true,
       configValid,
       providers: {
-        smtp: !!process.env.SMTP_HOST,
-        resend: !!process.env.RESEND_API_KEY
+        namecheap: !!process.env.NAMECHEAP_EMAIL_USER,
+        smtp: !!process.env.NAMECHEAP_SMTP_HOST
       },
-      primaryProvider: process.env.EMAIL_PROVIDER || 'smtp'
+      primaryProvider: 'namecheap'
     });
 
   } catch (error) {

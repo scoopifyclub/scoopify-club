@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
 import { logPaymentEvent } from '@/lib/payment-audit';
 import { logger } from '@/lib/logger';
-import { sendEmail } from '@/lib/email';
+import { sendEmail } from '@/lib/email-service';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 // POST: Process a batch of payments

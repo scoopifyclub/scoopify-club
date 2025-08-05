@@ -1,177 +1,206 @@
 # Deployment Troubleshooting Guide
 
-## Current Status: Build Issues
+## Current Status: 404 Errors
 
-The deployment is responding (server is up) but all routes are returning 404, indicating a build or routing problem.
+The deployment is responding with 404 errors, which indicates the build might have failed or there are routing issues.
 
-## 🔍 **Immediate Steps to Diagnose**
+## 🔍 **Step-by-Step Troubleshooting**
 
-### 1. Check Vercel Dashboard
-1. Go to [Vercel Dashboard](https://vercel.com/dashboard)
-2. Find your Scoopify Club project
-3. Check the latest deployment status
-4. Review build logs for errors
+### 1. Check Vercel Build Status
 
-### 2. Common Build Issues
+1. **Go to Vercel Dashboard**: https://vercel.com/dashboard
+2. **Find your project**: `scoopify-club`
+3. **Check the latest deployment**:
+   - Look for build status (Success/Failed)
+   - Check build logs for errors
+   - Verify deployment URL
 
-#### Environment Variables Missing
-**Problem**: Build fails due to missing environment variables
-**Solution**: Add required environment variables in Vercel dashboard
+### 2. Common Build Issues & Solutions
 
-**Required Variables**:
-```
+#### Issue: Module parse failed - Identifier already declared
+**Solution**: Remove duplicate export declarations in API routes
+
+#### Issue: Missing email service functions
+**Solution**: Add missing functions to `src/lib/email-service.js`
+
+#### Issue: Environment variables not configured
+**Solution**: Configure required environment variables in Vercel
+
+### 3. Environment Variables Setup
+
+Configure these in Vercel Dashboard > Settings > Environment Variables:
+
+```bash
+# Database
 DATABASE_URL=your_database_connection_string
-STRIPE_SECRET_KEY=your_stripe_secret_key
+
+# Authentication
 NEXTAUTH_SECRET=your_nextauth_secret
 JWT_SECRET=your_jwt_secret
-NEXT_PUBLIC_APP_URL=https://scoopifyclub.vercel.app
-```
 
-#### Next.js Configuration Issues
-**Problem**: `next.config.js` or routing issues
-**Solution**: Check for:
-- ES module syntax errors
-- Invalid configuration options
-- Missing dependencies
+# Stripe
+STRIPE_SECRET_KEY=your_stripe_secret_key
+STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key
 
-#### Database Connection Issues
-**Problem**: Can't connect to database during build
-**Solution**: 
-- Verify DATABASE_URL is correct
-- Check database is accessible from Vercel
-- Ensure database schema is up to date
-
-### 3. Quick Fixes to Try
-
-#### Option A: Force Rebuild
-1. Go to Vercel dashboard
-2. Find your project
-3. Click "Redeploy" or "Clear Cache and Deploy"
-
-#### Option B: Check Build Logs
-1. In Vercel dashboard, click on the latest deployment
-2. Check "Build Logs" tab
-3. Look for error messages
-4. Fix any issues found
-
-#### Option C: Test Locally First
-```bash
-# Test local build
-npm run build
-
-# Test local production server
-npm start
-```
-
-### 4. Environment Variable Setup
-
-#### In Vercel Dashboard:
-1. Go to Project Settings
-2. Click "Environment Variables"
-3. Add each variable:
-
-```
-DATABASE_URL=postgresql://username:password@host:port/database
-STRIPE_SECRET_KEY=sk_test_...
-NEXTAUTH_SECRET=your-secret-key
-JWT_SECRET=your-jwt-secret
-NEXT_PUBLIC_APP_URL=https://scoopifyclub.vercel.app
-NAMECHEAP_EMAIL_USER=support@scoopifyclub.com
-NAMECHEAP_EMAIL_PASS=your-email-password
+# Email (Namecheap)
 NAMECHEAP_SMTP_HOST=mail.privateemail.com
 NAMECHEAP_SMTP_PORT=587
+NAMECHEAP_EMAIL_USER=your_email@domain.com
+NAMECHEAP_EMAIL_PASS=your_email_password
+
+# App Configuration
+NEXT_PUBLIC_APP_URL=https://scoopifyclub.vercel.app
 ```
 
-### 5. Database Setup
+### 4. Database Connection
 
-#### If using Supabase:
-1. Create a new Supabase project
-2. Get the connection string
-3. Add to Vercel environment variables
-4. Run database migrations
-
-#### If using PlanetScale:
-1. Create a new PlanetScale database
-2. Get the connection string
-3. Add to Vercel environment variables
-4. Run database migrations
-
-### 6. Testing Steps
-
-#### After fixing issues:
-1. **Wait for build to complete** (usually 2-5 minutes)
-2. **Test basic connectivity**:
-   ```bash
-   curl -I https://scoopifyclub.vercel.app
+1. **Verify database is accessible** from Vercel's servers
+2. **Check database URL format**:
    ```
-3. **Test homepage**:
-   ```bash
-   curl https://scoopifyclub.vercel.app
+   postgresql://username:password@host:port/database
    ```
-4. **Test health API**:
+3. **Ensure database exists** and is properly configured
+
+### 5. Routing Issues
+
+If the build succeeds but pages return 404:
+
+1. **Check Next.js routing**:
+   - Verify `src/app/page.jsx` exists (homepage)
+   - Check API routes in `src/app/api/`
+   - Ensure proper file structure
+
+2. **Check middleware**:
+   - Verify `src/middleware.js` doesn't block requests
+   - Check authentication requirements
+
+### 6. Local Testing
+
+Test locally before deploying:
+
+```bash
+# Install dependencies
+npm install
+
+# Generate Prisma client
+npx prisma generate
+
+# Run development server
+npm run dev
+
+# Test key endpoints
+curl http://localhost:3000/
+curl http://localhost:3000/api/health
+```
+
+### 7. Build Commands
+
+Verify build commands in `package.json`:
+
+```json
+{
+  "scripts": {
+    "build": "next build",
+    "postinstall": "prisma generate"
+  }
+}
+```
+
+### 8. Vercel Configuration
+
+Check `vercel.json`:
+
+```json
+{
+  "version": 2,
+  "functions": {
+    "src/app/api/**/*.js": {
+      "maxDuration": 30
+    }
+  }
+}
+```
+
+## 🚨 **Emergency Fixes**
+
+### If Build Continues to Fail:
+
+1. **Clear Vercel cache**:
+   - Go to Vercel Dashboard
+   - Project Settings > General
+   - Click "Clear Build Cache"
+
+2. **Redeploy from scratch**:
+   - Delete and recreate the Vercel project
+   - Connect to the same GitHub repository
+
+3. **Check for syntax errors**:
    ```bash
-   curl https://scoopifyclub.vercel.app/api/health
+   npm run build
    ```
 
-### 7. Common Error Messages
+### If Pages Return 404:
 
-#### "Build failed"
-- Check build logs in Vercel dashboard
-- Look for specific error messages
-- Fix the underlying issue
+1. **Check file structure**:
+   ```
+   src/app/
+   ├── page.jsx          # Homepage
+   ├── layout.jsx        # Root layout
+   ├── api/              # API routes
+   └── globals.css       # Global styles
+   ```
 
-#### "404 Not Found"
-- Routes not being generated properly
-- Check Next.js routing configuration
-- Verify file structure
+2. **Verify exports**:
+   - Ensure components are properly exported
+   - Check for default exports vs named exports
 
-#### "Database connection failed"
-- Check DATABASE_URL format
-- Verify database is accessible
-- Check firewall/network settings
+## 📞 **Getting Help**
 
-#### "Environment variable not found"
-- Add missing variables to Vercel dashboard
-- Check variable names are correct
-- Restart deployment after adding variables
+### Vercel Support
+- **Documentation**: https://vercel.com/docs
+- **Community**: https://github.com/vercel/vercel/discussions
+- **Status Page**: https://vercel-status.com
 
-### 8. Next Steps After Fix
+### Next.js Support
+- **Documentation**: https://nextjs.org/docs
+- **GitHub Issues**: https://github.com/vercel/next.js/issues
 
-1. **Verify deployment works**
-2. **Set up custom domain** (optional)
-3. **Configure cron jobs** (see CRON_SETUP.md)
-4. **Test all features**
-5. **Monitor performance**
+### Prisma Support
+- **Documentation**: https://www.prisma.io/docs
+- **GitHub Issues**: https://github.com/prisma/prisma/issues
 
-### 9. Getting Help
+## 🔄 **Next Steps After Fix**
 
-#### If issues persist:
-1. Check Vercel documentation
-2. Review Next.js deployment guide
-3. Check GitHub issues for similar problems
-4. Contact Vercel support if needed
+1. **Test all endpoints**:
+   ```bash
+   node scripts/test-production-deployment.js
+   ```
 
-#### Useful Links:
-- [Vercel Documentation](https://vercel.com/docs)
-- [Next.js Deployment](https://nextjs.org/docs/deployment)
-- [Vercel Support](https://vercel.com/support)
+2. **Configure environment variables** in Vercel
 
-## 🚀 **Success Checklist**
+3. **Set up custom domain** (optional)
 
-- [ ] Build completes successfully
-- [ ] Homepage loads (200 status)
-- [ ] Health API responds
-- [ ] All pages accessible
-- [ ] Environment variables configured
-- [ ] Database connected
-- [ ] Cron jobs set up (optional)
-- [ ] Custom domain configured (optional)
-- [ ] All features tested
-- [ ] Performance optimized
+4. **Test automation systems**:
+   - Referral system
+   - Email functionality
+   - Payment processing
 
-## 📞 **Emergency Contacts**
+5. **Monitor performance** and error logs
 
-- **Vercel Support**: Available in dashboard
-- **Database Provider**: Check your database provider's support
-- **Stripe Support**: For payment issues
-- **Email Provider**: For email delivery issues 
+## 📊 **Success Indicators**
+
+✅ **Build Status**: "Ready" in Vercel Dashboard  
+✅ **Homepage**: Returns 200 status  
+✅ **API Health**: `/api/health` returns 200  
+✅ **Database**: Connected and responding  
+✅ **Environment**: All variables configured  
+
+## 🎯 **Quick Fix Checklist**
+
+- [ ] Check Vercel build logs
+- [ ] Configure environment variables
+- [ ] Verify database connection
+- [ ] Test local build: `npm run build`
+- [ ] Check file structure and exports
+- [ ] Clear Vercel cache if needed
+- [ ] Redeploy and test endpoints 

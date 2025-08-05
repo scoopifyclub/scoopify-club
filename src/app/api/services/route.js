@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
-import { sendServiceNotificationEmail } from '@/lib/email';
+import { sendServiceNotificationEmail } from '@/lib/email-service';
 
 export async function POST(request) {
     try {

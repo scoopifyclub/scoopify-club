@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/api-auth';
 import { startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth } from 'date-fns';
 
-async function GET(request) {
+async function getHandler(request) {
   try {
     const user = await requireRole('ADMIN');
     if (!user) {
@@ -382,4 +382,4 @@ async function getCoverageGaps() {
   }
 } 
 
-export const GET = withApiSecurity(GET, { requireAuth: true, rateLimit: true });
+export const GET = withApiSecurity(getHandler, { requireAuth: true, rateLimit: true });

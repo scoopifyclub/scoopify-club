@@ -122,6 +122,7 @@
     "@vercel/kv": "^3.0.0",
     "@vercel/postgres": "^0.10.0",
     "autoprefixer": "^10.4.21",
+    "axios": "^1.11.0",
     "bcrypt": "^5.1.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

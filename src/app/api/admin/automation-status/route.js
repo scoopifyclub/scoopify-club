@@ -3,7 +3,7 @@ import { withApiSecurity } from '@/lib/security-middleware';
 import { prisma } from '@/lib/prisma';
 import { requireRole } from '@/lib/api-auth';
 
-async function GET(request) {
+async function getAutomationStatus(request) {
   try {
     const user = await requireRole('ADMIN');
     if (!user) {
@@ -89,4 +89,4 @@ async function GET(request) {
   }
 } 
 
-export const GET = withApiSecurity(GET, { requireAuth: true, rateLimit: true });
+export const GET = withApiSecurity(getAutomationStatus, { requireAuth: true, rateLimit: true });

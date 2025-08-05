@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { sendCustomerAtRiskEmail } from '@/lib/email';
+import { sendCustomerAtRiskEmail } from '@/lib/email-service';
 
 // POST: Notify all customers in at-risk zips (customers, no scoopers)
 export async function POST() {

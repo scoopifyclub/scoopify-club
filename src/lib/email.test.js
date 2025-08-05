@@ -1,4 +1,4 @@
-import { sendEmail } from './email';
+import { sendEmail } from './email-service';
 jest.mock('resend', () => ({
     Resend: jest.fn().mockImplementation(() => ({
         emails: {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { sendPaymentRetryEmail } from '@/lib/email';
+import { sendPaymentRetryEmail } from '@/lib/email-service';
 export async function GET(request) {
     try {
         const authHeader = request.headers.get('authorization');

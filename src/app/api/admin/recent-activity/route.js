@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withApiSecurity } from '@/lib/security-middleware';
 import { prisma } from '@/lib/prisma';
 
-async function GET(request) {
+async function getHandler(request) {
   try {
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit')) || 50;
@@ -328,4 +328,4 @@ function groupActivitiesByDate(activities) {
     .sort((a, b) => new Date(b.date) - new Date(a.date));
 } 
 
-export const GET = withApiSecurity(GET, { requireAuth: true, rateLimit: true });
+export const GET = withApiSecurity(getHandler, { requireAuth: true, rateLimit: true });

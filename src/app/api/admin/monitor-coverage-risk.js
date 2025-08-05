@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { sendAdminNotification } from '@/lib/email';
+import { sendAdminNotification } from '@/lib/email-service';
 
 export async function POST() {
   // Get all zips with at least one active customer

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { sendBusinessSignupEmail } from '@/lib/email';
+import { sendBusinessSignupEmail } from '@/lib/email-service';
 import { v4 as uuidv4 } from 'uuid';
 
 function generateReferralCode() {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { randomBytes } from 'crypto';
-import { sendEmail } from '@/lib/email';
+import { sendEmail } from '@/lib/email-service';
 export async function POST(request) {
     try {
         const { email } = await request.json();

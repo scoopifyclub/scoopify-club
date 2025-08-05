@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { emitServiceStatusChange } from '@/lib/socket';
-import { sendServiceNotificationEmail } from '@/lib/email';
+import { sendServiceNotificationEmail } from '@/lib/email-service';
 
 export async function PUT(request, { params }) {
     try {

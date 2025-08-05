@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
-import { sendServiceNotificationEmail } from '@/lib/email';
+import { sendServiceNotificationEmail } from '@/lib/email-service';
 import sharp from 'sharp';
 import { validateServiceCompletion } from '@/lib/validations';
 import { addDays } from 'date-fns';

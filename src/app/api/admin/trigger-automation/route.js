@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { withApiSecurity } from '@/lib/security-middleware';
 import { prisma } from '@/lib/prisma';
 
-async function POST(request) {
+async function postHandler(request) {
   try {
     const { automationType } = await request.json();
 
@@ -297,4 +297,4 @@ async function checkCriticalAlerts() {
   return alerts[0].count > 0 ? [{ type: 'COVERAGE_GAP', severity: 'CRITICAL' }] : [];
 } 
 
-export const POST = withApiSecurity(POST, { requireAuth: true, rateLimit: true });
+export const POST = withApiSecurity(postHandler, { requireAuth: true, rateLimit: true });

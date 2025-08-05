@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 import { addMinutes, setHours, startOfDay, endOfDay, isAfter, isBefore } from 'date-fns';
-import { sendServiceNotificationEmail } from '@/lib/email';
+import { sendServiceNotificationEmail } from '@/lib/email-service';
 // API endpoint for employee to claim a service
 export async function POST(request, { params }) {
     var _a, _b, _c, _d;

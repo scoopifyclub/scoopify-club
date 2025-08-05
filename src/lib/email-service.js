@@ -161,6 +161,10 @@ const emailTemplates = {
                 <p>Best regards,<br>The Scoopify Club Team</p>
             </div>
         `
+    },
+    'custom': {
+        subject: (data) => data.subject,
+        html: (data) => data.html
     }
 };
 
@@ -178,6 +182,156 @@ export async function sendVerificationEmail(email, userName, token) {
         userName,
         token,
         email
+    });
+}
+
+// Send service notification email
+export async function sendServiceNotificationEmail(email, serviceId, notificationType, serviceDetails) {
+    const subject = `Service ${notificationType.charAt(0).toUpperCase() + notificationType.slice(1)} - Scoopify Club`;
+    let html = '';
+    
+    switch (notificationType) {
+        case 'claimed':
+            html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #333;">Service Update</h2>
+                    <p>Your service scheduled for ${serviceDetails.date} at ${serviceDetails.address} has been claimed by ${serviceDetails.employeeName}.</p>
+                    <p>Service ID: ${serviceId}</p>
+                    <p>If you have any questions, please contact our support team.</p>
+                    <p>Best regards,<br>Scoopify Club Team</p>
+                </div>
+            `;
+            break;
+            
+        case 'completed':
+            html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #333;">Service Completed</h2>
+                    <p>Your service at ${serviceDetails.address} has been completed.</p>
+                    <p>Service ID: ${serviceId}</p>
+                    ${serviceDetails.notes ? `<p>Notes: ${serviceDetails.notes}</p>` : ''}
+                    <p>Best regards,<br>Scoopify Club Team</p>
+                </div>
+            `;
+            break;
+            
+        case 'scheduled':
+            html = `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #333;">New Service Scheduled</h2>
+                    <p>A new service has been scheduled for ${serviceDetails.date} at ${serviceDetails.address}.</p>
+                    <p>Service ID: ${serviceId}</p>
+                    <p>If you need to reschedule, please contact our support team.</p>
+                    <p>Best regards,<br>Scoopify Club Team</p>
+                </div>
+            `;
+            break;
+    }
+
+    return await sendEmail(email, 'custom', { subject, html });
+}
+
+// Send business signup email
+export async function sendBusinessSignupEmail({
+    to,
+    businessName,
+    contactFirstName,
+    contactLastName,
+    phone,
+    payoutMethod,
+    stripeAccountId,
+    cashAppUsername,
+    code,
+}) {
+    const subject = 'Welcome to Scoopify Club Business Partner Program!';
+    const html = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #333;">Welcome, ${businessName}!</h2>
+            <p>Thank you for signing up as a business partner. Here are your details for your records:</p>
+            <ul>
+                <li><strong>Business Name:</strong> ${businessName}</li>
+                <li><strong>Contact Name:</strong> ${contactFirstName} ${contactLastName}</li>
+                <li><strong>Phone:</strong> ${phone}</li>
+                <li><strong>Email:</strong> ${to}</li>
+                <li><strong>Payout Method:</strong> ${payoutMethod === 'STRIPE' ? 'Stripe' : 'Cash App'}</li>
+                ${payoutMethod === 'STRIPE' ? `<li><strong>Stripe Account ID:</strong> ${stripeAccountId}</li>` : ''}
+                ${payoutMethod === 'CASH_APP' ? `<li><strong>Cash App Username:</strong> ${cashAppUsername}</li>` : ''}
+                <li><strong>Referral Code:</strong> <span style="font-size: 1.2em; color: #1d4ed8;">${code}</span></li>
+            </ul>
+            <p>Share your referral code with clients and start earning rewards!</p>
+            <p>If you have questions, reply to this email or contact support@scoopify.com.</p>
+            <p>Best regards,<br>Scoopify Club Team</p>
+        </div>
+    `;
+    return await sendEmail(to, 'custom', { subject, html });
+}
+
+// Send admin notification
+export async function sendAdminNotification(subject, message) {
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@scoopifyclub.com';
+    return await sendEmail(adminEmail, 'custom', {
+        subject,
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Admin Notification</h2>
+                <p><strong>Subject:</strong> ${subject}</p>
+                <p><strong>Message:</strong></p>
+                <div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px;">
+                    ${message}
+                </div>
+                <p>Best regards,<br>Scoopify Club System</p>
+            </div>
+        `
+    });
+}
+
+// Send payment failed email
+export async function sendPaymentFailedEmail(customerEmail, customerName, retryDate) {
+    return await sendEmail(customerEmail, 'custom', {
+        subject: 'Payment Failed - Action Required',
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #dc2626;">Payment Failed</h2>
+                <p>Hi ${customerName},</p>
+                <p>We were unable to process your recent payment. Please update your payment method to continue your service.</p>
+                <p><strong>Next retry date:</strong> ${retryDate}</p>
+                <p>To update your payment method, please log into your account or contact our support team.</p>
+                <p>Best regards,<br>Scoopify Club Team</p>
+            </div>
+        `
+    });
+}
+
+// Send customer at risk email
+export async function sendCustomerAtRiskEmail(customerEmail, customerName, zipCode) {
+    return await sendEmail(customerEmail, 'custom', {
+        subject: 'Heads up: Possible Service Delay',
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Service Update</h2>
+                <p>Hello ${customerName},</p>
+                <p>We wanted to let you know that due to high demand in your area (zip code ${zipCode}), your service may experience a slight delay this week.</p>
+                <p>We're actively recruiting more team members to meet the needs of your neighborhood. If you know anyone who might be interested in joining Scoopify Club as a scooper, please have them apply at <a href="${process.env.NEXT_PUBLIC_APP_URL}/apply">${process.env.NEXT_PUBLIC_APP_URL}/apply</a>.</p>
+                <p>We appreciate your patience and your support as we grow!</p>
+                <p>Best regards,<br>Scoopify Club Team</p>
+            </div>
+        `
+    });
+}
+
+// Send payment retry email
+export async function sendPaymentRetryEmail(customerEmail, customerName) {
+    return await sendEmail(customerEmail, 'custom', {
+        subject: 'Payment Retry Scheduled',
+        html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #333;">Payment Retry</h2>
+                <p>Hi ${customerName},</p>
+                <p>We'll be retrying your payment in the next 24 hours. Please ensure your payment method is up to date.</p>
+                <p>If you continue to experience issues, please contact our support team.</p>
+                <p>Best regards,<br>Scoopify Club Team</p>
+            </div>
+        `
     });
 }
 
