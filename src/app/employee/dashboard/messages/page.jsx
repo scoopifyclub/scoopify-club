@@ -1,6 +1,6 @@
-"use client";
-
+'use client';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { MessageCircle, Send, User, Clock, Search, Phone, Mail, AlertCircle } from 'lucide-react';
 
-export default function MessagesPage() {
+// Force dynamic rendering for employee pages
+export const dynamic = 'force-dynamic';
+
+export default function EmployeeMessagesPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {

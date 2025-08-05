@@ -5,6 +5,10 @@ import { UserGroupIcon, CurrencyDollarIcon, CheckCircleIcon, ClockIcon, ArrowPat
 import { formatCurrency, formatDate } from '@/lib/utils';
 import PaymentModal from '@/components/PaymentModal';
 import PaymentHistoryModal from '@/components/PaymentHistoryModal';
+
+// Force dynamic rendering for admin pages
+export const dynamic = 'force-dynamic';
+
 export default function AdminReferralsPage() {
     const [referrals, setReferrals] = useState([]);
     const [loading, setLoading] = useState(true);

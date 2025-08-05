@@ -2,8 +2,15 @@
 
 import { ThemeProvider } from 'next-themes';
 import { AuthProvider } from '@/lib/auth-client';
+import { useEffect, useState } from 'react';
 
 export function Providers({ children }) {
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     return (
         <ThemeProvider
             attribute="class"
@@ -11,9 +18,15 @@ export function Providers({ children }) {
             enableSystem
             disableTransitionOnChange
         >
-            <AuthProvider>
-                {children}
-            </AuthProvider>
+            {mounted ? (
+                <AuthProvider>
+                    {children}
+                </AuthProvider>
+            ) : (
+                <div className="min-h-screen bg-background">
+                    {children}
+                </div>
+            )}
         </ThemeProvider>
     );
 }

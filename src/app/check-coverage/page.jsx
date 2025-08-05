@@ -3,7 +3,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Loader2, MapPin } from 'lucide-react';
-export default function CheckCoverage() {
+import { MapPinIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
+export default function CheckCoveragePage() {
     const [address, setAddress] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
