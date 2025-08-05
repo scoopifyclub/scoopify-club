@@ -85,6 +85,10 @@ export async function POST(request, { params }) {
                 data: { serviceId: service.id }
             }
         });
+
+        // Create notification for employee about service status update
+        const { notifyServiceStatusUpdate } = await import('@/lib/notification-utils');
+        await notifyServiceStatusUpdate(employee.id, service.id, 'ASSIGNED');
         return NextResponse.json({
             message: 'Service claimed successfully',
             service: updatedService

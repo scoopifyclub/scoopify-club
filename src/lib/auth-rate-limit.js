@@ -59,4 +59,9 @@ export class AuthRateLimiter {
       };
     }
   }
+}
+
+export async function rateLimit(request) {
+  const limiter = new AuthRateLimiter();
+  return limiter.isAllowed(request);
 } 

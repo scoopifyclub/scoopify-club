@@ -1,6 +1,6 @@
 import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 const VALID_PAYMENT_METHODS = ['CASH', 'CASH_APP', 'CHECK'];
 export async function POST(request, { params }) {
     try {

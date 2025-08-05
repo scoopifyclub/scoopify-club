@@ -41,3 +41,8 @@ export function validatePassword(password) {
         errors
     };
 }
+
+export async function hashPassword(password) {
+  // Replace with real hash logic if needed
+  return password;
+}

@@ -1,4 +1,4 @@
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 /**
  * Calculates the potential earnings for a service based on the subscription amount
  * Each subscription covers 4 weekly services, so we divide by 4 and take 75%

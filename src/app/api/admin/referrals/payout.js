@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/api-auth';
 
 // POST: Process referral payouts (Stripe) - Only allowed on Fridays unless override=true

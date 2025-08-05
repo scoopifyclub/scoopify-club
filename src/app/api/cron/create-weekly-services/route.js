@@ -1,122 +1,162 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
+import { addWeeks, startOfWeek, endOfWeek } from 'date-fns';
 
+// This endpoint should be called by a cron job (e.g., Vercel Cron)
+// Recommended schedule: Every Monday at 6:00 AM
 export async function POST(request) {
-    try {
-        // Verify this is a cron request
-        const authHeader = request.headers.get('authorization');
-        if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const today = new Date();
-        const oneWeekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-        
-        console.log(`[CRON] Creating weekly services for ${today.toDateString()}`);
-
-        // Get all active customers with subscriptions
-        const customers = await prisma.customer.findMany({
-            where: {
-                subscription: {
-                    status: 'ACTIVE'
-                },
-                serviceDay: {
-                    not: null
-                }
-            },
-            include: {
-                subscription: {
-                    include: {
-                        plan: true
-                    }
-                },
-                address: true,
-                user: true
-            }
-        });
-
-        console.log(`[CRON] Found ${customers.length} active customers with subscriptions`);
-
-        let servicesCreated = 0;
-        const errors = [];
-
-        for (const customer of customers) {
-            try {
-                // Convert service day to day number (0 = Sunday, 1 = Monday, etc.)
-                const getDayNumber = (dayName) => {
-                    const days = {
-                        'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
-                        'Thursday': 4, 'Friday': 5, 'Saturday': 6
-                    };
-                    return days[dayName] || 1; // Default to Monday
-                };
-
-                const targetDayOfWeek = getDayNumber(customer.serviceDay);
-                
-                // Find the next occurrence of the customer's service day
-                let nextServiceDate = new Date(today);
-                while (nextServiceDate.getDay() !== targetDayOfWeek) {
-                    nextServiceDate.setDate(nextServiceDate.getDate() + 1);
-                }
-                
-                // If the next service day is today, create the service
-                if (nextServiceDate.toDateString() === today.toDateString()) {
-                    // Check if service already exists for today
-                    const existingService = await prisma.service.findFirst({
-                        where: {
-                            customerId: customer.id,
-                            scheduledDate: {
-                                gte: new Date(today.getFullYear(), today.getMonth(), today.getDate()),
-                                lt: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1)
-                            }
-                        }
-                    });
-
-                    if (!existingService) {
-                        // Set service time to 8 AM
-                        const serviceDateTime = new Date(today);
-                        serviceDateTime.setHours(8, 0, 0, 0);
-
-                        // Create the service
-                        const service = await prisma.service.create({
-                            data: {
-                                customerId: customer.id,
-                                scheduledDate: serviceDateTime,
-                                status: 'SCHEDULED',
-                                serviceType: customer.subscription.planId || 'Pet Waste Cleanup'
-                            }
-                        });
-
-                        servicesCreated++;
-                        console.log(`[CRON] Created service ${service.id} for customer ${customer.user.name} on ${serviceDateTime.toDateString()}`);
-                    } else {
-                        console.log(`[CRON] Service already exists for customer ${customer.user.name} on ${today.toDateString()}`);
-                    }
-                }
-            } catch (error) {
-                console.error(`[CRON] Error creating service for customer ${customer.id}:`, error);
-                errors.push({
-                    customerId: customer.id,
-                    customerName: customer.user.name,
-                    error: error.message
-                });
-            }
-        }
-
-        console.log(`[CRON] Created ${servicesCreated} new services`);
-
-        return NextResponse.json({
-            success: true,
-            servicesCreated,
-            customersProcessed: customers.length,
-            errors: errors.length > 0 ? errors : undefined
-        });
-
-    } catch (error) {
-        console.error('[CRON] Error in create-weekly-services:', error);
-        return NextResponse.json(
-            { error: 'Failed to create weekly services', details: error.message },
-            { status: 500 }
-        );
+  try {
+    // Verify cron secret to prevent unauthorized access
+    const { searchParams } = new URL(request.url);
+    const secret = searchParams.get('secret');
+    
+    if (secret !== process.env.CRON_SECRET) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const today = new Date();
+    const nextWeek = addWeeks(today, 1);
+    const weekStart = startOfWeek(nextWeek, { weekStartsOn: 1 }); // Monday
+    const weekEnd = endOfWeek(nextWeek, { weekStartsOn: 1 }); // Sunday
+
+    // Get all active subscriptions
+    const activeSubscriptions = await prisma.subscription.findMany({
+      where: {
+        status: 'ACTIVE',
+        endDate: {
+          gte: today // Only active subscriptions
+        }
+      },
+      include: {
+        customer: {
+          include: {
+            user: true,
+            address: true
+          }
+        },
+        plan: true
+      }
+    });
+
+    const createdServices = [];
+    const errors = [];
+
+    for (const subscription of activeSubscriptions) {
+      try {
+        // Check if service already exists for this week
+        const existingService = await prisma.service.findFirst({
+          where: {
+            customerId: subscription.customerId,
+            scheduledDate: {
+              gte: weekStart,
+              lte: weekEnd
+            },
+            status: {
+              in: ['SCHEDULED', 'ASSIGNED', 'IN_PROGRESS']
+            }
+          }
+        });
+
+        if (existingService) {
+          console.log(`Service already exists for customer ${subscription.customerId} in week ${weekStart.toISOString()}`);
+          continue;
+        }
+
+        // Calculate potential earnings for this service
+        const subscriptionAmount = subscription.plan.price;
+        const stripeFee = subscriptionAmount * 0.029 + 0.30; // Stripe fee
+        const referralAmount = 0; // Could be calculated based on referral status
+        const netAmount = subscriptionAmount - stripeFee - referralAmount;
+        const potentialEarnings = Math.round((netAmount * 0.75) * 100) / 100; // 75% to employee
+
+        // Create the service
+        const service = await prisma.service.create({
+          data: {
+            customerId: subscription.customerId,
+            servicePlanId: subscription.planId,
+            scheduledDate: weekStart, // Default to Monday
+            status: 'SCHEDULED',
+            potentialEarnings,
+            subscriptionId: subscription.id,
+            notes: `Auto-generated service for subscription ${subscription.id}`
+          },
+          include: {
+            customer: {
+              include: {
+                user: true,
+                address: true
+              }
+            },
+            servicePlan: true
+          }
+        });
+
+        createdServices.push({
+          id: service.id,
+          customerName: service.customer.user.name,
+          scheduledDate: service.scheduledDate,
+          potentialEarnings: service.potentialEarnings
+        });
+
+        console.log(`Created service ${service.id} for customer ${service.customer.user.name}`);
+
+      } catch (error) {
+        console.error(`Error creating service for subscription ${subscription.id}:`, error);
+        errors.push({
+          subscriptionId: subscription.id,
+          customerId: subscription.customerId,
+          error: error.message
+        });
+      }
+    }
+
+    // Send summary email to admin
+    if (createdServices.length > 0 || errors.length > 0) {
+      await sendWeeklyServiceCreationReport(createdServices, errors);
+    }
+
+    return NextResponse.json({
+      success: true,
+      createdServices: createdServices.length,
+      errors: errors.length,
+      summary: {
+        totalSubscriptions: activeSubscriptions.length,
+        servicesCreated: createdServices.length,
+        errors: errors.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in weekly service creation:', error);
+    return NextResponse.json(
+      { error: 'Failed to create weekly services' },
+      { status: 500 }
+    );
+  }
+}
+
+async function sendWeeklyServiceCreationReport(createdServices, errors) {
+  try {
+    // This would integrate with your email service
+    // For now, we'll just log the report
+    console.log('=== Weekly Service Creation Report ===');
+    console.log(`Services Created: ${createdServices.length}`);
+    console.log(`Errors: ${errors.length}`);
+    
+    if (createdServices.length > 0) {
+      console.log('\nCreated Services:');
+      createdServices.forEach(service => {
+        console.log(`- ${service.customerName}: ${service.scheduledDate} ($${service.potentialEarnings})`);
+      });
+    }
+    
+    if (errors.length > 0) {
+      console.log('\nErrors:');
+      errors.forEach(error => {
+        console.log(`- Subscription ${error.subscriptionId}: ${error.error}`);
+      });
+    }
+  } catch (error) {
+    console.error('Error sending weekly service creation report:', error);
+  }
 } 

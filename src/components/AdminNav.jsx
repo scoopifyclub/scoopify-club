@@ -10,7 +10,8 @@ import {
   Settings,
   AlertCircle,
   DollarSign,
-  MapPin
+  MapPin,
+  TrendingUp
 } from 'lucide-react';
 
 /**
@@ -59,6 +60,16 @@ const navItems = [
     title: 'Settings',
     href: '/admin/settings',
     icon: Settings
+  },
+  {
+    title: 'Operational Efficiency',
+    href: '/admin/operational-efficiency',
+    icon: TrendingUp
+  },
+  {
+    title: 'Marketing & Growth',
+    href: '/admin/marketing-growth',
+    icon: BarChart3
   }
 ];
 

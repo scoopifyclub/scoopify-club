@@ -1,6 +1,6 @@
 import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 // GET - Retrieve a specific payment batch by ID
 export async function GET(request, { params }) {
     try {

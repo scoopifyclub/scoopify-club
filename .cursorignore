@@ -1,1 +1,8 @@
+# No files should be ignored by Cursor
 # Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+
+# Explicitly show .env files
+!.env
+!.env.local
+!.env.example
+!.env.local.example

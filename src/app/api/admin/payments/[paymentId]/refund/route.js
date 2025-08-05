@@ -1,6 +1,6 @@
 import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
 import { logPaymentEvent } from '@/lib/payment-audit';
 import { logger } from '@/lib/logger';

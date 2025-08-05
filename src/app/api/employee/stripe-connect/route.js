@@ -1,62 +1,128 @@
 import { NextResponse } from 'next/server';
-import { validateUser } from '@/lib/api-auth';
-import { cookies } from 'next/headers';
-import prisma from '@/lib/prisma';
-import { createStripeConnectAccount, createStripeConnectAccountLink } from '@/lib/stripe';
-export async function POST(request) {
-    var _a;
-    try {
-        // Check authentication
-        // Get access token from cookies
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+import { prisma } from '@/lib/prisma';
+import { getUserFromToken } from '@/lib/api-auth';
+import { 
+  createEmployeeConnectAccount, 
+  createAccountLink, 
+  checkEmployeeAccountStatus,
+  getAccountRequirements 
+} from '@/lib/stripe-connect';
+
+export async function GET(request) {
+  const { userId } = getUserFromToken(request);
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
+
+    // Get employee
+    const employee = await prisma.employee.findUnique({
+      where: { userId },
+      include: {
+        User: true
+      }
+    });
+
+    if (!employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    switch (action) {
+      case 'status':
+        // Check account status
+        const status = await checkEmployeeAccountStatus(employee.id);
+        return NextResponse.json(status);
+
+      case 'requirements':
+        // Get account requirements
+        const requirements = await getAccountRequirements(employee.id);
+        return NextResponse.json(requirements);
+
+      case 'onboarding-link':
+        // Create or get onboarding link
+        if (!employee.stripeConnectAccountId) {
+          // Create new Connect account
+          await createEmployeeConnectAccount(employee);
         }
-        // Validate the token and check role
-        const { userId, role } = await validateUser(accessToken);
-        if (!session || !session.user || role !== 'EMPLOYEE') {
-            return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-        }
-        // Get user email
-        const email = session.user.email;
-        // Find employee
-        const employee = await prisma.employee.findFirst({
-            where: {
-                user: {
-                    email
-                }
-            },
-            include: {
-                user: {
-                    select: {
-                        name: true,
-                        email: true,
-                    },
-                },
-            },
+        
+        const accountLink = await createAccountLink(employee.id);
+        return NextResponse.json({
+          url: accountLink.url,
+          expiresAt: accountLink.expires_at
         });
-        if (!employee) {
-            return NextResponse.json({ message: 'Employee not found' }, { status: 404 });
-        }
-        // Create a Stripe Connect account if one doesn't exist
-        let stripeAccountId = employee.stripeAccountId;
-        if (!stripeAccountId) {
-            const account = await createStripeConnectAccount(email, employee.user.name || 'Scoopify Employee');
-            // Save the account ID to the employee record
-            await prisma.employee.update({
-                where: { id: employee.id },
-                data: { stripeAccountId: account.id }
-            });
-            stripeAccountId = account.id;
-        }
-        // Generate account link for onboarding
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-        const accountLink = await createStripeConnectAccountLink(stripeAccountId, `${baseUrl}/employee/dashboard/profile?refresh=true`, `${baseUrl}/employee/dashboard/profile?success=true`);
-        return NextResponse.json({ url: accountLink.url });
+
+      default:
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
-    catch (error) {
-        console.error('Error creating Stripe Connect account:', error);
-        return NextResponse.json({ message: 'Internal server error' }, { status: 500 });
+
+  } catch (error) {
+    console.error('Error in Stripe Connect API:', error);
+    return NextResponse.json(
+      { error: 'Failed to process Stripe Connect request' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request) {
+  const { userId } = getUserFromToken(request);
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const { action } = await request.json();
+
+    // Get employee
+    const employee = await prisma.employee.findUnique({
+      where: { userId },
+      include: {
+        User: true
+      }
+    });
+
+    if (!employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
+
+    switch (action) {
+      case 'create-account':
+        // Create new Stripe Connect account
+        const account = await createEmployeeConnectAccount(employee);
+        return NextResponse.json({
+          success: true,
+          accountId: account.id,
+          status: account.charges_enabled ? 'ACTIVE' : 'PENDING'
+        });
+
+      case 'refresh-status':
+        // Refresh account status
+        const status = await checkEmployeeAccountStatus(employee.id);
+        
+        // Update employee record with new status
+        if (employee.stripeConnectAccountId) {
+          await prisma.employee.update({
+            where: { id: employee.id },
+            data: {
+              stripeAccountStatus: status.status
+            }
+          });
+        }
+        
+        return NextResponse.json(status);
+
+      default:
+        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    }
+
+  } catch (error) {
+    console.error('Error in Stripe Connect API:', error);
+    return NextResponse.json(
+      { error: 'Failed to process Stripe Connect request' },
+      { status: 500 }
+    );
+  }
 }

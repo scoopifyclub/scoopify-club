@@ -1,0 +1,11 @@
+{
+  "timestamp": "2025-08-05T17:31:41.803Z",
+  "prismaSetup": true,
+  "environmentFiles": {
+    ".env": true,
+    ".env.example": true,
+    ".env.local": true,
+    "automation.env.example": true
+  },
+  "recommendations": []
+}

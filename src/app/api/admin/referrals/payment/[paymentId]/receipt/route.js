@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/api-auth';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import PDFDocument from 'pdfkit';
 export async function GET(request, { params }) {
     var _a, _b, _c, _d, _e, _f, _g;

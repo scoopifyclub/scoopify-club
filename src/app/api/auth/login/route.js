@@ -5,12 +5,18 @@ import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 
 // Validation function for login request
 function validateLoginData(data) {
-    if (!data.email || !data.email.includes('@')) {
+    // Comprehensive email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!data.email || !emailRegex.test(data.email)) {
         throw new Error('Invalid email format');
     }
-    if (!data.password || data.password.length < 6) {
-        throw new Error('Password must be at least 6 characters');
+    
+    // Strong password validation
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!data.password || !passwordRegex.test(data.password)) {
+        throw new Error('Password must be at least 8 characters with uppercase, lowercase, number, and special character');
     }
+    
     return data;
 }
 
@@ -38,33 +44,24 @@ export async function POST(request) {
 
         const { user, token } = await authenticateUser(data.email, data.password);
 
-        // Set the token in an HTTP-only cookie using Next.js cookies API
+        // Set secure cookies with proper expiration times
         const cookieStore = await cookies();
         
-        // Always set accessToken for all users
+        // Set access token with short expiration (15 minutes)
         cookieStore.set('accessToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            sameSite: 'strict',
             path: '/',
-            maxAge: 7 * 24 * 60 * 60 // 7 days
+            maxAge: 15 * 60 // 15 minutes
         });
         
-        // Set refreshToken as well for consistency
+        // Set refresh token with longer expiration (7 days)
         cookieStore.set('refreshToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60 // 7 days
-        });
-
-        // Also set the general token for backwards compatibility
-        cookieStore.set('token', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
+            sameSite: 'strict',
+            path: '/api/auth/refresh',
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
 
@@ -102,8 +99,8 @@ export async function POST(request) {
     } catch (error) {
         console.error('Login error:', error);
         return NextResponse.json(
-            { error: error.message || 'Failed to login' },
-            { status: 400 }
+            { error: 'Authentication failed' },
+            { status: 401 }
         );
     }
 }

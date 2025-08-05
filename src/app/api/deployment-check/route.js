@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 // Set to run on nodejs runtime for database access
 export const runtime = 'nodejs';
 /**

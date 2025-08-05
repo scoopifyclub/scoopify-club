@@ -26,9 +26,18 @@ export async function POST(request) {
 
         const { email, password } = await request.json();
         
-        if (!email || !password) {
+        // Comprehensive email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email || !emailRegex.test(email)) {
             return NextResponse.json(
-                { error: 'Email and password are required' },
+                { error: 'Invalid email format' },
+                { status: 400 }
+            );
+        }
+        
+        if (!password) {
+            return NextResponse.json(
+                { error: 'Password is required' },
                 { status: 400 }
             );
         }
@@ -88,11 +97,11 @@ export async function POST(request) {
             redirectTo: '/admin/dashboard'
         });
 
-        // Set cookies with consistent settings
+        // Set secure cookies with proper expiration times
         response.cookies.set('accessToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
+            sameSite: 'strict',
             path: '/',
             maxAge: 15 * 60 // 15 minutes
         });
@@ -100,14 +109,10 @@ export async function POST(request) {
         response.cookies.set('refreshToken', token, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
+            sameSite: 'strict',
+            path: '/api/auth/refresh',
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
-
-        // Also set non-httpOnly cookies for client JS access
-        response.headers.append('Set-Cookie', `accessToken_client=${token}; Path=/; Max-Age=${15 * 60}; SameSite=Lax`);
-        response.headers.append('Set-Cookie', `refreshToken_client=${token}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
 
         // Add rate limit headers to successful response
         if (rateLimitResult?.headers) {

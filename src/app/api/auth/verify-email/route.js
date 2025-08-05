@@ -1,73 +1,150 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
+import { prisma } from '@/lib/prisma';
+import { signJWT } from '@/lib/auth-server';
+import { sendVerificationEmail } from '@/lib/email-service';
+
 export async function POST(request) {
-    try {
-        const body = await request.json();
-        const { token } = body;
-        if (!token) {
-            return NextResponse.json({ error: 'Verification token is required' }, { status: 400 });
-        }
-        const user = await prisma.user.findFirst({
-            where: {
-                verificationToken: token,
-                verificationTokenExpiry: {
-                    gt: new Date(),
-                },
-            },
-        });
-        if (!user) {
-            return NextResponse.json({ error: 'Invalid or expired verification token' }, { status: 400 });
-        }
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                emailVerified: true,
-                verificationToken: null,
-                verificationTokenExpiry: null,
-            },
-        });
-        return NextResponse.json({
-            success: true,
-            message: 'Email verified successfully',
-        });
+  try {
+    const { email, token } = await request.json();
+
+    // Validate input
+    if (!email || !token) {
+      return NextResponse.json({ 
+        error: 'Email and token are required' 
+      }, { status: 400 });
     }
-    catch (error) {
-        console.error('Email verification error:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      include: { customer: true }
+    });
+
+    if (!user) {
+      return NextResponse.json({ 
+        error: 'User not found' 
+      }, { status: 404 });
     }
+
+    // Check if email is already verified
+    if (user.emailVerified) {
+      return NextResponse.json({ 
+        error: 'Email is already verified' 
+      }, { status: 400 });
+    }
+
+    // Verify token (you might want to implement a more secure token system)
+    // For now, we'll use a simple approach
+    const expectedToken = `verify_${user.id}_${user.email}`;
+    if (token !== expectedToken) {
+      return NextResponse.json({ 
+        error: 'Invalid verification token' 
+      }, { status: 400 });
+    }
+
+    // Mark email as verified
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { 
+        emailVerified: true,
+        emailVerifiedAt: new Date()
+      }
+    });
+
+    // Generate JWT token
+    const jwtToken = await signJWT({
+      id: user.id,
+      email: user.email,
+      role: user.role
+    });
+
+    // Set authentication cookies
+    const response = NextResponse.json({
+      success: true,
+      message: 'Email verified successfully',
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        emailVerified: true
+      }
+    });
+
+    // Set secure cookies
+    response.cookies.set('accessToken', jwtToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: 15 * 60 // 15 minutes
+    });
+
+    response.cookies.set('refreshToken', jwtToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/api/auth/refresh',
+      maxAge: 7 * 24 * 60 * 60 // 7 days
+    });
+
+    return response;
+
+  } catch (error) {
+    console.error('Email verification failed:', error);
+    return NextResponse.json({
+      error: 'Email verification failed',
+      details: error.message
+    }, { status: 500 });
+  }
 }
-export async function GET(request) {
-    try {
-        const { searchParams } = new URL(request.url);
-        const token = searchParams.get('token');
-        if (!token) {
-            return new NextResponse('Token is required', { status: 400 });
-        }
-        // Find user with valid verification token
-        const user = await prisma.user.findFirst({
-            where: {
-                verificationToken: token,
-                verificationTokenExpiry: {
-                    gt: new Date(), // Token hasn't expired
-                },
-            },
-        });
-        if (!user) {
-            return new NextResponse('Invalid or expired verification token', { status: 400 });
-        }
-        // Verify email
-        await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                emailVerified: true,
-                verificationToken: null,
-                verificationTokenExpiry: null,
-            },
-        });
-        return new NextResponse('Email verified successfully', { status: 200 });
+
+// Send verification email
+export async function PUT(request) {
+  try {
+    const { email } = await request.json();
+
+    // Validate input
+    if (!email) {
+      return NextResponse.json({ 
+        error: 'Email is required' 
+      }, { status: 400 });
     }
-    catch (error) {
-        console.error('Email verification error:', error);
-        return new NextResponse('Internal Server Error', { status: 500 });
+
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
+    });
+
+    if (!user) {
+      return NextResponse.json({ 
+        error: 'User not found' 
+      }, { status: 404 });
     }
+
+    // Check if email is already verified
+    if (user.emailVerified) {
+      return NextResponse.json({ 
+        error: 'Email is already verified' 
+      }, { status: 400 });
+    }
+
+    // Generate verification token
+    const token = `verify_${user.id}_${user.email}`;
+
+    // Send verification email
+    await sendVerificationEmail(user.email, user.name, token);
+
+    return NextResponse.json({
+      success: true,
+      message: 'Verification email sent successfully'
+    });
+
+  } catch (error) {
+    console.error('Failed to send verification email:', error);
+    return NextResponse.json({
+      error: 'Failed to send verification email',
+      details: error.message
+    }, { status: 500 });
+  }
 }

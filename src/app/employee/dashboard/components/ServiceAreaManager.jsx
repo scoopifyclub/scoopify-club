@@ -266,7 +266,7 @@ export function ServiceAreaManager({ employeeId, onOnboardingComplete }) {
               <div key={area.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div>
                   <p className="font-medium">{area.zipCode}</p>
-                  <p className="text-sm text-gray-500">{area.travelRange} mile radius</p>
+                  <p className="text-sm text-gray-500">{area.travelDistance} mile radius</p>
                 </div>
                 <div className="flex items-center space-x-4">
                   <Button

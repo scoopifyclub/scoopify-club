@@ -1,5 +1,5 @@
-const { exec } = require('child_process');
-const { platform } = require('os');
+import { exec } from 'child_process';
+import { platform } from 'os';
 
 // Function to kill process on port 3000
 function killProcessOnPort(port) {

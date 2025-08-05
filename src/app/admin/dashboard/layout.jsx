@@ -168,6 +168,7 @@ export default function AdminDashboardLayout({ children }) {
         { id: 'employees', label: 'Employees', icon: <BuildingIcon className="h-5 w-5"/>, href: '/admin/dashboard/employees' },
         { id: 'services', label: 'Services', icon: <Calendar className="h-5 w-5"/>, href: '/admin/dashboard/services' },
         { id: 'payments', label: 'Payments', icon: <CircleDollarSign className="h-5 w-5"/>, href: '/admin/dashboard/payments' },
+        { id: 'automation', label: 'Automation', icon: <RefreshCw className="h-5 w-5"/>, href: '/admin/dashboard/automation' },
         { id: 'reports', label: 'Reports', icon: <FileText className="h-5 w-5"/>, href: '/admin/dashboard/reports' },
         { id: 'settings', label: 'Settings', icon: <Settings className="h-5 w-5"/>, href: '/admin/dashboard/settings' },
     ];

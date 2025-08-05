@@ -1,6 +1,6 @@
 import { requireRole } from '@/lib/auth-server';
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { uploadToS3, deleteFromS3 } from '@/lib/s3';
 
 export async function GET(request) {

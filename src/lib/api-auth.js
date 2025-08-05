@@ -242,7 +242,34 @@ export async function getSession(request) {
 }
 
 export async function authenticateUser(email, password) {
-  return login(email, password);
+  try {
+    const user = await login(email, password);
+    
+    if (!user) {
+      return null;
+    }
+
+    // Generate access token
+    const accessToken = await signToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+      type: 'access'
+    });
+
+    if (!accessToken) {
+      console.error('Failed to generate access token');
+      return null;
+    }
+
+    return {
+      user,
+      accessToken
+    };
+  } catch (error) {
+    console.error('Authentication error:', error);
+    return null;
+  }
 }
 
 export async function verifyAuth(request) {
@@ -297,6 +324,10 @@ export async function revokeUserTokenByFingerprint(fingerprint) {
   // In a real app, you would revoke the token in your database
   // For now, we'll just return true
   return true;
+}
+
+export async function getUserFromToken(request) {
+  return getAuthUser(request);
 }
 
 export function useAuth() {

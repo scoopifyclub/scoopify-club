@@ -2,7 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { compare } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 
 // Ensure these environment variables are set, provide fallbacks for development
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 // Configuration
 const RATE_LIMIT = process.env.NODE_ENV === 'development'
     ? 100 // More lenient in development

@@ -18,6 +18,10 @@ import { Notifications } from './components/Notifications';
 import { NotificationSettings } from './components/NotificationSettings';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ScooperRatings from '@/components/ScooperRatings';
+import InteractiveMap from '@/components/InteractiveMap';
+import MessagingSystem from '@/components/MessagingSystem';
+import PayoutRequest from '@/components/PayoutRequest';
+import EmployeeProfile from '@/components/EmployeeProfile';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'react-hot-toast';
@@ -260,8 +264,7 @@ export default function EmployeeDashboard() {
             </div>
 
             <div className="mb-6">
-                {/* TEMPORARILY DISABLED - APIs don't exist yet */}
-                {/* <NotificationSettings 
+                <NotificationSettings 
                     onChange={(settings) => setDashboardData(prev => ({
                         ...prev,
                         notifications: { ...prev.notifications, settings }
@@ -276,7 +279,29 @@ export default function EmployeeDashboard() {
                     employeeId={user?.id}
                     settings={dashboardData?.notifications?.settings}
                     notifications={dashboardData?.notifications?.recent}
-                /> */}
+                />
+            </div>
+
+            {/* Employee Profile Section */}
+            <div className="mb-8">
+                <h2 className="text-xl font-semibold mb-4">Profile & Payment Setup</h2>
+                <EmployeeProfile employeeId={user?.id} />
+            </div>
+
+            {/* Payout Request Section */}
+            <div className="mb-8">
+                <h2 className="text-xl font-semibold mb-4">Request Payout</h2>
+                <PayoutRequest employeeId={user?.id} />
+            </div>
+
+            {/* Interactive Map Section */}
+            <div className="mb-8">
+                <InteractiveMap employeeId={user?.id} />
+            </div>
+
+            {/* Messaging System Section */}
+            <div className="mb-8">
+                <MessagingSystem employeeId={user?.id} />
             </div>
 
             <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
@@ -384,51 +409,31 @@ export default function EmployeeDashboard() {
             {/* Job Pool Section */}
             <div className="mb-8">
                 <h2 className="text-xl font-semibold mb-4">Available Jobs</h2>
-                {/* TEMPORARILY DISABLED - API doesn't exist yet */}
-                {/* <JobPool employeeId={user?.id} /> */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
-                    <p className="text-yellow-800">Job pool feature coming soon! API endpoint needed.</p>
-                </div>
+                <JobPool employeeId={user?.id} />
             </div>
 
             {/* Service Area Management */}
             <div className="mb-8">
                 <h2 className="text-xl font-semibold mb-4">Manage Service Areas</h2>
-                {/* TEMPORARILY DISABLED - May have API issues */}
-                {/* <ServiceAreaManager employeeId={user?.id} /> */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
-                    <p className="text-yellow-800">Service area management coming soon!</p>
-                </div>
+                <ServiceAreaManager employeeId={user?.id} />
             </div>
 
             {/* Earnings Section */}
             <div className="mb-8">
                 <h2 className="text-xl font-semibold mb-4">Earnings</h2>
-                {/* TEMPORARILY DISABLED - May have API issues */}
-                {/* <EarningsCalculator employeeId={user?.id} /> */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
-                    <p className="text-yellow-800">Earnings calculator coming soon!</p>
-                </div>
+                <EarningsCalculator employeeId={user?.id} />
             </div>
 
             {/* Ratings Section */}
             <div className="mb-8">
-                {/* TEMPORARILY DISABLED - May have API issues */}
-                {/* <ScooperRatings employeeId={user?.id} /> */}
                 <h2 className="text-xl font-semibold mb-4">Ratings</h2>
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
-                    <p className="text-yellow-800">Ratings system coming soon!</p>
-                </div>
+                <ScooperRatings employeeId={user?.id} />
             </div>
 
             {/* Service History Section */}
             <div className="mb-8">
                 <h2 className="text-xl font-semibold mb-4">Service History</h2>
-                {/* TEMPORARILY DISABLED - May have API issues */}
-                {/* <ServiceHistory employeeId={user?.id} /> */}
-                <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
-                    <p className="text-yellow-800">Service history coming soon!</p>
-                </div>
+                <ServiceHistory employeeId={user?.id} />
             </div>
 
             {/* Upcoming Services */}

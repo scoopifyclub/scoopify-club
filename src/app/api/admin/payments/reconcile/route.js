@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { reconcileStripePayments, getRecentReconciliationReports, getReconciliationReport } from '@/lib/payment-reconciliation';
 import { logger } from '@/lib/logger';
 import { requireRole } from '@/lib/auth-server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
 
 // GET: Get recent reconciliation reports

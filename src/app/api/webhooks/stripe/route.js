@@ -1,417 +1,466 @@
-import { NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
-import prisma from "@/lib/prisma";
 import { headers } from 'next/headers';
-import { logger } from '@/lib/logger';
+import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { prisma } from '@/lib/prisma';
+import { addWeeks, startOfWeek } from 'date-fns';
+import { logWebhookProcessed, logWebhookFailed, logSecurityCritical } from '@/lib/payment-logging';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2023-10-16',
+});
+
+const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
 export async function POST(request) {
-    var _a, _b, _c, _d, _e;
+  try {
     const body = await request.text();
     const signature = headers().get('stripe-signature');
-    if (!signature) {
-        return NextResponse.json({ error: 'Missing stripe signature' }, { status: 400 });
-    }
+    const clientIP = headers().get('x-forwarded-for') || 'unknown';
+    const userAgent = headers().get('user-agent') || 'unknown';
+
+    // Log webhook attempt for security monitoring
+    console.log(`[WEBHOOK] Received webhook from IP: ${clientIP}, User-Agent: ${userAgent}`);
+
     let event;
+
     try {
-        event = stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_WEBHOOK_SECRET);
-    }
-    catch (err) {
-        logger.error('Webhook signature verification failed:', err);
-        return NextResponse.json({ error: 'Webhook signature verification failed' }, { status: 400 });
-    }
-    logger.info(`Processing Stripe webhook: ${event.type}`);
-    try {
-        switch (event.type) {
-            case 'customer.created': {
-                const stripeCustomer = event.data.object;
-                logger.info(`Processing new Stripe customer: ${stripeCustomer.id}`);
-                // Find or create a customer
-                let customer = await prisma.customer.findFirst({
-                    where: {
-                        user: { email: stripeCustomer.email }
-                    },
-                    include: { user: true }
-                });
-                if (!customer) {
-                    // Create new user if customer doesn't exist
-                    const user = await prisma.user.create({
-                        data: {
-                            email: stripeCustomer.email,
-                            name: stripeCustomer.name || 'New Customer',
-                            password: "", // Will set up with password reset
-                            emailVerified: true,
-                            role: "CUSTOMER"
-                        }
-                    });
-                    // Create customer record 
-                    customer = await prisma.customer.create({
-                        data: {
-                            userId: user.id,
-                            stripeCustomerId: stripeCustomer.id
-                        },
-                        include: { user: true }
-                    });
-                }
-                else if (!customer.stripeCustomerId) {
-                    // Update existing customer with Stripe ID if not set
-                    await prisma.customer.update({
-                        where: { id: customer.id },
-                        data: { stripeCustomerId: stripeCustomer.id }
-                    });
-                }
-                break;
-            }
-            case 'customer.updated': {
-                const stripeCustomer = event.data.object;
-                // Find customer by Stripe ID
-                const customer = await prisma.customer.findUnique({
-                    where: { stripeCustomerId: stripeCustomer.id }
-                });
-                if (customer) {
-                    // If email has changed, we might need to update our user record
-                    if (stripeCustomer.email) {
-                        const user = await prisma.user.findUnique({
-                            where: { id: customer.userId }
-                        });
-                        if (user && user.email !== stripeCustomer.email) {
-                            // Optionally update user email to match Stripe
-                            // This depends on your business logic - you might not want to do this
-                            // await prisma.user.update({
-                            //   where: { id: user.id },
-                            //   data: { email: stripeCustomer.email }
-                            // });
-                            logger.info(`Note: Stripe customer email (${stripeCustomer.email}) differs from user email (${user.email})`);
-                        }
-                    }
-                    logger.info(`Processed update for Stripe customer ${stripeCustomer.id}`);
-                }
-                else {
-                    logger.warn(`No customer found with Stripe ID ${stripeCustomer.id}`);
-                    // If customer not found by Stripe ID, try to find by email as a fallback
-                    if (stripeCustomer.email) {
-                        const user = await prisma.user.findUnique({
-                            where: { email: stripeCustomer.email },
-                            include: { customer: true }
-                        });
-                        if (user === null || user === void 0 ? void 0 : user.customer) {
-                            // Update our customer with the Stripe ID
-                            await prisma.customer.update({
-                                where: { id: user.customer.id },
-                                data: { stripeCustomerId: stripeCustomer.id }
-                            });
-                            logger.info(`Updated customer ${user.customer.id} with Stripe ID ${stripeCustomer.id} based on email match`);
-                        }
-                    }
-                }
-                break;
-            }
-            case 'customer.subscription.created': {
-                const subscription = event.data.object;
-                // Get the customer from our database
-                const customer = await prisma.customer.findUnique({
-                    where: { stripeCustomerId: subscription.customer },
-                    include: { subscription: true }
-                });
-                if (!customer) {
-                    logger.error(`Customer not found for subscription ${subscription.id}`);
-                    break;
-                }
-                // Determine plan type based on billing interval
-                const plan = ((_a = subscription.items.data[0].price.recurring) === null || _a === void 0 ? void 0 : _a.interval) === 'week'
-                    ? 'WEEKLY'
-                    : ((_b = subscription.items.data[0].price.recurring) === null || _b === void 0 ? void 0 : _b.interval_count) === 2
-                        ? 'BIWEEKLY'
-                        : 'MONTHLY';
-                // If no subscription exists for the customer, create one
-                if (!customer.subscription) {
-                    await prisma.subscription.create({
-                        data: {
-                            customerId: customer.id,
-                            status: subscription.status === 'active' ? 'ACTIVE' : 'PENDING',
-                            planType: plan,
-                            startDate: new Date(),
-                            cancelAtPeriodEnd: subscription.cancel_at_period_end,
-                            priceId: subscription.items.data[0].price.id
-                        }
-                    });
-                }
-                else {
-                    // Update existing subscription
-                    await prisma.subscription.update({
-                        where: { id: customer.subscription.id },
-                        data: {
-                            status: subscription.status === 'active' ? 'ACTIVE' : 'PENDING',
-                            planType: plan,
-                            cancelAtPeriodEnd: subscription.cancel_at_period_end,
-                            priceId: subscription.items.data[0].price.id
-                        }
-                    });
-                }
-                break;
-            }
-            case 'customer.subscription.updated': {
-                const subscription = event.data.object;
-                // Get the customer from our database
-                const customer = await prisma.customer.findUnique({
-                    where: { stripeCustomerId: subscription.customer },
-                    include: { subscription: true }
-                });
-                if (!customer || !customer.subscription) {
-                    logger.error(`Customer or subscription not found for subscription ${subscription.id}`);
-                    break;
-                }
-                // Map Stripe status to our status
-                let status = customer.subscription.status;
-                if (subscription.status === 'active') {
-                    status = 'ACTIVE';
-                }
-                else if (subscription.status === 'canceled') {
-                    status = 'CANCELLED';
-                }
-                else if (subscription.status === 'past_due') {
-                    status = 'PAST_DUE';
-                }
-                else if (subscription.status === 'paused') {
-                    status = 'PAUSED';
-                }
-                // Update the subscription
-                await prisma.subscription.update({
-                    where: { id: customer.subscription.id },
-                    data: {
-                        status,
-                        cancelAtPeriodEnd: subscription.cancel_at_period_end,
-                        // If the subscription was updated from paused to active, record the resume date
-                        resumeDate: subscription.status === 'active' && customer.subscription.status === 'PAUSED'
-                            ? new Date()
-                            : customer.subscription.resumeDate
-                    }
-                });
-                logger.info(`Updated subscription ${customer.subscription.id} to ${status}`);
-                break;
-            }
-            case 'customer.subscription.deleted': {
-                const subscription = event.data.object;
-                // Get the customer from our database
-                const customer = await prisma.customer.findUnique({
-                    where: { stripeCustomerId: subscription.customer },
-                    include: { subscription: true }
-                });
-                if (!customer || !customer.subscription) {
-                    logger.error(`Customer or subscription not found for subscription ${subscription.id}`);
-                    break;
-                }
-                // Update the subscription status to CANCELLED
-                await prisma.subscription.update({
-                    where: { id: customer.subscription.id },
-                    data: {
-                        status: 'CANCELLED',
-                        endDate: new Date()
-                    }
-                });
-                logger.info(`Cancelled subscription ${customer.subscription.id}`);
-                break;
-            }
-            case 'customer.subscription.paused': {
-                const subscription = event.data.object;
-                // Get the customer from our database
-                const customer = await prisma.customer.findUnique({
-                    where: { stripeCustomerId: subscription.customer },
-                    include: { subscription: true }
-                });
-                if (!customer || !customer.subscription) {
-                    logger.error(`Customer or subscription not found for subscription ${subscription.id}`);
-                    break;
-                }
-                // Update the subscription status to PAUSED
-                await prisma.subscription.update({
-                    where: { id: customer.subscription.id },
-                    data: {
-                        status: 'PAUSED',
-                        pauseDate: new Date()
-                    }
-                });
-                logger.info(`Paused subscription ${customer.subscription.id}`);
-                break;
-            }
-            case 'customer.subscription.resumed': {
-                const subscription = event.data.object;
-                // Get the customer from our database
-                const customer = await prisma.customer.findUnique({
-                    where: { stripeCustomerId: subscription.customer },
-                    include: { subscription: true }
-                });
-                if (!customer || !customer.subscription) {
-                    logger.error(`Customer or subscription not found for subscription ${subscription.id}`);
-                    break;
-                }
-                // Update the subscription status to ACTIVE
-                await prisma.subscription.update({
-                    where: { id: customer.subscription.id },
-                    data: {
-                        status: 'ACTIVE',
-                        resumeDate: new Date()
-                    }
-                });
-                logger.info(`Resumed subscription ${customer.subscription.id}`);
-                break;
-            }
-            case 'invoice.payment_succeeded': {
-                const invoice = event.data.object;
-                // Get the customer from our database
-                const customer = await prisma.customer.findUnique({
-                    where: { stripeCustomerId: invoice.customer },
-                    include: {
-                        subscription: true,
-                        services: {
-                            where: {
-                                status: 'SCHEDULED',
-                            },
-                            include: {
-                                employee: true
-                            },
-                            orderBy: {
-                                scheduledDate: 'asc'
-                            },
-                            take: 1
-                        },
-                        referredBy: {
-                            include: {
-                                user: true
-                            }
-                        }
-                    }
-                });
-                if (!customer) {
-                    logger.error(`Customer not found for invoice ${invoice.id}`);
-                    break;
-                }
-                // Calculate Stripe fee and net amount
-                const stripeFee = invoice.total > 0 ? (invoice.total * 0.029 + 30) : 0; // 2.9% + 30¢
-                const netAmount = invoice.amount_paid / 100 - stripeFee / 100; // Net amount after fees
-                // Create payment record
-                const payment = await prisma.payment.create({
-                    data: {
-                        amount: invoice.amount_paid / 100, // Convert from cents to dollars
-                        stripeFee: stripeFee / 100, // Convert from cents to dollars
-                        netAmount: netAmount, // Net amount after fees
-                        status: 'COMPLETED',
-                        type: 'SUBSCRIPTION',
-                        customerId: customer.id,
-                        subscriptionId: (_c = customer.subscription) === null || _c === void 0 ? void 0 : _c.id,
-                        stripePaymentIntentId: invoice.payment_intent,
-                        stripeInvoiceId: invoice.id
-                    }
-                });
-                // Calculate and create earnings for the scooper if assigned
-                if ((_d = customer.services[0]) === null || _d === void 0 ? void 0 : _d.employee) {
-                    const employee = customer.services[0].employee;
-                    // Calculate scooper earnings (75% of net amount after fees)
-                    const earningsAmount = netAmount * 0.75;
-                    // Create earnings record
-                    await prisma.earning.create({
-                        data: {
-                            amount: earningsAmount,
-                            status: 'PENDING',
-                            paymentId: payment.id,
-                            employeeId: employee.id,
-                            paidVia: employee.cashAppUsername ? 'CASH_APP' : 'STRIPE'
-                        }
-                    });
-                    // If there's a referral, create the referral payment
-                    if (customer.referredBy) {
-                        // Calculate Stripe fee for the $5 payment (this will be deducted from the recipient's amount)
-                        const referralFee = (5 * 0.029) + 0.30; // 2.9% + $0.30
-                        // Actual amount the recipient will receive after Stripe fees
-                        const netReferralAmount = 5 - referralFee;
-                        await prisma.payment.create({
-                            data: {
-                                amount: 5.00, // Gross amount is $5
-                                stripeFee: referralFee, // Track the fee that will be charged to recipient
-                                netAmount: netReferralAmount, // Net amount recipient will receive
-                                status: 'PENDING',
-                                type: 'REFERRAL',
-                                customerId: customer.referredBy.id,
-                                referredId: customer.id,
-                                notes: `Referral payment for customer ${customer.id}. $5.00 gross payment, with ${referralFee.toFixed(2)} in fees deducted from recipient.`
-                            }
-                        });
-                        logger.info(`Created $5 referral payment for customer ${customer.referredBy.id} (net amount: $${netReferralAmount.toFixed(2)} after Stripe fees)`);
-                    }
-                }
-                // If this is a subscription invoice, update the subscription's next billing date
-                if (invoice.subscription && customer.subscription) {
-                    await prisma.subscription.update({
-                        where: { id: customer.subscription.id },
-                        data: {
-                            status: 'ACTIVE' // Ensure status is active after successful payment
-                        }
-                    });
-                }
-                break;
-            }
-            case 'invoice.payment_failed': {
-                const invoice = event.data.object;
-                // Get the customer from our database
-                const customer = await prisma.customer.findUnique({
-                    where: { stripeCustomerId: invoice.customer },
-                    include: { subscription: true }
-                });
-                if (!customer) {
-                    logger.error(`Customer not found for invoice ${invoice.id}`);
-                    break;
-                }
-                // Create failed payment record
-                const payment = await prisma.payment.create({
-                    data: {
-                        amount: invoice.amount_due / 100, // Convert from cents to dollars
-                        status: 'FAILED',
-                        type: 'SERVICE',
-                        customerId: customer.id,
-                        subscriptionId: (_e = customer.subscription) === null || _e === void 0 ? void 0 : _e.id,
-                        stripePaymentIntentId: invoice.payment_intent,
-                        stripeInvoiceId: invoice.id
-                    }
-                });
-                // Schedule automatic retry for 3 days later
-                await prisma.paymentRetry.create({
-                    data: {
-                        paymentId: payment.id,
-                        status: 'SCHEDULED',
-                        retryCount: 0,
-                        nextRetryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) // 3 days later
-                    }
-                });
-                // If this is a subscription invoice, update the subscription status
-                if (invoice.subscription && customer.subscription) {
-                    await prisma.subscription.update({
-                        where: { id: customer.subscription.id },
-                        data: {
-                            status: 'PAST_DUE'
-                        }
-                    });
-                }
-                logger.info(`Recorded failed payment for invoice ${invoice.id} and scheduled retry`);
-                break;
-            }
-            case 'invoice.payment_action_required': {
-                const invoice = event.data.object;
-                // Get the customer from our database
-                const customer = await prisma.customer.findUnique({
-                    where: { stripeCustomerId: invoice.customer }
-                });
-                if (!customer) {
-                    logger.error(`Customer not found for invoice ${invoice.id}`);
-                    break;
-                }
-                // TODO: Send notification to customer about required action
-                // This could be implementing a notification system that sends an email
-                logger.info(`Payment action required for invoice ${invoice.id}`);
-                break;
-            }
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    } catch (err) {
+      console.error('Webhook signature verification failed:', err.message);
+      
+      // Log security event for monitoring
+      await logSecurityCritical({
+        eventType: 'webhook_signature_failed',
+        description: `Webhook signature verification failed: ${err.message}`,
+        ipAddress: clientIP,
+        userAgent: userAgent,
+        metadata: {
+          error: err.message,
+          webhookSecret: webhookSecret ? 'present' : 'missing'
         }
-        return NextResponse.json({ received: true });
+      });
+      
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
     }
-    catch (error) {
-        logger.error('Error processing webhook:', error);
-        return NextResponse.json({ error: 'Error processing webhook' }, { status: 500 });
+
+    console.log('Processing webhook event:', event.type);
+
+    try {
+      switch (event.type) {
+        case 'invoice.payment_succeeded':
+          await handleInvoicePaymentSucceeded(event.data.object);
+          break;
+
+        case 'invoice.payment_failed':
+          await handleInvoicePaymentFailed(event.data.object);
+          break;
+
+        case 'customer.subscription.created':
+          await handleSubscriptionCreated(event.data.object);
+          break;
+
+        case 'customer.subscription.updated':
+          await handleSubscriptionUpdated(event.data.object);
+          break;
+
+        case 'customer.subscription.deleted':
+          await handleSubscriptionDeleted(event.data.object);
+          break;
+
+        case 'payment_intent.succeeded':
+          await handlePaymentIntentSucceeded(event.data.object);
+          break;
+
+        case 'payment_intent.payment_failed':
+          await handlePaymentIntentFailed(event.data.object);
+          break;
+
+        default:
+          console.log(`Unhandled event type: ${event.type}`);
+      }
+
+      // Log successful webhook processing
+      await logWebhookProcessed({
+        eventType: event.type,
+        stripeEventId: event.id,
+        ipAddress: clientIP,
+        userAgent: userAgent,
+        metadata: {
+          eventId: event.id,
+          objectId: event.data.object.id
+        }
+      });
+
+      return NextResponse.json({ received: true });
+    } catch (error) {
+      console.error('Error processing webhook event:', error);
+      
+      // Log webhook processing failure
+      await logWebhookFailed({
+        eventType: event.type,
+        stripeEventId: event.id,
+        errorMessage: error.message,
+        ipAddress: clientIP,
+        userAgent: userAgent,
+        metadata: {
+          eventId: event.id,
+          objectId: event.data.object.id,
+          error: error.message
+        }
+      });
+
+      return NextResponse.json(
+        { error: 'Webhook handler failed' },
+        { status: 500 }
+      );
     }
+  } catch (error) {
+    console.error('Webhook error:', error);
+    return NextResponse.json(
+      { error: 'Webhook handler failed' },
+      { status: 500 }
+    );
+  }
+}
+
+async function handleInvoicePaymentSucceeded(invoice) {
+  try {
+    console.log('Processing successful invoice payment:', invoice.id);
+
+    // Find the subscription in our database
+    const subscription = await prisma.subscription.findFirst({
+      where: {
+        stripeSubscriptionId: invoice.subscription
+      },
+      include: {
+        customer: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    if (!subscription) {
+      console.log('Subscription not found for invoice:', invoice.id);
+      return;
+    }
+
+    // Update subscription status and next billing date
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        status: 'ACTIVE',
+        nextBilling: new Date(invoice.next_payment_attempt * 1000),
+        lastPaymentDate: new Date()
+      }
+    });
+
+    // Create payment record
+    await prisma.payment.create({
+      data: {
+        customerId: subscription.customerId,
+        amount: invoice.amount_paid / 100, // Convert from cents
+        status: 'COMPLETED',
+        stripeInvoiceId: invoice.id,
+        stripePaymentIntentId: invoice.payment_intent,
+        type: 'SUBSCRIPTION_RENEWAL'
+      }
+    });
+
+    // Create services for the next billing period
+    await createServicesForSubscription(subscription.id);
+
+    console.log(`Successfully processed payment for subscription ${subscription.id}`);
+  } catch (error) {
+    console.error('Error handling invoice payment succeeded:', error);
+  }
+}
+
+async function handleInvoicePaymentFailed(invoice) {
+  try {
+    console.log('Processing failed invoice payment:', invoice.id);
+
+    const subscription = await prisma.subscription.findFirst({
+      where: {
+        stripeSubscriptionId: invoice.subscription
+      },
+      include: {
+        customer: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    if (!subscription) {
+      console.log('Subscription not found for failed invoice:', invoice.id);
+      return;
+    }
+
+    // Update subscription status
+    await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        status: 'PAST_DUE',
+        nextBilling: new Date(invoice.next_payment_attempt * 1000)
+      }
+    });
+
+    // Create failed payment record
+    await prisma.payment.create({
+      data: {
+        customerId: subscription.customerId,
+        amount: invoice.amount_due / 100,
+        status: 'FAILED',
+        stripeInvoiceId: invoice.id,
+        type: 'SUBSCRIPTION_RENEWAL'
+      }
+    });
+
+    // Send notification to customer about failed payment
+    await sendPaymentFailedNotification(subscription.customer);
+
+    console.log(`Processed failed payment for subscription ${subscription.id}`);
+  } catch (error) {
+    console.error('Error handling invoice payment failed:', error);
+  }
+}
+
+async function handleSubscriptionCreated(subscription) {
+  try {
+    console.log('Processing new subscription:', subscription.id);
+
+    // Find customer by Stripe customer ID
+    const customer = await prisma.customer.findFirst({
+      where: {
+        stripeCustomerId: subscription.customer
+      }
+    });
+
+    if (!customer) {
+      console.log('Customer not found for subscription:', subscription.id);
+      return;
+    }
+
+    // Create subscription record
+    const dbSubscription = await prisma.subscription.create({
+      data: {
+        customerId: customer.id,
+        stripeSubscriptionId: subscription.id,
+        status: 'ACTIVE',
+        startDate: new Date(subscription.current_period_start * 1000),
+        endDate: new Date(subscription.current_period_end * 1000),
+        nextBilling: new Date(subscription.current_period_end * 1000)
+      }
+    });
+
+    // Create initial services for the subscription period
+    await createServicesForSubscription(dbSubscription.id);
+
+    console.log(`Created subscription ${dbSubscription.id} for customer ${customer.id}`);
+  } catch (error) {
+    console.error('Error handling subscription created:', error);
+  }
+}
+
+async function handleSubscriptionUpdated(subscription) {
+  try {
+    console.log('Processing subscription update:', subscription.id);
+
+    const dbSubscription = await prisma.subscription.findFirst({
+      where: {
+        stripeSubscriptionId: subscription.id
+      }
+    });
+
+    if (!dbSubscription) {
+      console.log('Subscription not found for update:', subscription.id);
+      return;
+    }
+
+    // Update subscription status
+    await prisma.subscription.update({
+      where: { id: dbSubscription.id },
+      data: {
+        status: subscription.status === 'active' ? 'ACTIVE' : 'CANCELLED',
+        endDate: subscription.cancel_at_period_end ? 
+          new Date(subscription.current_period_end * 1000) : null,
+        nextBilling: new Date(subscription.current_period_end * 1000)
+      }
+    });
+
+    console.log(`Updated subscription ${dbSubscription.id}`);
+  } catch (error) {
+    console.error('Error handling subscription updated:', error);
+  }
+}
+
+async function handleSubscriptionDeleted(subscription) {
+  try {
+    console.log('Processing subscription deletion:', subscription.id);
+
+    const dbSubscription = await prisma.subscription.findFirst({
+      where: {
+        stripeSubscriptionId: subscription.id
+      }
+    });
+
+    if (!dbSubscription) {
+      console.log('Subscription not found for deletion:', subscription.id);
+      return;
+    }
+
+    // Cancel subscription
+    await prisma.subscription.update({
+      where: { id: dbSubscription.id },
+      data: {
+        status: 'CANCELLED',
+        endDate: new Date()
+      }
+    });
+
+    // Cancel any pending services
+    await prisma.service.updateMany({
+      where: {
+        subscriptionId: dbSubscription.id,
+        status: 'SCHEDULED'
+      },
+      data: {
+        status: 'CANCELLED'
+      }
+    });
+
+    console.log(`Cancelled subscription ${dbSubscription.id}`);
+  } catch (error) {
+    console.error('Error handling subscription deleted:', error);
+  }
+}
+
+async function handlePaymentIntentSucceeded(paymentIntent) {
+  try {
+    console.log('Processing successful payment intent:', paymentIntent.id);
+
+    // Handle one-time payments (not subscription renewals)
+    if (paymentIntent.metadata?.type === 'one_time_payment') {
+      const customer = await prisma.customer.findFirst({
+        where: {
+          stripeCustomerId: paymentIntent.customer
+        }
+      });
+
+      if (customer) {
+        await prisma.payment.create({
+          data: {
+            customerId: customer.id,
+            amount: paymentIntent.amount / 100,
+            status: 'COMPLETED',
+            stripePaymentIntentId: paymentIntent.id,
+            type: 'ONE_TIME_PAYMENT'
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error handling payment intent succeeded:', error);
+  }
+}
+
+async function handlePaymentIntentFailed(paymentIntent) {
+  try {
+    console.log('Processing failed payment intent:', paymentIntent.id);
+
+    const customer = await prisma.customer.findFirst({
+      where: {
+        stripeCustomerId: paymentIntent.customer
+      }
+    });
+
+    if (customer) {
+      await prisma.payment.create({
+        data: {
+          customerId: customer.id,
+          amount: paymentIntent.amount / 100,
+          status: 'FAILED',
+          stripePaymentIntentId: paymentIntent.id,
+          type: 'ONE_TIME_PAYMENT'
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error handling payment intent failed:', error);
+  }
+}
+
+async function createServicesForSubscription(subscriptionId) {
+  try {
+    const subscription = await prisma.subscription.findUnique({
+      where: { id: subscriptionId },
+      include: {
+        customer: true,
+        plan: true
+      }
+    });
+
+    if (!subscription) return;
+
+    // Create 4 weekly services for the subscription period
+    const startDate = new Date(subscription.startDate);
+    
+    for (let week = 0; week < 4; week++) {
+      const serviceDate = addWeeks(startDate, week);
+      const weekStart = startOfWeek(serviceDate, { weekStartsOn: 1 }); // Monday
+
+      // Check if service already exists
+      const existingService = await prisma.service.findFirst({
+        where: {
+          subscriptionId: subscriptionId,
+          scheduledDate: {
+            gte: weekStart,
+            lt: new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000)
+          }
+        }
+      });
+
+      if (!existingService) {
+        // Calculate potential earnings
+        const subscriptionAmount = subscription.plan.price;
+        const stripeFee = subscriptionAmount * 0.029 + 0.30;
+        const netAmount = subscriptionAmount - stripeFee;
+        const potentialEarnings = Math.round((netAmount * 0.75) * 100) / 100;
+
+        await prisma.service.create({
+          data: {
+            customerId: subscription.customerId,
+            servicePlanId: subscription.planId,
+            scheduledDate: weekStart,
+            status: 'SCHEDULED',
+            potentialEarnings,
+            subscriptionId: subscriptionId,
+            notes: `Auto-generated service for subscription ${subscriptionId}`
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error creating services for subscription:', error);
+  }
+}
+
+async function sendPaymentFailedNotification(customer) {
+  try {
+    // This would integrate with your email/SMS service
+    console.log(`Sending payment failed notification to ${customer.user.email}`);
+    
+    // Example email integration:
+    // await sendEmail({
+    //   to: customer.user.email,
+    //   subject: 'Payment Failed - Action Required',
+    //   template: 'payment-failed',
+    //   data: { customerName: customer.user.name }
+    // });
+  } catch (error) {
+    console.error('Error sending payment failed notification:', error);
+  }
 }

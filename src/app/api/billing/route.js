@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { verifyToken } from '@/lib/api-auth';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2023-10-16'

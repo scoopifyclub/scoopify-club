@@ -1,10 +1,10 @@
-import { PrismaClient } from '@prisma/client';
-// Create a single PrismaClient instance
-const prisma = new PrismaClient();
-// Export the PrismaClient instance
-export default prisma;
-// Export a function to run a raw query
-export const query = async (text, params) => {
+// Re-export from the main prisma client
+export { prisma as default } from './prisma.js';
+
+// Also export the query function for backward compatibility
+import { prisma } from './prisma.js';
+
+export const sql = async (text, params) => {
     try {
         const start = Date.now();
         const result = await prisma.$queryRawUnsafe(text, ...(params || []));
@@ -17,3 +17,6 @@ export const query = async (text, params) => {
         throw error;
     }
 };
+
+// Export query as an alias for sql for backward compatibility
+export const query = sql; 

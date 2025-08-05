@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { verifyJWT } from '@/lib/auth-server'
+import { applySecurityMiddleware } from '@/middleware/security'
 
 // Define paths that don't require authentication
 const publicPaths = [
@@ -25,6 +26,12 @@ const roleRestrictedPaths = {
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
+
+  // Apply security middleware first
+  const securityResponse = applySecurityMiddleware(request);
+  if (securityResponse.status !== 200) {
+    return securityResponse;
+  }
 
   // Allow public paths
   if (publicPaths.some(path => pathname.startsWith(path))) {

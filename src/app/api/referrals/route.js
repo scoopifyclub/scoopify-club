@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/api-auth';
 import { generateReferralCode } from '@/lib/utils';
 // GET endpoint to fetch referral stats for a customer
