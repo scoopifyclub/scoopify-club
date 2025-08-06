@@ -3,37 +3,56 @@ import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 import { startOfDay, endOfDay, setHours, format, isAfter, isBefore } from 'date-fns';
 import { calculateDistance } from '@/lib/geolocation';
+
 export async function GET(request) {
-    var _a;
     try {
         // Extract token for authorization
-        const token = (_a = request.headers.get('Authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
+        const token = request.headers.get('Authorization')?.split(' ')[1];
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        
         const decoded = await verifyToken(token);
         if (!decoded || decoded.role !== 'EMPLOYEE') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
         // Get employee location from query params if available
         const url = new URL(request.url);
         const latitude = parseFloat(url.searchParams.get('latitude') || '0');
         const longitude = parseFloat(url.searchParams.get('longitude') || '0');
         const hasLocation = latitude !== 0 && longitude !== 0;
-        // Get current date and set time boundaries (7am to 7pm today)
+
+        // Get current date and set time boundaries
         const today = new Date();
         const now = new Date();
-        const sevenAM = setHours(startOfDay(today), 7); // 7am today
-        const sevenPM = setHours(startOfDay(today), 19); // 7pm today
-        // Check if current time is outside the 7am-7pm window
-        if (isBefore(now, sevenAM) || isAfter(now, sevenPM)) {
+        const eightAM = setHours(startOfDay(today), 8); // 8 AM today
+        const sevenPM = setHours(startOfDay(today), 19); // 7 PM today
+
+        // Check if current time is before 8 AM
+        if (isBefore(now, eightAM)) {
+            const timeUntilUnlock = eightAM.getTime() - now.getTime();
+            const minutesUntilUnlock = Math.ceil(timeUntilUnlock / (1000 * 60));
+            
             return NextResponse.json({
                 services: [],
-                message: "Services are only available between 7:00 AM and 7:00 PM"
+                message: `Jobs unlock at 8:00 AM (${minutesUntilUnlock} minutes remaining)`,
+                unlockTime: eightAM.toISOString(),
+                timeUntilUnlock: minutesUntilUnlock
             });
         }
+
+        // Check if current time is after 7 PM
+        if (isAfter(now, sevenPM)) {
+            return NextResponse.json({
+                services: [],
+                message: "Services are only available between 8:00 AM and 7:00 PM"
+            });
+        }
+
         // Get the current day of the week
         const currentDayOfWeek = format(today, 'EEEE');
+
         // Check if employee already has a claimed service for today
         const employee = await prisma.employee.findUnique({
             where: { userId: decoded.userId },
@@ -52,9 +71,11 @@ export async function GET(request) {
                 serviceAreas: true
             }
         });
+
         if (!employee) {
             return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
         }
+
         // If employee already has a claimed service for today, return empty list
         if (employee.services.length > 0) {
             return NextResponse.json({
@@ -62,13 +83,21 @@ export async function GET(request) {
                 message: "You already have an active service. Complete it before claiming another."
             });
         }
-        // Only show services that match the customer's preferred service day and are scheduled for today
+
+        // Only show services that are:
+        // 1. SCHEDULED status
+        // 2. Not claimed by any employee
+        // 3. Unlocked (isLocked: false)
+        // 4. Scheduled for today between 8 AM and 7 PM
+        // 5. Match the customer's preferred service day
+        // 6. In employee's service areas
         const services = await prisma.service.findMany({
             where: {
                 status: 'SCHEDULED',
                 employeeId: null,
+                isLocked: false, // Only show unlocked jobs
                 scheduledDate: {
-                    gte: sevenAM,
+                    gte: eightAM,
                     lte: sevenPM
                 },
                 customer: {
@@ -93,27 +122,45 @@ export async function GET(request) {
                 servicePlan: true
             }
         });
+
         // Sort services by proximity if location is provided
         let sortedServices = [...services];
         if (hasLocation) {
-            // Calculate distance for each service
-            sortedServices = services.map(service => {
-                const customerAddress = service.customer.address;
-                if ((customerAddress === null || customerAddress === void 0 ? void 0 : customerAddress.latitude) && (customerAddress === null || customerAddress === void 0 ? void 0 : customerAddress.longitude)) {
-                    const distance = calculateDistance(latitude, longitude, customerAddress.latitude, customerAddress.longitude);
-                    return Object.assign(Object.assign({}, service), { distance });
-                }
-                return Object.assign(Object.assign({}, service), { distance: 9999 }); // Large distance for unknown locations
+            sortedServices.sort((a, b) => {
+                const distanceA = calculateDistance(
+                    latitude, longitude,
+                    a.customer.address.latitude || 0,
+                    a.customer.address.longitude || 0
+                );
+                const distanceB = calculateDistance(
+                    latitude, longitude,
+                    b.customer.address.latitude || 0,
+                    b.customer.address.longitude || 0
+                );
+                return distanceA - distanceB;
             });
-            // Sort by distance (closest first)
-            sortedServices.sort((a, b) => a.distance - b.distance);
         }
+
+        // Add distance information if location is available
+        if (hasLocation) {
+            sortedServices = sortedServices.map(service => ({
+                ...service,
+                distance: calculateDistance(
+                    latitude, longitude,
+                    service.customer.address.latitude || 0,
+                    service.customer.address.longitude || 0
+                )
+            }));
+        }
+
         return NextResponse.json({
             services: sortedServices,
-            canClaim: true
+            message: `Found ${sortedServices.length} available jobs`,
+            unlockTime: eightAM.toISOString(),
+            currentTime: now.toISOString()
         });
-    }
-    catch (error) {
+
+    } catch (error) {
         console.error('Error fetching available services:', error);
         return NextResponse.json({ error: 'Failed to fetch available services' }, { status: 500 });
     }

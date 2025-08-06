@@ -1,92 +1,82 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserFromToken } from '@/lib/api-auth';
-
-const JobStatus = {
-  AVAILABLE: 'AVAILABLE',
-  CLAIMED: 'CLAIMED',
-  COMPLETED: 'COMPLETED',
-  CANCELLED: 'CANCELLED'
-};
-
-const ServiceStatus = {
-  PENDING: 'PENDING',
-  SCHEDULED: 'SCHEDULED',
-  IN_PROGRESS: 'IN_PROGRESS',
-  COMPLETED: 'COMPLETED',
-  CANCELLED: 'CANCELLED'
-};
-
-const JobPoolEntry = {
-  id: '',
-  serviceId: '',
-  openedAt: new Date(),
-  claimedAt: null,
-  claimerId: null,
-  status: JobStatus.AVAILABLE,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  service: {}
-};
-
-// Remove unused Prisma import
+import { startOfDay, endOfDay } from 'date-fns';
 
 // Only allow this endpoint to be called by the cron job
 export const runtime = 'edge';
 
 export async function GET() {
   try {
-    // Get current time in UTC
+    // Get current time in local timezone
     const now = new Date();
     
-    // Only run if it's 7am UTC
-    if (now.getUTCHours() !== 7 || now.getUTCMinutes() !== 0) {
-      return NextResponse.json({ message: 'Not 7am UTC yet' });
+    // Check if it's 8 AM local time (not UTC)
+    const localHour = now.getHours();
+    const localMinute = now.getMinutes();
+    
+    if (localHour !== 8 || localMinute !== 0) {
+      return NextResponse.json({ 
+        message: 'Not 8 AM local time yet',
+        currentTime: `${localHour}:${localMinute.toString().padStart(2, '0')}`,
+        requiredTime: '8:00'
+      });
     }
 
-    // Get all pending services that should be in the job pool
-    const pendingServices = await prisma.service.findMany({
+    // Unlock all scheduled jobs for today that are currently locked
+    const unlockedServices = await prisma.service.updateMany({
       where: {
-        status: ServiceStatus.PENDING,
-        scheduledAt: {
-          lte: now
+        status: 'SCHEDULED',
+        isLocked: true,
+        scheduledDate: {
+          gte: startOfDay(now),
+          lt: endOfDay(now)
         },
-        pool: null
+        employeeId: null // Only unlock unclaimed jobs
       },
-      include: {
-        serviceArea: true,
-        customer: true
+      data: {
+        isLocked: false,
+        unlockedAt: now
       }
     });
 
-    // Create job pool entries for each pending service
-    const jobPoolEntries = await Promise.all(
-      pendingServices.map(async (service) => {
-        const jobPool = await prisma.jobPool.create({
-          data: {
-            serviceId: service.id,
-            status: JobStatus.AVAILABLE,
-            openedAt: now,
-            service: {
-              connect: { id: service.id }
-            }
-          },
-          include: {
-            service: true
-          }
-        });
-        return jobPool;
-      })
-    );
+    console.log(`🔓 Unlocked ${unlockedServices.count} jobs at 8 AM`);
+
+    // Log the unlock event
+    await prisma.systemLog.create({
+      data: {
+        level: 'INFO',
+        category: 'JOB_UNLOCK',
+        message: `Unlocked ${unlockedServices.count} jobs at 8 AM`,
+        data: {
+          unlockedCount: unlockedServices.count,
+          unlockTime: now.toISOString()
+        }
+      }
+    });
 
     return NextResponse.json({
-      message: 'Job pool opened successfully',
-      jobPoolEntries
+      message: 'Jobs unlocked successfully at 8 AM',
+      unlockedCount: unlockedServices.count,
+      unlockTime: now.toISOString()
     });
   } catch (error) {
     console.error('Error in open-job-pool:', error);
+    
+    // Log the error
+    await prisma.systemLog.create({
+      data: {
+        level: 'ERROR',
+        category: 'JOB_UNLOCK',
+        message: 'Failed to unlock jobs at 8 AM',
+        data: {
+          error: error.message,
+          stack: error.stack
+        }
+      }
+    });
+
     return NextResponse.json(
-      { error: 'Failed to open job pool' },
+      { error: 'Failed to unlock jobs' },
       { status: 500 }
     );
   }

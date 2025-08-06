@@ -463,6 +463,12 @@ model Service {
   gatePhotoId        String?
   notes              String?
   rated              Boolean           @default(false)
+  claimedAt          DateTime?
+  arrivalDeadline    DateTime?
+  isLocked           Boolean           @default(true)  // NEW: Job locking system
+  unlockedAt         DateTime?         // NEW: When job was unlocked
+  lockExpiresAt      DateTime?         // NEW: When lock expires
+  
   location           Location?         @relation("ServiceToLocation")
   payments           Payment[]         @relation("ServiceToPayments")
   customer           Customer          @relation("ServiceToCustomer", fields: [customerId], references: [id])
@@ -481,6 +487,7 @@ model Service {
   @@index([employeeId])
   @@index([paymentStatus])
   @@index([serviceAreaId])
+  @@index([isLocked])  // NEW: Index for job locking queries
 }
 
 model ServiceChecklist {
