@@ -53,7 +53,7 @@ export async function GET(request) {
         // Get the current day of the week
         const currentDayOfWeek = format(today, 'EEEE');
 
-        // Check if employee already has a claimed service for today
+        // Get employee with their current active service and rating
         const employee = await prisma.employee.findUnique({
             where: { userId: decoded.userId },
             include: {
@@ -64,7 +64,7 @@ export async function GET(request) {
                             lt: endOfDay(today)
                         },
                         status: {
-                            in: ['ASSIGNED', 'IN_PROGRESS']
+                            in: ['IN_PROGRESS'] // Use correct enum value
                         }
                     }
                 },
@@ -76,11 +76,18 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
         }
 
-        // If employee already has a claimed service for today, return empty list
-        if (employee.services.length > 0) {
+        // Check if employee has an active service (currently working on a job)
+        const hasActiveService = employee.services.length > 0;
+
+        // Get employee's average rating
+        const employeeRating = employee.averageRating || 0;
+        const canQueueJobs = employeeRating >= 4.5;
+
+        // If employee has an active service and can't queue, return empty list
+        if (hasActiveService && !canQueueJobs) {
             return NextResponse.json({
                 services: [],
-                message: "You already have an active service. Complete it before claiming another."
+                message: "You have an active service. Complete it before claiming another. (Rating-based queuing requires 4.5+ stars)"
             });
         }
 
@@ -126,39 +133,50 @@ export async function GET(request) {
         // Sort services by proximity if location is provided
         let sortedServices = [...services];
         if (hasLocation) {
-            sortedServices.sort((a, b) => {
-                const distanceA = calculateDistance(
-                    latitude, longitude,
-                    a.customer.address.latitude || 0,
-                    a.customer.address.longitude || 0
-                );
-                const distanceB = calculateDistance(
-                    latitude, longitude,
-                    b.customer.address.latitude || 0,
-                    b.customer.address.longitude || 0
-                );
-                return distanceA - distanceB;
+            // Calculate distance for each service
+            sortedServices = services.map(service => {
+                const customerAddress = service.customer.address;
+                if (customerAddress?.latitude && customerAddress?.longitude) {
+                    const distance = calculateDistance(
+                        latitude, 
+                        longitude, 
+                        customerAddress.latitude, 
+                        customerAddress.longitude
+                    );
+                    return { ...service, distance };
+                }
+                return { ...service, distance: 9999 }; // Large distance for unknown locations
             });
+
+            // Sort by distance (closest first)
+            sortedServices.sort((a, b) => a.distance - b.distance);
         }
 
-        // Add distance information if location is available
-        if (hasLocation) {
-            sortedServices = sortedServices.map(service => ({
-                ...service,
-                distance: calculateDistance(
-                    latitude, longitude,
-                    service.customer.address.latitude || 0,
-                    service.customer.address.longitude || 0
-                )
-            }));
-        }
+        // Limit to closest 10 jobs
+        const closestJobs = sortedServices.slice(0, 10);
 
-        return NextResponse.json({
-            services: sortedServices,
-            message: `Found ${sortedServices.length} available jobs`,
+        // Add employee status information
+        const response = {
+            services: closestJobs,
+            message: `Found ${closestJobs.length} available jobs (showing closest 10)`,
             unlockTime: eightAM.toISOString(),
-            currentTime: now.toISOString()
-        });
+            currentTime: now.toISOString(),
+            employeeStatus: {
+                hasActiveService,
+                canQueueJobs,
+                averageRating: employeeRating,
+                activeServiceCount: employee.services.length
+            }
+        };
+
+        // Add queuing information if applicable
+        if (hasActiveService && canQueueJobs) {
+            response.message += " - You can queue additional jobs (4.5+ star rating)";
+        } else if (hasActiveService && !canQueueJobs) {
+            response.message = "Complete your active service before claiming another job";
+        }
+
+        return NextResponse.json(response);
 
     } catch (error) {
         console.error('Error fetching available services:', error);

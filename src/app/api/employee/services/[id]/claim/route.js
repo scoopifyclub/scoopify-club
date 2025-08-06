@@ -30,7 +30,7 @@ export async function POST(request, { params }) {
             }, { status: 400 });
         }
 
-        // Get the employee record
+        // Get the employee record with current active services and rating
         const employee = await prisma.employee.findUnique({
             where: { userId: payload.userId },
             include: {
@@ -53,10 +53,15 @@ export async function POST(request, { params }) {
             return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
         }
 
-        // Check if employee already has a claimed service for today
-        if (employee.services.length > 0) {
+        // Check employee's rating for queuing eligibility
+        const employeeRating = employee.averageRating || 0;
+        const canQueueJobs = employeeRating >= 4.5;
+        const hasActiveService = employee.services.length > 0;
+
+        // If employee has an active service and can't queue, prevent claiming
+        if (hasActiveService && !canQueueJobs) {
             return NextResponse.json({ 
-                error: 'You already have an active service. Complete it before claiming another.' 
+                error: 'You have an active service. Complete it before claiming another. (Rating-based queuing requires 4.5+ stars)' 
             }, { status: 400 });
         }
 
@@ -122,7 +127,7 @@ export async function POST(request, { params }) {
             where: { id: id },
             data: {
                 employeeId: employee.id,
-                status: 'ASSIGNED',
+                status: 'IN_PROGRESS', // Use correct enum value
                 claimedAt: new Date(),
                 arrivalDeadline
             },
@@ -147,7 +152,10 @@ export async function POST(request, { params }) {
                     employeeId: employee.id,
                     serviceId: service.id,
                     customerId: service.customerId,
-                    claimedAt: new Date().toISOString()
+                    claimedAt: new Date().toISOString(),
+                    employeeRating: employeeRating,
+                    canQueueJobs: canQueueJobs,
+                    hasActiveService: hasActiveService
                 }
             }
         });
@@ -171,7 +179,13 @@ export async function POST(request, { params }) {
 
         return NextResponse.json({
             message: 'Service claimed successfully',
-            service: updatedService
+            service: updatedService,
+            employeeStatus: {
+                hasActiveService: hasActiveService,
+                canQueueJobs: canQueueJobs,
+                averageRating: employeeRating,
+                activeServiceCount: employee.services.length + 1
+            }
         });
 
     } catch (error) {
