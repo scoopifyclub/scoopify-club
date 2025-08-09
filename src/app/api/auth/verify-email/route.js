@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { signJWT } from '@/lib/auth-server';
+import { createUserToken } from '@/lib/jwt-utils';
 import { sendVerificationEmail } from '@/lib/email-service';
 
 export async function POST(request) {
@@ -52,10 +52,10 @@ export async function POST(request) {
     });
 
     // Generate JWT token
-    const jwtToken = await signJWT({
+    const jwtToken = await createUserToken({
       id: user.id,
       email: user.email,
-      role: user.role
+      role: user.role,
     });
 
     // Set authentication cookies

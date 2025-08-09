@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { loginAs } from './utils';
-import { UserRole } from './test-data';
+import { UserRole } from '../src/types/user';
 import { waitForStableDOM } from './utils';
 
 test.describe('Navigation Tests', () => {
@@ -49,7 +49,7 @@ test.describe('Navigation Tests', () => {
 
   test('should navigate to dashboard after login', async ({ page }) => {
     // Login as customer
-    await loginAs(page, UserRole.CUSTOMER);
+            await loginAs(page, 'customer');
     
     // Verify dashboard is displayed
     await expect(page).toHaveURL(/.*dashboard/);

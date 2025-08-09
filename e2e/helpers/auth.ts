@@ -1,27 +1,27 @@
 import { Page } from '@playwright/test';
 import { prisma } from '../lib/prisma';
 import { hash } from 'bcryptjs';
-import { UserRole } from '../../src/types/user';
+
 import crypto from 'crypto';
 
 export const testUsers = {
   customer: {
-    email: 'customer@scoopifyclub.com',
+    email: 'test@example.com',
     password: 'Test123!@#',
     name: 'Test Customer',
-    role: UserRole.CUSTOMER,
+    role: 'CUSTOMER',
   },
   employee: {
-    email: 'employee@scoopifyclub.com',
+    email: 'test-employee-1@test.com',
     password: 'Test123!@#',
     name: 'Test Employee',
-    role: UserRole.EMPLOYEE,
+    role: 'EMPLOYEE',
   },
   admin: {
-    email: 'admin@scoopifyclub.com',
-    password: 'Test123!@#',
+    email: 'admin@example.com',
+    password: 'Admin123!@#',
     name: 'Test Admin',
-    role: UserRole.ADMIN,
+    role: 'ADMIN',
   },
 };
 

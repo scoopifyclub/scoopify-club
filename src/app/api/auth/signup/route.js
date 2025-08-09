@@ -14,7 +14,7 @@ import { hash } from 'bcryptjs';
 import prisma from "@/lib/prisma";
 import { validatePassword } from '@/lib/password';
 import { v4 as uuidv4 } from 'uuid';
-import { SignJWT } from 'jose';
+import { createUserToken } from '@/lib/jwt-utils';
 import { cookies } from 'next/headers';
 import Stripe from 'stripe';
 import { edgeRateLimit } from '@/lib/edge-rate-limit';
@@ -328,16 +328,11 @@ export async function POST(request) {
         }
 
         // Create JWT token for authentication
-        const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-        const token = await new SignJWT({ 
-            userId: user.id, 
-            role: user.role,
-            customerId: customer?.id,
-            employeeId: employee?.id
-        })
-            .setProtectedHeader({ alg: 'HS256' })
-            .setExpirationTime('1d')
-            .sign(secret);
+        const token = await createUserToken({ 
+            id: user.id, 
+            email: user.email,
+            role: user.role
+        });
 
         // Set cookie
         const cookieStore = await cookies();

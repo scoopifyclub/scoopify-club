@@ -1,0 +1,51 @@
+warning: in the working copy of 'e2e/auth.spec.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'e2e/helpers/auth.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'e2e/navigation.spec.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'playwright.config.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'prisma/seed.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/admin/login/page.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/admin/login/route.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/auth/customer-login/route.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/auth/login/route.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/auth/signin/route.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/auth/signup/route.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/auth/verify-email/route.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/customer/payments/route.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/customer/services/route.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/api/test-prisma/route.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/app/signup/page.jsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/api-auth.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/auth-rate-limit.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/password.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/lib/session.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'src/middleware.js', LF will be replaced by CRLF the next time Git touches it
+PRODUCTION_DEPLOYMENT_STATUS.md
+e2e/auth.spec.js
+e2e/auth.spec.ts
+e2e/helpers/auth.ts
+e2e/navigation.spec.js
+e2e/navigation.spec.ts
+e2e/test-data.ts
+playwright.config.js
+prisma/seed.js
+scripts/test-vercel-deployment.js
+src/app/admin/login/page.jsx
+src/app/api/admin/login/route.js
+src/app/api/auth/customer-login/route.js
+src/app/api/auth/login/route.js
+src/app/api/auth/signin/route.js
+src/app/api/auth/signup/route.js
+src/app/api/auth/verify-email/route.js
+src/app/api/customer/payments/route.js
+src/app/api/customer/services/route.js
+src/app/api/employee/dashboard/route.js
+src/app/api/test-prisma/route.js
+src/app/login/page.jsx
+src/app/signup/page.jsx
+src/lib/api-auth.js
+src/lib/auth-rate-limit.js
+src/lib/auth-server.js
+src/lib/auth.js
+src/lib/password.js
+src/lib/session.js
+src/middleware.js

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { authenticateUser } from '@/lib/auth-server';
+import { authenticateUser } from '@/lib/api-auth';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 
 // Validation function for login request
@@ -11,10 +11,9 @@ function validateLoginData(data) {
         throw new Error('Invalid email format');
     }
     
-    // Strong password validation
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-    if (!data.password || !passwordRegex.test(data.password)) {
-        throw new Error('Password must be at least 8 characters with uppercase, lowercase, number, and special character');
+    // Basic password validation for login (less strict than signup)
+    if (!data.password || data.password.length < 1) {
+        throw new Error('Password is required');
     }
     
     return data;
@@ -42,13 +41,13 @@ export async function POST(request) {
         const data = await request.json();
         validateLoginData(data);
 
-        const { user, token } = await authenticateUser(data.email, data.password);
+        const { user, accessToken, refreshToken } = await authenticateUser(data.email, data.password);
 
         // Set secure cookies with proper expiration times
         const cookieStore = await cookies();
         
         // Set access token with short expiration (15 minutes)
-        cookieStore.set('accessToken', token, {
+        cookieStore.set('accessToken', accessToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
@@ -57,11 +56,11 @@ export async function POST(request) {
         });
         
         // Set refresh token with longer expiration (7 days)
-        cookieStore.set('refreshToken', token, {
+        cookieStore.set('refreshToken', refreshToken, {
             httpOnly: true,
             secure: process.env.NODE_ENV === 'production',
             sameSite: 'strict',
-            path: '/api/auth/refresh',
+            path: '/',
             maxAge: 7 * 24 * 60 * 60 // 7 days
         });
 
@@ -87,6 +86,8 @@ export async function POST(request) {
 
         const response = NextResponse.json({
             user: userWithoutPassword,
+            accessToken: accessToken,
+            refreshToken: refreshToken,
             redirectTo: redirectTo
         });
 

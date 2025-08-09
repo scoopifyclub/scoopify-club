@@ -3,7 +3,7 @@ import axios from 'axios';
 console.log('🔍 Testing Vercel Deployment');
 console.log('============================\n');
 
-const BASE_URL = 'https://scoopifyclub.vercel.app';
+const BASE_URL = 'https://scoopify-club-2kosszy00-scoopifys-projects.vercel.app';
 
 async function testEndpoint(path, description) {
     try {

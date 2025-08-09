@@ -55,7 +55,7 @@ export async function POST(request) {
         }
         console.log('Generating JWT tokens...');
         // Generate tokens using the shared function
-        const { accessToken, refreshToken } = await generateTokens(user, user.deviceFingerprint || '');
+        const { accessToken, refreshToken } = await generateTokens(user);
         console.log('Login successful, returning response');
         // Return user data and token
         const { password: _ } = user, userWithoutPassword = __rest(user

@@ -64,7 +64,7 @@ export async function middleware(request) {
 
       // Add user info to headers for downstream use
       const requestHeaders = new Headers(request.headers);
-      requestHeaders.set('x-user-id', payload.id);
+      requestHeaders.set('x-user-id', payload.userId);
       requestHeaders.set('x-user-role', payload.role);
       
       return NextResponse.next({
@@ -122,7 +122,7 @@ export async function middleware(request) {
 
     // Add user info to headers for downstream use
     const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-user-id', payload.id)
+    requestHeaders.set('x-user-id', payload.userId)
     requestHeaders.set('x-user-role', payload.role)
 
     // Apply scheduling validation for service scheduling routes

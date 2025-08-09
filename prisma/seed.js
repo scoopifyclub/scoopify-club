@@ -1,7 +1,7 @@
-console.log('Executing seed file:', __filename);
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid');
+console.log('Executing seed file: prisma/seed.js');
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 const prisma = new PrismaClient();
 
@@ -22,7 +22,7 @@ async function main() {
   const now = new Date();
 
   // Create admin user
-  const adminPassword = await bcrypt.hash('admin123', 10);
+  const adminPassword = await bcrypt.hash('Admin123!@#', 10);
   const admin = await prisma.user.create({
     data: {
       id: uuidv4(),
@@ -36,7 +36,7 @@ async function main() {
   });
 
   // Create demo customer
-  const customerPassword = await bcrypt.hash('demo123', 10);
+  const customerPassword = await bcrypt.hash('Demo123!@#', 10);
   const customerUser = await prisma.user.create({
     data: {
       id: uuidv4(),
@@ -60,7 +60,7 @@ async function main() {
   const customer = await prisma.customer.findUnique({ where: { userId: customerUser.id } });
 
   // Create demo employee
-  const employeePassword = await bcrypt.hash('employee123', 10);
+  const employeePassword = await bcrypt.hash('Employee123!@#', 10);
   const employeeUser = await prisma.user.create({
     data: {
       id: uuidv4(),

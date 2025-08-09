@@ -4,15 +4,30 @@ test.describe('Authentication', () => {
     test('should allow customer to login successfully', async ({ page }) => {
         // Go to login page
         await page.goto('/login');
+        
+        // Wait for page to load
+        await page.waitForLoadState('networkidle');
+        
+        console.log('🔍 Page loaded, current URL:', page.url());
+        
         // Fill login form
         await page.fill('input[name="email"], input[type="email"]', TEST_USERS.customer.email);
         await page.fill('input[name="password"], input[type="password"]', TEST_USERS.customer.password);
+        
+        console.log('📝 Form filled, email:', TEST_USERS.customer.email);
+        
         // Submit form
         await page.click('button[type="submit"]');
+        
+        console.log('📤 Form submitted, waiting for redirect...');
+        
         // Wait for navigation (should redirect to dashboard or account page)
         try {
             // Give it a longer timeout to account for potential slow redirects
-            await page.waitForURL(/\/(dashboard|account|customer)/, { timeout: 10000 });
+            await page.waitForURL(/\/(dashboard|account|customer)/, { timeout: 15000 });
+            
+            console.log('✅ Redirect successful, current URL:', page.url());
+            
             // Should be on a protected page after login
             const currentUrl = page.url();
             expect(currentUrl.includes('/dashboard') ||
@@ -20,11 +35,18 @@ test.describe('Authentication', () => {
                 currentUrl.includes('/customer')).toBeTruthy();
         }
         catch (error) {
+            console.log('❌ Redirect failed, current URL:', page.url());
+            
             // If we're still on the login page, there's an error
             if (page.url().includes('/login')) {
                 await page.screenshot({ path: 'test-results/customer-login-failed.png' });
-                test.fail(true, 'Login failed - still on login page');
+                throw new Error('Login failed - still on login page');
             }
+            
+            // If we're on a different page, log it
+            console.log('📍 Ended up on unexpected page:', page.url());
+            await page.screenshot({ path: 'test-results/customer-login-unexpected-page.png' });
+            throw new Error(`Login failed - ended up on unexpected page: ${page.url()}`);
         }
     });
     test('should show error for invalid credentials', async ({ page }) => {

@@ -22,10 +22,17 @@ export async function POST(request) {
       );
     }
 
-    const { user, accessToken } = authResult;
+    const { user, accessToken, refreshToken } = authResult;
 
     const cookieStore = await cookies();
-    const cookieOptions = {
+    const accessCookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 15 * 60, // 15 minutes
+    };
+    
+    const refreshCookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -33,8 +40,9 @@ export async function POST(request) {
     };
 
     // Set both cookies for compatibility
-    cookieStore.set('token', accessToken, cookieOptions);
-    cookieStore.set('accessToken', accessToken, cookieOptions);
+    cookieStore.set('token', accessToken, accessCookieOptions);
+    cookieStore.set('accessToken', accessToken, accessCookieOptions);
+    cookieStore.set('refreshToken', refreshToken, refreshCookieOptions);
 
     return NextResponse.json({
       id: user.id,

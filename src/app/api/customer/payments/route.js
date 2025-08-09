@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/api-auth';
+import { prisma } from "@/lib/prisma";
+import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { getCache, setCache, generateCacheKey, invalidateCache } from '@/lib/cache';
@@ -25,10 +25,32 @@ async function getTokenAndValidate(request, role = 'CUSTOMER') {
     }
     // Validate the token
     try {
-        return await validateUser(token, role);
+        const decoded = await validateUser(token);
+        if (!decoded || decoded.role !== role) {
+            throw new ApiError('Invalid role', ErrorCode.UNAUTHORIZED);
+        }
+        
+        // Fetch customer data
+        const customer = await prisma.customer.findFirst({
+            where: { userId: decoded.userId },
+            select: { id: true, name: true, email: true }
+        });
+        
+        if (!customer) {
+            throw new ApiError('Customer record not found', ErrorCode.NOT_FOUND);
+        }
+        
+        return {
+            userId: decoded.userId,
+            customerId: customer.id,
+            customer: customer
+        };
     }
     catch (error) {
         console.error('Token validation error:', error);
+        if (error instanceof ApiError) {
+            throw error;
+        }
         throw new ApiError('Invalid or expired token', ErrorCode.UNAUTHORIZED);
     }
 }
@@ -61,10 +83,10 @@ export const GET = withErrorHandler(async (request) => {
         return NextResponse.json(cachedData);
     }
     // Fetch the payments with retry logic
-    console.log('Fetching payments for customer:', customer.id);
+    console.log('Fetching payments for customer:', customerId);
     const payments = await prisma.payment.findMany({
         where: {
-            customerId: customer.id,
+            customerId: customerId,
         },
         orderBy: {
             createdAt: 'desc',
@@ -84,22 +106,16 @@ const createPaymentSchema = z.object({
 });
 // POST handler with error handling wrapper
 export const POST = withErrorHandler(async (request) => {
-    var _a;
-    const cookieStore = await cookies();
-    const accessToken = await ((_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value);
-    if (!accessToken) {
-        throw new ApiError('Unauthorized', ErrorCode.UNAUTHORIZED);
-    }
-    const { userId } = await validateUser(accessToken, 'CUSTOMER');
-    const customer = await prisma.customer.findFirst({
-        where: { userId },
-        select: { id: true }
-    });
+    // Get and validate token
+    const { userId, customerId, customer } = await getTokenAndValidate(request, 'CUSTOMER');
+    
     if (!customer) {
         throw new ApiError('Customer not found', ErrorCode.NOT_FOUND);
     }
+    
     const body = await request.json();
     const validatedData = createPaymentSchema.parse(body);
+    
     // Verify service exists and belongs to customer
     const service = await prisma.service.findFirst({
         where: {
@@ -107,18 +123,20 @@ export const POST = withErrorHandler(async (request) => {
             customerId: customer.id
         }
     });
+    
     if (!service) {
         throw new ApiError('Service not found', ErrorCode.NOT_FOUND);
     }
-    // Create payment with transaction retry
-    const payment = await prisma.payment.create({
-        data: {
-            customerId: customer.id,
-            serviceId: validatedData.serviceId,
-            amount: validatedData.amount,
-            status: 'PENDING',
-            paymentMethodId: validatedData.paymentMethodId
-        },
+    
+            // Create payment with transaction retry
+        const payment = await prisma.payment.create({
+            data: {
+                customerId: customer.id,
+                serviceId: validatedData.serviceId,
+                amount: validatedData.amount,
+                status: 'PENDING',
+                paymentMethod: validatedData.paymentMethodId
+            },
         include: {
             service: {
                 select: {
@@ -135,6 +153,7 @@ export const POST = withErrorHandler(async (request) => {
             }
         }
     });
+    
     // Invalidate relevant caches
     await invalidateCache([`customer:${customer.id}`, 'payments']);
     return NextResponse.json(payment, { status: 201 });

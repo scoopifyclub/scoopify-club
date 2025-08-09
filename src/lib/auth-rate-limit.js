@@ -1,19 +1,31 @@
 import { Redis } from '@upstash/redis';
 import { Ratelimit } from '@upstash/ratelimit';
 
-// Initialize Redis client
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN,
-});
+// Initialize Redis client only if environment variables are available
+let redis = null;
+let rateLimiter = null;
 
-// Create a rate limiter instance
-const rateLimiter = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(5, '1m'), // 5 requests per minute
-  analytics: true,
-  prefix: '@scoopify/auth',
-});
+try {
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN,
+    });
+
+    // Create a rate limiter instance
+    rateLimiter = new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(5, '1m'), // 5 requests per minute
+      analytics: true,
+      prefix: '@scoopify/auth',
+    });
+  } else {
+    console.log('Redis environment variables not found, rate limiting will be disabled');
+  }
+} catch (error) {
+  console.error('Failed to initialize Redis:', error);
+  console.log('Rate limiting will be disabled');
+}
 
 export class AuthRateLimiter {
   constructor() {
@@ -22,6 +34,18 @@ export class AuthRateLimiter {
 
   async isAllowed(request) {
     try {
+      // If Redis is not available, allow all requests
+      if (!this.rateLimiter) {
+        console.log('Rate limiting disabled - Redis not available');
+        return {
+          success: true,
+          headers: new Headers(),
+          limit: 0,
+          remaining: 0,
+          reset: 0
+        };
+      }
+
       // Get client IP for rate limiting
       const ip = request.headers.get('x-forwarded-for') || 
                  request.headers.get('x-real-ip') || 

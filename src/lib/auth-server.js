@@ -1,30 +1,15 @@
-import { SignJWT, jwtVerify } from 'jose';
 import { compare } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-
-// Ensure these environment variables are set, provide fallbacks for development
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+import { createUserToken, createRefreshToken, validateUserToken } from './jwt-utils';
 
 export async function signJWT(payload) {
-  const secret = new TextEncoder().encode(JWT_SECRET);
-  return new SignJWT(payload)
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime(JWT_EXPIRES_IN)
-    .sign(secret);
+  return await createUserToken(payload);
 }
 
 export async function verifyJWT(token) {
-  try {
-    const secret = new TextEncoder().encode(JWT_SECRET);
-    const { payload } = await jwtVerify(token, secret);
-    return payload;
-  } catch (error) {
-    return null;
-  }
+  return await validateUserToken(token);
 }
 
 export async function getSession() {
@@ -32,11 +17,11 @@ export async function getSession() {
   const token = cookieStore.get('token')?.value;
   if (!token) return null;
 
-  const payload = await verifyJWT(token);
+  const payload = await validateUserToken(token);
   if (!payload) return null;
 
   const user = await prisma.user.findUnique({
-    where: { id: payload.id },
+    where: { id: payload.userId },
     select: {
       id: true,
       email: true,
@@ -62,7 +47,7 @@ export async function authenticateUser(email, password) {
     throw new Error('Invalid email or password');
   }
 
-  const token = await signJWT({
+  const token = await createUserToken({
     id: user.id,
     email: user.email,
     role: user.role,

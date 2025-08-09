@@ -102,10 +102,10 @@ export async function GET(request) {
         if (employee) {
           // Try to get serviceAreas separately
           try {
-            const coverageAreas = await prisma.coverageArea.findMany({
+            const serviceAreas = await prisma.coverageArea.findMany({
               where: { employeeId: employee.id }
             });
-            employee.serviceAreas = coverageAreas;
+            employee.serviceAreas = serviceAreas;
           } catch (coverageError) {
             console.log('❌ Could not fetch coverage areas:', coverageError.message);
             employee.serviceAreas = [];

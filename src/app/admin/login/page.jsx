@@ -62,7 +62,7 @@ export default function AdminLogin() {
           <div className="space-y-4">
             <div>
               <Label htmlFor="email">Email address</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="admin@scoopify.club" required/>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" required/>
             </div>
 
             <div>
@@ -76,9 +76,7 @@ export default function AdminLogin() {
           </Button>
 
           <div className="text-center text-sm text-neutral-600">
-            <p>Demo credentials:</p>
-            <p>Email: admin@scoopify.club</p>
-            <p>Password: admin123</p>
+            <p>Contact your system administrator for access credentials</p>
           </div>
         </form>
       </div>

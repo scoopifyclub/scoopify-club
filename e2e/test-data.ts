@@ -1,17 +1,17 @@
 export const TEST_USERS = {
   customer: {
-    email: 'test-customer@scoopifyclub.com',
-    password: 'TestPassword123!',
+    email: 'test@example.com',
+    password: 'Test123!@#',
     name: 'Test Customer'
   },
   employee: {
-    email: 'test-employee@scoopifyclub.com',
-    password: 'TestPassword123!',
+    email: 'test-employee-1@test.com',
+    password: 'Test123!@#',
     name: 'Test Employee'
   },
   admin: {
-    email: 'test-admin@scoopifyclub.com',
-    password: 'TestPassword123!',
+    email: 'admin@example.com',
+    password: 'Admin123!@#',
     name: 'Test Admin'
   }
 };

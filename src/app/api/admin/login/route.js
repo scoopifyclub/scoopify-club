@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withAdminDatabase } from "@/lib/prisma";
 import bcrypt from 'bcryptjs';
-import { signJWT } from '@/lib/auth-server';
+import { createUserToken } from '@/lib/jwt-utils';
 import { cookies } from 'next/headers';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 
@@ -80,7 +80,7 @@ export async function POST(request) {
         }
 
         // Generate JWT token
-        const token = await signJWT({
+        const token = await createUserToken({
             id: user.id,
             email: user.email,
             role: user.role,

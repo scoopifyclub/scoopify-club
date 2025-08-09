@@ -1,32 +1,20 @@
 import { NextResponse } from 'next/server';
 import { withDatabase } from './prisma';
-import { jwtVerify, SignJWT } from 'jose';
+import { validateUserToken, createUserToken, createRefreshToken } from './jwt-utils';
 import { compare } from 'bcryptjs';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET);
-
 export async function verifyToken(token) {
-  try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
-    return payload;
-  } catch (error) {
-    console.error('Error verifying token:', error);
-    return null;
-  }
+  return await validateUserToken(token);
 }
 
 export async function signToken(payload) {
-  try {
-    const token = await new SignJWT(payload)
-      .setProtectedHeader({ alg: 'HS256' })
-      .setIssuedAt()
-      .setExpirationTime('24h')
-      .sign(JWT_SECRET);
-    return token;
-  } catch (error) {
-    console.error('Error signing token:', error);
-    return null;
-  }
+  // For backward compatibility, create a user token
+  // The payload should have userId, email, role structure
+  return await createUserToken({
+    id: payload.userId || payload.id,
+    email: payload.email,
+    role: payload.role
+  });
 }
 
 export async function getAuthUser(request) {
@@ -36,7 +24,7 @@ export async function getAuthUser(request) {
       return null;
     }
 
-    const decoded = await verifyToken(token);
+    const decoded = await validateUserToken(token);
     if (!decoded) {
       return null;
     }
@@ -60,7 +48,7 @@ export async function getAuthUserFromCookies(request) {
       return null;
     }
 
-    const decoded = await verifyToken(token);
+    const decoded = await validateUserToken(token);
     console.log('🔓 Token decoded:', decoded ? 'success' : 'failed');
     
     if (!decoded) {
@@ -92,13 +80,44 @@ export async function getAuthUserFromCookies(request) {
   }
 }
 
-export async function validateUser(token) {
+export async function validateUser(token, role = null) {
   try {
-    const decoded = await verifyToken(token);
+    const decoded = await validateUserToken(token, role);
     if (!decoded) {
       return null;
     }
 
+    // For customer role, fetch additional customer data
+    if (decoded.role === 'CUSTOMER') {
+      const customer = await withDatabase(async (prisma) => {
+        return await prisma.customer.findFirst({
+          where: { userId: decoded.userId },
+          include: {
+            address: true,
+            user: {
+              select: {
+                email: true,
+                name: true
+              }
+            }
+          }
+        });
+      });
+
+      if (!customer) {
+        console.error('Customer record not found for user:', decoded.userId);
+        throw new Error('Customer record not found');
+      }
+
+      return {
+        userId: decoded.userId,
+        role: decoded.role,
+        customerId: customer.id,
+        customer: customer
+      };
+    }
+
+    // For other roles, return basic user info
     return {
       userId: decoded.userId,
       role: decoded.role,
@@ -170,15 +189,16 @@ export async function requireRole(requestOrRole, roleParam = null) {
 }
 
 export async function generateTokens(user) {
-  const accessToken = await signToken({
-    userId: user.id,
+  const accessToken = await createUserToken({
+    id: user.id,
+    email: user.email,
     role: user.role,
   });
 
-  const refreshToken = await signToken({
-    userId: user.id,
+  const refreshToken = await createRefreshToken({
+    id: user.id,
+    email: user.email,
     role: user.role,
-    type: 'refresh',
   });
 
   return { accessToken, refreshToken };
@@ -249,13 +269,8 @@ export async function authenticateUser(email, password) {
       return null;
     }
 
-    // Generate access token
-    const accessToken = await signToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-      type: 'access'
-    });
+    // Generate tokens using the unified JWT utilities
+    const { accessToken, refreshToken } = await generateTokens(user);
 
     if (!accessToken) {
       console.error('Failed to generate access token');
@@ -264,7 +279,8 @@ export async function authenticateUser(email, password) {
 
     return {
       user,
-      accessToken
+      accessToken,
+      refreshToken
     };
   } catch (error) {
     console.error('Authentication error:', error);
