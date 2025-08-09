@@ -1,13 +1,10 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
-  "installCommand": "npm install --ignore-scripts",
+  "installCommand": "npm install",
   "functions": {
     "src/app/api/**/*.js": {
       "maxDuration": 30
     }
-  },
-  "env": {
-    "PRISMA_GENERATE_DATAPROXY": "true"
   }
 }
