@@ -144,8 +144,8 @@ export default function AdminDashboardLayout({ children }) {
             setQuickStats({
                 totalCustomers: data.stats.totalCustomers || 0,
                 totalEmployees: data.stats.totalEmployees || 0,
-                pendingServices: data.stats.pendingServices || 0,
-                monthlyRevenue: data.stats.monthlyRevenue || 0
+                pendingServices: data.stats.services?.pending || 0,
+                monthlyRevenue: data.stats.overview?.monthlyRevenue || data.stats.monthlyRevenue || 0
             });
         } catch (error) {
             console.error('Error fetching quick stats:', error);

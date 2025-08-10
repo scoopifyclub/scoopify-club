@@ -50,37 +50,32 @@ export default function AdminOverviewPage() {
                     throw new Error(data.error || 'Failed to fetch dashboard data');
                 }
 
-                // The API now returns data in a stats object
+                // The API now returns data in a stats object with nested structure
                 const dashboardData = data.stats;
                 setStats({
-                    totalCustomers: dashboardData.totalCustomers || 0,
-                    totalEmployees: dashboardData.totalEmployees || 0,
-                    activeServices: dashboardData.activeServices || 0,
-                    monthlyRevenue: dashboardData.monthlyRevenue || 0,
-                    revenueChange: dashboardData.revenueChange || 0,
-                    customerChange: dashboardData.customerChange || 0,
+                    totalCustomers: dashboardData.overview?.totalCustomers || dashboardData.totalCustomers || 0,
+                    totalEmployees: dashboardData.overview?.totalEmployees || dashboardData.totalEmployees || 0,
+                    activeServices: dashboardData.overview?.activeServices || dashboardData.activeServices || 0,
+                    monthlyRevenue: dashboardData.overview?.monthlyRevenue || dashboardData.monthlyRevenue || 0,
+                    revenueChange: dashboardData.overview?.revenueChange || dashboardData.revenueChange || 0,
+                    customerChange: dashboardData.overview?.customerGrowth || dashboardData.customerChange || 0,
                     serviceCompletion: {
-                        completed: dashboardData.serviceCompletion?.completed || 0,
-                        total: dashboardData.serviceCompletion?.total || 0
+                        completed: dashboardData.services?.completed || dashboardData.serviceCompletion?.completed || 0,
+                        total: dashboardData.services?.total || dashboardData.serviceCompletion?.total || 0
                     },
                     recentActivity: dashboardData.recentActivity?.map(activity => ({
                         id: activity.id,
                         type: activity.type,
                         status: activity.status,
-                        description: activity.description,
-                        time: activity.time
+                        description: `${activity.customerName} - ${activity.employeeName}`,
+                        time: new Date(activity.date).toLocaleDateString()
                     })) || [],
                     paymentStats: {
-                        total: dashboardData.paymentStats?.total || 0,
-                        amount: dashboardData.paymentStats?.amount || 0,
-                        pending: dashboardData.paymentStats?.pending || 0
+                        total: dashboardData.thisMonth?.payments || dashboardData.paymentStats?.total || 0,
+                        amount: dashboardData.thisMonth?.totalPaymentAmount || dashboardData.paymentStats?.amount || 0,
+                        pending: dashboardData.services?.pending || dashboardData.paymentStats?.pending || 0
                     },
-                    alerts: dashboardData.alerts?.map(alert => ({
-                        id: alert.id,
-                        severity: alert.severity,
-                        message: alert.message,
-                        time: alert.time
-                    })) || []
+                    alerts: [] // No alerts in current API response
                 });
             } catch (error) {
                 console.error('Error fetching dashboard data:', error);
