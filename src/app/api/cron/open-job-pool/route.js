@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { startOfDay, endOfDay } from 'date-fns';
 
 // Only allow this endpoint to be called by the cron job
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export async function GET() {
   try {
