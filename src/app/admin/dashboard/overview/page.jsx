@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'react-hot-toast';
 
 export default function AdminOverviewPage() {
-    const { user, status } = useAuth({ required: true, role: 'ADMIN', redirectTo: '/login' });
+    const { user, status } = useAuth({ required: true, role: 'ADMIN', redirectTo: '/admin/login' });
     const router = useRouter();
     const [stats, setStats] = useState({
         totalCustomers: 0,
@@ -31,6 +31,24 @@ export default function AdminOverviewPage() {
         alerts: []
     });
     const [isLoading, setIsLoading] = useState(true);
+
+    // Show loading state while auth is being checked
+    if (status === 'loading') {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
+                    <p className="mt-4 text-lg">Loading admin dashboard...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Redirect if not admin
+    if (status === 'unauthenticated' || (user && user.role !== 'ADMIN')) {
+        router.push('/admin/login');
+        return null;
+    }
 
     useEffect(() => {
         // Fetch dashboard data
@@ -111,14 +129,6 @@ export default function AdminOverviewPage() {
             fetchDashboardData();
         }
     }, [status]);
-
-    if (status === 'loading' || isLoading) {
-        return (
-            <div className="flex items-center justify-center h-[400px]">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-        );
-    }
 
     const completionRate = stats.serviceCompletion.total > 0
         ? Math.round((stats.serviceCompletion.completed / stats.serviceCompletion.total) * 100)

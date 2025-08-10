@@ -96,28 +96,41 @@ export default function AdminDashboardLayout({ children }) {
             // Verify admin authentication
             const verifyAdmin = async () => {
                 try {
+                    // First try to get user from the main auth context
+                    const authResponse = await fetch('/api/auth/me', {
+                        credentials: 'include'
+                    });
+                    
+                    if (authResponse.ok) {
+                        const authData = await authResponse.json();
+                        if (authData.user && authData.user.role === 'ADMIN') {
+                            console.log('✅ Admin authenticated via /api/auth/me');
+                            setIsLoading(false);
+                            return;
+                        }
+                    }
+                    
+                    // Fallback to admin-specific verification
                     const response = await fetch('/api/admin/verify', {
                         credentials: 'include'
                     });
                     
-                    if (!response.ok) {
-                        throw new Error('Failed to verify admin access');
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            console.log('✅ Admin authenticated via /api/admin/verify');
+                            setIsLoading(false);
+                        } else {
+                            console.log('❌ Admin verification failed');
+                            router.push('/admin/login');
+                        }
+                    } else {
+                        console.log('❌ Admin verification response not OK');
+                        router.push('/admin/login');
                     }
-
-                    const data = await response.json();
-                    if (!data.success || data.user?.role !== 'ADMIN') {
-                        throw new Error('Unauthorized access');
-                    }
-
-                    console.log('Admin token valid, loading dashboard');
-                    await fetchQuickStats();
-                    setIsLoading(false);
                 } catch (error) {
-                    console.error('Error verifying admin token:', error);
-                    toast.error('Authentication failed', {
-                        description: 'Please log in again to access the admin dashboard'
-                    });
-                    window.location.href = '/login?callbackUrl=/admin/dashboard';
+                    console.error('❌ Admin verification error:', error);
+                    router.push('/admin/login');
                 }
             };
 

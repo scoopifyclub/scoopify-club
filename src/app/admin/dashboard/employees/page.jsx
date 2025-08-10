@@ -11,13 +11,31 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
 export default function EmployeesPage() {
-    const { user, status } = useAuth({ required: true, role: 'ADMIN', redirectTo: '/login' });
+    const { user, status } = useAuth({ required: true, role: 'ADMIN', redirectTo: '/admin/login' });
     const router = useRouter();
     const [employees, setEmployees] = useState([]);
     const [filteredEmployees, setFilteredEmployees] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // Show loading state while auth is being checked
+    if (status === 'loading') {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
+                    <p className="mt-4 text-lg">Loading employees...</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Redirect if not admin
+    if (status === 'unauthenticated' || (user && user.role !== 'ADMIN')) {
+        router.push('/admin/login');
+        return null;
+    }
 
     const fetchEmployees = async () => {
         try {
