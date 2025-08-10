@@ -5,6 +5,9 @@ import { createUserToken } from '@/lib/jwt-utils';
 import { cookies } from 'next/headers';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 
+// Force Node.js runtime for bcryptjs, Prisma, and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function POST(request) {
     try {
         const rateLimiter = new AuthRateLimiter();
