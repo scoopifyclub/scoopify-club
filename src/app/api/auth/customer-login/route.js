@@ -14,6 +14,8 @@ import { compare } from 'bcryptjs';
 import prisma from "@/lib/prisma";
 import { verifyToken, generateTokens } from '@/lib/api-auth';
 
+// Force Node.js runtime for bcryptjs and Prisma
+export const runtime = 'nodejs';
 
 export async function POST(request) {
     try {

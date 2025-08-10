@@ -4,8 +4,7 @@
   "installCommand": "npm install",
   "functions": {
     "src/app/api/**/*.js": {
-      "maxDuration": 30,
-      "runtime": "nodejs@18"
+      "maxDuration": 30
     }
   }
 }
