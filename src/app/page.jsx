@@ -4,6 +4,17 @@ import Image from 'next/image';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPaw, faCircleInfo, faBroom, faCalendar, faStar, faCircleCheck, faTags, faMobileScreen, faCamera, faThumbsUp } from '@fortawesome/free-solid-svg-icons';
 
+// Safe icon component that handles errors gracefully
+const SafeIcon = ({ icon, className, ...props }) => {
+    try {
+        return <FontAwesomeIcon icon={icon} className={className} {...props} />;
+    } catch (error) {
+        console.warn('FontAwesome icon error:', error);
+        // Fallback to a simple span if icon fails
+        return <span className={`inline-block w-4 h-4 ${className || ''}`} {...props}>•</span>;
+    }
+};
+
 /**
  * Home page component
  * @returns {JSX.Element} The rendered component
@@ -25,15 +36,15 @@ export default function Home() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link href="/signup" className="inline-flex items-center justify-center bg-primary text-white font-semibold px-6 py-3 rounded-lg hover:bg-primary-dark transition-colors duration-200">
-                  <FontAwesomeIcon icon={faPaw} className="mr-2 h-4 w-4"/>
+                  <SafeIcon icon={faPaw} className="mr-2 h-4 w-4"/>
                   Join the Club
                 </Link>
                 <Link href="/services" className="inline-flex items-center justify-center bg-white text-primary border-2 border-primary font-semibold px-6 py-3 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200">
-                  <FontAwesomeIcon icon={faCircleInfo} className="mr-2 h-4 w-4"/>
+                  <SafeIcon icon={faCircleInfo} className="mr-2 h-4 w-4"/>
                   Learn More
                 </Link>
                 <Link href="/auth/scooper-signup" className="inline-flex items-center justify-center border-2 border-primary text-primary font-semibold px-6 py-3 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200">
-                  <FontAwesomeIcon icon={faBroom} className="mr-2 h-4 w-4"/>
+                  <SafeIcon icon={faBroom} className="mr-2 h-4 w-4"/>
                   Become a Scooper
                 </Link>
               </div>
@@ -72,7 +83,7 @@ export default function Home() {
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
                   <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <FontAwesomeIcon icon={faBroom} className="w-6 h-6 text-primary"/>
+                    <SafeIcon icon={faBroom} className="w-6 h-6 text-primary"/>
                   </div>
                 </div>
                 <div>
@@ -86,7 +97,7 @@ export default function Home() {
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
                   <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <FontAwesomeIcon icon={faCalendar} className="w-6 h-6 text-primary"/>
+                    <SafeIcon icon={faCalendar} className="w-6 h-6 text-primary"/>
                   </div>
                 </div>
                 <div>
@@ -100,12 +111,12 @@ export default function Home() {
               <div className="flex items-start gap-4">
                 <div className="flex-shrink-0">
                   <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <FontAwesomeIcon icon={faStar} className="w-6 h-6 text-primary"/>
+                    <SafeIcon icon={faMobileScreen} className="w-6 h-6 text-primary"/>
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold mb-2 text-neutral-900">Quality Guaranteed</h3>
-                  <p className="text-neutral-600">View before and after photos of each service in your dashboard, ensuring you always get the quality results you deserve.</p>
+                  <h3 className="text-xl font-semibold mb-2 text-neutral-900">Mobile App</h3>
+                  <p className="text-neutral-600">Manage your service schedule, view photos, and communicate with your scooper all from your mobile device.</p>
                 </div>
               </div>
             </div>

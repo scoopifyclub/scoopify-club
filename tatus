@@ -1,0 +1,5 @@
+[33me3206fb[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix admin API authentication: use validateUserToken directly and fix cookie-based auth
+[33mbfffa74[m Create missing admin API endpoints: reports, settings, coverage-areas, and me
+[33m4c1faf6[m Add Node.js runtime to admin API routes: services and payments
+[33ma634ff5[m Fix admin dashboard data structure mismatch - properly access nested stats data from API responses
+[33m352272b[m Fix data structure mismatch in admin dashboard layout - access stats from data.stats object
