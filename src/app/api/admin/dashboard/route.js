@@ -324,7 +324,10 @@ export async function GET(request) {
 
         console.log('📊 Admin dashboard data generated successfully');
         
-        const response = NextResponse.json(dashboardData);
+        const response = NextResponse.json({
+            success: true,
+            stats: dashboardData
+        });
         
         // Add CORS headers
         response.headers.set('Access-Control-Allow-Credentials', 'true');

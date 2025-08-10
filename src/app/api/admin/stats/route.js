@@ -325,7 +325,10 @@ export async function GET(request) {
 
         console.log('📊 Admin stats generated successfully');
         
-        const response = NextResponse.json(stats);
+        const response = NextResponse.json({
+            success: true,
+            stats: stats
+        });
         
         // Add CORS headers
         response.headers.set('Access-Control-Allow-Credentials', 'true');
