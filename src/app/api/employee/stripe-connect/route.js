@@ -2,15 +2,14 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/api-auth';
 import { 
-
-// Force Node.js runtime for Prisma and other Node.js APIs
-export const runtime = 'nodejs';
-
   createEmployeeConnectAccount, 
   createAccountLink, 
   checkEmployeeAccountStatus,
   getAccountRequirements 
 } from '@/lib/stripe-connect';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
 
 export async function GET(request) {
   const { userId } = getUserFromToken(request);
