@@ -19,6 +19,10 @@ import { cookies } from 'next/headers';
 import Stripe from 'stripe';
 import { edgeRateLimit } from '@/lib/edge-rate-limit';
 import crypto from 'crypto';
+
+// Force Node.js runtime for bcryptjs, crypto, and Prisma
+export const runtime = 'nodejs';
+
 const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2023-10-16',
 });
