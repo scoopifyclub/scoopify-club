@@ -4,6 +4,9 @@ import { withAdminDatabase } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { Prisma } from '@prisma/client';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function GET(request) {
     try {
         const user = await requireRole('ADMIN');

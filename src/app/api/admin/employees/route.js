@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import { withAdminDatabase } from '@/lib/prisma';
 import crypto from 'crypto';
 
+// Force Node.js runtime for Prisma, crypto, and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function GET(request) {
     try {
         const user = await requireRole('ADMIN');
