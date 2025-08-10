@@ -3,6 +3,10 @@ import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import Stripe from 'stripe';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2023-10-16',
 });

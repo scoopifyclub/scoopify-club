@@ -3,6 +3,10 @@ import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 import { validatePhotoUpload } from '@/lib/validations';
 import sharp from 'sharp';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 const MAX_PHOTOS_PER_SERVICE = 16;
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const COMPRESSED_IMAGE_QUALITY = 80;

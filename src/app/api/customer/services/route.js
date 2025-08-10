@@ -5,6 +5,10 @@ import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // Helper function to get token and validate
 async function getTokenAndValidate(request, role = 'CUSTOMER') {
     // Try header first

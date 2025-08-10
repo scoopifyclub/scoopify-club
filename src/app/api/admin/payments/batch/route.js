@@ -4,6 +4,10 @@ import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { logPaymentEvent } from '@/lib/payment-audit';
 import { logger } from '@/lib/logger';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 // GET /api/admin/payments/batch
 // Get all payment batches with optional filters
 export async function GET(request) {

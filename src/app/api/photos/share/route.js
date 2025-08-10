@@ -5,6 +5,10 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
 import crypto from 'crypto';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 const prisma = new PrismaClient();
 
 export async function POST(request) {

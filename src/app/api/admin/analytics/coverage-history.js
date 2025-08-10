@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // Returns historical daily counts of at-risk, covered, and priority zips
 export async function GET() {
   // For simplicity, assume a CoverageHistory table exists or fallback to live data for now

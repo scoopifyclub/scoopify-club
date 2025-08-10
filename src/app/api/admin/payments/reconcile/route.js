@@ -7,6 +7,10 @@ import { requireRole } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // GET: Get recent reconciliation reports
 export async function GET(request) {
     var _a;

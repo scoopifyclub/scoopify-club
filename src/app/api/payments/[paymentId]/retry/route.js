@@ -4,6 +4,10 @@ import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { stripe } from '@/lib/stripe';
 import { UserRole } from '@prisma/client';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function POST(request, { params }) {
     var _a, _b, _c;
     try {

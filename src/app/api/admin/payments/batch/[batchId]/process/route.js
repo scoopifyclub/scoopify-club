@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // POST /api/admin/payments/batch/[batchId]/process
 // Process all payments in a batch
 export async function POST(request, { params }) {

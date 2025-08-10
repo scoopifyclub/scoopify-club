@@ -3,6 +3,10 @@ import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 const VALID_STATUSES = ['SCHEDULED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'DELAYED'];
 
 export async function POST(request) {

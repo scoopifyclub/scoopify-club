@@ -1,6 +1,10 @@
 import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 const VALID_PAYMENT_METHODS = ['CASH', 'CASH_APP', 'CHECK'];
 export async function POST(request, { params }) {
     try {

@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 /**
  * This API endpoint is designed to be called by a CRON job to clean up expired photos.
  * It will:

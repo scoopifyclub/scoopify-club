@@ -1,20 +1,24 @@
 import { NextResponse } from 'next/server';
 import { withAdminDatabase } from '@/lib/prisma';
-import { verifyToken } from '@/lib/api-auth';
+import { validateUserToken } from '@/lib/jwt-utils';
+import { cookies } from 'next/headers';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        const token = request.headers.get('authorization')?.split(' ')[1];
+        const cookieStore = await cookies();
+        const token = cookieStore.get('accessToken')?.value;
         if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            console.log('No access token found in cookies');
+            return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
         }
-
-        const decoded = await verifyToken(token);
+        const decoded = await validateUserToken(token);
+        console.log('Token verification result:', decoded ? 'success' : 'failed');
         if (!decoded || decoded.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            console.log('Invalid token or not admin:', decoded?.role);
+            return NextResponse.json({ error: 'Unauthorized - Not admin' }, { status: 401 });
         }
 
         const { searchParams } = new URL(request.url);

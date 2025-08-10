@@ -4,6 +4,10 @@ import { verifyToken } from '@/lib/api-auth';
 import { startOfDay, endOfDay, setHours, format, isAfter, isBefore } from 'date-fns';
 import { calculateDistance } from '@/lib/geolocation';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function GET(request) {
     try {
         // Extract token for authorization

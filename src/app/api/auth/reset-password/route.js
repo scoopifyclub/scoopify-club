@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { hashPassword } from '@/lib/auth/password';
 import { sendPasswordResetEmail } from '@/lib/email-service';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // Request password reset
 export async function POST(request) {
   try {

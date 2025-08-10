@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 import { nanoid } from 'nanoid';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function POST(req) {
     var _a;
     try {

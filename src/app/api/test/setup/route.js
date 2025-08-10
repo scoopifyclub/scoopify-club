@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { hash } from 'bcryptjs';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function POST() {
     try {
         // Create test customer user

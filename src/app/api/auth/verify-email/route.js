@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { createUserToken } from '@/lib/jwt-utils';
 import { sendVerificationEmail } from '@/lib/email-service';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function POST(request) {
   try {
     const { email, token } = await request.json();

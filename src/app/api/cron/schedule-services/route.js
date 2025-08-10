@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { endOfDay, startOfDay, setHours, format } from 'date-fns';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function POST(request) {
     try {
         // Get API key from request header for authorization

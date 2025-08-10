@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { addDays, startOfDay, endOfDay, setHours } from 'date-fns';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function POST(request) {
     try {
         const { startDate, endDate } = await request.json();

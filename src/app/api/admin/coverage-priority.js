@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // GET: List all priority zip codes
 export async function GET(req) {
   const zips = await prisma.coveragePriority.findMany({ orderBy: { createdAt: 'desc' } });

@@ -1,6 +1,10 @@
 import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 // GET - Retrieve a specific payment batch by ID
 export async function GET(request, { params }) {
     try {

@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import prisma from '../../../../lib/prisma.js';
 import { verifyToken } from '@/lib/api-auth';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function GET(request) {
   try {
     console.log('📊 Fetching consolidated dashboard data...');

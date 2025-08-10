@@ -3,6 +3,10 @@ import { withApiSecurity } from '@/lib/security-middleware';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 async function handler(req) {

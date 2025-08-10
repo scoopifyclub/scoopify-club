@@ -4,6 +4,10 @@ import { prisma } from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function GET(request, { params }) {
     try {
         const cookieStore = cookies();

@@ -5,6 +5,10 @@ import { stripe } from '@/lib/stripe';
 import { logPaymentEvent } from '@/lib/payment-audit';
 import { logger } from '@/lib/logger';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function POST(request, { params }) {
     try {
         const user = await requireRole('ADMIN');

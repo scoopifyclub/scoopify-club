@@ -4,6 +4,10 @@ import { verifyToken } from "@/lib/api-auth";
 import { cookies } from "next/headers";
 import bcrypt from "bcrypt";
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function GET(request) {
   try {
     const token = cookies().get("token")?.value;

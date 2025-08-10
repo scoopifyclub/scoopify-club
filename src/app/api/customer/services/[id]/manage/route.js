@@ -3,6 +3,10 @@ import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/api-auth';
 import { addDays, isBefore, startOfDay } from 'date-fns';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function PUT(request, { params }) {
   const { userId } = getUserFromToken(request);
   if (!userId) {

@@ -7,6 +7,10 @@ import { logger } from '@/lib/logger';
 import { sendEmail } from '@/lib/email-service';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // POST: Process a batch of payments
 export async function POST(request) {
     try {

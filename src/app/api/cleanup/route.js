@@ -6,6 +6,9 @@ import prisma from "@/lib/prisma";
 // Import directly from the stripe-subscriptions file
 import { createSubscription as stripeCreateSubscription } from '@/lib/stripe-subscriptions';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function POST(request) {
     try {
         const token = request.headers.get('authorization')?.split(' ')[1];

@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { startOfWeek, endOfWeek, subWeeks } from 'date-fns';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // This endpoint should be called by a cron job (e.g., Vercel Cron)
 // Recommended schedule: Every Friday at 6:00 PM
 export async function POST(request) {

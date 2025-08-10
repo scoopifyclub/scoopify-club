@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { withApiSecurity } from '@/lib/security-middleware';
 import { prisma } from '@/lib/prisma';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 async function handler(req) {
     try {
         if (req.method === 'POST') {

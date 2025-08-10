@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/api-auth';
 import { 
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
   createEmployeeConnectAccount, 
   createAccountLink, 
   checkEmployeeAccountStatus,

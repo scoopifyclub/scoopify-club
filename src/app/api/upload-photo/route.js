@@ -3,6 +3,10 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import prisma from "@/lib/prisma";
 import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 const s3Client = new S3Client({
     region: process.env.AWS_REGION,
     credentials: {

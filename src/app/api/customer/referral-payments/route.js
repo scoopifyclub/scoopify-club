@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 // Helper function to get token and validate
 async function getTokenAndValidate(request, role = 'CUSTOMER') {
     var _a, _b, _c, _d;

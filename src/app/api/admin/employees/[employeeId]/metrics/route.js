@@ -1,12 +1,24 @@
-import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { validateUserToken } from '@/lib/jwt-utils';
+import { cookies } from 'next/headers';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
 
 export async function GET(request, { params }) {
   try {
-    const user = await requireRole('ADMIN');
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken')?.value;
+    if (!token) {
+      console.log('No access token found in cookies');
+      return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
+    }
+    const decoded = await validateUserToken(token);
+    console.log('Token verification result:', decoded ? 'success' : 'failed');
+    if (!decoded || decoded.role !== 'ADMIN') {
+      console.log('Invalid token or not admin:', decoded?.role);
+      return NextResponse.json({ error: 'Unauthorized - Not admin' }, { status: 401 });
     }
 
     const { employeeId } = params;

@@ -5,6 +5,10 @@ import { cookies } from 'next/headers';
 import { emitServiceStatusChange } from '@/lib/socket';
 import { sendServiceNotificationEmail } from '@/lib/email-service';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function PUT(request, { params }) {
     try {
         const token = cookies().get('token')?.value;

@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendCustomerAtRiskEmail } from '@/lib/email-service';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // POST: Notify all customers in at-risk zips (customers, no scoopers)
 export async function POST() {
   // Get all zips with at least one active customer

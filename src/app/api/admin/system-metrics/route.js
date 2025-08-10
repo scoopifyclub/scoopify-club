@@ -1,14 +1,25 @@
 import { NextResponse } from 'next/server';
-import { withApiSecurity } from '@/lib/security-middleware';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/api-auth';
+import { validateUserToken } from '@/lib/jwt-utils';
+import { cookies } from 'next/headers';
 import { startOfWeek, endOfWeek, subWeeks, startOfMonth, endOfMonth } from 'date-fns';
 
-async function getHandler(request) {
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+export async function GET(request) {
   try {
-    const user = await requireRole('ADMIN');
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken')?.value;
+    if (!token) {
+      console.log('No access token found in cookies');
+      return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
+    }
+    const decoded = await validateUserToken(token);
+    console.log('Token verification result:', decoded ? 'success' : 'failed');
+    if (!decoded || decoded.role !== 'ADMIN') {
+      console.log('Invalid token or not admin:', decoded?.role);
+      return NextResponse.json({ error: 'Unauthorized - Not admin' }, { status: 401 });
     }
 
     const now = new Date();
@@ -380,6 +391,4 @@ async function getCoverageGaps() {
     console.error('Error calculating coverage gaps:', error);
     return 0;
   }
-} 
-
-export const GET = withApiSecurity(getHandler, { requireAuth: true, rateLimit: true });
+}

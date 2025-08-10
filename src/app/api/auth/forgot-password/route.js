@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { sendEmail } from '@/lib/email-service';
 import crypto from 'crypto';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function POST(request) {
     try {
         const { email } = await request.json();

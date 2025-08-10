@@ -7,6 +7,10 @@ import { generateTokens, validateUser } from '@/lib/api-auth';
 import { getZipCodesWithinRadiusGoogle } from '@/lib/googleZipRadius';
 import crypto from 'crypto';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function POST(request) {
     try {
         const body = await request.json();

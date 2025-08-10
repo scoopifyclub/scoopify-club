@@ -4,6 +4,10 @@ import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { emitServiceUpdate } from '@/lib/socket';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function POST(request, { params }) {
     try {
         const token = cookies().get('token')?.value;

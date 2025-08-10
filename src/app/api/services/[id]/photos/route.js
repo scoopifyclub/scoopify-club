@@ -3,6 +3,10 @@ import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 const VALID_PHOTO_TYPES = ['BEFORE', 'AFTER', 'ISSUE', 'OTHER'];
 
 export async function POST(request, { params }) {

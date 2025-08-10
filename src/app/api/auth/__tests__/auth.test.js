@@ -6,6 +6,10 @@ import { NextRequest } from 'next/server';
 import { GET } from '../session/route';
 import { verifyJWT } from '@/lib/auth-server';
 import { edgeRateLimit } from '@/lib/edge-rate-limit';
+
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 // Mock the email sending function
 jest.mock('@/lib/email', () => ({
     sendEmail: jest.fn().mockResolvedValue(true)

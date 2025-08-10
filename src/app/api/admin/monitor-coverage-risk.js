@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendAdminNotification } from '@/lib/email-service';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 export async function POST() {
   // Get all zips with at least one active customer
   const customerZips = await prisma.customer.findMany({

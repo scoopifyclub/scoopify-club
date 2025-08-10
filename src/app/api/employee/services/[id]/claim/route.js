@@ -4,6 +4,10 @@ import { verifyToken } from '@/lib/api-auth';
 import { addMinutes, setHours, startOfDay, endOfDay, isAfter, isBefore } from 'date-fns';
 import { sendServiceNotificationEmail } from '@/lib/email-service';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
+
 // API endpoint for employee to claim a service
 export async function POST(request, { params }) {
     try {
