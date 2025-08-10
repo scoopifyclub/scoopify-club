@@ -2,6 +2,9 @@ import { authenticateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function POST(request) {
   try {
     const { email, password } = await request.json();

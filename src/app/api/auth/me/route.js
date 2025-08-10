@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 export async function GET(request) {
   try {
     console.log('🔍 /api/auth/me called');
