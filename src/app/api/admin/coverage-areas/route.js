@@ -1,18 +1,21 @@
 import { NextResponse } from 'next/server';
 import { withAdminDatabase } from '@/lib/prisma';
-import { verifyToken } from '@/lib/api-auth';
+import { validateUserToken } from '@/lib/jwt-utils';
+import { cookies } from 'next/headers';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        const token = request.headers.get('authorization')?.split(' ')[1];
+        const cookieStore = await cookies();
+        const token = cookieStore.get('accessToken')?.value;
+        
         if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
         }
-
-        const decoded = await verifyToken(token);
+        
+        const decoded = await validateUserToken(token);
         if (!decoded || decoded.role !== 'ADMIN') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
@@ -89,12 +92,14 @@ export async function GET(request) {
 
 export async function POST(request) {
     try {
-        const token = request.headers.get('authorization')?.split(' ')[1];
+        const cookieStore = await cookies();
+        const token = cookieStore.get('accessToken')?.value;
+        
         if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
         }
-
-        const decoded = await verifyToken(token);
+        
+        const decoded = await validateUserToken(token);
         if (!decoded || decoded.role !== 'ADMIN') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
