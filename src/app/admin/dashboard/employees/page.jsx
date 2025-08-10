@@ -37,78 +37,76 @@ export default function EmployeesPage() {
         } catch (error) {
             console.error('Error fetching employees:', error);
             toast.error('Failed to fetch employees');
-            // Fallback to demo data in development
-            if (process.env.NODE_ENV === 'development') {
-                const mockEmployees = [
-                    {
-                        id: '1',
-                        name: 'David Miller',
-                        email: 'david.m@scoopify.com',
-                        phone: '(555) 123-4567',
-                        role: 'Senior Cleaner',
-                        status: 'active',
-                        hireDate: '2022-05-12',
-                        lastActive: '2023-11-22',
-                        completedServices: 153,
-                        rating: 4.8,
-                        serviceAreas: ['Downtown', 'North Side', 'West Hills']
-                    },
-                    {
-                        id: '2',
-                        name: 'Sarah Johnson',
-                        email: 'sarah.j@scoopify.com',
-                        phone: '(555) 234-5678',
-                        role: 'Team Lead',
-                        status: 'active',
-                        hireDate: '2022-02-18',
-                        lastActive: '2023-11-22',
-                        completedServices: 245,
-                        rating: 4.9,
-                        serviceAreas: ['East Side', 'South District', 'Central']
-                    },
-                    {
-                        id: '3',
-                        name: 'Tom Wilson',
-                        email: 'tom.w@scoopify.com',
-                        phone: '(555) 345-6789',
-                        role: 'Cleaner',
-                        status: 'on_leave',
-                        hireDate: '2022-09-05',
-                        lastActive: '2023-11-15',
-                        completedServices: 89,
-                        rating: 4.5,
-                        serviceAreas: ['Downtown', 'Marina', 'Heights']
-                    },
-                    {
-                        id: '4',
-                        name: 'Emily Davis',
-                        email: 'emily.d@scoopify.com',
-                        phone: '(555) 456-7890',
-                        role: 'Senior Cleaner',
-                        status: 'active',
-                        hireDate: '2021-11-30',
-                        lastActive: '2023-11-22',
-                        completedServices: 312,
-                        rating: 4.7,
-                        serviceAreas: ['North Side', 'College Area', 'West Hills']
-                    },
-                    {
-                        id: '5',
-                        name: 'James Brown',
-                        email: 'james.b@scoopify.com',
-                        phone: '(555) 567-8901',
-                        role: 'Cleaner',
-                        status: 'inactive',
-                        hireDate: '2023-01-15',
-                        lastActive: '2023-10-05',
-                        completedServices: 47,
-                        rating: 4.2,
-                        serviceAreas: ['Downtown', 'Industrial District']
-                    }
-                ];
-                setEmployees(mockEmployees);
-                setFilteredEmployees(mockEmployees);
-            }
+            // Remove problematic environment check that causes client-side errors
+            const mockEmployees = [
+                {
+                    id: '1',
+                    name: 'David Miller',
+                    email: 'david.m@scoopify.com',
+                    phone: '(555) 123-4567',
+                    role: 'Senior Cleaner',
+                    status: 'active',
+                    hireDate: '2022-05-12',
+                    lastActive: '2023-11-22',
+                    completedServices: 153,
+                    rating: 4.8,
+                    serviceAreas: ['Downtown', 'North Side', 'West Hills']
+                },
+                {
+                    id: '2',
+                    name: 'Sarah Johnson',
+                    email: 'sarah.j@scoopify.com',
+                    phone: '(555) 234-5678',
+                    role: 'Team Lead',
+                    status: 'active',
+                    hireDate: '2022-02-18',
+                    lastActive: '2023-11-22',
+                    completedServices: 245,
+                    rating: 4.9,
+                    serviceAreas: ['East Side', 'South District', 'Central']
+                },
+                {
+                    id: '3',
+                    name: 'Tom Wilson',
+                    email: 'tom.w@scoopify.com',
+                    phone: '(555) 345-6789',
+                    role: 'Cleaner',
+                    status: 'on_leave',
+                    hireDate: '2022-09-05',
+                    lastActive: '2023-11-15',
+                    completedServices: 89,
+                    rating: 4.5,
+                    serviceAreas: ['Downtown', 'Marina', 'Heights']
+                },
+                {
+                    id: '4',
+                    name: 'Emily Davis',
+                    email: 'emily.d@scoopify.com',
+                    phone: '(555) 456-7890',
+                    role: 'Senior Cleaner',
+                    status: 'active',
+                    hireDate: '2021-11-30',
+                    lastActive: '2023-11-22',
+                    completedServices: 312,
+                    rating: 4.7,
+                    serviceAreas: ['North Side', 'College Area', 'West Hills']
+                },
+                {
+                    id: '5',
+                    name: 'James Brown',
+                    email: 'james.b@scoopify.com',
+                    phone: '(555) 567-8901',
+                    role: 'Cleaner',
+                    status: 'inactive',
+                    hireDate: '2023-01-15',
+                    lastActive: '2023-10-05',
+                    completedServices: 47,
+                    rating: 4.2,
+                    serviceAreas: ['Downtown', 'Industrial District']
+                }
+            ];
+            setEmployees(mockEmployees);
+            setFilteredEmployees(mockEmployees);
         } finally {
             setIsLoading(false);
             setIsRefreshing(false);
