@@ -3,6 +3,9 @@ import { withAdminDatabase } from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 
+// Force Node.js runtime for Prisma and other Node.js APIs
+export const runtime = 'nodejs';
+
 // Helper function for diagnostic logging
 async function logDiagnostics() {
     try {
