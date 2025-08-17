@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { withAdminDatabase } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma";
 import bcrypt from 'bcryptjs';
 import { createUserToken } from '@/lib/jwt-utils';
 import { cookies } from 'next/headers';
@@ -45,42 +45,38 @@ export async function POST(request) {
             );
         }
 
-        // Use database helper for authentication
-        const user = await withAdminDatabase(async (prisma) => {
-            console.log('🔐 Admin authentication attempt for:', email);
-            
-            const user = await prisma.user.findUnique({
-                where: { email },
-                select: {
-                    id: true,
-                    email: true,
-                    password: true,
-                    role: true,
-                    name: true
-                }
-            });
-
-            if (!user || user.role !== 'ADMIN') {
-                console.log('❌ Admin user not found or invalid role');
-                return null;
+        console.log('🔐 Admin authentication attempt for:', email);
+        
+        const user = await prisma.user.findUnique({
+            where: { email },
+            select: {
+                id: true,
+                email: true,
+                password: true,
+                role: true,
+                firstName: true,
+                lastName: true
             }
-
-            const isValidPassword = await bcrypt.compare(password, user.password);
-            if (!isValidPassword) {
-                console.log('❌ Invalid password for admin user');
-                return null;
-            }
-
-            console.log('✅ Admin authentication successful');
-            return user;
         });
 
-        if (!user) {
+        if (!user || user.role !== 'ADMIN') {
+            console.log('❌ Admin user not found or invalid role');
             return NextResponse.json(
                 { error: 'Invalid credentials' },
                 { status: 401 }
             );
         }
+
+        const isValidPassword = await bcrypt.compare(password, user.password);
+        if (!isValidPassword) {
+            console.log('❌ Invalid password for admin user');
+            return NextResponse.json(
+                { error: 'Invalid credentials' },
+                { status: 401 }
+            );
+        }
+
+        console.log('✅ Admin authentication successful');
 
         // Generate JWT token
         const token = await createUserToken({
@@ -95,7 +91,7 @@ export async function POST(request) {
                 id: user.id,
                 email: user.email,
                 role: user.role,
-                name: user.name
+                name: `${user.firstName} ${user.lastName}`
             },
             redirectTo: '/admin/dashboard'
         });

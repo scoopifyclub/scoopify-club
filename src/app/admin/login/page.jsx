@@ -27,14 +27,8 @@ export default function AdminLogin() {
                 throw new Error(errorData.message || 'Invalid credentials');
             }
             const data = await response.json();
-            // Verify the login was successful
-            const verifyResponse = await fetch('/api/admin/verify', {
-                method: 'POST',
-                credentials: 'include'
-            });
-            if (!verifyResponse.ok) {
-                throw new Error('Failed to verify login');
-            }
+            
+            // Set the token in cookies and redirect
             toast.success('Login successful!');
             router.push('/admin/dashboard');
             router.refresh();

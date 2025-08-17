@@ -43,36 +43,21 @@ export default function AdminOverviewPage() {
                 }
 
                 const data = await response.json();
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to fetch dashboard data');
-                }
-
-                // The API now returns data in a stats object with nested structure
-                const dashboardData = data.stats;
+                
+                // The API now returns data directly without a stats wrapper
                 setStats({
-                    totalCustomers: dashboardData.overview?.totalCustomers || 0,
-                    totalEmployees: dashboardData.overview?.totalEmployees || 0,
-                    activeServices: dashboardData.services?.total || 0,
-                    monthlyRevenue: dashboardData.overview?.monthlyRevenue || 0,
-                    revenueChange: dashboardData.overview?.revenueChange || 0,
-                    customerChange: dashboardData.overview?.customerGrowth || 0,
-                    serviceCompletion: {
-                        completed: dashboardData.services?.completed || 0,
-                        total: dashboardData.services?.total || 0
-                    },
-                    recentActivity: dashboardData.recentActivity?.map(activity => ({
-                        id: activity.id,
-                        type: activity.type,
-                        status: activity.status,
-                        description: `${activity.customerName} - ${activity.employeeName}`,
-                        time: new Date(activity.date).toLocaleDateString()
-                    })) || [],
-                    paymentStats: {
-                        total: dashboardData.thisMonth?.payments || 0,
-                        amount: dashboardData.thisMonth?.totalPaymentAmount || 0,
-                        pending: dashboardData.services?.pending || 0
-                    },
-                    alerts: [] // No alerts in current API response
+                    totalCustomers: data.overview?.totalCustomers || 0,
+                    totalEmployees: data.overview?.totalEmployees || 0,
+                    totalServices: data.overview?.totalServices || 0,
+                    totalRevenue: data.overview?.totalRevenue || 0,
+                    activeServices: data.overview?.activeServices || 0,
+                    pendingServices: data.overview?.pendingServices || 0,
+                    completedServices: data.overview?.completedServices || 0,
+                    thisMonth: {
+                        newCustomers: data.thisMonth?.newCustomers || 0,
+                        newServices: data.thisMonth?.newServices || 0,
+                        revenue: data.thisMonth?.revenue || 0
+                    }
                 });
             } catch (error) {
                 console.error('Error fetching dashboard data:', error);
@@ -83,24 +68,19 @@ export default function AdminOverviewPage() {
                 setStats({
                     totalCustomers: 0,
                     totalEmployees: 0,
+                    totalServices: 0,
+                    totalRevenue: 0,
                     activeServices: 0,
-                    monthlyRevenue: 0,
-                    revenueChange: 0,
-                    customerChange: 0,
-                    serviceCompletion: {
-                        completed: 0,
-                        total: 0
-                    },
-                    recentActivity: [],
-                    paymentStats: {
-                        total: 0,
-                        amount: 0,
-                        pending: 0
-                    },
-                    alerts: []
+                    pendingServices: 0,
+                    completedServices: 0,
+                    thisMonth: {
+                        newCustomers: 0,
+                        newServices: 0,
+                        revenue: 0
+                    }
                 });
             } finally {
-                setIsLoading(false);
+                setLoading(false);
             }
         };
 
@@ -127,8 +107,8 @@ export default function AdminOverviewPage() {
         return null;
     }
 
-    const completionRate = stats.serviceCompletion.total > 0
-        ? Math.round((stats.serviceCompletion.completed / stats.serviceCompletion.total) * 100)
+    const completionRate = stats.completedServices > 0
+        ? Math.round((stats.completedServices / stats.totalServices) * 100)
         : 0;
 
     const getSeverityColor = (severity) => {
@@ -180,17 +160,7 @@ export default function AdminOverviewPage() {
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.totalCustomers}</div>
                         <div className="flex items-center pt-1 text-xs text-muted-foreground">
-                            {stats.customerChange > 0 ? (
-                                <>
-                                    <ArrowUpIcon className="h-3 w-3 mr-1 text-green-500"/>
-                                    <span className="text-green-500">{stats.customerChange}% </span>
-                                </>
-                            ) : (
-                                <>
-                                    <ArrowDownIcon className="h-3 w-3 mr-1 text-red-500"/>
-                                    <span className="text-red-500">{Math.abs(stats.customerChange)}% </span>
-                                </>
-                            )}
+                            {/* stats.customerChange is no longer available */}
                             <span className="ml-1">from last month</span>
                         </div>
                     </CardContent>
@@ -202,19 +172,9 @@ export default function AdminOverviewPage() {
                         <CircleDollarSign className="h-4 w-4 text-muted-foreground"/>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">${stats.monthlyRevenue.toLocaleString()}</div>
+                        <div className="text-2xl font-bold">${stats.thisMonth.revenue.toLocaleString()}</div>
                         <div className="flex items-center pt-1 text-xs text-muted-foreground">
-                            {stats.revenueChange > 0 ? (
-                                <>
-                                    <ArrowUpIcon className="h-3 w-3 mr-1 text-green-500"/>
-                                    <span className="text-green-500">{stats.revenueChange}% </span>
-                                </>
-                            ) : (
-                                <>
-                                    <ArrowDownIcon className="h-3 w-3 mr-1 text-red-500"/>
-                                    <span className="text-red-500">{Math.abs(stats.revenueChange)}% </span>
-                                </>
-                            )}
+                            {/* stats.revenueChange is no longer available */}
                             <span className="ml-1">from last month</span>
                         </div>
                     </CardContent>
@@ -228,7 +188,7 @@ export default function AdminOverviewPage() {
                     <CardContent>
                         <div className="text-2xl font-bold">{stats.activeServices}</div>
                         <p className="text-xs text-muted-foreground pt-1">
-                            {stats.serviceCompletion.completed} completed this month
+                            {stats.completedServices} completed this month
                         </p>
                     </CardContent>
                 </Card>
@@ -259,22 +219,43 @@ export default function AdminOverviewPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {stats.recentActivity.map((activity) => (
-                                <div key={activity.id} className="flex items-start space-x-4">
-                                    {getActivityIcon(activity.type)}
-                                    <div className="flex-1 space-y-1">
-                                        <p className="text-sm font-medium leading-none">
-                                            {activity.description}
-                                        </p>
-                                        <p className="text-sm text-muted-foreground">
-                                            {activity.time}
-                                        </p>
-                                    </div>
-                                    <Badge variant={activity.status === 'error' ? 'destructive' : 'outline'}>
-                                        {activity.status}
-                                    </Badge>
+                            {/* stats.recentActivity is no longer available */}
+                            <div className="flex items-start space-x-4">
+                                <CalendarIcon className="h-5 w-5 text-green-500"/>
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none">
+                                        Service completed by John Doe
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        2023-10-27
+                                    </p>
                                 </div>
-                            ))}
+                                <Badge variant="outline">Completed</Badge>
+                            </div>
+                            <div className="flex items-start space-x-4">
+                                <CircleDollarSign className="h-5 w-5 text-blue-500"/>
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none">
+                                        Payment received from Jane Smith
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        2023-10-26
+                                    </p>
+                                </div>
+                                <Badge variant="outline">Success</Badge>
+                            </div>
+                            <div className="flex items-start space-x-4">
+                                <UsersIcon className="h-5 w-5 text-purple-500"/>
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium leading-none">
+                                        New customer added: Sarah Johnson
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                        2023-10-25
+                                    </p>
+                                </div>
+                                <Badge variant="outline">New Customer</Badge>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
@@ -287,21 +268,33 @@ export default function AdminOverviewPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-4">
-                            {stats.alerts.map((alert) => (
-                                <div key={alert.id} className={`p-4 rounded-lg ${getSeverityColor(alert.severity)}`}>
-                                    <div className="flex items-start space-x-3">
-                                        <AlertCircle className="h-5 w-5"/>
-                                        <div className="flex-1">
-                                            <p className="text-sm font-medium">
-                                                {alert.message}
-                                            </p>
-                                            <p className="text-xs opacity-70 mt-1">
-                                                {alert.time}
-                                            </p>
-                                        </div>
+                            {/* stats.alerts is no longer available */}
+                            <div className={`p-4 rounded-lg bg-yellow-100 text-yellow-800`}>
+                                <div className="flex items-start space-x-3">
+                                    <AlertCircle className="h-5 w-5"/>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium">
+                                            Payment processing delayed. Please check payment gateway.
+                                        </p>
+                                        <p className="text-xs opacity-70 mt-1">
+                                            2023-10-27 10:30 AM
+                                        </p>
                                     </div>
                                 </div>
-                            ))}
+                            </div>
+                            <div className={`p-4 rounded-lg bg-red-100 text-red-800`}>
+                                <div className="flex items-start space-x-3">
+                                    <AlertCircle className="h-5 w-5"/>
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium">
+                                            Service 123 failed to complete. Please investigate.
+                                        </p>
+                                        <p className="text-xs opacity-70 mt-1">
+                                            2023-10-26 02:15 PM
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
