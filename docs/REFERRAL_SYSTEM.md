@@ -4,7 +4,43 @@ This document provides detailed information about the referral system in Scoopif
 
 ## Overview
 
-The ScoopifyClub referral system allows customers to earn money by referring new customers to the service. For each active customer they refer, they receive $5 per month as long as the referred customer maintains an active subscription.
+The ScoopifyClub referral system allows **customers and business partners** to earn money by referring new customers to the service. For each active customer they refer, referrers receive **$5 per month** as long as the referred customer maintains an active subscription.
+
+## Referral Types
+
+### 1. Customer Referrals
+- **Who**: Existing Scoopify Club customers
+- **Commission**: $5/month per active referral
+- **Payout**: $4.55/month after Stripe fees
+- **Model**: Residual income (ongoing monthly payments)
+
+### 2. Business Referrals
+- **Who**: Lawn care companies, landscapers, property managers, and other home service businesses
+- **Commission**: $5/month per active referral
+- **Payout**: $4.55/month after Stripe fees
+- **Model**: Residual income (ongoing monthly payments)
+- **Commission**: $5/month per active referral (residual model)
+
+## Business Partnership Program
+
+### Target Businesses
+- **Lawn Care Companies**: Keep yards clean between mowing visits
+- **Landscapers**: Maintain beautiful outdoor spaces
+- **Property Managers**: Keep rental properties clean and safe
+- **Home Service Providers**: Expand service offerings
+
+### Benefits for Business Partners
+- **Expand Service Portfolio**: Add dog waste removal to existing services
+- **Customer Retention**: Help customers maintain clean yards between visits
+- **Residual Income**: Earn $5/month per active referral
+- **Professional Service**: Scoopify Club handles everything (scheduling, service, billing, support)
+
+### How Business Referrals Work
+1. **Sign Up**: Business partners complete the business signup form
+2. **Get Referral Code**: Receive unique referral code for their business
+3. **Share with Customers**: Offer dog waste removal to existing customers
+4. **Earn Commissions**: Get $5/month for every active customer referred
+5. **Monthly Payouts**: Automatic payments to Stripe or Cash App accounts
 
 ## Customer Referral Process
 
@@ -48,7 +84,7 @@ The ScoopifyClub payment distribution follows this process:
 
 2. **Referral Fee Deduction**
    - If the customer was referred, $5 is deducted from the payment
-   - This is sent to the referring customer on a monthly basis
+   - This is sent to the referring customer or business partner on a monthly basis
 
 3. **Employee/Company Split**
    - After Stripe fees and referral fees, the remaining amount is split:
@@ -66,7 +102,17 @@ Service price: $50.00
   - Company share: $12.06 (25%)
 ```
 
-#### Service Payment with Referral
+#### Service Payment with Customer Referral
+```
+Service price: $50.00
+- Stripe fee: -$1.75 (2.9% + $0.30)
+- Referral fee: -$5.00
+= Remaining amount: $43.25
+  - Employee share: $32.44 (75%)
+  - Company share: $10.81 (25%)
+```
+
+#### Service Payment with Business Referral
 ```
 Service price: $50.00
 - Stripe fee: -$1.75 (2.9% + $0.30)
@@ -108,102 +154,75 @@ To set up the monthly cron job:
    ```
 
 2. **Using crontab (Linux/Unix)**
+   ```bash
+   # Run on the 1st of every month at 9 AM
+   0 9 1 * * curl -X POST https://your-domain.com/api/cron/process-referrals \
+     -H "x-api-key: YOUR_CRON_API_KEY"
    ```
-   0 0 1 * * curl -X POST https://your-domain.com/api/cron/process-referrals -H "x-api-key: YOUR_CRON_API_KEY"
-   ```
 
-## Database Schema
+## Referral Management
 
-### Referral Table
+### Admin Functions
 
-```prisma
-model Referral {
-  id          String    @id @default(cuid())
-  referrerId  String    // Customer who referred
-  referredId  String    // Customer who was referred
-  status      String    @default("ACTIVE") // ACTIVE, INACTIVE, PAID
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
-  referrer    Customer  @relation("Referrer", fields: [referrerId], references: [id])
-  referred    Customer  @relation("Referred", fields: [referredId], references: [id])
-  payments    Payment[]
-}
-```
+1. **View All Referrals**
+   - Access referral dashboard to see all customer and business referrals
+   - Filter by status, type, and date range
 
-### Payment Table
+2. **Process Referral Payments**
+   - Manually trigger referral payment processing
+   - Review and approve referral credits
 
-```prisma
-model Payment {
-  id           String    @id @default(cuid())
-  amount       Float
-  stripeFee    Float?
-  status       String    @default("COMPLETED")
-  type         String    // SERVICE, REFERRAL, MONTHLY_REFERRAL
-  customerId   String?
-  referredId   String?
-  notes        String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  
-  customer     Customer? @relation(fields: [customerId], references: [id])
-  referred     User?     @relation("ReferredPayments", fields: [referredId], references: [id])
-}
-```
+3. **Monitor Referral Performance**
+   - Track conversion rates
+   - Analyze referral sources
+   - Generate referral reports
 
-## API Endpoints
+### Referral Status Tracking
 
-### Customer Referral Endpoints
+- **PENDING**: New referral created, waiting for customer to sign up
+- **ACTIVE**: Customer has signed up and is using the service
+- **PROCESSED**: Referral payment has been processed
+- **INACTIVE**: Customer has cancelled or referral has expired
 
-1. **Get Referral Code**
-   - `GET /api/customer/referral-code`
-   - Returns the customer's referral code or generates a new one
+## Security and Validation
 
-2. **Get Referrals**
-   - `GET /api/customer/referrals`
-   - Returns a list of all customers referred by the current user
+### Referral Code Validation
 
-3. **Get Referral Payments**
-   - `GET /api/customer/referral-payments`
-   - Returns a history of all referral payments received
+1. **Unique Codes**: Each referral code is unique and cannot be duplicated
+2. **Code Expiration**: Referral codes can be set to expire after a certain time
+3. **Usage Limits**: Prevent abuse by limiting referral code usage per referrer
 
-### Admin Endpoints
+### Payment Security
 
-1. **Process Referral Payments**
-   - `POST /api/cron/process-referrals`
-   - Manually trigger the monthly referral payment processing
-   - Requires admin API key authentication
+1. **Stripe Integration**: All referral payments are processed through Stripe
+2. **Audit Trail**: Complete logging of all referral activities and payments
+3. **Fraud Prevention**: Monitor for suspicious referral patterns
 
-## Troubleshooting Common Issues
+## Best Practices
 
-### Missing Referral Payments
+### For Customers
+- Share referral codes with friends and family
+- Use social media to promote your referral code
+- Offer to help new customers get started
 
-If a customer reports missing referral payments:
+### For Business Partners
+- Integrate dog waste removal into your service offerings
+- Train your team to mention the service to customers
+- Use your referral code in marketing materials
 
-1. Check if the referred customer has an active subscription
-2. Verify that the referral relationship exists in the database
-3. Check the payment processing logs for errors
-4. Manually trigger the payment process if needed
+### For Administrators
+- Regularly review referral performance
+- Monitor for fraudulent referrals
+- Provide support to referrers and referred customers
 
-### Referral Code Issues
+## Support and Contact
 
-If a customer has issues with their referral code:
+For questions about the referral system:
+- **Email**: support@scoopifyclub.com
+- **Documentation**: This document and related API docs
+- **Admin Panel**: Use the referral management dashboard
 
-1. Check if the code exists in the database
-2. Generate a new code if needed using the admin dashboard
-3. Ensure the customer's account is properly linked to their referrals
+---
 
-## Extending the System
-
-To modify or extend the referral system:
-
-1. **Changing the Referral Amount**
-   - Update the value in `src/lib/payment.ts`, in the `processMonthlyReferralPayments` function
-
-2. **Modifying the Payment Distribution**
-   - Update the calculation in `src/lib/payment.ts`, in the `calculatePaymentDistribution` function
-
-3. **Adding New Referral Types**
-   - Extend the database schema
-   - Update the payment processing logic
-   - Add new UI components to display the different referral types 
+*Last updated: [Current Date]*
+*Version: 2.0 - Updated for unified $5 commission structure* 

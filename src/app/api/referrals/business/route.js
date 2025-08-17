@@ -2,10 +2,10 @@ import { NextResponse } from 'next/server';
 import { withApiSecurity } from '@/lib/security-middleware';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
+import { calculateBusinessReferralEarnings } from '@/lib/payment-calculator';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
-
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
@@ -32,6 +32,9 @@ async function handler(req) {
                 return NextResponse.json({ error: 'Customer already exists' }, { status: 400 });
             }
 
+            // Calculate business referral earnings (using 1-dog monthly plan as example)
+            const referralEarnings = calculateBusinessReferralEarnings(55.00);
+
             // Create referral record
             const referral = await prisma.referral.create({
                 data: {
@@ -41,8 +44,7 @@ async function handler(req) {
                     referralCode: referralCode || `BUSINESS_${businessId}_${Date.now()}`,
                     type: 'BUSINESS',
                     status: 'PENDING',
-                    commissionAmount: 50.00, // $50 commission for business referrals
-                    commissionPercentage: 15, // 15% of first month
+                    commissionAmount: referralEarnings, // $5 minus Stripe fees
                     businessName: businessName
                 }
             });

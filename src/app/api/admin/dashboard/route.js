@@ -34,6 +34,33 @@ export async function GET(request) {
             const lastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
             const thisMonthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
+            // Get basic counts
+            const [totalCustomers, totalEmployees] = await Promise.all([
+                prisma.customer.count().catch(err => {
+                    console.error('Error counting customers:', err);
+                    return 0;
+                }),
+                prisma.employee.count().catch(err => {
+                    console.error('Error counting employees:', err);
+                    return 0;
+                })
+            ]);
+
+            // Get active services (services scheduled for today or future)
+            const activeServices = await prisma.service.count({
+                where: {
+                    scheduledDate: {
+                        gte: today
+                    },
+                    status: {
+                        in: ['SCHEDULED', 'IN_PROGRESS', 'ARRIVED']
+                    }
+                }
+            }).catch(err => {
+                console.error('Error counting active services:', err);
+                return 0;
+            });
+
             // Handle recent activity with fallback approach
             let recentActivity = [];
             try {
@@ -129,9 +156,6 @@ export async function GET(request) {
 
             // Fetch dashboard data in parallel
             const [
-                totalCustomers,
-                totalEmployees,
-                activeServices,
                 thisMonthRevenue,
                 lastMonthRevenue,
                 thisMonthCustomers,
@@ -140,30 +164,6 @@ export async function GET(request) {
                 payments,
                 pendingPayments
             ] = await Promise.all([
-                // Total customers
-                prisma.customer.count().catch(err => {
-                    console.error('Error counting customers:', err);
-                    return 0;
-                }),
-                
-                // Total employees
-                prisma.employee.count().catch(err => {
-                    console.error('Error counting employees:', err);
-                    return 0;
-                }),
-                
-                // Active/scheduled services
-                prisma.service.count({
-                    where: {
-                        status: {
-                            in: ['SCHEDULED', 'IN_PROGRESS', 'PENDING']
-                        }
-                    }
-                }).catch(err => {
-                    console.error('Error counting active services:', err);
-                    return 0;
-                }),
-                
                 // This month's revenue
                 prisma.payment.aggregate({
                     where: {

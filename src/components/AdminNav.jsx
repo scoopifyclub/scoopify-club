@@ -11,7 +11,8 @@ import {
   AlertCircle,
   DollarSign,
   MapPin,
-  TrendingUp
+  TrendingUp,
+  BarChart3
 } from 'lucide-react';
 
 /**

@@ -6,7 +6,6 @@ import Stripe from 'stripe';
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 async function handler(req) {
@@ -62,7 +61,7 @@ async function handler(req) {
         }
 
         if (!stripeAccountId) {
-            return NextResponse.json({ error: 'Referrer does not have Stripe account set up' }, { status: 400 });
+            return NextResponse.json({ error: 'Referrer does not have a Stripe account set up' }, { status: 400 });
         }
 
         // Process the payment
@@ -87,7 +86,9 @@ async function handler(req) {
                     where: { id: referral.id },
                     data: { 
                         status: 'PAID',
-                        paidAt: new Date()
+                        payoutAmount: referral.commissionAmount,
+                        payoutStatus: 'PAID',
+                        payoutDate: new Date()
                     }
                 }),
                 prisma.referralPayout.create({
@@ -119,7 +120,7 @@ async function handler(req) {
                 where: { id: referral.id },
                 data: { 
                     status: 'FAILED',
-                    errorMessage: stripeError.message
+                    notes: `Payment failed: ${stripeError.message}`
                 }
             });
 
@@ -137,25 +138,42 @@ async function handler(req) {
 
 async function sendReferralPaymentEmail(referral, transferId) {
     try {
-        const emailData = {
-            to: referral.referrer.user.email,
-            subject: '🎉 Referral Payment Processed!',
-            template: 'referral-payment',
-            data: {
-                referrerName: referral.referrer.user.name,
-                referredName: referral.referredName,
-                amount: referral.commissionAmount,
-                transferId: transferId,
-                type: referral.type
-            }
-        };
+        // Get referrer email based on type
+        let referrerEmail;
+        if (referral.type === 'SCOOPER') {
+            const employee = await prisma.employee.findUnique({
+                where: { id: referral.referrerId },
+                include: { user: true }
+            });
+            referrerEmail = employee?.user?.email;
+        } else if (referral.type === 'BUSINESS') {
+            const businessPartner = await prisma.businessPartner.findUnique({
+                where: { id: referral.referrerId }
+            });
+            referrerEmail = businessPartner?.email;
+        }
 
-        // Send email using your email service
-        await fetch('/api/email/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(emailData)
-        });
+        if (referrerEmail) {
+            const emailData = {
+                to: referrerEmail,
+                subject: '🎉 Referral Payment Processed!',
+                template: 'referral-payment',
+                data: {
+                    referrerName: referral.referredName ? `Referrer for ${referral.referredName}` : 'Referrer',
+                    referredName: referral.referredName || 'New Customer',
+                    amount: referral.commissionAmount,
+                    transferId: transferId,
+                    type: referral.type
+                }
+            };
+
+            // Send email using your email service
+            await fetch('/api/email/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(emailData)
+            });
+        }
 
     } catch (error) {
         console.error('Error sending referral payment email:', error);

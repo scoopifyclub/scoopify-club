@@ -56,6 +56,7 @@ export async function POST(request: Request) {
       gatePhotoId,
     },
   });
+  
   // Save checklist (could be in ServiceChecklist or as JSON on Service)
   await prisma.serviceChecklist.upsert({
     where: { serviceId },
@@ -89,34 +90,54 @@ export async function POST(request: Request) {
       data: { creditsDepletedAt: null }
     });
   }
+  
   // Optionally: if credits are low or zero, trigger notification/email to customer (future enhancement)
 
   // Notify customer by email that job is complete
   try {
-    // Fetch customer info and photos
-    const customer = await prisma.customer.findUnique({ where: { id: customerId } });
+    // Fetch customer info with user data and photos
+    const customer = await prisma.customer.findUnique({ 
+      where: { id: customerId },
+      include: { user: true }
+    });
+    
     const beforePhotos = beforePhotoIds && beforePhotoIds.length
       ? await prisma.photo.findMany({ where: { id: { in: beforePhotoIds } } }) : [];
     const afterPhotos = afterPhotoIds && afterPhotoIds.length
       ? await prisma.photo.findMany({ where: { id: { in: afterPhotoIds } } }) : [];
+    
     // Build photo HTML
     let photoHtml = '';
     if (afterPhotos.length) {
       photoHtml += '<h3>After Photos</h3>';
       photoHtml += '<div>' + afterPhotos.map(p => `<img src="${p.url}" alt="After" style="max-width:180px;margin:4px;"/>`).join('') + '</div>';
     }
-    // Send email
-    if (customer?.email) {
-      const { sendMail } = await import('@/lib/sendMail');
-      await sendMail({
-        to: customer.email,
-        subject: 'Scoopify Club: Your service is complete!',
-        html: `<h2>Your service was completed!</h2><p>Hi${customer.name ? ' ' + customer.name : ''},<br>Your recent service is complete. See photos below for before/after results. Thank you for being a valued customer!</p>${photoHtml}`,
-        text: `Your Scoopify Club service is complete. Thank you! (View your dashboard for photos.)`,
-      });
+    
+    // Send email using the email service
+    if (customer?.user?.email) {
+      try {
+        const { sendEmail } = await import('@/lib/email-service');
+        await sendEmail(customer.user.email, 'service-completed', {
+          customerName: customer.user.firstName || 'Customer',
+          serviceId: serviceId,
+          photoHtml: photoHtml
+        });
+      } catch (emailError) {
+        console.error('Failed to send job completion email:', emailError);
+        // Fallback to basic notification
+        await prisma.notification.create({
+          data: {
+            userId: customer.userId,
+            type: 'SERVICE_COMPLETE',
+            title: 'Service Completed',
+            message: 'Your service has been completed successfully!',
+            createdAt: new Date(),
+          },
+        });
+      }
     }
   } catch (err) {
-    console.error('Failed to send job completion email:', err);
+    console.error('Failed to send job completion notification:', err);
   }
 
   return NextResponse.json({ success: true });

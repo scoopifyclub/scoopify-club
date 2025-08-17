@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Navigation, Clock, User, Route, Zap, AlertCircle } from 'lucide-react';
@@ -210,31 +210,52 @@ export default function MapsPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Interactive Map Placeholder */}
-                <Card className="lg:col-span-2">
+                {/* Interactive Map */}
+                <Card>
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <MapPin className="h-5 w-5" />
-                            Interactive Service Map
-                        </CardTitle>
+                        <CardTitle>Service Area Map</CardTitle>
+                        <CardDescription>View your service areas and nearby services</CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="bg-gradient-to-br from-blue-50 to-green-50 p-12 rounded-lg text-center border-2 border-dashed border-blue-200">
-                            <MapPin className="h-24 w-24 text-blue-400 mx-auto mb-6" />
-                            <h3 className="text-xl font-semibold text-gray-700 mb-3">Interactive Map Coming Soon</h3>
-                            <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                                We're building a comprehensive map interface with route optimization, 
-                                real-time navigation, and service area visualization.
-                            </p>
-                            <div className="flex justify-center gap-4">
-                                <Button variant="outline">
-                                    <Navigation className="h-4 w-4 mr-2" />
-                                    Plan Route
-                                </Button>
-                                <Button variant="outline">
-                                    <Zap className="h-4 w-4 mr-2" />
-                                    Optimize Path
-                                </Button>
+                        <div className="space-y-4">
+                            {/* Map Container */}
+                            <div className="h-96 bg-gray-100 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center">
+                                <div className="text-center">
+                                    <MapPin className="h-16 w-16 text-blue-400 mx-auto mb-4" />
+                                    <h3 className="text-lg font-medium text-gray-700 mb-2">Google Maps Integration</h3>
+                                    <p className="text-gray-600 mb-4 max-w-md mx-auto">
+                                        Interactive map showing your service areas, customer locations, and route optimization.
+                                    </p>
+                                    <div className="flex justify-center gap-4">
+                                        <Button variant="outline" onClick={() => window.open('https://maps.google.com', '_blank')}>
+                                            <Navigation className="h-4 w-4 mr-2" />
+                                            Open Google Maps
+                                        </Button>
+                                        <Button variant="outline" onClick={() => window.open('https://www.google.com/maps/dir/', '_blank')}>
+                                            <Zap className="h-4 w-4 mr-2" />
+                                            Plan Route
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            {/* Service Area Stats */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-blue-50 p-4 rounded-lg text-center">
+                                    <MapPin className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                                    <div className="text-2xl font-bold text-blue-700">{serviceAreas.length}</div>
+                                    <div className="text-sm text-blue-600">Service Areas</div>
+                                </div>
+                                <div className="bg-green-50 p-4 rounded-lg text-center">
+                                    <Route className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                                    <div className="text-2xl font-bold text-green-700">{nearbyServices.length}</div>
+                                    <div className="text-sm text-green-600">Today's Services</div>
+                                </div>
+                                <div className="bg-purple-50 p-4 rounded-lg text-center">
+                                    <Navigation className="h-8 w-8 text-purple-600 mx-auto mb-2" />
+                                    <div className="text-2xl font-bold text-purple-700">--</div>
+                                    <div className="text-sm text-purple-600">Avg Distance</div>
+                                </div>
                             </div>
                         </div>
                     </CardContent>

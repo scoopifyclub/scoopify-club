@@ -240,10 +240,47 @@ export default function SchedulePage() {
                     <CardTitle>Calendar View</CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <div className="bg-gray-50 p-8 rounded-lg text-center">
-                        <Calendar className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-600 mb-2">Full Calendar Coming Soon</h3>
-                        <p className="text-gray-500">We're working on a comprehensive calendar view for better schedule management.</p>
+                    <div className="space-y-4">
+                        {/* Weekly Calendar */}
+                        <div className="grid grid-cols-7 gap-2 text-sm">
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+                                <div key={day} className="text-center font-medium text-gray-600 p-2">
+                                    {day}
+                                </div>
+                            ))}
+                            
+                            {/* Calendar Days */}
+                            {Array.from({ length: 35 }, (_, i) => {
+                                const date = new Date();
+                                date.setDate(date.getDate() - date.getDay() + i);
+                                const dayServices = upcomingServices.filter(service => {
+                                    const serviceDate = new Date(service.date);
+                                    return serviceDate.toDateString() === date.toDateString();
+                                });
+                                
+                                return (
+                                    <div key={i} className={`min-h-[60px] p-2 border rounded-lg ${
+                                        date.toDateString() === new Date().toDateString() 
+                                            ? 'bg-blue-50 border-blue-200' 
+                                            : 'bg-gray-50'
+                                    }`}>
+                                        <div className="text-xs text-gray-500 mb-1">
+                                            {date.getDate()}
+                                        </div>
+                                        {dayServices.map((service, idx) => (
+                                            <div key={idx} className="text-xs bg-green-100 text-green-800 p-1 rounded mb-1 truncate">
+                                                {service.customer}
+                                            </div>
+                                        ))}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        
+                        <div className="text-center text-sm text-gray-500 mt-4">
+                            <Calendar className="h-4 w-4 inline mr-2" />
+                            Weekly calendar view - Click on services to view details
+                        </div>
                     </div>
                 </CardContent>
             </Card>

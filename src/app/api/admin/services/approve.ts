@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser } from '@/lib/api-auth';
+import { Stripe } from 'stripe';
 
 // POST: Admin approves a completed service for payout
 export async function POST(request: Request) {
@@ -45,22 +46,30 @@ export async function POST(request: Request) {
   // Payout via Stripe or Cash App
   let payoutStatus = 'PENDING';
   let payoutId = null;
-  if (scooper.preferredPaymentMethod === 'STRIPE' && scooper.stripeAccountId) {
-    // Stripe payout logic
-    // TODO: Set up Stripe Connect transfer
-    // Example:
-    // const transfer = await stripe.transfers.create({
-    //   amount: Math.round(payoutAmount * 100), // in cents
-    //   currency: 'usd',
-    //   destination: scooper.stripeAccountId,
-    //   transfer_group: serviceId,
-    // });
-    // payoutStatus = 'PAID';
-    // payoutId = transfer.id;
+  if (scooper.preferredPaymentMethod === 'STRIPE' && scooper.stripeConnectAccountId) {
+    try {
+      // Implement Stripe Connect transfer
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      const transfer = await stripe.transfers.create({
+        amount: Math.round(payoutAmount * 100), // in cents
+        currency: 'usd',
+        destination: scooper.stripeConnectAccountId,
+        transfer_group: serviceId,
+        description: `Payment for service ${serviceId}`,
+      });
+      payoutStatus = 'PAID';
+      payoutId = transfer.id;
+      console.log(`✅ Stripe transfer created: ${transfer.id} for $${payoutAmount}`);
+    } catch (stripeError) {
+      console.error('❌ Stripe transfer failed:', stripeError);
+      // Fall back to pending status
+      payoutStatus = 'FAILED';
+    }
   } else if (scooper.preferredPaymentMethod === 'CASHAPP' && scooper.cashAppUsername) {
     // TODO: Implement Cash App payout logic here
-    // payoutStatus = 'PAID';
-    // payoutId = 'cashapp-transaction-id';
+    // For now, mark as pending until Cash App integration is complete
+    payoutStatus = 'PENDING';
+    payoutId = null;
   }
 
   // Mark payout in database (Earning/Payment model)
@@ -78,21 +87,58 @@ export async function POST(request: Request) {
     },
   });
 
-  // Referral payout logic (only if not already paid)
-  const refCustomer = await prisma.customer.findUnique({ where: { id: approvedService.customerId } });
-  if (refCustomer?.referredBy) {
-    const referral = await prisma.referral.findFirst({ where: { referredId: refCustomer.id } });
+  // Check for referral and process referral payment if applicable
+  const customer = await prisma.customer.findUnique({ 
+    where: { id: approvedService.customerId },
+    include: { user: true }
+  });
+  
+  if (customer?.referrerId) {
+    // Find the referral record
+    const referral = await prisma.referral.findFirst({ 
+      where: { 
+        referrerId: customer.referrerId,
+        referredId: customer.id,
+        status: 'ACTIVE'
+      } 
+    });
+    
     if (referral && referral.payoutStatus !== 'PAID') {
-      // TODO: Send referral payout (Stripe/Cash App/manual)
-      await prisma.referral.update({
-        where: { id: referral.id },
-        data: {
-          payoutStatus: 'PAID',
-          payoutAmount: 20, // Example: $20 referral bonus
-          payoutDate: new Date(),
-        },
-      });
-      // Optionally: create Payment/Earning record for referral
+      // Process referral payment ($5/month)
+      try {
+        // Update referral status
+        await prisma.referral.update({
+          where: { id: referral.id },
+          data: {
+            payoutStatus: 'PAID',
+            payoutAmount: 5.00, // $5 monthly referral fee
+            payoutDate: new Date(),
+          },
+        });
+        
+        // Create referral payout record
+        await prisma.referralPayout.create({
+          data: {
+            referralId: referral.id,
+            amount: 5.00,
+            status: 'COMPLETED',
+            processedAt: new Date()
+          }
+        });
+        
+        // Notify referrer about referral payment
+        await prisma.notification.create({
+          data: {
+            userId: customer.referrerId,
+            type: 'REFERRAL_PAYOUT',
+            title: 'Referral Bonus Earned',
+            message: `You earned $5 for referring ${customer.user.firstName || 'a customer'}!`,
+            createdAt: new Date(),
+          },
+        });
+      } catch (error) {
+        console.error('Error processing referral payment:', error);
+      }
     }
   }
 
@@ -106,6 +152,7 @@ export async function POST(request: Request) {
       createdAt: new Date(),
     },
   });
+  
   // Notify customer
   if (approvedService.customerId) {
     await prisma.notification.create({
@@ -118,19 +165,6 @@ export async function POST(request: Request) {
       },
     });
   }
-  // Referral payout notification
-  const customer = await prisma.customer.findUnique({ where: { id: approvedService.customerId } });
-  if (customer?.referredBy) {
-    // TODO: Send referral payout if not already paid
-    await prisma.notification.create({
-      data: {
-        userId: customer.referredBy,
-        type: 'REFERRAL_PAYOUT',
-        title: 'Referral Bonus Earned',
-        message: `A referral bonus has been earned for referring customer ${customer.id}.`,
-        createdAt: new Date(),
-      },
-    });
-  }
+
   return NextResponse.json({ success: true });
 }

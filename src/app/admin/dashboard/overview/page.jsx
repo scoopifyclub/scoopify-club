@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ArrowUpIcon, ArrowDownIcon, UsersIcon, CalendarIcon, CircleDollarSign, BarChart3, TrendingUp, AlertCircle, CheckIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { toast } from 'react-hot-toast';
+import { toast } from 'sonner';
 
 export default function AdminOverviewPage() {
     const { user, status } = useAuth({ required: true, role: 'ADMIN', redirectTo: '/admin/login' });
@@ -54,15 +54,15 @@ export default function AdminOverviewPage() {
                 // The API now returns data in a stats object with nested structure
                 const dashboardData = data.stats;
                 setStats({
-                    totalCustomers: dashboardData.overview?.totalCustomers || dashboardData.totalCustomers || 0,
-                    totalEmployees: dashboardData.overview?.totalEmployees || dashboardData.totalEmployees || 0,
-                    activeServices: dashboardData.overview?.activeServices || dashboardData.activeServices || 0,
-                    monthlyRevenue: dashboardData.overview?.monthlyRevenue || dashboardData.monthlyRevenue || 0,
-                    revenueChange: dashboardData.overview?.revenueChange || dashboardData.revenueChange || 0,
-                    customerChange: dashboardData.overview?.customerGrowth || dashboardData.customerChange || 0,
+                    totalCustomers: dashboardData.overview?.totalCustomers || 0,
+                    totalEmployees: dashboardData.overview?.totalEmployees || 0,
+                    activeServices: dashboardData.services?.total || 0,
+                    monthlyRevenue: dashboardData.overview?.monthlyRevenue || 0,
+                    revenueChange: dashboardData.overview?.revenueChange || 0,
+                    customerChange: dashboardData.overview?.customerGrowth || 0,
                     serviceCompletion: {
-                        completed: dashboardData.services?.completed || dashboardData.serviceCompletion?.completed || 0,
-                        total: dashboardData.services?.total || dashboardData.serviceCompletion?.total || 0
+                        completed: dashboardData.services?.completed || 0,
+                        total: dashboardData.services?.total || 0
                     },
                     recentActivity: dashboardData.recentActivity?.map(activity => ({
                         id: activity.id,
@@ -72,9 +72,9 @@ export default function AdminOverviewPage() {
                         time: new Date(activity.date).toLocaleDateString()
                     })) || [],
                     paymentStats: {
-                        total: dashboardData.thisMonth?.payments || dashboardData.paymentStats?.total || 0,
-                        amount: dashboardData.thisMonth?.totalPaymentAmount || dashboardData.paymentStats?.amount || 0,
-                        pending: dashboardData.services?.pending || dashboardData.paymentStats?.pending || 0
+                        total: dashboardData.thisMonth?.payments || 0,
+                        amount: dashboardData.thisMonth?.totalPaymentAmount || 0,
+                        pending: dashboardData.services?.pending || 0
                     },
                     alerts: [] // No alerts in current API response
                 });

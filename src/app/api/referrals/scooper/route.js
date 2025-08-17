@@ -41,8 +41,8 @@ async function handler(req) {
                     referralCode: referralCode || `SCOOPER_${scooperId}_${Date.now()}`,
                     type: 'SCOOPER',
                     status: 'PENDING',
-                    commissionAmount: 25.00, // $25 commission for scooper referrals
-                    commissionPercentage: 10 // 10% of first month
+                    commissionAmount: 5.00, // $5/month commission for scooper referrals
+                    businessName: 'Scooper Referral'
                 }
             });
 

@@ -366,35 +366,44 @@ model Referral {
   id             String          @id @default(uuid())
   referrerId     String
   referredId     String?
+  referredEmail  String?         // Email of the referred customer
+  referredName   String?         // Name of the referred customer
   code           String          @unique
   status         String          @default("PENDING")
   payoutAmount   Float?
   payoutStatus   String?         @default("PENDING")
   payoutDate     DateTime?
   payoutMethod   String?
-  type           String
+  type           String          // CUSTOMER, BUSINESS, or SCOOPER
   notes          String?
   payoutBatchId  String?
+  businessName   String?         // For business referrals
+  commissionAmount Float?        // Commission amount for this referral
   createdAt      DateTime        @default(now())
-  updatedAt      DateTime
-  ReferralPayout ReferralPayout? @relation(fields: [payoutBatchId], references: [id])
+  updatedAt      DateTime        @updatedAt
+  ReferralPayout ReferralPayout?
 
   @@index([code])
   @@index([referredId])
+  @@index([referredEmail])
   @@index([referrerId])
   @@index([status])
+  @@index([type])
 }
 
 model ReferralPayout {
-  id          String     @id @default(uuid())
-  payoutDate  DateTime   @default(now())
-  method      String
-  status      String
-  totalAmount Float
-  notes       String?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime
-  referrals   Referral[]
+  id                String     @id @default(uuid())
+  referralId        String     @unique
+  amount            Float
+  stripeTransferId  String?
+  status            String     @default("PENDING")
+  processedAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  referral          Referral   @relation(fields: [referralId], references: [id])
+
+  @@index([referralId])
+  @@index([status])
 }
 
 model ServiceArea {
