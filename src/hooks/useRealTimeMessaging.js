@@ -1,5 +1,16 @@
 import { useEffect, useRef, useCallback } from 'react';
 
+// Helper function for conditional logging
+const log = (message, data = null) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_MESSAGING === 'true') {
+        if (data) {
+            console.log(`💬 MESSAGING: ${message}`, data);
+        } else {
+            console.log(`💬 MESSAGING: ${message}`);
+        }
+    }
+};
+
 export function useRealTimeMessaging(conversationId, onMessageReceived) {
     const wsRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
@@ -25,7 +36,7 @@ export function useRealTimeMessaging(conversationId, onMessageReceived) {
             wsRef.current = new WebSocket(wsUrl);
 
             wsRef.current.onopen = () => {
-                console.log('WebSocket connected for conversation:', conversationId);
+                log('WebSocket connected for conversation:', conversationId);
                 reconnectAttempts.current = 0;
             };
 
@@ -41,7 +52,7 @@ export function useRealTimeMessaging(conversationId, onMessageReceived) {
             };
 
             wsRef.current.onclose = (event) => {
-                console.log('WebSocket closed:', event.code, event.reason);
+                log('WebSocket closed:', { code: event.code, reason: event.reason });
                 if (event.code !== 1000) { // Not a normal closure
                     scheduleReconnect();
                 }

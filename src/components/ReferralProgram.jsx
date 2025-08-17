@@ -27,58 +27,50 @@ const ReferralProgram = ({
   const [showShareModal, setShowShareModal] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
-  // Mock data for demonstration
-  const mockReferralData = {
-    customerId: 'customer_456',
-    referralCode: 'SCOOPIFY123',
-    totalReferrals: 8,
-    successfulReferrals: 6,
-    pendingReferrals: 2,
-    totalRewards: 180,
-    claimedRewards: 120,
-    availableRewards: 60,
-    referralLink: 'https://scoopifyclub.com/ref/SCOOPIFY123',
-    createdAt: '2024-01-01T00:00:00Z',
-    lastReferral: '2024-01-15T10:30:00Z'
-  };
-
-  const mockReferrals = [
-    {
-      id: 1,
-      customerId: 'customer_456',
-      referredEmail: 'john.doe@example.com',
-      referredName: 'John Doe',
-      status: 'completed',
-      rewardAmount: 30,
-      rewardStatus: 'claimed',
-      referredAt: '2024-01-15T10:30:00Z',
-      completedAt: '2024-01-22T14:20:00Z',
-      serviceType: 'Premium Weekly Service'
-    },
-    {
-      id: 2,
-      customerId: 'customer_456',
-      referredEmail: 'sarah.smith@example.com',
-      referredName: 'Sarah Smith',
-      status: 'pending',
-      rewardAmount: 30,
-      rewardStatus: 'pending',
-      referredAt: '2024-01-14T16:45:00Z',
-      completedAt: null,
-      serviceType: null
-    },
-    {
-      id: 3,
-      customerId: 'customer_456',
-      referredEmail: 'mike.wilson@example.com',
-      referredName: 'Mike Wilson',
-      status: 'completed',
-      rewardAmount: 30,
-      rewardStatus: 'claimed',
-      referredAt: '2024-01-10T09:15:00Z',
-      completedAt: '2024-01-17T11:30:00Z',
-      serviceType: 'Basic Weekly Service'
-    }
+  // Example referral data (replace with real data)
+  const exampleReferralData = [
+      {
+          id: '1',
+          customerId: 'customer_456',
+          friendName: 'John Doe',
+          referredEmail: 'friend1@example.com',
+          status: 'COMPLETED',
+          date: '2023-11-15',
+          potentialEarnings: 5.00,
+          rewardAmount: 30,
+          rewardStatus: 'claimed',
+          referredAt: '2024-01-15T10:30:00Z',
+          completedAt: '2024-01-22T14:20:00Z',
+          serviceType: 'Premium Weekly Service'
+      },
+      {
+          id: '2',
+          customerId: 'customer_456',
+          friendName: 'Sarah Smith',
+          referredEmail: 'friend2@example.com',
+          status: 'PENDING',
+          date: '2023-11-10',
+          potentialEarnings: 5.00,
+          rewardAmount: 30,
+          rewardStatus: 'pending',
+          referredAt: '2024-01-14T16:45:00Z',
+          completedAt: null,
+          serviceType: null
+      },
+      {
+          id: '3',
+          customerId: 'customer_456',
+          friendName: 'Mike Wilson',
+          referredEmail: 'friend3@example.com',
+          status: 'COMPLETED',
+          date: '2023-11-05',
+          earnings: 5.00,
+          rewardAmount: 30,
+          rewardStatus: 'claimed',
+          referredAt: '2024-01-10T09:15:00Z',
+          completedAt: '2024-01-17T11:30:00Z',
+          serviceType: 'Basic Weekly Service'
+      }
   ];
 
   const mockRewards = [
@@ -116,8 +108,8 @@ const ReferralProgram = ({
 
   useEffect(() => {
     // Load referral data
-    setReferralData(mockReferralData);
-    setReferrals(mockReferrals);
+    setReferralData(exampleReferralData);
+    setReferrals(exampleReferralData);
     setRewards(mockRewards);
     setLoading(false);
   }, [customerId]);
@@ -286,7 +278,7 @@ const ReferralProgram = ({
         </CardHeader>
         <CardContent>
           <ActivityFeed
-            activities={referrals.slice(0, 5).map(r => ({
+            activities={exampleReferralData.slice(0, 5).map(r => ({
               id: r.id,
               title: `Referred ${r.referredName}`,
               description: r.status === 'completed' 
@@ -304,7 +296,7 @@ const ReferralProgram = ({
 
   const renderReferrals = () => (
     <div className="space-y-4">
-      {referrals.map((referral) => (
+      {exampleReferralData.map((referral) => (
         <Card key={referral.id}>
           <CardContent className="p-6">
             <div className="flex items-start justify-between">
@@ -355,7 +347,7 @@ const ReferralProgram = ({
 
   const renderRewards = () => (
     <div className="space-y-4">
-      {rewards.map((reward) => (
+      {mockRewards.map((reward) => (
         <Card key={reward.id}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">

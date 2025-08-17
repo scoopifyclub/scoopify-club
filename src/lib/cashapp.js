@@ -26,9 +26,11 @@ export async function updateCashAppPaymentStatus(id, status) {
     });
 }
 export function generateCashAppQRCode(amount) {
-    // In a real implementation, this would generate a QR code for the CashApp payment
-    // For demo purposes, we'll return a placeholder URL
-    return `https://cash.app/pay/${amount}`;
+    // Generate a real Cash App payment URL
+    // Format: https://cash.app/$[username]/[amount]
+    const username = process.env.CASHAPP_USERNAME || 'scoopifyclub';
+    const formattedAmount = parseFloat(amount).toFixed(2);
+    return `https://cash.app/$${username}/${formattedAmount}`;
 }
 export async function createPayment(request) {
     try {

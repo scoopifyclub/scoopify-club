@@ -14,10 +14,12 @@ export default function EmployeesPage() {
     const { user, status } = useAuth({ required: true, role: 'ADMIN', redirectTo: '/admin/login' });
     const router = useRouter();
     const [employees, setEmployees] = useState([]);
-    const [filteredEmployees, setFilteredEmployees] = useState([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterRole, setFilterRole] = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
     // Move all useEffect hooks to the top before any early returns
     useEffect(() => {
@@ -28,22 +30,22 @@ export default function EmployeesPage() {
 
     useEffect(() => {
         // Filter employees when search query changes
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
+        if (searchTerm) {
+            const query = searchTerm.toLowerCase();
             const filtered = employees.filter(employee => 
                 employee.name.toLowerCase().includes(query) ||
                 employee.email.toLowerCase().includes(query) ||
                 employee.role.toLowerCase().includes(query)
             );
-            setFilteredEmployees(filtered);
+            setEmployees(filtered);
         } else {
-            setFilteredEmployees(employees);
+            setEmployees(employees);
         }
-    }, [searchQuery, employees]);
+    }, [searchTerm, employees]);
 
     const fetchEmployees = async () => {
         try {
-            setIsRefreshing(true);
+            setLoading(true);
             const response = await fetch('/api/admin/employees', {
                 credentials: 'include'
             });
@@ -54,70 +56,13 @@ export default function EmployeesPage() {
 
             const data = await response.json();
             setEmployees(data);
-            setFilteredEmployees(data);
             toast.success('Employee list updated');
         } catch (error) {
             console.error('Error fetching employees:', error);
             toast.error('Failed to fetch employees');
-            // Remove problematic environment check that causes client-side errors
-            const mockEmployees = [
-                {
-                    id: '1',
-                    name: 'David Miller',
-                    email: 'david.m@scoopify.com',
-                    phone: '(555) 123-4567',
-                    role: 'Senior Cleaner',
-                    status: 'active',
-                    hireDate: '2022-05-12',
-                    lastActive: '2023-11-22',
-                    completedServices: 153,
-                    rating: 4.8,
-                    serviceAreas: ['Downtown', 'North Side', 'West Hills']
-                },
-                {
-                    id: '2',
-                    name: 'Sarah Johnson',
-                    email: 'sarah.j@scoopify.com',
-                    phone: '(555) 234-5678',
-                    role: 'Team Lead',
-                    status: 'active',
-                    hireDate: '2022-02-18',
-                    lastActive: '2023-11-22',
-                    completedServices: 245,
-                    rating: 4.9,
-                    serviceAreas: ['East Side', 'South District', 'Central']
-                },
-                {
-                    id: '3',
-                    name: 'Tom Wilson',
-                    email: 'tom.w@scoopify.com',
-                    phone: '(555) 345-6789',
-                    role: 'Cleaner',
-                    status: 'on_leave',
-                    hireDate: '2022-09-05',
-                    lastActive: '2023-11-15',
-                    completedServices: 89,
-                    rating: 4.5,
-                    serviceAreas: ['Downtown', 'Marina', 'Heights']
-                },
-                {
-                    id: '4',
-                    name: 'Lisa Chen',
-                    email: 'lisa.c@scoopify.com',
-                    phone: '(555) 456-7890',
-                    role: 'Cleaner',
-                    status: 'inactive',
-                    hireDate: '2022-11-20',
-                    lastActive: '2023-10-28',
-                    completedServices: 67,
-                    rating: 4.2,
-                    serviceAreas: ['North Side', 'Central']
-                }
-            ];
-            setEmployees(mockEmployees);
-            setFilteredEmployees(mockEmployees);
+            setError('Failed to fetch employees');
         } finally {
-            setIsRefreshing(false);
+            setLoading(false);
         }
     };
 
@@ -160,7 +105,7 @@ export default function EmployeesPage() {
         router.push(`/admin/dashboard/employees/${employeeId}`);
     };
 
-    if (status === 'loading' || isLoading) {
+    if (loading) {
         return (
             <div className="flex items-center justify-center h-[400px]">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -197,8 +142,8 @@ export default function EmployeesPage() {
                             <Input 
                                 placeholder="Search employees..." 
                                 className="pl-8" 
-                                value={searchQuery} 
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                value={searchTerm} 
+                                onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
@@ -218,7 +163,7 @@ export default function EmployeesPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="[&_tr:last-child]:border-0">
-                                    {filteredEmployees.map((employee) => (
+                                    {employees.map((employee) => (
                                         <tr 
                                             key={employee.id} 
                                             className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer" 
@@ -285,7 +230,7 @@ export default function EmployeesPage() {
                                         </tr>
                                     ))}
 
-                                    {filteredEmployees.length === 0 && (
+                                    {employees.length === 0 && (
                                         <tr>
                                             <td colSpan={6} className="p-4 text-center text-muted-foreground">
                                                 No employees found.
@@ -299,16 +244,16 @@ export default function EmployeesPage() {
 
                     <div className="flex items-center justify-end space-x-2 py-4">
                         <div className="flex-1 text-sm text-muted-foreground">
-                            Showing <strong>{filteredEmployees.length}</strong> of <strong>{employees.length}</strong> employees
+                            Showing <strong>{employees.length}</strong> of <strong>{employees.length}</strong> employees
                         </div>
                         <Button 
                             variant="outline" 
                             size="sm" 
                             onClick={fetchEmployees}
-                            disabled={isRefreshing}
+                            disabled={loading}
                         >
-                            <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`}/>
-                            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                            <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`}/>
+                            {loading ? 'Refreshing...' : 'Refresh'}
                         </Button>
                     </div>
                 </CardContent>

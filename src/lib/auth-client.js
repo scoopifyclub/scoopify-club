@@ -12,6 +12,43 @@ export const AuthContext = createContext({
   signOut: async () => {},
 });
 
+// Helper function for conditional logging
+const log = (message, data = null) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_AUTH === 'true') {
+        if (data) {
+            console.log(`🔐 AUTH: ${message}`, data);
+        } else {
+            console.log(`🔐 AUTH: ${message}`);
+        }
+    }
+};
+
+export async function checkAuth() {
+    try {
+        log('Starting checkAuth...');
+        
+        const response = await fetch('/api/auth/me', {
+            credentials: 'include',
+        });
+        
+        log('Response received:', { status: response.status, ok: response.ok });
+        
+        if (response.ok) {
+            const data = await response.json();
+            log('User data received:', data);
+            return data;
+        } else {
+            log('Response not OK, setting user to null');
+            return null;
+        }
+    } catch (error) {
+        console.error('Auth check failed:', error);
+        return null;
+    } finally {
+        log('Setting loading to false');
+    }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -21,33 +58,6 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     checkAuth();
   }, []);
-
-  const checkAuth = async () => {
-    console.log('🔍 AUTH: Starting checkAuth...');
-    try {
-      console.log('🔍 AUTH: Making request to /api/auth/me...');
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include',
-      });
-      console.log('🔍 AUTH: Response received:', response.status, response.ok);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('🔍 AUTH: User data received:', data);
-        setUser(data.user);
-      } else {
-        console.log('🔍 AUTH: Response not OK, setting user to null');
-        setUser(null);
-      }
-    } catch (error) {
-      console.error('🔍 AUTH: Auth check failed:', error);
-      setError(error.message);
-      setUser(null);
-    } finally {
-      console.log('🔍 AUTH: Setting loading to false');
-      setLoading(false);
-    }
-  };
 
   const signIn = async (email, password) => {
     try {

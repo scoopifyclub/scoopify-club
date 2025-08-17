@@ -146,11 +146,7 @@ export default function PricingPage() {
             console.error('No price ID available');
             return;
         }
-        // Check if we're using a placeholder price ID
-        if (priceId.includes('price_placeholder')) {
-            alert('This is using placeholder pricing because Stripe is not fully configured yet. Please set up your Stripe account and add real products with the correct metadata.');
-            return;
-        }
+        
         try {
             setLoading(true);
             const response = await fetch('/api/create-checkout-session', {

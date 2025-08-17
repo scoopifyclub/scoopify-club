@@ -111,7 +111,10 @@ export async function GET(request) {
                 ...employee,
                 completedServices: employee.services.length,
                 revenue: employee.services.reduce((sum, service) => sum + (service.price || 0), 0),
-                rating: 4.5 // Placeholder - would need to implement rating system
+                // Calculate average rating from completed services
+                rating: employee.services.filter(s => s.rating).length > 0 
+                    ? employee.services.filter(s => s.rating).reduce((sum, s) => sum + s.rating, 0) / employee.services.filter(s => s.rating).length
+                    : 0
             }));
 
             return {

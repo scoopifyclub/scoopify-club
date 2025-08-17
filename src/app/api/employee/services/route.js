@@ -23,14 +23,13 @@ export async function GET(request) {
             where: {
                 status: status,
                 employeeId: null, // Only show unassigned services
-                // TODO: Add area filtering when implemented
             },
             include: {
                 customer: {
-                                                         include: {
-             address: true,
-             user: true
-         }
+                    include: {
+                        address: true,
+                        user: true
+                    }
                 },
                 servicePlan: true,
                 photos: true
@@ -66,6 +65,15 @@ export async function POST(req) {
 
         if (!employee) {
             return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
+        }
+
+        // Apply area filtering when employee has service areas
+        if (employee.serviceAreas && employee.serviceAreas.length > 0) {
+            const employeeZipCodes = employee.serviceAreas.map(area => area.zipCode);
+            where.OR = [
+                { customer: { address: { zipCode: { in: employeeZipCodes } } } },
+                { customer: { address: { zipCode: null } } } // Include customers without zip codes
+            ];
         }
 
         // Claim the service

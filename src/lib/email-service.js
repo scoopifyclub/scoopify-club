@@ -1,5 +1,16 @@
 import nodemailer from 'nodemailer';
 
+// Helper function for conditional logging
+const log = (message, data = null) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_EMAIL === 'true') {
+        if (data) {
+            console.log(`📧 EMAIL: ${message}`, data);
+        } else {
+            console.log(`📧 EMAIL: ${message}`);
+        }
+    }
+};
+
 // Create transporter for Namecheap Private Email
 const createTransporter = () => {
     // Use the correct environment variables from .env.local
@@ -25,7 +36,7 @@ const createTransporter = () => {
         config.ignoreTLS = false;
     }
 
-    console.log('Creating email transporter with config:', {
+    log('Creating email transporter with config:', {
         host: config.host,
         port: config.port,
         secure: config.secure,
@@ -198,6 +209,89 @@ const emailTemplates = {
     'custom': {
         subject: (data) => data.subject,
         html: (data) => data.html
+    },
+    'business-partner-welcome': {
+        subject: 'Welcome to Scoopify Club Business Partnership Program! 🤝',
+        html: (data) => `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #10b981;">Welcome to Our Business Partnership Program!</h2>
+                <p>Hi ${data.businessName},</p>
+                <p>Thank you for joining Scoopify Club's Business Partnership Program! We're excited to work together to provide exceptional service to our shared customers.</p>
+                <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                    <h3>Your Partnership Benefits:</h3>
+                    <ul>
+                        <li><strong>$5/month commission</strong> for every active referral</li>
+                        <li>Professional marketing materials</li>
+                        <li>Dedicated business support</li>
+                        <li>Monthly commission reports</li>
+                    </ul>
+                </div>
+                <div style="background-color: #dbeafe; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #3b82f6;">
+                    <h3>Your Referral Code:</h3>
+                    <p style="font-size: 1.2em; font-weight: bold; color: #1d4ed8;">${data.referralCode}</p>
+                    <p>Share this code with your customers to start earning commissions!</p>
+                </div>
+                <p>If you have any questions about the partnership program, contact us at partnerships@scoopifyclub.com</p>
+                <p>Best regards,<br>The Scoopify Club Partnership Team</p>
+            </div>
+        `
+    },
+    'referral-earned': {
+        subject: 'Referral Commission Earned! 💰',
+        html: (data) => `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #10b981;">Referral Commission Earned!</h2>
+                <p>Hi ${data.referrerName},</p>
+                <p>Great news! You've earned a referral commission for bringing a new customer to Scoopify Club.</p>
+                <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #22c55e;">
+                    <h3>Commission Details:</h3>
+                    <p><strong>Amount:</strong> $${data.commissionAmount}</p>
+                    <p><strong>Customer:</strong> ${data.customerName}</p>
+                    <p><strong>Date:</strong> ${data.date}</p>
+                </div>
+                <p>Your commission will be processed and paid out according to our payment schedule.</p>
+                <p>Keep sharing Scoopify Club with your network to earn more commissions!</p>
+                <p>Best regards,<br>The Scoopify Club Team</p>
+            </div>
+        `
+    },
+    'service-rated': {
+        subject: 'Service Rating Received - Scoopify Club ⭐',
+        html: (data) => `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #10b981;">Service Rating Received</h2>
+                <p>Hi ${data.recipientName},</p>
+                <p>A customer has rated their recent service with Scoopify Club.</p>
+                <div style="background-color: #fef3c7; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+                    <h3>Rating Details:</h3>
+                    <p><strong>Service ID:</strong> ${data.serviceId}</p>
+                    <p><strong>Rating:</strong> ${data.rating}/5 stars</p>
+                    ${data.feedback ? `<p><strong>Feedback:</strong> "${data.feedback}"</p>` : ''}
+                    <p><strong>Date:</strong> ${data.date}</p>
+                </div>
+                <p>Thank you for your dedication to providing excellent service!</p>
+                <p>Best regards,<br>The Scoopify Club Team</p>
+            </div>
+        `
+    },
+    'payout-processed': {
+        subject: 'Payout Processed - Scoopify Club 💳',
+        html: (data) => `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #10b981;">Payout Processed</h2>
+                <p>Hi ${data.recipientName},</p>
+                <p>Your payout has been processed and sent to your account.</p>
+                <div style="background-color: #f0fdf4; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #22c55e;">
+                    <h3>Payout Details:</h3>
+                    <p><strong>Amount:</strong> $${data.amount}</p>
+                    <p><strong>Method:</strong> ${data.paymentMethod}</p>
+                    <p><strong>Transaction ID:</strong> ${data.transactionId}</p>
+                    <p><strong>Date:</strong> ${data.date}</p>
+                </div>
+                <p>Your earnings are now available in your account. Thank you for your great work!</p>
+                <p>Best regards,<br>The Scoopify Club Team</p>
+            </div>
+        `
     }
 };
 

@@ -7,6 +7,17 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { generateDeviceFingerprint } from '@/lib/fingerprint';
 
+// Helper function for conditional logging
+const log = (message, data = null) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_AUTH === 'true') {
+        if (data) {
+            console.log(`🔐 SIGNIN: ${message}`, data);
+        } else {
+            console.log(`🔐 SIGNIN: ${message}`);
+        }
+    }
+};
+
 export default function SignIn() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -17,70 +28,68 @@ export default function SignIn() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        
-        console.log('🔐 Starting login process...');
+        setError('');
 
         try {
-            // Generate device fingerprint with error handling
+            log('Starting login process...');
+            
+            // Generate device fingerprint for security
             let deviceFingerprint;
             try {
-                deviceFingerprint = await generateDeviceFingerprint();
-                console.log('📱 Device fingerprint generated:', deviceFingerprint);
+                deviceFingerprint = generateDeviceFingerprint();
+                log('Device fingerprint generated:', deviceFingerprint);
             } catch (error) {
-                console.error('❌ Error generating device fingerprint:', error);
-                deviceFingerprint = `fallback-${Math.random().toString(36).substring(2)}`;
-                console.log('📱 Using fallback fingerprint:', deviceFingerprint);
+                log('Error generating device fingerprint:', error);
+                deviceFingerprint = `fallback_${Date.now()}`;
+                log('Using fallback fingerprint:', deviceFingerprint);
             }
 
-            console.log('📤 Sending login request with:', { email, hasPassword: !!password });
-
-            const response = await fetch('/api/auth/signin', {
+            log('Sending login request with:', { email, hasPassword: !!password });
+            
+            const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ 
-                    email, 
+                body: JSON.stringify({
+                    email,
                     password,
-                    deviceFingerprint
+                    deviceFingerprint,
                 }),
-                credentials: 'include',
             });
 
-            console.log('📥 Login response status:', response.status, response.statusText);
-
-            const data = await response.json();
-            console.log('📥 Login response data:', data);
+            log('Login response status:', { status: response.status, statusText: response.statusText });
             
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to sign in');
+            const data = await response.json();
+            log('Login response data:', data);
+
+            if (data.success && data.user) {
+                log('Login successful, user role:', data.role);
+                
+                // Redirect based on user role
+                let redirectPath;
+                switch (data.user.role) {
+                    case 'ADMIN':
+                        redirectPath = '/admin/dashboard';
+                        break;
+                    case 'EMPLOYEE':
+                        redirectPath = '/employee/dashboard';
+                        break;
+                    case 'CUSTOMER':
+                        redirectPath = '/customer/dashboard';
+                        break;
+                    default:
+                        redirectPath = '/dashboard';
+                }
+                
+                log('Redirecting to:', redirectPath);
+                router.push(redirectPath);
+            } else {
+                setError(data.error || 'Login failed');
             }
-
-            // Check if user data exists
-            if (!data || !data.id) {
-                console.error('❌ Invalid response structure:', data);
-                throw new Error('Invalid response from server');
-            }
-
-            console.log('✅ Login successful, user role:', data.role);
-
-            // Show success message if user just registered
-            if (searchParams.get('registered') === 'true') {
-                toast.success('Account created successfully!');
-            }
-
-            // Redirect based on role
-            const redirectPath = data.role === 'CUSTOMER'
-                ? '/customer/dashboard'
-                : data.role === 'EMPLOYEE'
-                    ? '/employee/dashboard'
-                    : '/admin/dashboard';
-
-            console.log('🔄 Redirecting to:', redirectPath);
-            router.push(redirectPath);
         } catch (error) {
-            console.error('❌ Login error:', error);
-            toast.error(error instanceof Error ? error.message : 'An error occurred during login');
+            log('Login error:', error);
+            setError('An error occurred during login');
         } finally {
             setLoading(false);
         }

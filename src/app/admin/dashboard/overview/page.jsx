@@ -14,23 +14,19 @@ export default function AdminOverviewPage() {
     const [stats, setStats] = useState({
         totalCustomers: 0,
         totalEmployees: 0,
+        totalServices: 0,
+        totalRevenue: 0,
         activeServices: 0,
-        monthlyRevenue: 0,
-        revenueChange: 0,
-        customerChange: 0,
-        serviceCompletion: {
-            completed: 0,
-            total: 0
-        },
-        recentActivity: [],
-        paymentStats: {
-            total: 0,
-            amount: 0,
-            pending: 0
-        },
-        alerts: []
+        pendingServices: 0,
+        completedServices: 0,
+        thisMonth: {
+            newCustomers: 0,
+            newServices: 0,
+            revenue: 0
+        }
     });
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
 
     // Move useEffect hook to the top before any early returns
     useEffect(() => {

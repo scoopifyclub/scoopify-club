@@ -8,21 +8,16 @@ const isDev = process.env.NODE_ENV === 'development';
 const isNonSecureMode = process.env.NEXT_PUBLIC_NON_SECURE_MODE === 'true';
 // Forward export for convenience
 export * from './stripe-subscriptions';
-if (!stripePublishableKey) {
-    if (isDev) {
-        console.warn('⚠️ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not defined, using test key for development');
-    }
-    else {
-        throw new Error('NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not defined');
-    }
+const publishableKey = stripePublishableKey;
+const secretKey = stripeSecretKey;
+
+if (!publishableKey || !secretKey) {
+    throw new Error('Stripe keys are required. Please set STRIPE_PUBLISHABLE_KEY and STRIPE_SECRET_KEY environment variables.');
 }
 // Only check for server-side keys on the server
-if (typeof window === 'undefined' && !stripeSecretKey) {
-    if (isDev) {
-        console.warn('⚠️ STRIPE_SECRET_KEY is not defined, using test key for development');
-    }
-    else {
-        throw new Error('STRIPE_SECRET_KEY is not defined');
+if (typeof window === 'undefined') {
+    if (!stripeSecretKey) {
+        throw new Error('STRIPE_SECRET_KEY is required on the server side');
     }
 }
 // Warn if running in non-secure mode
@@ -31,7 +26,6 @@ if (isNonSecureMode && isDev) {
     console.warn('⚠️ For proper Stripe functionality, please set up SSL certificates.');
 }
 // Development fallbacks for Stripe keys
-const publishableKey = stripePublishableKey || 'pk_test_placeholder';
 // This is used client-side - safe to use publishable key
 export const stripePromise = loadStripe(publishableKey);
 // Price IDs for services - these are safe to use client-side as they're just identifiers

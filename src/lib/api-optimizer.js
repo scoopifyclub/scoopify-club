@@ -242,9 +242,10 @@ export class ApiOptimizer {
       const { method, url } = req;
       const { statusCode } = res;
       
-      console.log(`📊 API Performance: ${method} ${url} - ${statusCode} (${duration}ms)`);
+      // Log performance metrics
+      log(`API Performance: ${method} ${url} - ${statusCode} (${duration}ms)`);
       
-      // Log slow requests
+      // Warn about slow requests
       if (duration > 1000) {
         console.warn(`⚠️  Slow API Request: ${method} ${url} took ${duration}ms`);
       }
@@ -253,6 +254,17 @@ export class ApiOptimizer {
     next();
   }
 }
+
+// Helper function for conditional logging
+const log = (message, data = null) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_API === 'true') {
+        if (data) {
+            console.log(`📊 API: ${message}`, data);
+        } else {
+            console.log(`📊 API: ${message}`);
+        }
+    }
+};
 
 // Create singleton instance
 const apiOptimizer = new ApiOptimizer();

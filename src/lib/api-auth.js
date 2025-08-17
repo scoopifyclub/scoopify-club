@@ -3,6 +3,17 @@ import { withDatabase } from './prisma';
 import { validateUserToken, createUserToken, createRefreshToken } from './jwt-utils';
 import { compare } from 'bcryptjs';
 
+// Helper function for conditional logging
+const log = (message, data = null) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_AUTH === 'true') {
+        if (data) {
+            console.log(`🔐 AUTH: ${message}`, data);
+        } else {
+            console.log(`🔐 AUTH: ${message}`);
+        }
+    }
+};
+
 export async function verifyToken(token) {
   return await validateUserToken(token);
 }
@@ -37,48 +48,48 @@ export async function getAuthUser(request) {
 }
 
 export async function getAuthUserFromCookies(request) {
-  try {
-    console.log('🍪 Getting auth user from cookies...');
-    
-    const token = request.cookies.get('token')?.value || request.cookies.get('accessToken')?.value;
-    console.log('🎫 Token from cookies:', token ? 'found' : 'not found');
-    
-    if (!token) {
-      console.log('❌ No token found in cookies');
-      return null;
-    }
-
-    const decoded = await validateUserToken(token);
-    console.log('🔓 Token decoded:', decoded ? 'success' : 'failed');
-    
-    if (!decoded) {
-      console.log('❌ Token verification failed');
-      return null;
-    }
-
-    console.log('👤 Looking up user with ID:', decoded.userId);
-    
-    // Get the full user data from database using connection helper
-    const user = await withDatabase(async (prisma) => {
-      return await prisma.user.findUnique({
-        where: { id: decoded.userId },
-        select: {
-          id: true,
-          email: true,
-          firstName: true,
-          lastName: true,
-          role: true,
+    try {
+        log('Getting auth user from cookies...');
+        
+        const token = await getTokenFromCookies(request);
+        log('Token from cookies:', token ? 'found' : 'not found');
+        
+        if (!token) {
+            log('No token found in cookies');
+            return null;
         }
-      });
-    });
 
-    console.log('👤 User found:', user ? `${user.email} (${user.role})` : 'not found');
-    
-    return user;
-  } catch (error) {
-    console.error('❌ Error getting auth user from cookies:', error);
-    return null;
-  }
+        const decoded = await verifyToken(token);
+        log('Token decoded:', decoded ? 'success' : 'failed');
+        
+        if (!decoded) {
+            log('Token verification failed');
+            return null;
+        }
+
+        log('Looking up user with ID:', decoded.userId);
+        
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.userId },
+            select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                role: true,
+                emailVerified: true,
+                createdAt: true,
+                updatedAt: true
+            }
+        });
+
+        log('User found:', user ? `${user.email} (${user.role})` : 'not found');
+        
+        return user;
+    } catch (error) {
+        console.error('Error getting auth user from cookies:', error);
+        return null;
+    }
 }
 
 export async function validateUser(token, role = null) {
@@ -348,12 +359,4 @@ export async function getUserFromToken(request) {
   return getAuthUser(request);
 }
 
-export function useAuth() {
-  // This is a placeholder for the actual useAuth hook
-  // You should implement this using your preferred state management solution
-  return {
-    user: null,
-    isLoading: false,
-    error: null,
-  };
-}
+// Note: useAuth hook is implemented in src/hooks/useAuth.js

@@ -22,9 +22,9 @@ export async function POST(request) {
 
         const { priceId, isOneTime, customerId, serviceType, customerType, subtotal } = await request.json();
 
-        // Comprehensive input validation
+        // Validate the price ID
         if (!priceId) {
-            return NextResponse.json({ 
+            return NextResponse.json({
                 error: 'Price ID is required',
                 code: 'missing_price_id'
             }, { status: 400 });
@@ -35,14 +35,6 @@ export async function POST(request) {
             return NextResponse.json({ 
                 error: 'Invalid price ID format',
                 code: 'invalid_price_format'
-            }, { status: 400 });
-        }
-
-        // Check if we're using a placeholder price ID (development/demo mode)
-        if (priceId.includes('price_placeholder')) {
-            return NextResponse.json({ 
-                error: 'Placeholder prices cannot be used for checkout',
-                code: 'placeholder_price'
             }, { status: 400 });
         }
 

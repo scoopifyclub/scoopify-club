@@ -166,7 +166,46 @@ export default function ServiceHistoryPage() {
                             setRatingSubmitted(true);
                             setRating(null);
                             setFeedback('');
-                            // TODO: Trigger in-app notifications for admin and scooper
+                            
+                            // Trigger in-app notifications for admin and scooper
+                            try {
+                                // Get the service details to notify the scooper
+                                const serviceResponse = await fetch(`/api/services/${latestCompletedService.id}`);
+                                if (serviceResponse.ok) {
+                                    const serviceData = await serviceResponse.json();
+                                    const scooperId = serviceData.employeeId;
+                                    
+                                    if (scooperId) {
+                                        // Notify scooper about the rating
+                                        await fetch('/api/notifications', {
+                                            method: 'POST',
+                                            headers: { 'Content-Type': 'application/json' },
+                                            body: JSON.stringify({
+                                                userId: scooperId,
+                                                type: 'SERVICE_RATED',
+                                                title: 'Service Rated by Customer',
+                                                message: `Your service received a ${rating}/5 star rating${feedback ? ` with feedback: "${feedback}"` : ''}`,
+                                            }),
+                                        });
+                                    }
+                                }
+                                
+                                // Notify admin about the rating
+                                await fetch('/api/notifications', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        userId: 'admin', // Admin notification
+                                        type: 'SERVICE_RATED',
+                                        title: 'Customer Service Rating',
+                                        message: `Service ${latestCompletedService.id} rated ${rating}/5 stars${feedback ? ` with feedback: "${feedback}"` : ''}`,
+                                    }),
+                                });
+                            } catch (notificationError) {
+                                console.error('Failed to send notifications:', notificationError);
+                                // Don't fail the rating submission if notifications fail
+                            }
+                            
                             toast.success('Rating submitted!');
                         } catch (err) {
                             toast.error('Failed to submit rating. Please try again.');

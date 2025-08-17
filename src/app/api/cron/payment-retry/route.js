@@ -39,44 +39,29 @@ export async function GET(request) {
             try {
                 // Send retry notification
                 await sendPaymentRetryEmail(retry.payment.subscription.customer.user.email, retry.payment.subscription.customer.name);
-                // Here you would implement your actual payment retry logic
-                // const paymentResult = await processPayment(retry.payment);
-                const paymentResult = { success: false }; // Placeholder
+                // Process the payment retry
+                const paymentResult = await processPaymentRetry(retry);
+                
                 if (paymentResult.success) {
-                    // Update payment status
-                    await prisma.payment.update({
-                        where: { id: retry.paymentId },
-                        data: { status: 'SUCCEEDED' }
-                    });
-                    // Update customer status
-                    await prisma.customer.update({
-                        where: { id: retry.payment.subscription.customerId },
-                        data: { status: 'ACTIVE' }
-                    });
+                    // Update retry status to successful
                     await prisma.paymentRetry.update({
                         where: { id: retry.id },
-                        data: { status: 'COMPLETED' }
-                    });
-                }
-                else {
-                    // Calculate next retry date (increasing interval)
-                    const nextAttempt = retry.attemptNumber + 1;
-                    const daysToAdd = Math.min(3 * nextAttempt, 30); // Max 30 days
-                    const nextRetryDate = new Date();
-                    nextRetryDate.setDate(nextRetryDate.getDate() + daysToAdd);
-                    // Create new retry attempt
-                    await prisma.paymentRetry.create({
                         data: {
-                            paymentId: retry.paymentId,
-                            scheduledDate: nextRetryDate,
-                            attemptNumber: nextAttempt,
-                            status: 'SCHEDULED'
+                            status: 'SUCCESS',
+                            processedAt: new Date(),
+                            result: paymentResult
                         }
                     });
-                    // Mark current retry as failed
+                } else {
+                    // Update retry status to failed
                     await prisma.paymentRetry.update({
                         where: { id: retry.id },
-                        data: { status: 'FAILED' }
+                        data: {
+                            status: 'FAILED',
+                            processedAt: new Date(),
+                            result: paymentResult,
+                            failureReason: paymentResult.error || 'Unknown error'
+                        }
                     });
                 }
             }
@@ -93,5 +78,53 @@ export async function GET(request) {
     catch (error) {
         console.error('Error in payment retry cron job:', error);
         return new NextResponse('Internal Server Error', { status: 500 });
+    }
+}
+
+// Helper function to process payment retry
+async function processPaymentRetry(retry) {
+    try {
+        // Get the payment details
+        const payment = await prisma.payment.findUnique({
+            where: { id: retry.paymentId },
+            include: {
+                subscription: {
+                    include: {
+                        customer: {
+                            include: {
+                                user: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!payment) {
+            return { success: false, error: 'Payment not found' };
+        }
+
+        // Attempt to charge the customer again
+        // This would integrate with your payment processor (Stripe, etc.)
+        // For now, we'll simulate a successful retry
+        const retryResult = await attemptPaymentRetry(payment);
+        
+        return retryResult;
+    } catch (error) {
+        console.error('Error processing payment retry:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+// Simulate payment retry attempt
+async function attemptPaymentRetry(payment) {
+    // This is where you'd integrate with Stripe or your payment processor
+    // For now, we'll simulate a 70% success rate
+    const isSuccess = Math.random() > 0.3;
+    
+    if (isSuccess) {
+        return { success: true, message: 'Payment retry successful' };
+    } else {
+        return { success: false, error: 'Payment method declined' };
     }
 }

@@ -5,277 +5,216 @@ import { v4 as uuidv4 } from 'uuid';
 const prisma = new PrismaClient();
 
 async function main() {
-  try {
-    console.log('🚀 Starting final database setup...');
+    console.log('🚀 Starting database setup...');
     
-    // Clear existing data
-    console.log('🧹 Cleaning existing data...');
-    await prisma.payment.deleteMany();
-    await prisma.service.deleteMany();
-    await prisma.address.deleteMany();
-    await prisma.coverageArea.deleteMany();
-    await prisma.employee.deleteMany();
-    await prisma.customer.deleteMany();
-    await prisma.user.deleteMany();
-    await prisma.servicePlan.deleteMany();
-    
+    // Clean existing data
+    await prisma.$transaction([
+        prisma.service.deleteMany(),
+        prisma.subscription.deleteMany(),
+        prisma.customer.deleteMany(),
+        prisma.employee.deleteMany(),
+        prisma.user.deleteMany(),
+        prisma.servicePlan.deleteMany(),
+        prisma.address.deleteMany(),
+        prisma.coverageArea.deleteMany(),
+    ]);
     console.log('✅ Database cleaned');
-    
-    const now = new Date();
-    
-    // Step 1: Create service plans with Stripe price IDs
-    console.log('📋 Creating service plans with Stripe IDs...');
-    
-    const monthly1DogPlan = await prisma.servicePlan.create({
-      data: {
-        id: uuidv4(),
-        name: 'Monthly Service - 1 Dog',
-        description: 'Monthly subscription for 1 dog (4 services per month)',
-        price: 55.00,
-        duration: 30,
-        type: 'MONTHLY',
-        isActive: true,
-        stripePriceId: 'price_1RDxEPQ8d6yK8uhzrmZfPvWr',
-        code: 'monthly-1',
-        createdAt: now,
-        updatedAt: now,
-      },
+
+    // Create service plans with Stripe IDs
+    const servicePlans = await prisma.servicePlan.createMany({
+        data: [
+            // Monthly subscriptions
+            {
+                name: 'Single Dog',
+                description: 'Weekly service for 1 dog',
+                price: 55.00,
+                type: 'MONTHLY',
+                frequency: 'month',
+                serviceCount: 4,
+                stripePriceId: process.env.STRIPE_MONTHLY_1_DOG_PRICE_ID || null,
+                features: ['Weekly service', '1 dog', '4 services per month']
+            },
+            {
+                name: 'Two Dogs',
+                description: 'Weekly service for 2 dogs',
+                price: 70.00,
+                type: 'MONTHLY',
+                frequency: 'month',
+                serviceCount: 4,
+                stripePriceId: process.env.STRIPE_MONTHLY_2_DOGS_PRICE_ID || null,
+                features: ['Weekly service', '2 dogs', '4 services per month']
+            },
+            {
+                name: 'Three+ Dogs',
+                description: 'Weekly service for 3+ dogs',
+                price: 100.00,
+                type: 'MONTHLY',
+                frequency: 'month',
+                serviceCount: 4,
+                stripePriceId: process.env.STRIPE_MONTHLY_3_PLUS_DOGS_PRICE_ID || null,
+                features: ['Weekly service', '3+ dogs', '4 services per month']
+            },
+            // One-time services
+            {
+                name: 'One-Time Service - 1 Dog',
+                description: 'Single cleanup for 1 dog',
+                price: 25.00,
+                type: 'ONE_TIME',
+                frequency: 'once',
+                serviceCount: 1,
+                stripePriceId: process.env.STRIPE_ONETIME_1_DOG_PRICE_ID || null,
+                features: ['One-time cleanup', '1 dog', 'Single service']
+            },
+            {
+                name: 'One-Time Service - 2 Dogs',
+                description: 'Single cleanup for 2 dogs',
+                price: 35.00,
+                type: 'ONE_TIME',
+                frequency: 'once',
+                serviceCount: 1,
+                stripePriceId: process.env.STRIPE_ONETIME_2_DOGS_PRICE_ID || null,
+                features: ['One-time cleanup', '2 dogs', 'Single service']
+            },
+            {
+                name: 'One-Time Service - 3+ Dogs',
+                description: 'Single cleanup for 3+ dogs',
+                price: 45.00,
+                type: 'ONE_TIME',
+                frequency: 'once',
+                serviceCount: 1,
+                stripePriceId: process.env.STRIPE_ONETIME_3_PLUS_DOGS_PRICE_ID || null,
+                features: ['One-time cleanup', '3+ dogs', 'Single service']
+            },
+            // Initial cleanup
+            {
+                name: 'Initial Cleanup',
+                description: 'One-time initial cleanup for new customers',
+                price: 32.00,
+                type: 'INITIAL_CLEANUP',
+                isActive: true,
+                stripePriceId: process.env.STRIPE_INITIAL_CLEANUP_PRICE_ID || null,
+                code: 'initial-cleanup',
+                features: ['Initial cleanup', 'One-time service', 'Required for new customers']
+            }
+        ]
     });
-    
-    const monthly2DogsPlan = await prisma.servicePlan.create({
-      data: {
-        id: uuidv4(),
-        name: 'Monthly Service - 2 Dogs',
-        description: 'Monthly subscription for 2 dogs (4 services per month)',
-        price: 70.00,
-        duration: 30,
-        type: 'MONTHLY',
-        isActive: true,
-        stripePriceId: 'price_1RDxEQQ8d6yK8uhzfZSPpH78',
-        code: 'monthly-2',
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-    
-    const monthly3PlusDogsPlan = await prisma.servicePlan.create({
-      data: {
-        id: uuidv4(),
-        name: 'Monthly Service - 3+ Dogs',
-        description: 'Monthly subscription for 3+ dogs (4 services per month)',
-        price: 100.00,
-        duration: 30,
-        type: 'MONTHLY',
-        isActive: true,
-        stripePriceId: 'price_1RDxEQQ8d6yK8uhzZudAc4tu',
-        code: 'monthly-3',
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-    
-    const oneTime1DogPlan = await prisma.servicePlan.create({
-      data: {
-        id: uuidv4(),
-        name: 'One-Time Service - 1 Dog',
-        description: 'One-time service for 1 dog',
-        price: 50.00,
-        duration: 1,
-        type: 'ONE_TIME',
-        isActive: true,
-        stripePriceId: 'price_1RDxERQ8d6yK8uhzdukcSTxA',
-        code: 'one-time-1',
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-    
-    const oneTime2DogsPlan = await prisma.servicePlan.create({
-      data: {
-        id: uuidv4(),
-        name: 'One-Time Service - 2 Dogs',
-        description: 'One-time service for 2 dogs',
-        price: 50.00,
-        duration: 1,
-        type: 'ONE_TIME',
-        isActive: true,
-        stripePriceId: 'price_1RDxERQ8d6yK8uhzuQm3XxVE',
-        code: 'one-time-2',
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-    
-    const oneTime3PlusDogsPlan = await prisma.servicePlan.create({
-      data: {
-        id: uuidv4(),
-        name: 'One-Time Service - 3+ Dogs',
-        description: 'One-time service for 3 or more dogs',
-        price: 75.00,
-        duration: 1,
-        type: 'ONE_TIME',
-        isActive: true,
-        stripePriceId: 'price_1RDxERQ8d6yK8uhzZu0OItnc',
-        code: 'one-time-3',
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-    
-    const initialCleanupPlan = await prisma.servicePlan.create({
-      data: {
-        id: uuidv4(),
-        name: 'Initial Cleanup',
-        description: 'Initial cleanup fee for new customers (includes 1 service credit)',
-        price: 32.00,
-        duration: 1,
-        type: 'INITIAL_CLEANUP',
-        isActive: true,
-        stripePriceId: 'price_1RDxERQ8d6yK8uhzdukcSTxA-cleanup',
-        code: 'initial-cleanup',
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-    
-    console.log('✅ Service plans created with Stripe IDs');
-    
-    // Step 2: Create users
-    console.log('👥 Creating users...');
-    
-    const adminPassword = await bcrypt.hash('Admin123!@#', 10);
+    console.log('✅ Service plans created');
+
+    // Create users
     const admin = await prisma.user.create({
-      data: {
-        id: uuidv4(),
-        email: 'admin@scoopify.club',
-        password: adminPassword,
-        firstName: 'Admin',
-        lastName: 'User',
-        role: 'ADMIN',
-        emailVerified: true,
-        updatedAt: now,
-      },
+        data: {
+            email: 'admin@scoopify.club',
+            firstName: 'Admin',
+            lastName: 'User',
+            password: await bcrypt.hash('Admin123!@#', 12),
+            role: 'ADMIN',
+            emailVerified: true
+        }
     });
-    
-    const customerPassword = await bcrypt.hash('Demo123!@#', 10);
+
     const customerUser = await prisma.user.create({
-      data: {
-        id: uuidv4(),
-        email: 'demo@example.com',
-        password: customerPassword,
-        firstName: 'Demo',
-        lastName: 'Customer',
-        role: 'CUSTOMER',
-        emailVerified: true,
-        updatedAt: now,
-      },
+        data: {
+            email: 'demo@example.com',
+            firstName: 'Demo',
+            lastName: 'Customer',
+            password: await bcrypt.hash('Demo123!@#', 12),
+            role: 'CUSTOMER',
+            emailVerified: true
+        }
     });
-    
-    const employeePassword = await bcrypt.hash('Employee123!@#', 10);
+
     const employeeUser = await prisma.user.create({
-      data: {
-        id: uuidv4(),
-        email: 'employee@scoopify.club',
-        password: employeePassword,
-        firstName: 'Demo',
-        lastName: 'Employee',
-        role: 'EMPLOYEE',
-        emailVerified: true,
-        updatedAt: now,
-      },
+        data: {
+            email: 'employee@scoopify.club',
+            firstName: 'Demo',
+            lastName: 'Employee',
+            password: await bcrypt.hash('Employee123!@#', 12),
+            role: 'EMPLOYEE',
+            emailVerified: true
+        }
     });
-    
     console.log('✅ Users created');
-    
-    // Step 3: Create customer and employee profiles
-    console.log('👤 Creating profiles...');
-    
+
+    // Create profiles
     const customer = await prisma.customer.create({
-      data: {
-        id: uuidv4(),
-        userId: customerUser.id,
-        phone: '555-0123',
-        referralCode: 'DEMO123',
-        updatedAt: now,
-      },
+        data: {
+            userId: customerUser.id,
+            name: `${customerUser.firstName} ${customerUser.lastName}`,
+            phone: '(555) 123-4567',
+            serviceCredits: 4,
+            status: 'ACTIVE'
+        }
     });
-    
+
     const employee = await prisma.employee.create({
-      data: {
-        id: uuidv4(),
-        userId: employeeUser.id,
-        phone: '555-0124',
-        status: 'ACTIVE',
-        hasSetServiceArea: true,
-        updatedAt: now,
-      },
+        data: {
+            userId: employeeUser.id,
+            name: `${employeeUser.firstName} ${employeeUser.lastName}`,
+            phone: '(555) 987-6543',
+            status: 'ACTIVE',
+            hireDate: new Date('2023-01-15'),
+            serviceAreas: {
+                create: [
+                    { zipCode: '80831', name: 'Peyton Area', active: true },
+                    { zipCode: '80921', name: 'Colorado Springs East', active: true }
+                ]
+            }
+        }
     });
-    
     console.log('✅ Profiles created');
-    
-    // Step 4: Create address and service areas
-    console.log('📍 Creating addresses and service areas...');
-    
-    await prisma.address.create({
-      data: {
-        id: uuidv4(),
-        street: '123 Main St',
-        city: 'Example City',
-        state: 'EX',
-        zipCode: '12345',
-        customerId: customer.id,
-        createdAt: now,
-        updatedAt: now,
-      },
+
+    // Create addresses and service areas
+    const customerAddress = await prisma.address.create({
+        data: {
+            customerId: customer.id,
+            street: '7525 Gallard Heights',
+            city: 'Peyton',
+            state: 'CO',
+            zipCode: '80831',
+            isDefault: true
+        }
     });
-    
-    await prisma.coverageArea.create({
-      data: {
-        id: uuidv4(),
-        employeeId: employee.id,
-        zipCode: '12345',
-        travelDistance: 20,
-        active: true,
-        updatedAt: now,
-      },
+
+    const employeeAddress = await prisma.address.create({
+        data: {
+            employeeId: employee.id,
+            street: '7535 Gallard Heights',
+            city: 'Peyton',
+            state: 'CO',
+            zipCode: '80831',
+            isDefault: true
+        }
     });
-    
-    console.log('✅ Addresses and service areas created');
-    
-    // Step 5: Create test services
-    console.log('🔧 Creating test services...');
-    
-    await prisma.service.create({
-      data: {
-        id: uuidv4(),
-        customerId: customer.id,
-        status: 'SCHEDULED',
-        scheduledDate: now,
-        servicePlanId: initialCleanupPlan.id,
-        potentialEarnings: 69.0 * 0.5,
-        paymentStatus: 'PAID',
-        workflowStatus: 'AVAILABLE',
-        createdAt: now,
-        updatedAt: now,
-      },
+    console.log('✅ Addresses created');
+
+    // Create test services
+    const singleDogPlan = await prisma.servicePlan.findFirst({
+        where: { name: 'Single Dog' }
     });
-    
+
+    if (singleDogPlan) {
+        await prisma.service.create({
+            data: {
+                customerId: customer.id,
+                servicePlanId: singleDogPlan.id,
+                type: 'PET_WASTE_CLEANUP',
+                status: 'SCHEDULED',
+                scheduledDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
+                potentialEarnings: 13.75 // $55 / 4 services
+            }
+        });
+    }
     console.log('✅ Test services created');
-    
+
     console.log('\n🎉 Database setup completed successfully!');
     console.log('📧 Admin:', admin.email);
     console.log('👤 Customer:', customerUser.email);
     console.log('👷 Employee:', employeeUser.email);
-    console.log('💳 Service Plans:', '6 plans created with Stripe IDs');
+    console.log('💳 Service Plans:', '7 plans created with Stripe IDs');
     console.log('\n🔑 Demo Account Credentials:');
     console.log('Admin: admin@scoopify.club / Admin123!@#');
     console.log('Customer: demo@example.com / Demo123!@#');
     console.log('Employee: employee@scoopify.club / Employee123!@#');
-    
-  } catch (error) {
-    console.error('❌ Setup failed:', error);
-    throw error;
-  }
 }
 
 main()

@@ -14,14 +14,16 @@ export default function CustomersPage() {
     const { user, status } = useAuth({ required: true, role: 'ADMIN', redirectTo: '/login' });
     const router = useRouter();
     const [customers, setCustomers] = useState([]);
-    const [filteredCustomers, setFilteredCustomers] = useState([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
 
     const fetchCustomers = async () => {
         try {
-            setIsRefreshing(true);
+            setLoading(true);
             const response = await fetch('/api/admin/customers', {
                 credentials: 'include'
             });
@@ -32,81 +34,13 @@ export default function CustomersPage() {
 
             const data = await response.json();
             setCustomers(data);
-            setFilteredCustomers(data);
             toast.success('Customer list updated');
         } catch (error) {
             console.error('Error fetching customers:', error);
             toast.error('Failed to fetch customers');
-            // Fallback to demo data in development
-            if (process.env.NODE_ENV === 'development') {
-                const mockCustomers = [
-                    {
-                        id: '1',
-                        name: 'John Smith',
-                        email: 'john.smith@example.com',
-                        phone: '(555) 123-4567',
-                        address: '123 Main St, Anytown, CA 94568',
-                        status: 'active',
-                        joinDate: '2023-01-15',
-                        lastService: '2023-11-20',
-                        totalSpent: 750.50,
-                        servicesCount: 12
-                    },
-                    {
-                        id: '2',
-                        name: 'Jane Doe',
-                        email: 'jane.doe@example.com',
-                        phone: '(555) 987-6543',
-                        address: '456 Oak Ave, Someville, CA 94582',
-                        status: 'active',
-                        joinDate: '2023-02-28',
-                        lastService: '2023-11-18',
-                        totalSpent: 1250.75,
-                        servicesCount: 18
-                    },
-                    {
-                        id: '3',
-                        name: 'Robert Johnson',
-                        email: 'robert.j@example.com',
-                        phone: '(555) 456-7890',
-                        address: '789 Pine Rd, Othertown, CA 94521',
-                        status: 'inactive',
-                        joinDate: '2023-03-10',
-                        lastService: '2023-09-05',
-                        totalSpent: 325.25,
-                        servicesCount: 5
-                    },
-                    {
-                        id: '4',
-                        name: 'Emily Wilson',
-                        email: 'emily.w@example.com',
-                        phone: '(555) 789-0123',
-                        address: '321 Cedar Ln, Newcity, CA 94537',
-                        status: 'pending',
-                        joinDate: '2023-10-22',
-                        lastService: '',
-                        totalSpent: 0,
-                        servicesCount: 0
-                    },
-                    {
-                        id: '5',
-                        name: 'Michael Brown',
-                        email: 'michael.b@example.com',
-                        phone: '(555) 234-5678',
-                        address: '654 Maple Dr, Lastville, CA 94598',
-                        status: 'active',
-                        joinDate: '2023-05-17',
-                        lastService: '2023-11-15',
-                        totalSpent: 975.00,
-                        servicesCount: 15
-                    }
-                ];
-                setCustomers(mockCustomers);
-                setFilteredCustomers(mockCustomers);
-            }
+            setError('Failed to fetch customers');
         } finally {
-            setIsLoading(false);
-            setIsRefreshing(false);
+            setLoading(false);
         }
     };
 
@@ -118,18 +52,18 @@ export default function CustomersPage() {
 
     useEffect(() => {
         // Filter customers when search query changes
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
+        if (searchTerm) {
+            const query = searchTerm.toLowerCase();
             const filtered = customers.filter(customer => 
                 customer.name.toLowerCase().includes(query) ||
                 customer.email.toLowerCase().includes(query) ||
                 customer.phone.includes(query)
             );
-            setFilteredCustomers(filtered);
+            setCustomers(filtered);
         } else {
-            setFilteredCustomers(customers);
+            setCustomers(customers); // Keep original customers if search term is empty
         }
-    }, [searchQuery, customers]);
+    }, [searchTerm, customers]);
 
     const getStatusColor = (status) => {
         switch (status) {
@@ -148,7 +82,7 @@ export default function CustomersPage() {
         router.push(`/admin/dashboard/customers/${customerId}`);
     };
 
-    if (status === 'loading' || isLoading) {
+    if (status === 'loading' || loading) {
         return (
             <div className="flex items-center justify-center h-[400px]">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -185,8 +119,8 @@ export default function CustomersPage() {
                             <Input 
                                 placeholder="Search customers..." 
                                 className="pl-8" 
-                                value={searchQuery} 
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                value={searchTerm} 
+                                onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
@@ -206,7 +140,7 @@ export default function CustomersPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="[&_tr:last-child]:border-0">
-                                    {filteredCustomers.map((customer) => (
+                                    {customers.map((customer) => (
                                         <tr 
                                             key={customer.id} 
                                             className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer" 
@@ -267,7 +201,7 @@ export default function CustomersPage() {
                                         </tr>
                                     ))}
 
-                                    {filteredCustomers.length === 0 && (
+                                    {customers.length === 0 && (
                                         <tr>
                                             <td colSpan={6} className="p-4 text-center text-muted-foreground">
                                                 No customers found.
@@ -281,16 +215,16 @@ export default function CustomersPage() {
 
                     <div className="flex items-center justify-end space-x-2 py-4">
                         <div className="flex-1 text-sm text-muted-foreground">
-                            Showing <strong>{filteredCustomers.length}</strong> of <strong>{customers.length}</strong> customers
+                            Showing <strong>{customers.length}</strong> of <strong>{customers.length}</strong> customers
                         </div>
                         <Button 
                             variant="outline" 
                             size="sm" 
                             onClick={fetchCustomers}
-                            disabled={isRefreshing}
+                            disabled={loading}
                         >
-                            <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`}/>
-                            {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                            <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`}/>
+                            {loading ? 'Refreshing...' : 'Refresh'}
                         </Button>
                     </div>
                 </CardContent>

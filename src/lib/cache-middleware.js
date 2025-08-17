@@ -13,6 +13,17 @@ export function withCache(handler, options = {}) {
     invalidateOn = [] // Array of cache keys to invalidate after successful request
   } = options;
 
+  // Helper function for conditional logging
+  const log = (message, data = null) => {
+      if (process.env.NODE_ENV === 'development' || process.env.DEBUG_CACHE === 'true') {
+          if (data) {
+              console.log(`💾 CACHE: ${message}`, data);
+          } else {
+              console.log(`💾 CACHE: ${message}`);
+          }
+      }
+  };
+
   return async (req, res) => {
     // Skip caching for non-GET requests
     if (req.method !== 'GET') {
@@ -26,8 +37,9 @@ export function withCache(handler, options = {}) {
       // Try to get cached response
       const cachedResponse = await cache.get(cacheKey);
       
+      // Check if response is cacheable
       if (cachedResponse) {
-        console.log(`📦 Serving cached response for: ${cacheKey}`);
+        log(`Serving cached response for: ${cacheKey}`);
         return res.status(200).json(cachedResponse);
       }
 
@@ -47,7 +59,7 @@ export function withCache(handler, options = {}) {
       // Cache the response if condition is met
       if (responseData && condition(responseData, req)) {
         await cache.set(cacheKey, responseData, ttl);
-        console.log(`💾 Cached response for: ${cacheKey} (TTL: ${ttl}s)`);
+        log(`💾 Cached response for: ${cacheKey} (TTL: ${ttl}s)`);
       }
 
       // Invalidate related cache keys

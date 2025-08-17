@@ -66,10 +66,39 @@ export async function POST(request: Request) {
       payoutStatus = 'FAILED';
     }
   } else if (scooper.preferredPaymentMethod === 'CASHAPP' && scooper.cashAppUsername) {
-    // TODO: Implement Cash App payout logic here
-    // For now, mark as pending until Cash App integration is complete
-    payoutStatus = 'PENDING';
-    payoutId = null;
+    try {
+      // Implement Cash App payout logic
+      // For now, mark as pending manual payment until Cash App API integration is complete
+      payoutStatus = 'PENDING_MANUAL';
+      payoutId = `CASHAPP_${serviceId}_${Date.now()}`;
+      
+      // Create notification for manual Cash App payment
+      await prisma.notification.create({
+        data: {
+          userId: scooper.userId,
+          type: 'PAYOUT_PENDING',
+          title: 'Cash App Payment Pending',
+          message: `Your payment of $${payoutAmount} for service ${serviceId} is pending manual Cash App transfer. Please contact admin for payment details.`,
+          createdAt: new Date(),
+        },
+      });
+      
+      // Also notify admin about manual payment needed
+      await prisma.notification.create({
+        data: {
+          userId: 'admin', // Admin notification
+          type: 'MANUAL_PAYMENT_NEEDED',
+          title: 'Manual Cash App Payment Required',
+          message: `Manual Cash App payment of $${payoutAmount} needed for scooper ${scooper.user?.firstName || 'Unknown'} (${scooper.cashAppUsername}) for service ${serviceId}`,
+          createdAt: new Date(),
+        },
+      });
+      
+      console.log(`✅ Cash App payment marked as pending manual for ${scooper.cashAppUsername}`);
+    } catch (cashAppError) {
+      console.error('❌ Cash App payment processing failed:', cashAppError);
+      payoutStatus = 'FAILED';
+    }
   }
 
   // Mark payout in database (Earning/Payment model)

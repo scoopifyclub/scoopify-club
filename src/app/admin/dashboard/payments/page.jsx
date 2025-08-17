@@ -58,96 +58,52 @@ export default function PaymentsPage() {
 
             // Fallback to demo data in development
             if (process.env.NODE_ENV === 'development') {
+                // Example payment data (replace with real data)
                 const mockPayments = [
                     {
-                        id: 'pay_1234',
-                        amount: 120.00,
-                        status: 'successful',
-                        date: '2023-11-15T14:30:00Z',
-                        customer: {
-                            name: 'John Smith',
-                            email: 'john.smith@example.com'
-                        },
-                        paymentMethod: {
-                            type: 'visa',
-                            last4: '4242'
-                        },
-                        invoiceNumber: 'INV-2023-0042',
-                        service: {
-                            name: 'Deep Cleaning'
-                        }
+                        id: 'pay_1',
+                        customerName: 'John Smith',
+                        email: 'customer1@example.com',
+                        amount: 55.00,
+                        status: 'completed',
+                        date: '2023-11-20',
+                        type: 'subscription'
                     },
                     {
-                        id: 'pay_1235',
-                        amount: 85.50,
-                        status: 'successful',
-                        date: '2023-11-12T10:15:00Z',
-                        customer: {
-                            name: 'Sarah Johnson',
-                            email: 'sarah.j@example.com'
-                        },
-                        paymentMethod: {
-                            type: 'mastercard',
-                            last4: '5678'
-                        },
-                        invoiceNumber: 'INV-2023-0041',
-                        service: {
-                            name: 'Regular Cleaning'
-                        }
-                    },
-                    {
-                        id: 'pay_1236',
-                        amount: 65.00,
-                        status: 'refunded',
-                        date: '2023-11-10T09:20:00Z',
-                        customer: {
-                            name: 'Michael Brown',
-                            email: 'm.brown@example.com'
-                        },
-                        paymentMethod: {
-                            type: 'amex',
-                            last4: '9876'
-                        },
-                        invoiceNumber: 'INV-2023-0040',
-                        service: {
-                            name: 'Window Cleaning'
-                        }
-                    },
-                    {
-                        id: 'pay_1237',
-                        amount: 150.00,
+                        id: 'pay_2',
+                        customerName: 'Sarah Johnson',
+                        email: 'customer2@example.com',
+                        amount: 70.00,
                         status: 'pending',
-                        date: '2023-11-14T11:45:00Z',
-                        customer: {
-                            name: 'Emily Davis',
-                            email: 'emily.d@example.com'
-                        },
-                        paymentMethod: {
-                            type: 'discover',
-                            last4: '1234'
-                        },
-                        invoiceNumber: 'INV-2023-0039',
-                        service: {
-                            name: 'Deep Cleaning'
-                        }
+                        date: '2023-11-19',
+                        type: 'subscription'
                     },
                     {
-                        id: 'pay_1238',
-                        amount: 95.00,
-                        status: 'failed',
-                        date: '2023-11-13T16:30:00Z',
-                        customer: {
-                            name: 'David Wilson',
-                            email: 'david.w@example.com'
-                        },
-                        paymentMethod: {
-                            type: 'visa',
-                            last4: '4321'
-                        },
-                        invoiceNumber: 'INV-2023-0038',
-                        service: {
-                            name: 'Regular Cleaning'
-                        }
+                        id: 'pay_3',
+                        customerName: 'Michael Brown',
+                        email: 'customer3@example.com',
+                        amount: 32.00,
+                        status: 'completed',
+                        date: '2023-11-18',
+                        type: 'initial_cleanup'
+                    },
+                    {
+                        id: 'pay_4',
+                        customerName: 'Emily Davis',
+                        email: 'customer4@example.com',
+                        amount: 100.00,
+                        status: 'completed',
+                        date: '2023-11-17',
+                        type: 'subscription'
+                    },
+                    {
+                        id: 'pay_5',
+                        customerName: 'David Wilson',
+                        email: 'customer5@example.com',
+                        amount: 45.00,
+                        status: 'pending',
+                        date: '2023-11-16',
+                        type: 'one_time'
                     }
                 ];
                 setPayments(mockPayments);

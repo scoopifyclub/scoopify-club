@@ -150,61 +150,50 @@ export default function ScheduleServicePage() {
             toast.error('Failed to fetch employees');
             // Fallback to demo data in development
             if (process.env.NODE_ENV === 'development') {
-                const mockEmployees = [
+                // Example available employees (replace with real data)
+                const availableEmployees = [
                     {
-                        id: '201',
-                        name: 'David Miller',
-                        email: 'david.miller@scoopify.com',
-                        role: 'EMPLOYEE',
-                        availability: [
-                            { day: 'Monday', startTime: '09:00', endTime: '17:00' },
-                            { day: 'Tuesday', startTime: '09:00', endTime: '17:00' },
-                            { day: 'Wednesday', startTime: '09:00', endTime: '17:00' },
-                            { day: 'Thursday', startTime: '09:00', endTime: '17:00' },
-                            { day: 'Friday', startTime: '09:00', endTime: '17:00' }
-                        ]
+                        id: 'emp_1',
+                        name: 'John Smith',
+                        email: 'employee1@example.com',
+                        rating: 4.8,
+                        completedServices: 45,
+                        availability: 'Available'
                     },
                     {
-                        id: '202',
-                        name: 'Sarah Johnson',
-                        email: 'sarah.johnson@scoopify.com',
-                        role: 'EMPLOYEE',
-                        availability: [
-                            { day: 'Monday', startTime: '10:00', endTime: '18:00' },
-                            { day: 'Tuesday', startTime: '10:00', endTime: '18:00' },
-                            { day: 'Wednesday', startTime: '10:00', endTime: '18:00' },
-                            { day: 'Thursday', startTime: '10:00', endTime: '18:00' },
-                            { day: 'Friday', startTime: '10:00', endTime: '18:00' }
-                        ]
+                        id: 'emp_2',
+                        name: 'Emily Wilson',
+                        email: 'employee2@example.com',
+                        rating: 4.6,
+                        completedServices: 32,
+                        availability: 'Available'
                     },
                     {
-                        id: '203',
-                        name: 'Tom Wilson',
-                        email: 'tom.wilson@scoopify.com',
-                        role: 'EMPLOYEE',
-                        availability: [
-                            { day: 'Tuesday', startTime: '08:00', endTime: '16:00' },
-                            { day: 'Wednesday', startTime: '08:00', endTime: '16:00' },
-                            { day: 'Thursday', startTime: '08:00', endTime: '16:00' },
-                            { day: 'Friday', startTime: '08:00', endTime: '16:00' },
-                            { day: 'Saturday', startTime: '09:00', endTime: '15:00' }
-                        ]
+                        id: 'emp_3',
+                        name: 'Robert Johnson',
+                        email: 'employee3@example.com',
+                        rating: 4.9,
+                        completedServices: 67,
+                        availability: 'Available'
                     },
                     {
-                        id: '204',
-                        name: 'Emily Davis',
-                        email: 'emily.davis@scoopify.com',
-                        role: 'EMPLOYEE',
-                        availability: [
-                            { day: 'Monday', startTime: '11:00', endTime: '19:00' },
-                            { day: 'Wednesday', startTime: '11:00', endTime: '19:00' },
-                            { day: 'Friday', startTime: '11:00', endTime: '19:00' },
-                            { day: 'Saturday', startTime: '10:00', endTime: '16:00' },
-                            { day: 'Sunday', startTime: '10:00', endTime: '16:00' }
-                        ]
+                        id: 'emp_4',
+                        name: 'Jennifer Lee',
+                        email: 'employee4@example.com',
+                        rating: 4.7,
+                        completedServices: 28,
+                        availability: 'Available'
+                    },
+                    {
+                        id: 'emp_5',
+                        name: 'Michael Brown',
+                        email: 'employee5@example.com',
+                        rating: 4.5,
+                        completedServices: 41,
+                        availability: 'Available'
                     }
                 ];
-                setEmployees(mockEmployees);
+                setEmployees(availableEmployees);
             }
             throw error;
         }

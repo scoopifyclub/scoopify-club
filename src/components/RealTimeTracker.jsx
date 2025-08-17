@@ -10,51 +10,97 @@ import { toast } from 'sonner';
 
 export default function RealTimeTracker({ serviceId, customerView = false }) {
   const [trackingData, setTrackingData] = useState({
-    status: 'en_route',
-    employee: {
-      name: 'John Smith',
-      phone: '+1 (555) 123-4567',
-      rating: 4.8,
-      photo: '/api/placeholder/40/40'
-    },
-    location: {
-      lat: 40.7128,
-      lng: -74.0060,
-      address: '123 Main St, New York, NY'
-    },
-    eta: '15 minutes',
-    progress: 65,
-    lastUpdate: new Date(),
-    serviceDetails: {
-      scheduledTime: '2:00 PM',
-      estimatedDuration: '30 minutes',
-      serviceType: 'Standard Cleanup'
-    }
+    status: 'loading',
+    employee: null,
+    location: null,
+    eta: null,
+    progress: 0,
+    lastUpdate: null,
+    serviceDetails: null
   });
 
   const [isLive, setIsLive] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      setTrackingData(prev => ({
-        ...prev,
-        progress: Math.min(prev.progress + Math.random() * 5, 100),
-        eta: Math.max(parseInt(prev.eta) - 1, 0) + ' minutes',
-        lastUpdate: new Date()
-      }));
+    if (!serviceId) return;
 
-      // Update status based on progress
-      if (trackingData.progress >= 100) {
-        setTrackingData(prev => ({ ...prev, status: 'completed' }));
-        setIsLive(false);
-      } else if (trackingData.progress >= 80) {
-        setTrackingData(prev => ({ ...prev, status: 'on_site' }));
+    const fetchTrackingData = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/services/${serviceId}/tracking`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch tracking data');
+        }
+
+        const data = await response.json();
+        setTrackingData(data);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching tracking data:', err);
+        setError('Failed to load tracking information');
+      } finally {
+        setLoading(false);
       }
-    }, 30000); // Update every 30 seconds
+    };
+
+    // Initial fetch
+    fetchTrackingData();
+
+    // Set up real-time updates
+    const interval = setInterval(fetchTrackingData, 30000); // Update every 30 seconds
 
     return () => clearInterval(interval);
-  }, [trackingData.progress]);
+  }, [serviceId]);
+
+  // Show loading state
+  if (loading) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+            <span className="ml-2">Loading tracking data...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardContent className="p-6">
+          <div className="text-center text-red-600">
+            <p>{error}</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="outline" 
+              className="mt-2"
+            >
+              Retry
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show no data state
+  if (!trackingData.employee || !trackingData.serviceDetails) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardContent className="p-6">
+          <div className="text-center text-gray-600">
+            <p>No tracking information available</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const getStatusColor = (status) => {
     switch (status) {

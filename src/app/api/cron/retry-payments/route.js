@@ -129,7 +129,19 @@ export const GET = withErrorHandler(async (request) => {
                         stripePaymentIntentId: paymentIntent.id
                     }
                 });
-                // TODO: Send notification to customer about required action
+                // Send notification to customer about required action
+                if (retry.payment.customer && retry.payment.customer.email) {
+                    try {
+                        const { sendEmail } = await import('@/lib/email-service');
+                        await sendEmail(
+                            retry.payment.customer.email,
+                            'Payment Action Required - Scoopify Club',
+                            `Your payment of $${retry.payment.amount} requires action. Please update your payment method or contact support.`
+                        );
+                    } catch (emailError) {
+                        console.error('Failed to send payment notification email:', emailError);
+                    }
+                }
                 logger.info(`Payment ${retry.paymentId} requires customer action`);
                 results.failed++;
             }
@@ -163,7 +175,30 @@ export const GET = withErrorHandler(async (request) => {
                                 status: 'PAST_DUE'
                             }
                         });
-                        // TODO: Send notification to admin and customer about subscription payment failure
+                        // Send notification to admin and customer about subscription payment failure
+                        const customer = retry.payment.customer;
+                        if (customer && customer.email) {
+                            try {
+                                const { sendEmail } = await import('@/lib/email-service');
+
+                                // Notify customer
+                                await sendEmail(
+                                    customer.email,
+                                    'Subscription Payment Failed - Scoopify Club',
+                                    `Your subscription payment has failed. Please update your payment method to continue service.`
+                                );
+
+                                // Notify admin (you can customize the admin email)
+                                const adminEmail = process.env.ADMIN_EMAIL || 'admin@scoopifyclub.com';
+                                await sendEmail(
+                                    adminEmail,
+                                    'Subscription Payment Failure Alert',
+                                    `Customer ${customer.email} has a failed subscription payment of $${retry.payment.amount}.`
+                                );
+                            } catch (emailError) {
+                                console.error('Failed to send payment failure notifications:', emailError);
+                            }
+                        }
                     }
                 }
                 logger.info(`Failed to retry payment ${retry.paymentId} (attempt ${retry.retryCount})`);

@@ -23,6 +23,13 @@ export default function ReportsPage() {
     const [reports, setReports] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [stats, setStats] = useState({
+        totalServices: 0,
+        totalEarnings: 0,
+        averageRating: 0,
+        customerRetention: 0,
+        onTimeDelivery: 0
+    });
 
     useEffect(() => {
         const fetchReportsData = async () => {
@@ -66,8 +73,8 @@ export default function ReportsPage() {
                     const avgServiceTime = 48; // This would be calculated from actual service duration data
                     
                     // Customer retention and on-time delivery would need specific tracking
-                    const customerRetention = 92; // Placeholder
-                    const onTimeDelivery = 96; // Placeholder
+                        const customerRetention = stats.customerRetention || 0;
+    const onTimeDelivery = stats.onTimeDelivery || 0;
                     
                     // Group services by month for trends
                     const monthlyStats = {};

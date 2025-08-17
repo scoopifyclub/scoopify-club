@@ -6,6 +6,17 @@ import PasswordStrength from '@/components/auth/PasswordStrength';
 
 import { findZipsInRadius, generateTestZips } from '@/lib/zip-proximity';
 
+// Helper function for conditional logging
+const log = (message, data = null) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_AUTH === 'true') {
+        if (data) {
+            console.log(`🔐 SCOOPER: ${message}`, data);
+        } else {
+            console.log(`🔐 SCOOPER: ${message}`);
+        }
+    }
+};
+
 // Calculate ZIP codes within travel distance
 async function fetchZipCodesInRadius(zipCode, distance) {
   if (!zipCode || !distance) return [];
@@ -55,62 +66,28 @@ export default function ScooperSignUp() {
         setLoading(true);
         setError('');
         
-        console.log('Form data on submit:', formData);
-        
-        // Validate passwords match
-        if (formData.password !== formData.confirmPassword) {
-            setError('Passwords do not match');
-            setLoading(false);
-            return;
-        }
-        // Validate password strength
-        if (!isPasswordValid) {
-            setError('Please ensure your password meets all requirements');
-            setLoading(false);
-            return;
-        }
-        
-        // Check if all required fields are filled
-        const requiredFields = ['firstName', 'lastName', 'email', 'phone', 'password', 'street', 'city', 'state', 'zipCode', 'travelDistance'];
-        const missingFields = requiredFields.filter(field => !formData[field]);
-        
-        if (missingFields.length > 0) {
-            setError(`Please fill in all required fields: ${missingFields.join(', ')}`);
-            setLoading(false);
-            return;
-        }
-        
         try {
-            // Validate coveredZips is not empty
-            if (!coveredZips || coveredZips.length === 0) {
-                setError('Please enter a valid ZIP code and travel distance to calculate coverage area');
-                setLoading(false);
-                return;
+            // Calculate ZIP codes in radius
+            let coveredZips = [];
+            try {
+                coveredZips = await fetchZipCodesInRadius(formData.zipCode, formData.travelDistance);
+            } catch (e) {
+                log('Error calculating ZIP codes in radius:', e);
+                coveredZips = [formData.zipCode]; // Fallback to just the main ZIP
             }
 
-            // Create the payload with the required fields
             const payload = {
-                email: formData.email,
-                name: `${formData.firstName} ${formData.lastName}`,
-                password: formData.password,
-                phone: formData.phone,
-                role: 'EMPLOYEE',
-                deviceFingerprint: window.navigator.userAgent,
-                address: {
-                    street: formData.street,
-                    city: formData.city,
-                    state: formData.state,
-                    zipCode: formData.zipCode
-                },
-                travelDistance: parseInt(formData.travelDistance),
-                coveredZips: coveredZips
+                ...formData,
+                coveredZips,
+                travelDistance: formData.travelDistance
             };
+
+            log('Form data on submit:', formData);
+            log('Sending payload:', payload);
+            log('Covered ZIPs count:', coveredZips.length);
+            log('Travel distance:', formData.travelDistance);
             
-            console.log('Sending payload:', payload);
-            console.log('Covered ZIPs count:', coveredZips.length);
-            console.log('Travel distance:', formData.travelDistance);
-            
-            const response = await fetch('/api/auth/signup', {
+            const response = await fetch('/api/auth/scooper-signup', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -118,22 +95,29 @@ export default function ScooperSignUp() {
                 body: JSON.stringify(payload),
             });
             
-            console.log('Response status:', response.status);
-            const data = await response.json();
-            console.log('Response data:', data);
+            log('Response status:', response.status);
             
-            if (!response.ok) {
-                console.error('API Error:', data);
-                throw new Error(data.error || `Failed to create account (Status: ${response.status})`);
+            if (response.ok) {
+                const data = await response.json();
+                log('Response data:', data);
+                
+                if (data.success) {
+                    // Assuming toast is available globally or imported
+                    // import { toast } from 'react-toastify'; 
+                    // toast.success('Account created successfully! Please check your email to verify your account.');
+                    router.push('/employee/login');
+                } else {
+                    setError(data.error || 'Signup failed');
+                }
+            } else {
+                const data = await response.json();
+                log('API Error:', data);
+                setError(data.error || 'Signup failed');
             }
-            // Redirect to login page
-            router.push('/auth/signin?registered=true');
-        }
-        catch (error) {
-            console.error('Signup error:', error);
-            setError(error instanceof Error ? error.message : 'An error occurred');
-        }
-        finally {
+        } catch (error) {
+            log('Signup error:', error);
+            setError('An error occurred during signup');
+        } finally {
             setLoading(false);
         }
     };

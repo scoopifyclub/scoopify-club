@@ -1,5 +1,16 @@
 import { NextResponse } from 'next/server';
 
+// Helper function for conditional logging
+const log = (message, data = null) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_SECURITY === 'true') {
+        if (data) {
+            console.log(`🔒 SECURITY: ${message}`, data);
+        } else {
+            console.log(`🔒 SECURITY: ${message}`);
+        }
+    }
+};
+
 export function securityMiddleware(request) {
   const response = NextResponse.next();
 
@@ -41,6 +52,14 @@ export function securityMiddleware(request) {
       JSON.stringify({ error: 'Request too large' }),
       { status: 413, headers: { 'Content-Type': 'application/json' } }
     );
+  }
+
+  // Log security events
+  log(`Request processed - ${request.method} ${request.url} - IP: ${request.headers.get('x-forwarded-for') || request.ip || 'unknown'}`);
+  
+  // Log authentication attempts
+  if (request.url.includes('/auth/') || request.url.includes('/login')) {
+      log(`Authentication attempt from IP: ${request.headers.get('x-forwarded-for') || request.ip || 'unknown'}`);
   }
 
   return response;

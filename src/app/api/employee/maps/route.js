@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/api-auth';
+import { geocodeAddress, calculateDistance } from '@/lib/geolocation';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -68,23 +69,35 @@ export async function GET(request) {
 }
 
 async function getServiceAreasData(employee) {
-  // Get service areas with coverage data
-  const serviceAreas = employee.serviceAreas.map(area => ({
-    id: area.id,
-    zipCode: area.zipCode,
-    travelDistance: area.travelDistance,
-    active: area.active,
-    // Mock coordinates for demo - in real app, you'd geocode the zip codes
-    coordinates: {
-      lat: 39.7392 + (Math.random() - 0.5) * 0.1, // Denver area
-      lng: -104.9903 + (Math.random() - 0.5) * 0.1
+  // Get real coordinates for service areas
+  const serviceAreaCoordinates = [];
+  for (const zipCode of employee.serviceAreas) {
+    try {
+      const coordinates = await geocodeAddress(`${zipCode.zipCode}, ${zipCode.state || 'CO'}`);
+      if (coordinates) {
+        serviceAreaCoordinates.push({
+          zipCode: zipCode.zipCode,
+          lat: coordinates.lat,
+          lng: coordinates.lng,
+          name: zipCode.name || `Area ${zipCode.zipCode}`
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to geocode ${zipCode.zipCode}:`, error);
+      // Fallback to approximate coordinates for Peyton, CO area
+      serviceAreaCoordinates.push({
+        zipCode: zipCode.zipCode,
+        lat: 39.0261,
+        lng: -104.4839,
+        name: zipCode.name || `Area ${zipCode.zipCode}`
+      });
     }
-  }));
+  }
 
   return NextResponse.json({
     type: 'service-areas',
     data: {
-      serviceAreas,
+      serviceAreas: serviceAreaCoordinates,
       center: {
         lat: 39.7392,
         lng: -104.9903
@@ -106,28 +119,67 @@ async function getRouteData(employee) {
     return serviceDate >= today && serviceDate < tomorrow;
   });
 
-  // Create route waypoints
-  const waypoints = todaysServices.map((service, index) => ({
-    id: service.id,
-    position: index + 1,
-                    customerName: service.customer.user?.name || 'Unknown Customer',
-    address: service.customer.address ? {
-      street: service.customer.address.street,
-      city: service.customer.address.city,
-      state: service.customer.address.state,
-      zipCode: service.customer.address.zipCode
-    } : null,
-    scheduledTime: service.scheduledDate,
-    estimatedDuration: 30, // minutes
-    // Mock coordinates for demo
-    coordinates: {
-      lat: 39.7392 + (Math.random() - 0.5) * 0.2,
-      lng: -104.9903 + (Math.random() - 0.5) * 0.2
+  // Create route waypoints with real coordinates
+  const waypoints = [];
+  for (const service of todaysServices) {
+    try {
+      const address = service.customer.address;
+      if (address) {
+        const fullAddress = `${address.street}, ${address.city}, ${address.state} ${address.zipCode}`;
+        const coordinates = await geocodeAddress(fullAddress);
+        
+        if (coordinates) {
+          waypoints.push({
+            id: service.id,
+            position: waypoints.length + 1,
+            customerName: service.customer.user?.name || 'Unknown Customer',
+            address: {
+              street: address.street,
+              city: address.city,
+              state: address.state,
+              zipCode: address.zipCode
+            },
+            scheduledTime: service.scheduledDate,
+            estimatedDuration: 30, // minutes
+            coordinates: {
+              lat: coordinates.lat,
+              lng: coordinates.lng
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to geocode address for service ${service.id}:`, error);
+      // Fallback to approximate coordinates for Peyton, CO area
+      waypoints.push({
+        id: service.id,
+        position: waypoints.length + 1,
+        customerName: service.customer.user?.name || 'Unknown Customer',
+        address: service.customer.address ? {
+          street: service.customer.address.street,
+          city: service.customer.address.city,
+          state: service.customer.address.state,
+          zipCode: service.customer.address.zipCode
+        } : null,
+        scheduledTime: service.scheduledDate,
+        estimatedDuration: 30, // minutes
+        coordinates: {
+          lat: 39.0261 + (Math.random() - 0.5) * 0.1,
+          lng: -104.4839 + (Math.random() - 0.5) * 0.1
+        }
+      });
     }
-  }));
+  }
 
-  // Calculate route statistics
-  const totalDistance = waypoints.length * 5; // Mock distance calculation
+  // Calculate route statistics with real distance
+  let totalDistance = 0;
+  for (let i = 1; i < waypoints.length; i++) {
+    const prev = waypoints[i - 1];
+    const curr = waypoints[i];
+    const distance = calculateDistance(prev.coordinates.lat, prev.coordinates.lng, curr.coordinates.lat, curr.coordinates.lng);
+    totalDistance += distance;
+  }
+  
   const totalDuration = waypoints.length * 30; // 30 minutes per service
   const totalEarnings = waypoints.reduce((sum, waypoint) => {
     return sum + (waypoint.potentialEarnings || 0);
@@ -139,7 +191,7 @@ async function getRouteData(employee) {
       waypoints,
       statistics: {
         totalStops: waypoints.length,
-        totalDistance: `${totalDistance} miles`,
+        totalDistance: `${totalDistance.toFixed(2)} miles`,
         totalDuration: `${totalDuration} minutes`,
         totalEarnings: `$${totalEarnings.toFixed(2)}`
       },
@@ -170,12 +222,12 @@ async function getJobsData(employee) {
     },
     include: {
       customer: {
-                   include: {
-             user: {
-               select: {
-                 name: true
-               }
-             },
+        include: {
+          user: {
+            select: {
+              name: true
+            }
+          },
           address: true
         }
       }
@@ -185,23 +237,54 @@ async function getJobsData(employee) {
     }
   });
 
-  const jobsData = availableJobs.map(job => ({
-    id: job.id,
-                    customerName: job.customer.user?.name || 'Unknown Customer',
-    address: job.customer.address ? {
-      street: job.customer.address.street,
-      city: job.customer.address.city,
-      state: job.customer.address.state,
-      zipCode: job.customer.address.zipCode
-    } : null,
-    scheduledDate: job.scheduledDate,
-    potentialEarnings: job.potentialEarnings || 0,
-    // Mock coordinates for demo
-    coordinates: {
-      lat: 39.7392 + (Math.random() - 0.5) * 0.2,
-      lng: -104.9903 + (Math.random() - 0.5) * 0.2
+  const jobsData = [];
+  for (const job of availableJobs) {
+    try {
+      const address = job.customer.address;
+      if (address) {
+        const fullAddress = `${address.street}, ${address.city}, ${address.state} ${address.zipCode}`;
+        const coordinates = await geocodeAddress(fullAddress);
+        
+        if (coordinates) {
+          jobsData.push({
+            id: job.id,
+            customerName: job.customer.user?.name || 'Unknown Customer',
+            address: {
+              street: address.street,
+              city: address.city,
+              state: address.state,
+              zipCode: address.zipCode
+            },
+            scheduledDate: job.scheduledDate,
+            potentialEarnings: job.potentialEarnings || 0,
+            coordinates: {
+              lat: coordinates.lat,
+              lng: coordinates.lng
+            }
+          });
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to geocode address for job ${job.id}:`, error);
+      // Fallback to approximate coordinates for Peyton, CO area
+      jobsData.push({
+        id: job.id,
+        customerName: job.customer.user?.name || 'Unknown Customer',
+        address: job.customer.address ? {
+          street: job.customer.address.street,
+          city: job.customer.address.city,
+          state: job.customer.address.state,
+          zipCode: job.customer.address.zipCode
+        } : null,
+        scheduledDate: job.scheduledDate,
+        potentialEarnings: job.potentialEarnings || 0,
+        coordinates: {
+          lat: 39.0261 + (Math.random() - 0.5) * 0.1,
+          lng: -104.4839 + (Math.random() - 0.5) * 0.1
+        }
+      });
     }
-  }));
+  }
 
   return NextResponse.json({
     type: 'jobs',

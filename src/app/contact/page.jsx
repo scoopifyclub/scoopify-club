@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Mail, Phone, MapPin } from 'lucide-react';
+import { toast } from 'sonner';
+
 export default function ContactPage() {
     const [formData, setFormData] = useState({
         name: '',
@@ -14,8 +16,31 @@ export default function ContactPage() {
     });
     const handleSubmit = async (e) => {
         e.preventDefault();
-        // TODO: Implement form submission
-        console.log('Form submitted:', formData);
+        
+        try {
+            const response = await fetch('/api/contact', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            });
+
+            if (response.ok) {
+                toast.success('Message sent successfully! We\'ll get back to you soon.');
+                setFormData({
+                    name: '',
+                    email: '',
+                    subject: '',
+                    message: '',
+                });
+            } else {
+                throw new Error('Failed to send message');
+            }
+        } catch (error) {
+            console.error('Error sending message:', error);
+            toast.error('Failed to send message. Please try again or contact us directly.');
+        }
     };
     const handleChange = (e) => {
         const { name, value } = e.target;

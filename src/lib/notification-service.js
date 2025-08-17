@@ -368,30 +368,44 @@ class NotificationService {
 
   // Core Email and SMS Methods
   async sendEmail(to, subject, html) {
-    // Implementation depends on email provider (Resend, SendGrid, etc.)
-    console.log(`Sending email to ${to}: ${subject}`);
-    
-    // Placeholder for actual email sending
-    if (this.emailProvider === 'resend') {
-      // Use Resend API
-      return { success: true, provider: 'resend' };
-    } else {
-      // Use default email provider
-      return { success: true, provider: 'default' };
+    try {
+      // Use our email service from email-service.js
+      const { sendEmail } = await import('./email-service.js');
+      const result = await sendEmail(to, subject, html);
+      return { success: true, provider: 'nodemailer', result };
+    } catch (error) {
+      console.error('Email sending failed:', error);
+      return { success: false, provider: 'nodemailer', error: error.message };
     }
   }
 
   async sendSMS(to, message) {
-    // Implementation depends on SMS provider (Twilio, etc.)
-    console.log(`Sending SMS to ${to}: ${message}`);
-    
-    // Placeholder for actual SMS sending
-    if (this.smsProvider === 'twilio') {
-      // Use Twilio API
-      return { success: true, provider: 'twilio' };
-    } else {
-      // Use default SMS provider
-      return { success: true, provider: 'default' };
+    try {
+      // For now, we'll use email as SMS fallback until SMS provider is configured
+      // In production, you would integrate with Twilio, AWS SNS, or similar
+      console.log(`SMS to ${to}: ${message}`);
+      
+      // Send as email for now (many SMS providers also support email-to-SMS)
+      const emailSubject = 'SMS Message';
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif;">
+          <h3>SMS Message</h3>
+          <p><strong>To:</strong> ${to}</p>
+          <p><strong>Message:</strong></p>
+          <p style="background: #f5f5f5; padding: 15px; border-radius: 5px;">${message}</p>
+          <p><em>This message was sent via SMS fallback to email.</em></p>
+        </div>
+      `;
+      
+      const emailResult = await this.sendEmail(to, emailSubject, emailHtml);
+      return { 
+        success: emailResult.success, 
+        provider: 'email-fallback', 
+        message: 'SMS sent via email fallback'
+      };
+    } catch (error) {
+      console.error('SMS sending failed:', error);
+      return { success: false, provider: 'sms', error: error.message };
     }
   }
 

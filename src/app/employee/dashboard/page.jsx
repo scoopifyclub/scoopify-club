@@ -107,22 +107,15 @@ export default function EmployeeDashboard() {
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 2000;
 
-    console.log('🚀 Employee Dashboard component loaded successfully!');
-    console.log('👤 User:', user);
-    console.log('🔄 Loading states - auth:', authLoading, 'dashboard:', isLoading);
-
     // Check authentication using cookie-based API
     const checkAuth = async () => {
-        console.log('🔍 DIRECT AUTH: Starting auth check...');
         try {
             const response = await fetch('/api/auth/me', {
                 credentials: 'include',
             });
-            console.log('🔍 DIRECT AUTH: Response:', response.status, response.ok);
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('🔍 DIRECT AUTH: User data:', data);
                 setUser(data.user);
                 
                 // Check if user is employee
@@ -131,29 +124,23 @@ export default function EmployeeDashboard() {
                     return;
                 }
             } else {
-                console.log('🔍 DIRECT AUTH: Not authenticated, redirecting...');
                 router.push('/auth/signin');
                 return;
             }
         } catch (error) {
-            console.error('🔍 DIRECT AUTH: Auth check failed:', error);
             router.push('/auth/signin');
             return;
         } finally {
-            console.log('🔍 DIRECT AUTH: Setting auth loading to false');
             setAuthLoading(false);
         }
     };
 
     // Fetch dashboard data
     const fetchDashboardData = async () => {
-        console.log('🔄 fetchDashboardData called');
         if (!user?.id) {
-            console.log('❌ No user ID, skipping fetch');
             return;
         }
         
-        console.log('📡 Starting API call...');
         setIsLoading(true);
         
         try {
@@ -161,32 +148,26 @@ export default function EmployeeDashboard() {
                 credentials: 'include',
             });
             
-            console.log('📡 API Response:', response.status);
-            
             if (!response.ok) {
                 throw new Error(`API Error: ${response.status}`);
             }
             
             const data = await response.json();
-            console.log('✅ Data received:', data);
             
             setDashboardData(data);
             setError(null);
             setRetryCount(0);
         } catch (err) {
-            console.error('❌ API Error:', err);
             setError(err.message);
             
             // Auto-retry logic
             if (retryCount < MAX_RETRIES) {
-                console.log(`🔄 Auto-retrying... (${retryCount + 1}/${MAX_RETRIES})`);
                 setTimeout(() => {
                     setRetryCount(prev => prev + 1);
                     fetchDashboardData();
                 }, RETRY_DELAY);
             }
         } finally {
-            console.log('🏁 Setting loading to false');
             setIsLoading(false);
         }
     };
@@ -198,17 +179,13 @@ export default function EmployeeDashboard() {
 
     // Fetch data when user is available
     useEffect(() => {
-        console.log('📍 useEffect triggered - authLoading:', authLoading, 'user:', !!user);
         if (!authLoading && user) {
             fetchDashboardData();
         }
     }, [user, authLoading]);
 
-    console.log('🎨 About to render - authLoading:', authLoading, 'isLoading:', isLoading, 'error:', error, 'data:', !!dashboardData);
-
     // Show loading state while checking auth or fetching data
     if (authLoading || isLoading) {
-        console.log('🔄 Rendering loading...');
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="text-center">
@@ -224,7 +201,6 @@ export default function EmployeeDashboard() {
 
     // Show error state
     if (error) {
-        console.log('❌ Rendering error:', error);
         return (
             <Alert variant="destructive" className="m-4">
                 <AlertCircle className="h-4 w-4" />
@@ -252,8 +228,6 @@ export default function EmployeeDashboard() {
             </Alert>
         );
     }
-
-    console.log('✅ Rendering main dashboard');
 
     // Main dashboard content
     return (

@@ -119,62 +119,65 @@ export default function ReassignEmployeePage() {
 
             // Fallback to demo data in development
             if (process.env.NODE_ENV === 'development') {
-                const mockEmployees = [
+                // Example available employees (replace with real data)
+                const availableEmployees = [
                     {
-                        id: 'emp-123',
+                        id: 'emp_1',
                         name: 'Sarah Johnson',
-                        email: 'sarah.j@example.com',
-                        skills: ['Regular Cleaning', 'Deep Cleaning'],
+                        email: 'employee1@example.com',
                         rating: 4.8,
-                        jobsCompleted: 124,
-                        available: false,
-                        scheduleConflict: true
+                        completedServices: 45,
+                        availability: 'Available',
+                        distance: '2.3 miles'
                     },
                     {
-                        id: 'emp-456',
-                        name: 'Michael Torres',
-                        email: 'michael.t@example.com',
-                        avatar: '/avatars/michael.jpg',
-                        skills: ['Regular Cleaning', 'Window Cleaning', 'Move-out Cleaning'],
-                        rating: 4.9,
-                        jobsCompleted: 86,
-                        available: true,
-                        scheduleConflict: false
-                    },
-                    {
-                        id: 'emp-789',
-                        name: 'Ava Williams',
-                        email: 'ava.w@example.com',
-                        skills: ['Regular Cleaning', 'Deep Cleaning', 'Office Cleaning'],
-                        rating: 4.7,
-                        jobsCompleted: 92,
-                        available: true,
-                        scheduleConflict: false
-                    },
-                    {
-                        id: 'emp-987',
-                        name: 'David Chen',
-                        email: 'david.c@example.com',
-                        avatar: '/avatars/david.jpg',
-                        skills: ['Deep Cleaning', 'Move-out Cleaning', 'Post-construction Cleaning'],
-                        rating: 4.5,
-                        jobsCompleted: 57,
-                        available: true,
-                        scheduleConflict: false
-                    },
-                    {
-                        id: 'emp-654',
-                        name: 'Emma Rodriguez',
-                        email: 'emma.r@example.com',
-                        skills: ['Regular Cleaning', 'Office Cleaning'],
+                        id: 'emp_2',
+                        name: 'Michael Thompson',
+                        email: 'employee2@example.com',
                         rating: 4.6,
-                        jobsCompleted: 73,
-                        available: false,
-                        scheduleConflict: true
+                        completedServices: 32,
+                        availability: 'Available',
+                        distance: '3.1 miles'
+                    },
+                    {
+                        id: 'emp_3',
+                        name: 'Ava Williams',
+                        email: 'employee3@example.com',
+                        rating: 4.9,
+                        completedServices: 67,
+                        availability: 'Available',
+                        distance: '1.8 miles'
+                    },
+                    {
+                        id: 'emp_4',
+                        name: 'David Chen',
+                        email: 'employee4@example.com',
+                        rating: 4.7,
+                        completedServices: 28,
+                        availability: 'Available',
+                        distance: '2.7 miles'
+                    },
+                    {
+                        id: 'emp_5',
+                        name: 'Emma Rodriguez',
+                        email: 'employee5@example.com',
+                        rating: 4.5,
+                        completedServices: 41,
+                        availability: 'Available',
+                        distance: '3.5 miles'
+                    },
+                    {
+                        id: 'emp_6',
+                        name: 'Robert Taylor',
+                        email: 'employee6@example.com',
+                        rating: 4.8,
+                        completedServices: 53,
+                        availability: 'Available',
+                        distance: '2.1 miles'
                     }
                 ];
-                setEmployees(mockEmployees);
-                setFilteredEmployees(showOnlyAvailable ? mockEmployees.filter(emp => emp.available) : mockEmployees);
+                setEmployees(availableEmployees);
+                setFilteredEmployees(showOnlyAvailable ? availableEmployees.filter(emp => emp.available) : availableEmployees);
             }
         }
     };

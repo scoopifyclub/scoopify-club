@@ -292,29 +292,20 @@ export async function POST(request) {
             // Create subscription or one-time service
             let subscription = null;
             if (!isOneTimeService) {
-                // Get price ID based on service type
+                // Determine the appropriate Stripe price ID based on the plan
                 let priceId;
-                switch (serviceType) {
-                    case 'weekly-1':
-                        priceId = process.env.STRIPE_WEEKLY_1_DOG_PRICE_ID;
-                        break;
-                    case 'weekly-2':
-                        priceId = process.env.STRIPE_WEEKLY_2_DOGS_PRICE_ID;
-                        break;
-                    case 'weekly-3':
-                        priceId = process.env.STRIPE_WEEKLY_3_PLUS_DOGS_PRICE_ID;
-                        break;
-                    case 'one-time-1':
-                        priceId = process.env.STRIPE_ONE_TIME_1_DOG_PRICE_ID;
-                        break;
-                    case 'one-time-2':
-                        priceId = process.env.STRIPE_ONE_TIME_2_DOGS_PRICE_ID;
-                        break;
-                    case 'one-time-3':
-                        priceId = process.env.STRIPE_ONE_TIME_3_PLUS_DOGS_PRICE_ID;
-                        break;
-                    default:
-                        return NextResponse.json({ error: 'Invalid service type' }, { status: 400 });
+                if (serviceType === 'weekly-1-dog') {
+                    priceId = process.env.STRIPE_MONTHLY_1_DOG_PRICE_ID;
+                } else if (serviceType === 'weekly-2-dogs') {
+                    priceId = process.env.STRIPE_MONTHLY_2_DOGS_PRICE_ID;
+                } else if (serviceType === 'weekly-3-plus-dogs') {
+                    priceId = process.env.STRIPE_MONTHLY_3_PLUS_DOGS_PRICE_ID;
+                } else if (serviceType === 'one-time-1-dog') {
+                    priceId = process.env.STRIPE_ONETIME_1_DOG_PRICE_ID;
+                } else if (serviceType === 'one-time-2-dogs') {
+                    priceId = process.env.STRIPE_ONETIME_2_DOGS_PRICE_ID;
+                } else if (serviceType === 'one-time-3-plus-dogs') {
+                    priceId = process.env.STRIPE_ONETIME_3_PLUS_DOGS_PRICE_ID;
                 }
 
                 // Find the corresponding ServicePlan in the database

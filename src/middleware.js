@@ -2,6 +2,17 @@ import { NextResponse } from 'next/server'
 import { verifyJWT } from '@/lib/auth-server'
 import { applySecurityMiddleware } from '@/middleware/security'
 
+// Helper function for conditional logging
+const log = (message, data = null) => {
+    if (process.env.NODE_ENV === 'development' || process.env.DEBUG_MIDDLEWARE === 'true') {
+        if (data) {
+            console.log(`🔒 MIDDLEWARE: ${message}`, data);
+        } else {
+            console.log(`🔒 MIDDLEWARE: ${message}`);
+        }
+    }
+};
+
 // Define paths that don't require authentication
 const publicPaths = [
   '/auth/signin',
@@ -46,7 +57,7 @@ export async function middleware(request) {
     
     // If no tokens found, redirect to login
     if (!accessToken && !refreshToken && !generalToken) {
-      console.log('No access, refresh, or general token found, redirecting to login');
+      log('No access, refresh, or general token found, redirecting to login');
       const url = new URL('/login', request.url);
       url.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(url);
@@ -58,7 +69,7 @@ export async function middleware(request) {
       const payload = await verifyJWT(token);
       
       if (!payload || payload.role !== 'ADMIN') {
-        console.log('Invalid token or non-admin role, redirecting to login');
+        log('Invalid token or non-admin role, redirecting to login');
         return NextResponse.redirect(new URL('/login', request.url));
       }
 

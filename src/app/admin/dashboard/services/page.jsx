@@ -14,11 +14,12 @@ export default function ServicesPage() {
     const { user, status } = useAuth({ required: true, role: 'ADMIN', redirectTo: '/login' });
     const router = useRouter();
     const [services, setServices] = useState([]);
-    const [filteredServices, setFilteredServices] = useState([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
-    const [dateFilter, setDateFilter] = useState('');
-    const [isLoading, setIsLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const fetchServices = async () => {
@@ -34,7 +35,7 @@ export default function ServicesPage() {
 
             const data = await response.json();
             setServices(data);
-            setFilteredServices(data);
+            // setFilteredServices(data); // This line is removed as per the new_code
             toast.success('Services list updated');
         } catch (error) {
             console.error('Error fetching services:', error);
@@ -131,10 +132,10 @@ export default function ServicesPage() {
                     }
                 ];
                 setServices(mockServices);
-                setFilteredServices(mockServices);
+                // setFilteredServices(mockServices); // This line is removed as per the new_code
             }
         } finally {
-            setIsLoading(false);
+            setLoading(false); // Changed from setIsLoading to setLoading
             setIsRefreshing(false);
         }
     };
@@ -147,34 +148,34 @@ export default function ServicesPage() {
 
     useEffect(() => {
         // Apply filters when they change
-        filterServices();
-    }, [searchQuery, statusFilter, dateFilter, services]);
+        // filterServices(); // This line is removed as per the new_code
+    }, [searchTerm, filterStatus, currentPage, services]); // Changed from dateFilter to currentPage
 
-    const filterServices = () => {
-        let filtered = [...services];
+    // const filterServices = () => { // This function is removed as per the new_code
+    //     let filtered = [...services];
 
-        // Apply status filter
-        if (statusFilter !== 'all') {
-            filtered = filtered.filter(service => service.status === statusFilter);
-        }
+    //     // Apply status filter
+    //     if (filterStatus !== 'all') {
+    //         filtered = filtered.filter(service => service.status === filterStatus);
+    //     }
 
-        // Apply date filter
-        if (dateFilter) {
-            filtered = filtered.filter(service => isSameDay(parseISO(service.scheduledDate), parseISO(dateFilter)));
-        }
+    //     // Apply date filter
+    //     if (dateFilter) {
+    //         filtered = filtered.filter(service => isSameDay(parseISO(service.scheduledDate), parseISO(dateFilter)));
+    //     }
 
-        // Apply search query
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            filtered = filtered.filter(service => {
-                return service.customer.name.toLowerCase().includes(query) ||
-                    service.type.toLowerCase().includes(query) ||
-                    (service.employee?.name.toLowerCase().includes(query) || false);
-            });
-        }
+    //     // Apply search query
+    //     if (searchQuery) {
+    //         const query = searchQuery.toLowerCase();
+    //         filtered = filtered.filter(service => {
+    //             return service.customer.name.toLowerCase().includes(query) ||
+    //                 service.type.toLowerCase().includes(query) ||
+    //                 (service.employee?.name.toLowerCase().includes(query) || false);
+    //         });
+    //     }
 
-        setFilteredServices(filtered);
-    };
+    //     setFilteredServices(filtered);
+    // }; // This function is removed as per the new_code
 
     const getStatusIcon = (status) => {
         switch (status) {
@@ -214,14 +215,14 @@ export default function ServicesPage() {
         router.push(`/admin/dashboard/services/${serviceId}`);
     };
 
-    const clearFilters = () => {
-        setSearchQuery('');
-        setStatusFilter('all');
-        setDateFilter('');
-        toast.success('Filters cleared');
-    };
+    // const clearFilters = () => { // This function is removed as per the new_code
+    //     setSearchQuery('');
+    //     setStatusFilter('all');
+    //     setDateFilter('');
+    //     toast.success('Filters cleared');
+    // };
 
-    if (status === 'loading' || isLoading) {
+    if (status === 'loading' || loading) { // Changed from isLoading to loading
         return (
             <div className="flex items-center justify-center h-[400px]">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -261,15 +262,15 @@ export default function ServicesPage() {
                             <Input 
                                 placeholder="Search services..." 
                                 className="pl-8" 
-                                value={searchQuery} 
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                value={searchTerm} // Changed from searchQuery to searchTerm
+                                onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                         
                         <select 
                             className="w-full md:w-48 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2" 
-                            value={statusFilter} 
-                            onChange={(e) => setStatusFilter(e.target.value)}
+                            value={filterStatus} // Changed from statusFilter to filterStatus
+                            onChange={(e) => setFilterStatus(e.target.value)}
                         >
                             <option value="all">All Statuses</option>
                             <option value="scheduled">Scheduled</option>
@@ -278,31 +279,31 @@ export default function ServicesPage() {
                             <option value="cancelled">Cancelled</option>
                         </select>
                         
-                        <div className="w-full md:w-48">
+                        {/* <div className="w-full md:w-48"> // This div is removed as per the new_code
                             <Input 
                                 type="date" 
                                 value={dateFilter} 
                                 onChange={(e) => setDateFilter(e.target.value)} 
                                 className="w-full"
                             />
-                        </div>
+                        </div> */}
                         
-                        <Button 
+                        {/* <Button  // This button is removed as per the new_code
                             variant="outline" 
                             className="ml-auto" 
                             onClick={clearFilters}
                         >
                             Clear Filters
-                        </Button>
+                        </Button> */}
 
-                        <Button 
+                        {/* <Button  // This button is removed as per the new_code
                             variant="outline"
                             onClick={fetchServices}
                             disabled={isRefreshing}
                         >
                             <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`}/>
                             {isRefreshing ? 'Refreshing...' : 'Refresh'}
-                        </Button>
+                        </Button> */}
                     </div>
 
                     <div className="rounded-md border">
@@ -321,7 +322,7 @@ export default function ServicesPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="[&_tr:last-child]:border-0">
-                                    {filteredServices.map((service) => (
+                                    {services.map((service) => ( // Changed from filteredServices to services
                                         <tr 
                                             key={service.id} 
                                             className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer" 
@@ -426,7 +427,7 @@ export default function ServicesPage() {
                                         </tr>
                                     ))}
 
-                                    {filteredServices.length === 0 && (
+                                    {services.length === 0 && ( // Changed from filteredServices to services
                                         <tr>
                                             <td colSpan={6} className="p-4 text-center text-muted-foreground">
                                                 No services found.
@@ -440,7 +441,7 @@ export default function ServicesPage() {
 
                     <div className="flex items-center justify-between py-4">
                         <div className="flex-1 text-sm text-muted-foreground">
-                            Showing <strong>{filteredServices.length}</strong> of <strong>{services.length}</strong> services
+                            Showing <strong>{services.length}</strong> of <strong>{services.length}</strong> services {/* Changed from filteredServices to services */}
                         </div>
                     </div>
                 </CardContent>
