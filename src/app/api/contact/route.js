@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server';
-import { Resend } from 'resend';
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendEmail } from '@/lib/email-service';
+
 export async function POST(request) {
     try {
         const body = await request.json();
         const { name, email, phone, message } = body;
+        
         // Validate required fields
         if (!name || !email || !message) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
+        
         // Send email to admin
-        await resend.emails.send({
-            from: 'Scoopify <contact@scoopify.club>',
+        const adminEmailResult = await sendEmail({
             to: process.env.ADMIN_EMAIL || 'hello@scoopify.club',
             subject: 'New Contact Form Submission',
             html: `
@@ -23,9 +24,13 @@ export async function POST(request) {
         <p>${message}</p>
       `
         });
+        
+        if (!adminEmailResult.success) {
+            throw new Error('Failed to send admin notification email');
+        }
+        
         // Send confirmation email to user
-        await resend.emails.send({
-            from: 'Scoopify <contact@scoopify.club>',
+        const userEmailResult = await sendEmail({
             to: email,
             subject: 'Thank You for Contacting Scoopify',
             html: `
@@ -37,6 +42,11 @@ export async function POST(request) {
         <p>Best regards,<br>The Scoopify Team</p>
       `
         });
+        
+        if (!userEmailResult.success) {
+            throw new Error('Failed to send user confirmation email');
+        }
+        
         return NextResponse.json({ message: 'Contact form submitted successfully' }, { status: 200 });
     }
     catch (error) {

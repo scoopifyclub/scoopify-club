@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Resend } from 'resend';
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { sendEmail } from '@/lib/email-service';
 
 export async function POST(req) {
     try {
@@ -9,19 +8,18 @@ export async function POST(req) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
-        const { data, error } = await resend.emails.send({
-            from: process.env.EMAIL_FROM,
-            to: [to],
-            subject,
-            html,
+        const emailResult = await sendEmail({
+            to: to,
+            subject: subject,
+            html: html,
         });
 
-        if (error) {
-            console.error('Error sending email:', error);
+        if (!emailResult.success) {
+            console.error('Error sending email:', emailResult.error);
             return NextResponse.json({ error: 'Failed to send email' }, { status: 500 });
         }
 
-        return NextResponse.json({ success: true, data });
+        return NextResponse.json({ success: true, data: emailResult });
     } catch (error) {
         console.error('Error in email notification:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

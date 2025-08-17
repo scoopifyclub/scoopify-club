@@ -2,13 +2,10 @@ import { NextResponse } from 'next/server';
 import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
-import { Resend } from 'resend';
+import { sendEmail } from '@/lib/email-service';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
-
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
     try {
@@ -35,7 +32,8 @@ export async function POST(request) {
                 user: {
                     select: {
                         email: true,
-                        name: true
+                        firstName: true,
+                        lastName: true
                     }
                 }
             }
@@ -45,18 +43,21 @@ export async function POST(request) {
             return new NextResponse('Employee not found', { status: 404 });
         }
 
-        // Send email
-        await resend.emails.send({
-            from: process.env.EMAIL_FROM,
+        // Send email using our email service
+        const emailResult = await sendEmail({
             to: employee.user.email,
             subject: subject,
             html: `
         <h1>${subject}</h1>
-        <p>Hello ${employee.user.name || 'Employee'},</p>
+        <p>Hello ${employee.user.firstName || employee.user.lastName || 'Employee'},</p>
         <p>${message}</p>
         <p>Best regards,<br>Scoopify Club Team</p>
       `
         });
+
+        if (!emailResult.success) {
+            throw new Error('Failed to send email');
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

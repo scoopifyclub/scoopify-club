@@ -731,6 +731,76 @@ export default function CustomerDashboard() {
       {/* Payment Info Reminder */}
       {customer && !customer.hasPaymentInfo && (<PaymentInfoReminder userType="customer" hasPaymentInfo={customer.hasPaymentInfo}/>)}
       
+      {/* Service Credits - Always Visible */}
+      <div className="mb-6">
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                  <CreditCard className="w-8 h-8 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-blue-900">Service Credits</h2>
+                  <p className="text-blue-700">Available services remaining</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-4xl font-bold text-blue-900">{customer?.serviceCredits || 0}</div>
+                <div className="text-blue-600 font-medium">Credits Available</div>
+                {customer?.serviceCredits > 0 ? (
+                  <div className="text-sm text-blue-500 mt-1">
+                    {customer.serviceCredits === 1 ? '1 service remaining' : `${customer.serviceCredits} services remaining`}
+                  </div>
+                ) : (
+                  <div className="text-sm text-red-500 mt-1">No credits remaining</div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Quick Actions
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Button 
+                variant="outline" 
+                className="h-20 flex flex-col items-center justify-center space-y-2"
+                onClick={() => navigateToTab('services')}
+              >
+                <Calendar className="w-6 h-6" />
+                <span>View Services</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-20 flex flex-col items-center justify-center space-y-2"
+                onClick={() => navigateToTab('profile')}
+              >
+                <User className="w-6 h-6" />
+                <span>Edit Profile</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                className="h-20 flex flex-col items-center justify-center space-y-2"
+                onClick={() => navigateToTab('billing')}
+              >
+                <CreditCard className="w-6 h-6" />
+                <span>Billing</span>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {activeTab === 'overview' && (
         // Overview tab content
         <>

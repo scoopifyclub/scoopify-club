@@ -27,6 +27,8 @@ export default function JobPool({ employeeId }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedServiceType, setSelectedServiceType] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [sortBy, setSortBy] = useState('earnings'); // New: sorting options
+  const [claimingJob, setClaimingJob] = useState(null); // New: track which job is being claimed
 
   useEffect(() => {
     fetchAvailableJobs();
@@ -34,26 +36,40 @@ export default function JobPool({ employeeId }) {
 
   useEffect(() => {
     filterJobs();
-  }, [jobs, searchTerm, selectedServiceType, selectedStatus]);
+  }, [jobs, searchTerm, selectedServiceType, selectedStatus, sortBy]);
 
-  const fetchAvailableJobs = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch('/api/employee/jobs/pool', {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch available jobs');
-      }
-      
-      const data = await response.json();
-      setJobs(data.jobs || []);
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
-      toast.error('Failed to load available jobs');
-    } finally {
-      setLoading(false);
+  const sortJobs = (jobsToSort) => {
+    switch (sortBy) {
+      case 'earnings':
+        return jobsToSort.sort((a, b) => b.potentialEarnings - a.potentialEarnings);
+      case 'date':
+        return jobsToSort.sort((a, b) => new Date(a.scheduledDate) - new Date(b.scheduledDate));
+      case 'distance':
+        // Simple distance calculation (could be enhanced with real coordinates)
+        return jobsToSort.sort((a, b) => {
+          const zipA = parseInt(a.customer?.address?.zipCode || '0');
+          const zipB = parseInt(b.customer?.address?.zipCode || '0');
+          return Math.abs(zipA - 80831) - Math.abs(zipB - 80831); // Distance from Peyton, CO
+        });
+      case 'urgency':
+        // Prioritize jobs scheduled for today/tomorrow
+        return jobsToSort.sort((a, b) => {
+          const today = new Date();
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          
+          const dateA = new Date(a.scheduledDate);
+          const dateB = new Date(b.scheduledDate);
+          
+          const isUrgentA = dateA.toDateString() === today.toDateString() || dateA.toDateString() === tomorrow.toDateString();
+          const isUrgentB = dateB.toDateString() === today.toDateString() || dateB.toDateString() === tomorrow.toDateString();
+          
+          if (isUrgentA && !isUrgentB) return -1;
+          if (!isUrgentA && isUrgentB) return 1;
+          return 0;
+        });
+      default:
+        return jobsToSort;
     }
   };
 
@@ -79,11 +95,36 @@ export default function JobPool({ employeeId }) {
       filtered = filtered.filter(job => job.status === selectedStatus);
     }
 
+    // Sort the filtered jobs
+    filtered = sortJobs(filtered);
+
     setFilteredJobs(filtered);
+  };
+
+  const fetchAvailableJobs = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/employee/jobs/pool', {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch available jobs');
+      }
+      
+      const data = await response.json();
+      setJobs(data.jobs || []);
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+      toast.error('Failed to load available jobs');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const claimJob = async (jobId) => {
     try {
+      setClaimingJob(jobId);
       const response = await fetch(`/api/employee/jobs/${jobId}/claim`, {
         method: 'POST',
         credentials: 'include'
@@ -100,6 +141,8 @@ export default function JobPool({ employeeId }) {
     } catch (error) {
       console.error('Error claiming job:', error);
       toast.error(error.message || 'Failed to claim job');
+    } finally {
+      setClaimingJob(null);
     }
   };
 
@@ -193,9 +236,10 @@ export default function JobPool({ employeeId }) {
                 className="w-full p-2 border border-gray-300 rounded-md"
               >
                 <option value="all">All Types</option>
-                <option value="weekly-1">Weekly (1 Dog)</option>
-                <option value="weekly-2">Weekly (2 Dogs)</option>
-                <option value="weekly-3">Weekly (3+ Dogs)</option>
+                <option value="monthly-1">Monthly (1 Dog)</option>
+                <option value="monthly-2">Monthly (2 Dogs)</option>
+                <option value="monthly-3">Monthly (3+ Dogs)</option>
+                <option value="initial-cleanup">Initial Cleanup</option>
                 <option value="one-time-1">One-Time (1 Dog)</option>
                 <option value="one-time-2">One-Time (2 Dogs)</option>
                 <option value="one-time-3">One-Time (3+ Dogs)</option>
@@ -212,10 +256,54 @@ export default function JobPool({ employeeId }) {
                 className="w-full p-2 border border-gray-300 rounded-md"
               >
                 <option value="all">All Statuses</option>
-                <option value="PENDING">Pending</option>
                 <option value="SCHEDULED">Scheduled</option>
-                <option value="IN_PROGRESS">In Progress</option>
+                <option value="AVAILABLE">Available</option>
               </select>
+            </div>
+          </div>
+
+          {/* Sorting Controls */}
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Sort by:</Label>
+              <div className="flex space-x-2">
+                <Button
+                  variant={sortBy === 'earnings' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSortBy('earnings')}
+                  className="text-xs"
+                >
+                  <DollarSign className="w-3 h-3 mr-1" />
+                  Highest Pay
+                </Button>
+                <Button
+                  variant={sortBy === 'urgency' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSortBy('urgency')}
+                  className="text-xs"
+                >
+                  <Clock className="w-3 h-3 mr-1" />
+                  Urgency
+                </Button>
+                <Button
+                  variant={sortBy === 'distance' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSortBy('distance')}
+                  className="text-xs"
+                >
+                  <MapPin className="w-3 h-3 mr-1" />
+                  Distance
+                </Button>
+                <Button
+                  variant={sortBy === 'date' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setSortBy('date')}
+                  className="text-xs"
+                >
+                  <Calendar className="w-3 h-3 mr-1" />
+                  Date
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -242,30 +330,55 @@ export default function JobPool({ employeeId }) {
           </div>
           <ScrollArea className="h-[500px] w-full">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pr-4">
-              {filteredJobs.map((job) => (
-                <Card key={job.id} className="hover:shadow-lg transition-shadow border">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <User className="h-4 w-4" />
-                          {job.customer?.user?.firstName ? `${job.customer.user.firstName} ${job.customer.user.lastName || ''}` : 'Customer'}
-                        </CardTitle>
-                        <div className="flex items-center gap-2 mt-2">
-                          {getStatusBadge(job.status)}
-                          <Badge variant="outline">
-                            {getServiceTypeLabel(job.servicePlanId)}
-                          </Badge>
+              {filteredJobs.map((job) => {
+                const isUrgent = (() => {
+                  const today = new Date();
+                  const tomorrow = new Date(today);
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  const jobDate = new Date(job.scheduledDate);
+                  return jobDate.toDateString() === today.toDateString() || jobDate.toDateString() === tomorrow.toDateString();
+                })();
+                
+                const isHighEarnings = job.potentialEarnings > 15; // Highlight high-paying jobs
+                
+                return (
+                  <Card key={job.id} className={`hover:shadow-lg transition-all duration-200 border ${
+                    isUrgent ? 'ring-2 ring-orange-200 bg-orange-50' : ''
+                  } ${isHighEarnings ? 'border-green-300' : ''}`}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <User className="h-4 w-4" />
+                            {job.customer?.user?.firstName ? `${job.customer.user.firstName} ${job.customer.user.lastName || ''}` : 'Customer'}
+                            {isUrgent && (
+                              <Badge variant="destructive" className="text-xs">
+                                <Clock className="w-3 h-3 mr-1" />
+                                Urgent
+                              </Badge>
+                            )}
+                            {isHighEarnings && (
+                              <Badge variant="default" className="bg-green-600 text-xs">
+                                <DollarSign className="w-3 h-3 mr-1" />
+                                High Pay
+                              </Badge>
+                            )}
+                          </CardTitle>
+                          <div className="flex items-center gap-2 mt-2">
+                            {getStatusBadge(job.status)}
+                            <Badge variant="outline">
+                              {getServiceTypeLabel(job.servicePlanId)}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-2xl font-bold text-green-600">
+                            ${(job.potentialEarnings).toFixed(2)}
+                          </div>
+                          <div className="text-sm text-gray-500">Potential Earnings</div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-2xl font-bold text-green-600">
-                          ${(job.potentialEarnings / 100).toFixed(2)}
-                        </div>
-                        <div className="text-sm text-gray-500">Potential Earnings</div>
-                      </div>
-                    </div>
-                  </CardHeader>
+                    </CardHeader>
                   
                   <CardContent className="space-y-4">
                     {/* Location */}
@@ -311,9 +424,16 @@ export default function JobPool({ employeeId }) {
                         onClick={() => claimJob(job.id)}
                         className="flex-1"
                         size="sm"
+                        disabled={claimingJob === job.id}
                       >
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Claim This Job
+                        {claimingJob === job.id ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Claim This Job
+                          </>
+                        )}
                       </Button>
                       <Button
                         variant="outline"
@@ -326,7 +446,8 @@ export default function JobPool({ employeeId }) {
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+              );
+            })}
             </div>
           </ScrollArea>
         </div>

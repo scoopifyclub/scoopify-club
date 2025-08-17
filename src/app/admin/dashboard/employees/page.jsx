@@ -19,23 +19,27 @@ export default function EmployeesPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
-    // Show loading state while auth is being checked
-    if (status === 'loading') {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
-                    <p className="mt-4 text-lg">Loading employees...</p>
-                </div>
-            </div>
-        );
-    }
+    // Move all useEffect hooks to the top before any early returns
+    useEffect(() => {
+        if (status === 'authenticated') {
+            fetchEmployees();
+        }
+    }, [status]);
 
-    // Redirect if not admin
-    if (status === 'unauthenticated' || (user && user.role !== 'ADMIN')) {
-        router.push('/admin/login');
-        return null;
-    }
+    useEffect(() => {
+        // Filter employees when search query changes
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const filtered = employees.filter(employee => 
+                employee.name.toLowerCase().includes(query) ||
+                employee.email.toLowerCase().includes(query) ||
+                employee.role.toLowerCase().includes(query)
+            );
+            setFilteredEmployees(filtered);
+        } else {
+            setFilteredEmployees(employees);
+        }
+    }, [searchQuery, employees]);
 
     const fetchEmployees = async () => {
         try {
@@ -98,59 +102,42 @@ export default function EmployeesPage() {
                 },
                 {
                     id: '4',
-                    name: 'Emily Davis',
-                    email: 'emily.d@scoopify.com',
+                    name: 'Lisa Chen',
+                    email: 'lisa.c@scoopify.com',
                     phone: '(555) 456-7890',
-                    role: 'Senior Cleaner',
-                    status: 'active',
-                    hireDate: '2021-11-30',
-                    lastActive: '2023-11-22',
-                    completedServices: 312,
-                    rating: 4.7,
-                    serviceAreas: ['North Side', 'College Area', 'West Hills']
-                },
-                {
-                    id: '5',
-                    name: 'James Brown',
-                    email: 'james.b@scoopify.com',
-                    phone: '(555) 567-8901',
                     role: 'Cleaner',
                     status: 'inactive',
-                    hireDate: '2023-01-15',
-                    lastActive: '2023-10-05',
-                    completedServices: 47,
+                    hireDate: '2022-11-20',
+                    lastActive: '2023-10-28',
+                    completedServices: 67,
                     rating: 4.2,
-                    serviceAreas: ['Downtown', 'Industrial District']
+                    serviceAreas: ['North Side', 'Central']
                 }
             ];
             setEmployees(mockEmployees);
             setFilteredEmployees(mockEmployees);
         } finally {
-            setIsLoading(false);
             setIsRefreshing(false);
         }
     };
 
-    useEffect(() => {
-        if (status === 'authenticated') {
-            fetchEmployees();
-        }
-    }, [status]);
+    // Show loading state while auth is being checked
+    if (status === 'loading') {
+        return (
+            <div className="flex items-center justify-center min-h-screen">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900 mx-auto"></div>
+                    <p className="mt-4 text-lg">Loading employees...</p>
+                </div>
+            </div>
+        );
+    }
 
-    useEffect(() => {
-        // Filter employees when search query changes
-        if (searchQuery) {
-            const query = searchQuery.toLowerCase();
-            const filtered = employees.filter(employee => 
-                employee.name.toLowerCase().includes(query) ||
-                employee.email.toLowerCase().includes(query) ||
-                employee.role.toLowerCase().includes(query)
-            );
-            setFilteredEmployees(filtered);
-        } else {
-            setFilteredEmployees(employees);
-        }
-    }, [searchQuery, employees]);
+    // Redirect if not admin
+    if (status === 'unauthenticated' || (user && user.role !== 'ADMIN')) {
+        router.push('/admin/login');
+        return null;
+    }
 
     const getStatusColor = (status) => {
         switch (status) {
