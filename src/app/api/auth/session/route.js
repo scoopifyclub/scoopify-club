@@ -1,99 +1,68 @@
 import { NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/api-auth';
+import { cookies } from 'next/headers';
+import { validateUserToken } from '@/lib/jwt-utils';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request) {
     try {
-        // Add verbose logging for debugging
-        console.log('Session check API called');
+        const cookieStore = await cookies();
         
-        // Try both methods of getting cookies for maximum compatibility
-        let token = null;
-        
-        // Method 1: Use request.cookies directly if available - check multiple cookie names
-        try {
-            token = request.cookies.get('accessToken')?.value || 
-                   request.cookies.get('refreshToken')?.value ||
-                   request.cookies.get('token')?.value || 
-                   request.cookies.get('adminToken')?.value;
-        } catch (e) {
-            console.log('Error getting cookies directly:', e.message);
-        }
-        
-        // Method 2: Parse from cookie header as fallback
+        // Try to get token from various cookie names
+        const token = cookieStore.get('accessToken')?.value || 
+                     cookieStore.get('token')?.value || 
+                     cookieStore.get('accessToken_client')?.value;
+
         if (!token) {
-            const cookieHeader = request.headers.get('cookie') || '';
-            const cookies = parseCookies(cookieHeader);
-            
-            console.log('Cookies received in session check:', 
-                Object.keys(cookies).map(name => ({ name, length: cookies[name]?.length || 0 }))
-            );
-            
-            token = cookies.accessToken || cookies.refreshToken || cookies.token || cookies.adminToken;
+            return NextResponse.json({ error: 'No token found' }, { status: 401 });
         }
-        
-        if (!token) {
-            console.log('No token cookie found in request');
-            return NextResponse.json(
-                { error: 'No session found' },
-                { status: 401 }
-            );
+
+        // Validate the token
+        const userData = await validateUserToken(token);
+        if (!userData) {
+            return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
-        
-        console.log('Token found, attempting to verify');
-        
-        // Verify the token
-        try {
-            const userData = await verifyToken(token);
-            
-            if (!userData) {
-                console.log('Token verification returned null user data');
-                return NextResponse.json(
-                    { error: 'Invalid session' },
-                    { status: 401 }
-                );
-            }
-            
-            console.log('Token verified successfully for user:', userData.email);
-            
-            // Return user data
-            return NextResponse.json({
-                authenticated: true,
-                user: {
-                    id: userData.id,
-                    email: userData.email,
-                    name: userData.name,
-                    role: userData.role,
-                    // Include these fields conditionally
-                    ...(userData.customerId && { customerId: userData.customerId }),
-                    ...(userData.employeeId && { employeeId: userData.employeeId })
+
+        // Get user with role and related data
+        const user = await prisma.user.findUnique({
+            where: { id: userData.userId },
+            include: {
+                customer: {
+                    include: {
+                        address: true,
+                        services: {
+                            take: 5,
+                            orderBy: { scheduledDate: 'desc' }
+                        }
+                    }
+                },
+                employee: {
+                    include: {
+                        serviceAreas: true
+                    }
                 }
-            });
-        } catch (verifyError) {
-            console.error('Token verification error:', verifyError);
-            
-            // Add more detailed error information for debugging
-            const errorDetails = {
-                error: 'Session verification failed',
-                message: verifyError instanceof Error ? verifyError.message : 'Unknown error',
-                tokenPresent: Boolean(token)
-            };
-            
-            // Check if error is JWT expiration
-            if (verifyError.message && verifyError.message.includes('expired')) {
-                errorDetails.errorCode = 'TOKEN_EXPIRED';
-                errorDetails.solution = 'Try refreshing the token';
             }
-            
-            return NextResponse.json(errorDetails, { status: 401 });
+        });
+
+        if (!user) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
+
+        // Return user data with role-specific information
+        return NextResponse.json({
+            user: {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                role: user.role,
+                customer: user.customer,
+                employee: user.employee
+            }
+        });
+
     } catch (error) {
-        console.error('Session check error:', error);
-        
+        console.error('Session error:', error);
         return NextResponse.json(
-            { 
-                error: 'Session check failed',
-                message: error instanceof Error ? error.message : 'Unknown error'
-            },
+            { error: 'Failed to get session' }, 
             { status: 500 }
         );
     }

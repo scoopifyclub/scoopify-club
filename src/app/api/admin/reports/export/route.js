@@ -48,7 +48,7 @@ export async function GET(request) {
                 include: {
                     customer: {
                         include: {
-                            User: {
+                            user: {
                                 select: {
                                     name: true,
                                     email: true
@@ -58,7 +58,7 @@ export async function GET(request) {
                     },
                     employee: {
                         include: {
-                            User: {
+                            user: {
                                 select: {
                                     name: true,
                                     email: true
@@ -80,15 +80,15 @@ export async function GET(request) {
                 include: {
                     service: {
                         include: {
-                            customer: {
-                                include: {
-                                    User: {
-                                        select: {
-                                            name: true
-                                        }
+                                                    customer: {
+                            include: {
+                                user: {
+                                    select: {
+                                        name: true
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 },

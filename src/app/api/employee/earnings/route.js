@@ -1,18 +1,30 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getUserFromToken } from '@/lib/api-auth';
+import prisma from '@/lib/prisma';
+import { validateUserToken } from '@/lib/jwt-utils';
+import { cookies } from 'next/headers';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 
 export async function GET(request) {
-  const { userId } = getUserFromToken(request);
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('accessToken')?.value || 
+                 cookieStore.get('token')?.value || 
+                 cookieStore.get('refreshToken')?.value;
+    
+    if (!token) {
+      return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
+    }
+    
+    const decoded = await validateUserToken(token);
+    if (!decoded || decoded.role !== 'EMPLOYEE') {
+      return NextResponse.json({ error: 'Unauthorized - Not employee' }, { status: 401 });
+    }
+
+    const { userId } = decoded;
+
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || 'week'; // week, month, year, all
     const startDate = searchParams.get('startDate');
@@ -80,8 +92,8 @@ export async function GET(request) {
       },
       include: {
         customer: {
-          include: {
-            User: {
+                                       include: {
+            user: {
               select: {
                 name: true
               }
@@ -149,7 +161,7 @@ export async function GET(request) {
       },
       services: completedServices.map(service => ({
         id: service.id,
-        customerName: service.customer.User?.name || 'Unknown Customer',
+        customerName: service.customer.user?.name || 'Unknown Customer',
         completedDate: service.completedDate,
         earnings: service.potentialEarnings || 0,
         serviceType: service.servicePlan?.name || 'Standard Service',

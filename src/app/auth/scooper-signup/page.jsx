@@ -4,19 +4,25 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import PasswordStrength from '@/components/auth/PasswordStrength';
 
-// Placeholder for ZIP code radius calculation
+import { findZipsInRadius, generateTestZips } from '@/lib/zip-proximity';
+
+// Calculate ZIP codes within travel distance
 async function fetchZipCodesInRadius(zipCode, distance) {
-  // Replace this with a real API call or local calculation
-  // For now, return the entered ZIP code as a single-item array
   if (!zipCode || !distance) return [];
   try {
-    // Example: Use Zipcodebase or similar API here
-    // const response = await fetch(`https://app.zipcodebase.com/api/v1/radius?apikey=YOUR_API_KEY&code=${zipCode}&radius=${distance}&country=US`);
-    // const data = await response.json();
-    // return data.results.map(z => z.code);
-    return [zipCode];
+    // Use our proximity utility to find nearby ZIPs
+    const nearbyZips = findZipsInRadius(zipCode, parseInt(distance));
+    
+    // If no nearby ZIPs found (e.g., ZIP not in our database), generate test ZIPs
+    if (nearbyZips.length <= 1) {
+      return generateTestZips(zipCode, parseInt(distance));
+    }
+    
+    return nearbyZips;
   } catch (e) {
-    return [zipCode];
+    console.error('Error calculating ZIP codes in radius:', e);
+    // Fallback to test ZIPs
+    return generateTestZips(zipCode, parseInt(distance));
   }
 }
 
@@ -75,6 +81,13 @@ export default function ScooperSignUp() {
         }
         
         try {
+            // Validate coveredZips is not empty
+            if (!coveredZips || coveredZips.length === 0) {
+                setError('Please enter a valid ZIP code and travel distance to calculate coverage area');
+                setLoading(false);
+                return;
+            }
+
             // Create the payload with the required fields
             const payload = {
                 email: formData.email,
@@ -89,11 +102,13 @@ export default function ScooperSignUp() {
                     state: formData.state,
                     zipCode: formData.zipCode
                 },
-                travelDistance: formData.travelDistance,
+                travelDistance: parseInt(formData.travelDistance),
                 coveredZips: coveredZips
             };
             
             console.log('Sending payload:', payload);
+            console.log('Covered ZIPs count:', coveredZips.length);
+            console.log('Travel distance:', formData.travelDistance);
             
             const response = await fetch('/api/auth/signup', {
                 method: 'POST',
@@ -108,7 +123,8 @@ export default function ScooperSignUp() {
             console.log('Response data:', data);
             
             if (!response.ok) {
-                throw new Error(data.error || 'Failed to create account');
+                console.error('API Error:', data);
+                throw new Error(data.error || `Failed to create account (Status: ${response.status})`);
             }
             // Redirect to login page
             router.push('/auth/signin?registered=true');
@@ -243,16 +259,26 @@ export default function ScooperSignUp() {
             </div>
           </div>
 
-          {coveredZips.length > 0 && (
-            <div className="mt-4 p-2 bg-blue-50 rounded border border-blue-100">
-              <div className="text-sm font-medium text-blue-700 mb-1">ZIP codes you will cover:</div>
-              <div className="flex flex-wrap gap-2">
-                {coveredZips.map(zip => (
-                  <span key={zip} className="px-2 py-1 bg-blue-200 rounded text-xs font-mono">{zip}</span>
-                ))}
-              </div>
-            </div>
-          )}
+                     {coveredZips.length > 0 && (
+             <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+               <div className="text-sm font-medium text-blue-800 mb-2">
+                 🗺️ Your Service Coverage Area
+               </div>
+               <div className="text-xs text-blue-600 mb-3">
+                 Based on {formData.travelDistance} mile travel distance from {formData.zipCode}
+               </div>
+               <div className="flex flex-wrap gap-2 mb-3">
+                 {coveredZips.map(zip => (
+                   <span key={zip} className="px-2 py-1 bg-blue-200 rounded text-xs font-mono font-bold">
+                     {zip}
+                   </span>
+                 ))}
+               </div>
+               <div className="text-xs text-blue-600">
+                 💡 This will create {coveredZips.length} coverage area{coveredZips.length !== 1 ? 's' : ''} in our system
+               </div>
+             </div>
+           )}
 
           {error && (<div className="text-red-500 text-sm text-center">{error}</div>)}
 

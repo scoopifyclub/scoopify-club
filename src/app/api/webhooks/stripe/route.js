@@ -1,7 +1,7 @@
 import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { prisma } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { addWeeks, startOfWeek } from 'date-fns';
 import { logWebhookProcessed, logWebhookFailed, logSecurityCritical } from '@/lib/payment-logging';
 
@@ -17,9 +17,10 @@ const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 export async function POST(request) {
   try {
     const body = await request.text();
-    const signature = headers().get('stripe-signature');
-    const clientIP = headers().get('x-forwarded-for') || 'unknown';
-    const userAgent = headers().get('user-agent') || 'unknown';
+    const headersList = await headers();
+    const signature = headersList.get('stripe-signature');
+    const clientIP = headersList.get('x-forwarded-for') || 'unknown';
+    const userAgent = headersList.get('user-agent') || 'unknown';
 
     // Log webhook attempt for security monitoring
     console.log(`[WEBHOOK] Received webhook from IP: ${clientIP}, User-Agent: ${userAgent}`);
@@ -76,6 +77,18 @@ export async function POST(request) {
 
         case 'payment_intent.payment_failed':
           await handlePaymentIntentFailed(event.data.object);
+          break;
+
+        case 'customer.updated':
+          await handleCustomerUpdated(event.data.object);
+          break;
+
+        case 'payment_method.attached':
+          await handlePaymentMethodAttached(event.data.object);
+          break;
+
+        case 'payment_method.detached':
+          await handlePaymentMethodDetached(event.data.object);
           break;
 
         default:
@@ -154,8 +167,8 @@ async function handleInvoicePaymentSucceeded(invoice) {
       where: { id: subscription.id },
       data: {
         status: 'ACTIVE',
-        nextBilling: new Date(invoice.next_payment_attempt * 1000),
-        lastPaymentDate: new Date()
+        nextBillingDate: new Date(invoice.next_payment_attempt * 1000),
+        lastBillingDate: new Date()
       }
     });
 
@@ -202,12 +215,23 @@ async function handleInvoicePaymentFailed(invoice) {
       return;
     }
 
-    // Update subscription status
+    // Update subscription status based on Stripe's retry schedule
+    let status = 'PAST_DUE';
+    let nextBilling = null;
+    
+    if (invoice.next_payment_attempt) {
+      nextBilling = new Date(invoice.next_payment_attempt * 1000);
+    } else if (invoice.attempt_count >= 3) {
+      // After 3 failed attempts, mark as cancelled
+      status = 'CANCELLED';
+      nextBilling = null;
+    }
+
     await prisma.subscription.update({
       where: { id: subscription.id },
       data: {
-        status: 'PAST_DUE',
-        nextBilling: new Date(invoice.next_payment_attempt * 1000)
+        status: status,
+        nextBilling: nextBilling
       }
     });
 
@@ -218,14 +242,15 @@ async function handleInvoicePaymentFailed(invoice) {
         amount: invoice.amount_due / 100,
         status: 'FAILED',
         stripeInvoiceId: invoice.id,
-        type: 'SUBSCRIPTION_RENEWAL'
+        type: 'SUBSCRIPTION_RENEWAL',
+        notes: `Payment failed. Attempt ${invoice.attempt_count || 1} of 3.`
       }
     });
 
     // Send notification to customer about failed payment
-    await sendPaymentFailedNotification(subscription.customer);
+    await sendPaymentFailedNotification(subscription.customer, invoice);
 
-    console.log(`Processed failed payment for subscription ${subscription.id}`);
+    console.log(`Processed failed payment for subscription ${subscription.id}, status: ${status}`);
   } catch (error) {
     console.error('Error handling invoice payment failed:', error);
   }
@@ -255,7 +280,7 @@ async function handleSubscriptionCreated(subscription) {
         status: 'ACTIVE',
         startDate: new Date(subscription.current_period_start * 1000),
         endDate: new Date(subscription.current_period_end * 1000),
-        nextBilling: new Date(subscription.current_period_end * 1000)
+        nextBillingDate: new Date(subscription.current_period_end * 1000)
       }
     });
 
@@ -290,7 +315,7 @@ async function handleSubscriptionUpdated(subscription) {
         status: subscription.status === 'active' ? 'ACTIVE' : 'CANCELLED',
         endDate: subscription.cancel_at_period_end ? 
           new Date(subscription.current_period_end * 1000) : null,
-        nextBilling: new Date(subscription.current_period_end * 1000)
+        nextBillingDate: new Date(subscription.current_period_end * 1000)
       }
     });
 
@@ -399,11 +424,11 @@ async function handlePaymentIntentFailed(paymentIntent) {
 async function createServicesForSubscription(subscriptionId) {
   try {
     const subscription = await prisma.subscription.findUnique({
-      where: { id: subscriptionId },
-      include: {
-        customer: true,
-        plan: true
-      }
+        where: { id: subscriptionId },
+        include: {
+            customer: true,
+            servicePlan: true
+        }
     });
 
     if (!subscription) return;
@@ -428,7 +453,7 @@ async function createServicesForSubscription(subscriptionId) {
 
       if (!existingService) {
         // Calculate potential earnings
-        const subscriptionAmount = subscription.plan.price;
+        const subscriptionAmount = subscription.servicePlan.price;
         const stripeFee = subscriptionAmount * 0.029 + 0.30;
         const netAmount = subscriptionAmount - stripeFee;
         const potentialEarnings = Math.round((netAmount * 0.75) * 100) / 100;
@@ -436,7 +461,7 @@ async function createServicesForSubscription(subscriptionId) {
         await prisma.service.create({
           data: {
             customerId: subscription.customerId,
-            servicePlanId: subscription.planId,
+            servicePlanId: subscription.servicePlanId,
             scheduledDate: weekStart,
             status: 'SCHEDULED',
             potentialEarnings,
@@ -451,7 +476,7 @@ async function createServicesForSubscription(subscriptionId) {
   }
 }
 
-async function sendPaymentFailedNotification(customer) {
+async function sendPaymentFailedNotification(customer, invoice) {
   try {
     // This would integrate with your email/SMS service
     console.log(`Sending payment failed notification to ${customer.user.email}`);
@@ -461,9 +486,78 @@ async function sendPaymentFailedNotification(customer) {
     //   to: customer.user.email,
     //   subject: 'Payment Failed - Action Required',
     //   template: 'payment-failed',
-    //   data: { customerName: customer.user.name }
+    //   data: { 
+    //     customerName: customer.user.name,
+    //     amount: invoice.amount_due / 100,
+    //     attemptCount: invoice.attempt_count || 1,
+    //     nextAttempt: invoice.next_payment_attempt ? new Date(invoice.next_payment_attempt * 1000) : null
+    //   }
     // });
   } catch (error) {
     console.error('Error sending payment failed notification:', error);
+  }
+}
+
+async function handleCustomerUpdated(customer) {
+  try {
+    console.log('Processing customer update:', customer.id);
+
+    // Update customer metadata in our database if needed
+    const dbCustomer = await prisma.customer.findFirst({
+      where: { stripeCustomerId: customer.id }
+    });
+
+    if (dbCustomer) {
+      await prisma.customer.update({
+        where: { id: dbCustomer.id },
+        data: {
+          updatedAt: new Date()
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Error handling customer updated:', error);
+  }
+}
+
+async function handlePaymentMethodAttached(paymentMethod) {
+  try {
+    console.log('Processing payment method attached:', paymentMethod.id);
+
+    // Update customer's default payment method if this is the new default
+    if (paymentMethod.customer) {
+      const dbCustomer = await prisma.customer.findFirst({
+        where: { stripeCustomerId: paymentMethod.customer }
+      });
+
+      if (dbCustomer) {
+        // Log the payment method attachment
+        console.log(`Payment method ${paymentMethod.id} attached to customer ${dbCustomer.id}`);
+      }
+    }
+  } catch (error) {
+    console.error('Error handling payment method attached:', error);
+  }
+}
+
+async function handlePaymentMethodDetached(paymentMethod) {
+  try {
+    console.log('Processing payment method detached:', paymentMethod.id);
+
+    // Handle payment method removal
+    if (paymentMethod.customer) {
+      const dbCustomer = await prisma.customer.findFirst({
+        where: { stripeCustomerId: paymentMethod.customer }
+      });
+
+      if (dbCustomer) {
+        console.log(`Payment method ${paymentMethod.id} detached from customer ${dbCustomer.id}`);
+        
+        // Check if this was the default payment method
+        // If so, you might want to notify the customer to add a new one
+      }
+    }
+  } catch (error) {
+    console.error('Error handling payment method detached:', error);
   }
 }

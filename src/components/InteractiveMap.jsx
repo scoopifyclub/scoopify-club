@@ -7,27 +7,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { MapPin, Navigation, Zap, Calendar, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function InteractiveMap({ employeeId }) {
-  const [mapData, setMapData] = useState(null);
-  const [mapType, setMapType] = useState('service-areas');
-  const [loading, setLoading] = useState(true);
-  const [googleMap, setGoogleMap] = useState(null);
-  const [markers, setMarkers] = useState([]);
-  const mapRef = useRef(null);
+// Global flag to prevent multiple script loads
+let googleMapsLoaded = false;
+let googleMapsLoading = false;
 
-  useEffect(() => {
-    loadGoogleMapsAPI();
-  }, []);
-
-  useEffect(() => {
-    if (googleMap) {
-      fetchMapData();
+const loadGoogleMaps = () => {
+  return new Promise((resolve, reject) => {
+    if (googleMapsLoaded) {
+      resolve();
+      return;
     }
-  }, [mapType, googleMap]);
+    
+    if (googleMapsLoading) {
+      // Wait for existing load to complete
+      const checkLoaded = setInterval(() => {
+        if (googleMapsLoaded) {
+          clearInterval(checkLoaded);
+          resolve();
+        }
+      }, 100);
+      return;
+    }
 
-  const loadGoogleMapsAPI = () => {
+    googleMapsLoading = true;
+    
     if (window.google && window.google.maps) {
-      initializeMap();
+      googleMapsLoaded = true;
+      googleMapsLoading = false;
+      resolve();
       return;
     }
 
@@ -35,9 +42,49 @@ export default function InteractiveMap({ employeeId }) {
     script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'demo-key'}&libraries=geometry`;
     script.async = true;
     script.defer = true;
-    script.onload = initializeMap;
+    
+    script.onload = () => {
+      googleMapsLoaded = true;
+      googleMapsLoading = false;
+      resolve();
+    };
+    
+    script.onerror = () => {
+      googleMapsLoading = false;
+      reject(new Error('Failed to load Google Maps'));
+    };
+    
     document.head.appendChild(script);
-  };
+  });
+};
+
+export default function InteractiveMap({ employeeId }) {
+  const [mapType, setMapType] = useState('service-areas');
+  const [mapData, setMapData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const mapRef = useRef(null);
+  const googleMap = useRef(null);
+  const markers = useRef([]);
+
+  useEffect(() => {
+    if (employeeId) {
+      loadGoogleMaps()
+        .then(() => {
+          initializeMap();
+        })
+        .catch((err) => {
+          console.error('Failed to load Google Maps:', err);
+          setError('Failed to load map. Please refresh the page.');
+        });
+    }
+  }, [employeeId]);
+
+  useEffect(() => {
+    if (googleMap.current) {
+      fetchMapData();
+    }
+  }, [mapType, googleMap.current]);
 
   const initializeMap = () => {
     if (!mapRef.current) return;
@@ -55,12 +102,14 @@ export default function InteractiveMap({ employeeId }) {
       ]
     });
 
-    setGoogleMap(map);
+    googleMap.current = map;
   };
 
   const fetchMapData = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const response = await fetch(`/api/employee/maps?type=${mapType}`, {
         credentials: 'include'
       });
@@ -74,6 +123,7 @@ export default function InteractiveMap({ employeeId }) {
       renderMapData(data);
     } catch (error) {
       console.error('Error fetching map data:', error);
+      setError('Failed to load map data');
       toast.error('Failed to load map data');
     } finally {
       setLoading(false);
@@ -81,10 +131,10 @@ export default function InteractiveMap({ employeeId }) {
   };
 
   const renderMapData = (data) => {
-    if (!googleMap || !data) return;
+    if (!googleMap.current || !data) return;
 
     // Clear existing markers
-    markers.forEach(marker => marker.setMap(null));
+    markers.current.forEach(marker => marker.setMap(null));
     const newMarkers = [];
 
     switch (data.type) {
@@ -99,12 +149,12 @@ export default function InteractiveMap({ employeeId }) {
         break;
     }
 
-    setMarkers(newMarkers);
+    markers.current = newMarkers;
 
     // Center and zoom map
     if (data.data.center) {
-      googleMap.setCenter(data.data.center);
-      googleMap.setZoom(data.data.zoom || 10);
+      googleMap.current.setCenter(data.data.center);
+      googleMap.current.setZoom(data.data.zoom || 10);
     }
   };
 
@@ -112,7 +162,7 @@ export default function InteractiveMap({ employeeId }) {
     data.serviceAreas.forEach(area => {
       const marker = new window.google.maps.Marker({
         position: area.coordinates,
-        map: googleMap,
+        map: googleMap.current,
         title: `Service Area: ${area.zipCode}`,
         icon: {
           url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
@@ -137,7 +187,7 @@ export default function InteractiveMap({ employeeId }) {
       });
 
       marker.addListener('click', () => {
-        infoWindow.open(googleMap, marker);
+        infoWindow.open(googleMap.current, marker);
       });
 
       markers.push(marker);
@@ -152,13 +202,13 @@ export default function InteractiveMap({ employeeId }) {
       strokeColor: '#3B82F6',
       strokeOpacity: 1.0,
       strokeWeight: 3,
-      map: googleMap
+      map: googleMap.current
     });
 
     waypoints.forEach((waypoint, index) => {
       const marker = new window.google.maps.Marker({
         position: waypoint.coordinates,
-        map: googleMap,
+        map: googleMap.current,
         title: `${index + 1}. ${waypoint.customerName}`,
         label: {
           text: (index + 1).toString(),
@@ -189,7 +239,7 @@ export default function InteractiveMap({ employeeId }) {
       });
 
       marker.addListener('click', () => {
-        infoWindow.open(googleMap, marker);
+        infoWindow.open(googleMap.current, marker);
       });
 
       markers.push(marker);
@@ -200,7 +250,7 @@ export default function InteractiveMap({ employeeId }) {
     data.jobs.forEach(job => {
       const marker = new window.google.maps.Marker({
         position: job.coordinates,
-        map: googleMap,
+        map: googleMap.current,
         title: `Job: ${job.customerName}`,
         icon: {
           url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
@@ -227,7 +277,7 @@ export default function InteractiveMap({ employeeId }) {
       });
 
       marker.addListener('click', () => {
-        infoWindow.open(googleMap, marker);
+        infoWindow.open(googleMap.current, marker);
       });
 
       markers.push(marker);
@@ -260,6 +310,39 @@ export default function InteractiveMap({ employeeId }) {
       delete window.claimJob;
     };
   }, []);
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            <div className="h-4 bg-gray-200 rounded w-32" />
+            <div className="h-4 bg-gray-200 rounded w-24" />
+            <div className="h-4 bg-gray-200 rounded w-20" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Interactive Map</CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="text-center text-gray-500">
+            <p>Map temporarily unavailable</p>
+            <p className="text-sm mb-4">{error}</p>
+            <Button onClick={() => window.location.reload()} variant="outline">
+              Refresh Page
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="mb-8">

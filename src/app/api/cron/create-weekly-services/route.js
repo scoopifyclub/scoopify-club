@@ -68,10 +68,13 @@ export async function POST(request) {
 
         // Calculate potential earnings for this service
         const subscriptionAmount = subscription.plan.price;
-        const stripeFee = subscriptionAmount * 0.029 + 0.30; // Stripe fee
-        const referralAmount = 0; // Could be calculated based on referral status
-        const netAmount = subscriptionAmount - stripeFee - referralAmount;
-        const potentialEarnings = Math.round((netAmount * 0.75) * 100) / 100; // 75% to employee
+        const stripeFee = subscriptionAmount * 0.029 + 0.30; // Stripe fee (2.9% + $0.30)
+        const platformCut = subscriptionAmount * 0.25; // Our 25% platform cut
+        const netAmount = subscriptionAmount - stripeFee - platformCut;
+        // Each service = 1 credit = 1/4 of monthly payment
+        // Scooper gets 100% of the net amount per service
+        const perServiceAmount = netAmount / 4;
+        const potentialEarnings = Math.round(perServiceAmount * 100) / 100; // Full net amount to employee
 
         // Create the service
         const service = await prisma.service.create({

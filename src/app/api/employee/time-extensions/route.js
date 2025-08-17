@@ -16,10 +16,11 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         // Validate the token and check role
-        const { userId, role } = await validateUser(accessToken);
-        if (!(session === null || session === void 0 ? void 0 : session.user)) {
+        const user = await validateUser(accessToken);
+        if (!user || user.role !== 'EMPLOYEE') {
             return new NextResponse('Unauthorized', { status: 401 });
         }
+        const { userId } = user;
         const { searchParams } = new URL(request.url);
         const employeeId = searchParams.get('employeeId');
         if (!employeeId) {
@@ -35,7 +36,15 @@ export async function GET(request) {
                     include: {
                         subscription: {
                             include: {
-                                customer: true
+                                customer: {
+                                    include: {
+                                        user: {
+                                            select: {
+                                                name: true
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -55,11 +64,19 @@ export async function GET(request) {
                 }
             },
             include: {
-                subscription: {
-                    include: {
-                        customer: true
-                    }
-                }
+                                        subscription: {
+                            include: {
+                                customer: {
+                                    include: {
+                                        user: {
+                                            select: {
+                                                name: true
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
             },
             orderBy: {
                 updatedAt: 'desc'
@@ -71,7 +88,7 @@ export async function GET(request) {
             type: 'extension',
             id: extension.id,
             serviceId: extension.serviceId,
-            customerName: extension.service.subscription.customer.name,
+            customerName: extension.service.subscription.customer.user?.name || 'Unknown Customer',
             minutes: extension.minutes,
             reason: extension.reason,
             createdAt: extension.createdAt
@@ -80,7 +97,7 @@ export async function GET(request) {
             type: 'cancellation',
             id: cancellation.id,
             serviceId: cancellation.id,
-            customerName: cancellation.subscription.customer.name,
+            customerName: cancellation.subscription.customer.user?.name || 'Unknown Customer',
             reason: cancellation.cancellationReason,
             createdAt: cancellation.updatedAt
         }));

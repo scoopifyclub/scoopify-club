@@ -177,7 +177,7 @@ export async function POST(request) {
         userId: receiverId,
         type: 'MESSAGE',
         title: 'New Message',
-        message: `You have a new message from ${employee.User?.name || 'Employee'}`,
+        message: `You have a new message from ${employee.user?.name || 'Employee'}`,
         metadata: {
           messageId: message.id,
           senderId: employee.userId,

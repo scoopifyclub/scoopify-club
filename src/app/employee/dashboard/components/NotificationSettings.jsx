@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS = {
   sound: false
 };
 
-export function NotificationSettings({ onChange }) {
+export function NotificationSettings() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
 
   useEffect(() => {
@@ -25,8 +25,7 @@ export function NotificationSettings({ onChange }) {
 
   useEffect(() => {
     localStorage.setItem('notificationSettings', JSON.stringify(settings));
-    if (onChange) onChange(settings);
-  }, [settings, onChange]);
+  }, [settings]);
 
   const handleToggle = (key) => {
     setSettings((prev) => ({ ...prev, [key]: !prev[key] }));

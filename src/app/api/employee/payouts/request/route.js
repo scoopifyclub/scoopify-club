@@ -1,249 +1,136 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getUserFromToken } from '@/lib/api-auth';
+import { validateUserToken } from '@/lib/jwt-utils';
+import { cookies } from 'next/headers';
+import prisma from '@/lib/prisma';
+import { z } from 'zod';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
+// Validation schema for payout request
+const payoutRequestSchema = z.object({
+    paymentMethod: z.enum(['STRIPE', 'CASH_APP']),
+    serviceIds: z.array(z.string().uuid()),
+    amount: z.number().positive()
+});
 
 export async function POST(request) {
-  const { userId } = getUserFromToken(request);
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
-    const { paymentMethod, amount, serviceIds } = await request.json();
-
-    // Get employee
-    const employee = await prisma.employee.findUnique({
-      where: { userId },
-      include: {
-        User: true
-      }
-    });
-
-    if (!employee) {
-      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
-    }
-
-    // Validate payment method
-    if (!['STRIPE', 'CASH_APP'].includes(paymentMethod)) {
-      return NextResponse.json({ error: 'Invalid payment method' }, { status: 400 });
-    }
-
-    // If Cash App, validate username is set
-    if (paymentMethod === 'CASH_APP' && !employee.cashAppUsername) {
-      return NextResponse.json({ 
-        error: 'Cash App username not set. Please update your profile first.' 
-      }, { status: 400 });
-    }
-
-    // Get pending services for this employee
-    const pendingServices = await prisma.service.findMany({
-      where: {
-        id: {
-          in: serviceIds || []
-        },
-        employeeId: employee.id,
-        status: 'COMPLETED',
-        paymentStatus: 'PENDING'
-      }
-    });
-
-    if (pendingServices.length === 0) {
-      return NextResponse.json({ 
-        error: 'No pending services found for payout' 
-      }, { status: 400 });
-    }
-
-    // Calculate total earnings
-    const totalEarnings = pendingServices.reduce((sum, service) => 
-      sum + (service.potentialEarnings || 0), 0
-    );
-
-    // Calculate fees based on payment method
-    let fees = 0;
-    let netAmount = totalEarnings;
-
-    if (paymentMethod === 'CASH_APP') {
-      // Cash App fees: $0.25 per transaction + 1.5% of amount
-      fees = 0.25 + (totalEarnings * 0.015);
-      netAmount = totalEarnings - fees;
-    } else {
-      // Stripe fees: 0.25% + $0.25 per payout (much lower for direct deposits)
-      fees = 0.25 + (totalEarnings * 0.0025);
-      netAmount = totalEarnings - fees;
-    }
-
-    // Create payout request
-    const payout = await prisma.payout.create({
-      data: {
-        employeeId: employee.id,
-        amount: totalEarnings,
-        fees: fees,
-        netAmount: netAmount,
-        status: 'PENDING',
-        paymentMethod: paymentMethod,
-        serviceCount: pendingServices.length,
-        requestedAt: new Date(),
-        isSameDay: paymentMethod === 'CASH_APP'
-      }
-    });
-
-    // Process payment based on method
-    let paymentResult;
-    if (paymentMethod === 'CASH_APP') {
-      paymentResult = await processCashAppPayout(employee, netAmount, payout.id);
-    } else {
-      paymentResult = await processStripePayout(employee, netAmount, payout.id);
-    }
-
-    if (paymentResult.success) {
-      // Update payout status
-      await prisma.payout.update({
-        where: { id: payout.id },
-        data: {
-          status: 'COMPLETED',
-          processedAt: new Date(),
-          transactionId: paymentResult.transactionId
+    try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('accessToken')?.value || 
+                     cookieStore.get('token')?.value || 
+                     cookieStore.get('refreshToken')?.value;
+        
+        if (!token) {
+            return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
         }
-      });
-
-      // Update service payment status
-      await prisma.service.updateMany({
-        where: {
-          id: {
-            in: pendingServices.map(s => s.id)
-          }
-        },
-        data: {
-          paymentStatus: 'PAID',
-          paidAt: new Date(),
-          payoutId: payout.id
+        
+        const decoded = await validateUserToken(token);
+        if (!decoded || decoded.role !== 'EMPLOYEE') {
+            return NextResponse.json({ error: 'Unauthorized - Not employee' }, { status: 401 });
         }
-      });
 
-      // Create earnings records
-      for (const service of pendingServices) {
-        await prisma.earning.create({
-          data: {
-            employeeId: employee.id,
-            serviceId: service.id,
-            amount: service.potentialEarnings || 0,
-            status: 'PAID',
-            payoutId: payout.id,
-            paidAt: new Date()
-          }
+        // Get employee record
+        const employee = await prisma.employee.findUnique({
+            where: { userId: decoded.userId }
         });
-      }
 
-      // Send notification to employee
-      await sendPayoutNotification(employee, netAmount, pendingServices.length, paymentMethod);
-
-      return NextResponse.json({
-        success: true,
-        message: `Payout of $${netAmount.toFixed(2)} processed successfully`,
-        payout: {
-          id: payout.id,
-          amount: totalEarnings,
-          fees: fees,
-          netAmount: netAmount,
-          paymentMethod: paymentMethod,
-          transactionId: paymentResult.transactionId
+        if (!employee) {
+            return NextResponse.json({ error: 'Employee profile not found' }, { status: 404 });
         }
-      });
 
-    } else {
-      // Update payout status to failed
-      await prisma.payout.update({
-        where: { id: payout.id },
-        data: {
-          status: 'FAILED',
-          failureReason: paymentResult.error
+        // Parse and validate request body
+        const body = await request.json();
+        const validatedData = payoutRequestSchema.parse(body);
+
+        // Verify all services belong to this employee and are eligible for payout
+        const services = await prisma.service.findMany({
+            where: {
+                id: { in: validatedData.serviceIds },
+                employeeId: employee.id,
+                status: 'COMPLETED',
+                paymentStatus: 'PENDING'
+            },
+            include: {
+                servicePlan: true
+            }
+        });
+
+        if (services.length !== validatedData.serviceIds.length) {
+            return NextResponse.json({ 
+                error: 'Some services are not eligible for payout' 
+            }, { status: 400 });
         }
-      });
 
-      return NextResponse.json({
-        success: false,
-        error: paymentResult.error
-      }, { status: 400 });
+        // Calculate total amount from services
+        const totalAmount = services.reduce((sum, service) => {
+            return sum + (service.potentialEarnings || 0);
+        }, 0);
+
+        // Verify requested amount matches calculated amount
+        if (Math.abs(totalAmount - validatedData.amount) > 0.01) {
+            return NextResponse.json({ 
+                error: 'Requested amount does not match service earnings' 
+            }, { status: 400 });
+        }
+
+        // Create payout request
+        const payoutRequest = await prisma.payoutRequest.create({
+            data: {
+                employeeId: employee.id,
+                amount: validatedData.amount,
+                paymentMethod: validatedData.paymentMethod,
+                status: 'PENDING',
+                serviceIds: validatedData.serviceIds,
+                requestedAt: new Date()
+            }
+        });
+
+        // Update services to mark them as payout requested
+        await prisma.service.updateMany({
+            where: {
+                id: { in: validatedData.serviceIds }
+            },
+            data: {
+                paymentStatus: 'PAYOUT_REQUESTED'
+            }
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: 'Payout request submitted successfully',
+            payoutRequest: {
+                id: payoutRequest.id,
+                amount: payoutRequest.amount,
+                paymentMethod: payoutRequest.paymentMethod,
+                status: payoutRequest.status,
+                requestedAt: payoutRequest.requestedAt
+            }
+        });
+
+    } catch (error) {
+        console.error('Error creating payout request:', error);
+        
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({ 
+                error: 'Invalid request data', 
+                details: error.errors 
+            }, { status: 400 });
+        }
+        
+        return NextResponse.json({ 
+            error: 'Failed to create payout request',
+            details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+        }, { status: 500 });
     }
-
-  } catch (error) {
-    console.error('Error processing payout request:', error);
-    return NextResponse.json(
-      { error: 'Failed to process payout request' },
-      { status: 500 }
-    );
-  }
 }
 
-async function processCashAppPayout(employee, amount, payoutId) {
-  try {
-    // This would integrate with Cash App's API
-    console.log(`Processing Cash App payout of $${amount} to ${employee.cashAppUsername}`);
-    
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Generate a mock transaction ID
-    const transactionId = `cashapp_${Date.now()}_${employee.id}`;
-    
-    return {
-      success: true,
-      transactionId: transactionId
-    };
-    
-  } catch (error) {
-    console.error('Cash App payout error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-async function processStripePayout(employee, amount, payoutId) {
-  try {
-    // Import the Stripe Connect utility
-    const { processStripePayout: processStripePayoutUtil } = await import('@/lib/stripe-connect');
-    
-    // Use the real Stripe Connect payout function
-    const result = await processStripePayoutUtil(employee, amount, payoutId);
-    
-    return result;
-    
-  } catch (error) {
-    console.error('Stripe payout error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-async function sendPayoutNotification(employee, amount, serviceCount, paymentMethod) {
-  try {
-    const methodText = paymentMethod === 'CASH_APP' ? 'Cash App' : 'direct deposit';
-    
-    await prisma.notification.create({
-      data: {
-        userId: employee.userId,
-        type: 'PAYOUT_COMPLETED',
-        title: 'Payout Completed',
-        message: `Your payout of $${amount.toFixed(2)} for ${serviceCount} services has been sent via ${methodText}.`,
-        metadata: {
-          amount: amount,
-          serviceCount: serviceCount,
-          paymentMethod: paymentMethod
-        }
-      }
-    });
-
-    console.log(`Sent payout notification to ${employee.User.email}`);
-    
-  } catch (error) {
-    console.error('Error sending payout notification:', error);
-  }
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS(request) {
+    const response = new NextResponse(null, { status: 204 });
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*');
+    response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
 } 

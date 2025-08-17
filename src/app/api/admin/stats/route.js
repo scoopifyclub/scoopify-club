@@ -72,7 +72,7 @@ export async function GET(request) {
                     include: {
                         customer: {
                             include: {
-                                User: {
+                                user: {
                                     select: {
                                         name: true,
                                         email: true
@@ -82,7 +82,7 @@ export async function GET(request) {
                         },
                         employee: {
                             include: {
-                                User: {
+                                user: {
                                     select: {
                                         name: true
                                     }
@@ -128,7 +128,7 @@ export async function GET(request) {
                         customerIds.length > 0 ? prisma.customer.findMany({
                             where: { id: { in: customerIds } },
                             include: {
-                                User: {
+                                user: {
                                     select: { name: true, email: true }
                                 }
                             }
@@ -151,7 +151,7 @@ export async function GET(request) {
                                     const userMap = new Map(users.map(u => [u.id, u]));
                                     return customers.map(customer => ({
                                         ...customer,
-                                        User: userMap.get(customer.userId) || null
+                                        user: userMap.get(customer.userId) || null
                                     }));
                                 });
                             }).catch(() => []);
@@ -159,7 +159,7 @@ export async function GET(request) {
                         employeeIds.length > 0 ? prisma.employee.findMany({
                             where: { id: { in: employeeIds } },
                             include: {
-                                User: {
+                                user: {
                                     select: { name: true }
                                 }
                             }
@@ -182,7 +182,7 @@ export async function GET(request) {
                                     const userMap = new Map(users.map(u => [u.id, u]));
                                     return employees.map(employee => ({
                                         ...employee,
-                                        User: userMap.get(employee.userId) || null
+                                        user: userMap.get(employee.userId) || null
                                     }));
                                 });
                             }).catch(() => []);

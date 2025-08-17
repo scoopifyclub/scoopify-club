@@ -75,7 +75,7 @@ export default function LoginPage() {
                 if (response.ok) {
                     const data = await response.json();
                     
-                    if (data.authenticated && data.user) {
+                    if (data.user) {
                         console.log('Existing session found, showing dashboard button...');
                         setDebugInfo('Session exists, click button to continue to dashboard');
                         

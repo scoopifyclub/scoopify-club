@@ -21,7 +21,7 @@ export default function CustomerDashboard() {
                 throw new Error('Failed to fetch services');
             }
             const data = await response.json();
-            setServices(data.services);
+            setServices(data.data || data.services || []);
         }
         catch (err) {
             console.error('Error fetching services:', err);
@@ -37,7 +37,7 @@ export default function CustomerDashboard() {
                 throw new Error('Failed to fetch payments');
             }
             const data = await response.json();
-            setPayments(data.payments);
+            setPayments(data.payments || data || []);
         }
         catch (err) {
             console.error('Error fetching payments:', err);
@@ -73,7 +73,7 @@ export default function CustomerDashboard() {
                     return;
                 }
                 // Set customer data
-                setCustomerData(data.user.customer);
+                setCustomerData(data.user);
                 // Fetch additional data
                 await Promise.all([
                     fetchServices(),
@@ -96,7 +96,7 @@ export default function CustomerDashboard() {
             return;
         }
         try {
-            const response = await fetch(`/api/customer/services/${id}/cancel`, {
+            const response = await fetch(`/api/customer/services/${serviceId}/cancel`, {
                 method: 'POST',
                 credentials: 'include'
             });
@@ -149,29 +149,32 @@ export default function CustomerDashboard() {
         </div>
       </CustomerDashboardLayout>);
     }
-    // Mock data - replace with real data from your backend
+    // Dynamic metrics based on actual customer data
+    const nextService = services.find(s => s.status === 'SCHEDULED' || s.status === 'IN_PROGRESS');
+    const totalSpent = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+    
     const metrics = [
         {
-            title: "Next Appointment",
-            value: "May 25, 2024",
+            title: "Next Service",
+            value: nextService ? new Date(nextService.scheduledDate).toLocaleDateString() : "None",
             icon: Calendar,
             color: "text-brand-primary"
         },
         {
-            title: "Total Cleanups",
-            value: "42",
+            title: "Total Services",
+            value: services.length.toString(),
             icon: Clock,
             color: "text-accent-secondary"
         },
         {
             title: "Total Spent",
-            value: "$1,260",
+            value: `$${totalSpent.toFixed(2)}`,
             icon: DollarSign,
             color: "text-green-500"
         },
         {
-            title: "Service Area",
-            value: "5 miles",
+            title: "Active Services",
+            value: services.filter(s => s.status === 'SCHEDULED' || s.status === 'IN_PROGRESS').length.toString(),
             icon: MapPin,
             color: "text-blue-500"
         }
@@ -181,7 +184,7 @@ export default function CustomerDashboard() {
         <main className="container mx-auto px-4 py-8">
           {/* Welcome Section */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold">Welcome back, John!</h1>
+            <h1 className="text-3xl font-bold">Welcome back, {customerData?.name || 'there'}!</h1>
             <p className="text-neutral-600 mt-2">Here's what's happening with your service</p>
           </div>
 
@@ -207,31 +210,41 @@ export default function CustomerDashboard() {
               <div className="card">
                 <h2 className="text-xl font-semibold mb-6">Upcoming Appointments</h2>
                 <div className="space-y-4">
-                  {[
-            {
-                date: "May 25, 2024",
-                time: "10:00 AM",
-                status: "Confirmed"
-            },
-            {
-                date: "June 1, 2024",
-                time: "10:00 AM",
-                status: "Scheduled"
-            }
-        ].map((appointment) => (<div key={appointment.date} className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
-                      <div>
-                        <p className="font-medium">{appointment.date}</p>
-                        <p className="text-sm text-neutral-600">{appointment.time}</p>
+                  {services.length > 0 ? (
+                    services.slice(0, 3).map((service) => (
+                      <div key={service.id} className="flex items-center justify-between p-4 bg-neutral-50 rounded-lg">
+                        <div>
+                          <p className="font-medium">
+                            {service.scheduledDate ? new Date(service.scheduledDate).toLocaleDateString() : 'TBD'}
+                          </p>
+                          <p className="text-sm text-neutral-600">
+                            {service.servicePlan?.name || 'Standard Service'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className={`px-3 py-1 rounded-full text-sm ${
+                            service.status === 'SCHEDULED' ? 'bg-blue-100 text-blue-800' :
+                            service.status === 'IN_PROGRESS' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-green-100 text-green-800'
+                          }`}>
+                            {service.status}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
-                          {appointment.status}
-                        </span>
-                        <Button variant="outline" size="sm">
-                          Reschedule
-                        </Button>
-                      </div>
-                    </div>))}
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-neutral-500">
+                      <p>No upcoming services scheduled</p>
+                      <Button 
+                        className="mt-2" 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => router.push('/dashboard/services')}
+                      >
+                        Schedule Your First Service
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -241,15 +254,27 @@ export default function CustomerDashboard() {
               <div className="card">
                 <h2 className="text-xl font-semibold mb-6">Quick Actions</h2>
                 <div className="space-y-4">
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => router.push('/dashboard/services')}
+                  >
                     <Calendar className="w-4 h-4 mr-2"/>
                     Schedule New Cleanup
                   </Button>
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => router.push('/dashboard/services')}
+                  >
                     <MapPin className="w-4 h-4 mr-2"/>
-                    Update Service Area
+                    View Service History
                   </Button>
-                  <Button className="w-full justify-start" variant="outline">
+                  <Button 
+                    className="w-full justify-start" 
+                    variant="outline"
+                    onClick={() => router.push('/dashboard/billing')}
+                  >
                     <DollarSign className="w-4 h-4 mr-2"/>
                     View Billing History
                   </Button>
@@ -261,17 +286,19 @@ export default function CustomerDashboard() {
                 <h2 className="text-xl font-semibold mb-4">Service Status</h2>
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <span className="text-neutral-600">Current Plan</span>
-                    <span className="font-medium">Weekly Cleanup</span>
+                    <span className="text-neutral-600">Total Services</span>
+                    <span className="font-medium">{services.length}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-neutral-600">Next Billing</span>
-                    <span className="font-medium">June 1, 2024</span>
+                    <span className="text-neutral-600">Completed</span>
+                    <span className="font-medium">
+                      {services.filter(s => s.status === 'COMPLETED').length}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-neutral-600">Status</span>
-                    <span className="px-3 py-1 rounded-full text-sm bg-green-100 text-green-800">
-                      Active
+                    <span className="text-neutral-600">Pending</span>
+                    <span className="font-medium">
+                      {services.filter(s => s.status === 'SCHEDULED' || s.status === 'IN_PROGRESS').length}
                     </span>
                   </div>
                 </div>

@@ -87,7 +87,7 @@ export async function GET(request) {
                     }
                 },
                 include: {
-                    User: {
+                    user: {
                         select: {
                             name: true,
                             email: true

@@ -1,69 +1,54 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
-
-
 export function JobPoolSocket({ employeeId, handleJobUpdate = (jobs) => {}, handleJobClaim = (job) => {} }) {
-  const socketRef = useRef(null);
+  const intervalRef = useRef(null);
   const { user } = useAuth();
+  const [isPolling, setIsPolling] = useState(false);
+
+  const fetchJobs = async () => {
+    if (!user?.id) return;
+
+    try {
+      const response = await fetch('/api/employee/jobs/pool', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.jobs) {
+          handleJobUpdate(data.jobs);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching jobs:', error);
+      // Don't show toast for every error to avoid spam
+    }
+  };
 
   useEffect(() => {
     if (!user?.id) return;
 
-    const socket = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/job-pool`);
-    socketRef.current = socket;
+    // Initial fetch
+    fetchJobs();
+    setIsPolling(true);
 
-    socket.onopen = () => {
-      console.log('Connected to job pool WebSocket');
-      socket.send(JSON.stringify({
-        type: 'join-job-pool',
-        employeeId: user.id
-      }));
-    };
-
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        
-        switch (data.type) {
-          case 'job-pool-update':
-            handleJobUpdate(data.jobs);
-            break;
-          case 'job-claimed':
-            onJobClaim(data.job);
-            break;
-          case 'error':
-            toast.error(data.message);
-            break;
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-        toast.error('Failed to process job pool update');
-      }
-    };
-
-    socket.onclose = () => {
-      console.log('Disconnected from job pool WebSocket');
-      // Attempt to reconnect after 5 seconds
-      setTimeout(() => {
-        socketRef.current?.close();
-        socketRef.current = new WebSocket(`${process.env.NEXT_PUBLIC_WS_URL}/job-pool`);
-      }, 5000);
-    };
-
-    socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-      toast.error('WebSocket connection error');
-    };
+    // Set up polling interval (every 10 seconds)
+    intervalRef.current = setInterval(fetchJobs, 10000);
 
     return () => {
-      socket.close();
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        setIsPolling(false);
+      }
     };
-  }, [user?.id, onJobUpdate, onJobClaim]);
+  }, [user?.id, handleJobUpdate]);
 
   return null;
 }

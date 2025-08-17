@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
+import { prisma } from '@/lib/prisma';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -67,13 +68,28 @@ export async function GET(request) {
 
     console.log('✅ User authenticated:', decoded);
     
-    const response = NextResponse.json({
-      user: {
-        id: decoded.id || decoded.userId,
-        email: decoded.email,
-        name: decoded.name,
-        role: decoded.role,
+    // Fetch full user data from database
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
       }
+    });
+    
+    if (!user) {
+      console.log('❌ User not found in database');
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+    
+    const response = NextResponse.json({
+      user: user
     });
     
     // Add CORS headers for admin dashboard

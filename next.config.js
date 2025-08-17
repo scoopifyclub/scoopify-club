@@ -61,7 +61,7 @@ const nextConfig = {
   
   // Security: configure image domains
   images: {
-    domains: ['localhost', 'images.pexels.com'],
+    domains: ['localhost', 'images.pexels.com', 'images.unsplash.com'],
     // Add your production image domains here
   },
   

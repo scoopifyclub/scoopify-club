@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export async function POST(req, { params }) {
     try {
         const user = await requireAuth(req);
-        const { id } = await params;
+        const { id: serviceId } = params;
         const service = await prisma.service.findUnique({
             where: { id: serviceId },
             include: {

@@ -49,7 +49,8 @@ async function createTestUser(role) {
             create: {
                 email: userData.email,
                 password: hashedPassword,
-                name: userData.name,
+                firstName: userData.name.split(' ')[0] || 'Test',
+        lastName: userData.name.split(' ').slice(1).join(' ') || 'User',
                 role: role,
                 emailverified: true,
             },

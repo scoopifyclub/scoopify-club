@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { format } from 'date-fns';
-
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 
 export function ServiceHistory({ employeeId }) {
@@ -37,8 +37,10 @@ export function ServiceHistory({ employeeId }) {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching service history:', error);
-      toast.error('Failed to load service history');
+      // Don't show toast error, just log it
       setLoading(false);
+      // Set empty services instead of breaking
+      setServices([]);
     }
   };
 
@@ -65,6 +67,23 @@ export function ServiceHistory({ employeeId }) {
           <div className="h-4 bg-gray-200 rounded w-24" />
           <div className="h-4 bg-gray-200 rounded w-20" />
         </div>
+      </Card>
+    );
+  }
+
+  // Show message when no services or when API fails
+  if (services.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Service History</CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="text-center text-gray-500">
+            <p>No service history yet</p>
+            <p className="text-sm">Completed services will appear here</p>
+          </div>
+        </CardContent>
       </Card>
     );
   }
@@ -111,67 +130,83 @@ export function ServiceHistory({ employeeId }) {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead>
-                <tr>
-                  <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Customer
-                  </th>
-                  <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Address
-                  </th>
-                  <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Date
-                  </th>
-                  <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Amount
-                  </th>
-                  <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Notes
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredServices.map((service) => (
-                  <tr key={service.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {service.customerName}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {service.address}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {format(new Date(service.scheduledAt), 'MMM d, yyyy')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        service.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        service.status === 'cancelled' ? 'bg-red-100 text-red-800' :
-                        'bg-yellow-100 text-yellow-800'
-                      }`}>
-                        {service.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      ${service.price.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {service.notes || 'N/A'}
-                    </td>
-                  </tr>
-                ))}
-                {filteredServices.length === 0 && (
+            <ScrollArea className="h-[400px] w-full">
+              <table className="min-w-full">
+                <thead className="bg-gray-50 sticky top-0">
                   <tr>
-                    <td colSpan={6} className="px-6 py-4 whitespace-nowrap text-center text-sm text-gray-500">
-                      No services found matching the filters
-                    </td>
+                    <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Customer
+                    </th>
+                    <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Address
+                    </th>
+                    <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Earnings
+                    </th>
+                    <th className="px-6 py-3 border-b text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredServices.map((service) => (
+                    <tr key={service.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-10 w-10">
+                            <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                              <span className="text-sm font-medium text-gray-700">
+                                {service.customer?.user?.firstName?.charAt(0) || 'C'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">
+                              {service.customer?.user?.firstName ? `${service.customer.user.firstName} ${service.customer.user.lastName || ''}` : 'Customer'}
+                            </div>
+                            <div className="text-sm text-gray-500">{service.customer?.phone}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">
+                          {service.customer?.address?.street}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {service.customer?.address?.city}, {service.customer?.address?.state} {service.customer?.address?.zipCode}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {service.scheduledDate ? format(new Date(service.scheduledDate), 'MMM dd, yyyy') : 'TBD'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          service.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          service.status === 'cancelled' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {service.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        ${(service.potentialEarnings / 100).toFixed(2)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <Button variant="outline" size="sm">
+                          View Details
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollArea>
           </div>
         </div>
       </CardContent>

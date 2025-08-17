@@ -1,128 +1,200 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/api-auth';
-import { validatePhotoUpload } from '@/lib/validations';
-import sharp from 'sharp';
+import { prisma } from "@/lib/prisma";
+import { validateUserToken } from '@/lib/jwt-utils';
+import { cookies } from 'next/headers';
+import { z } from 'zod';
 
-// Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
-const MAX_PHOTOS_PER_SERVICE = 16;
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
-const COMPRESSED_IMAGE_QUALITY = 80;
-const COMPRESSED_IMAGE_WIDTH = 1920;
+// Validation schema for photo upload
+const photoUploadSchema = z.object({
+    photos: z.array(z.object({
+        url: z.string().url(),
+        type: z.enum(['BEFORE', 'AFTER', 'GATE']),
+        description: z.string().optional()
+    })).min(1, 'At least one photo is required'),
+    serviceId: z.string()
+});
+
 export async function POST(request, { params }) {
-    var _a;
     try {
-        const token = (_a = request.headers.get('Authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
+        const { id: serviceId } = params;
+        
+        // Get and validate token
+        const cookieStore = await cookies();
+        const token = cookieStore.get('accessToken')?.value;
+        
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const decoded = verifyToken(token);
-        if (!decoded || !decoded.userId) {
-            return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-        }
-        const service = await prisma.service.findUnique({
-            where: { id: (await params).serviceId },
-            include: {
-                photos: true
-            }
-        });
-        if (!service) {
-            return NextResponse.json({ error: 'Service not found' }, { status: 404 });
-        }
-        // Validate photo upload
-        const validation = validatePhotoUpload(service, decoded.userId, decoded.role === 'ADMIN');
-        if (!validation.isValid) {
-            return NextResponse.json({ error: validation.error }, { status: 400 });
-        }
-        const { photos } = await request.json();
-        if (!photos || !Array.isArray(photos) || photos.length === 0) {
-            return NextResponse.json({ error: 'At least one photo is required' }, { status: 400 });
-        }
-        if (service.photos.length + photos.length > MAX_PHOTOS_PER_SERVICE) {
-            return NextResponse.json({ error: `Maximum ${MAX_PHOTOS_PER_SERVICE} photos allowed per service` }, { status: 400 });
-        }
-        const processedPhotos = await Promise.all(photos.map(async (photo) => {
-            if (!photo.base64 || !photo.type) {
-                throw new Error('Invalid photo data');
-            }
-            // Validate base64 format
-            if (!photo.base64.startsWith('data:image/')) {
-                throw new Error('Invalid image format');
-            }
-            // Convert base64 to buffer
-            const base64Data = photo.base64.split(',')[1];
-            const imageBuffer = Buffer.from(base64Data, 'base64');
-            // Check image size
-            if (imageBuffer.length > MAX_IMAGE_SIZE) {
-                throw new Error('Image size exceeds 5MB limit');
-            }
-            // Process image with sharp
-            const processedImage = await sharp(imageBuffer)
-                .resize(COMPRESSED_IMAGE_WIDTH, null, {
-                withoutEnlargement: true,
-                fit: 'inside'
-            })
-                .jpeg({ quality: COMPRESSED_IMAGE_QUALITY })
-                .toBuffer();
-            return {
-                type: photo.type,
-                data: `data:image/jpeg;base64,${processedImage.toString('base64')}`,
-                latitude: photo.latitude,
-                longitude: photo.longitude,
-                timestamp: photo.timestamp
-            };
-        }));
-        const updatedService = await prisma.service.update({
-            where: { id: (await params).serviceId },
-            data: {
-                photos: {
-                    create: processedPhotos.map(photo => ({
-                        type: photo.type,
-                        url: photo.data,
-                        latitude: photo.latitude,
-                        longitude: photo.longitude,
-                        timestamp: photo.timestamp
-                    }))
-                }
+
+        const { userId } = await validateUserToken(token, 'EMPLOYEE');
+        
+        // Get the service and validate employee ownership
+        const service = await prisma.service.findFirst({
+            where: {
+                id: serviceId,
+                employeeId: userId
             },
             include: {
                 photos: true
             }
         });
-        return NextResponse.json(Object.assign(Object.assign({}, updatedService), { remainingPhotoSlots: MAX_PHOTOS_PER_SERVICE - updatedService.photos.length }));
-    }
-    catch (error) {
-        console.error('Error uploading photos:', error);
-        return NextResponse.json({ error: 'Failed to upload photos' }, { status: 500 });
+
+        if (!service) {
+            return NextResponse.json({ error: 'Service not found or not assigned' }, { status: 404 });
+        }
+
+        // Parse request body
+        const body = await request.json();
+        const validatedData = photoUploadSchema.parse(body);
+
+        // Validate photo requirements
+        const beforePhotos = validatedData.photos.filter(p => p.type === 'BEFORE');
+        const afterPhotos = validatedData.photos.filter(p => p.type === 'AFTER');
+        const gatePhotos = validatedData.photos.filter(p => p.type === 'GATE');
+
+        // Check minimum requirements
+        if (beforePhotos.length < 4) {
+            return NextResponse.json({ 
+                error: 'At least 4 BEFORE photos are required' 
+            }, { status: 400 });
+        }
+
+        if (afterPhotos.length < 4) {
+            return NextResponse.json({ 
+                error: 'At least 4 AFTER photos are required' 
+            }, { status: 400 });
+        }
+
+        if (gatePhotos.length < 1) {
+            return NextResponse.json({ 
+                error: 'At least 1 GATE photo is required' 
+            }, { status: 400 });
+        }
+
+        // Use a transaction to create photos and update service
+        const result = await prisma.$transaction(async (tx) => {
+            // Create all photos
+            const createdPhotos = await Promise.all(
+                validatedData.photos.map(async (photo) => {
+                    return await tx.servicePhoto.create({
+                        data: {
+                            id: `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                            url: photo.url,
+                            type: photo.type,
+                            serviceId: serviceId,
+                            description: photo.description,
+                            expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days from now
+                        }
+                    });
+                })
+            );
+
+            // Update service with photo IDs
+            const beforePhotoIds = beforePhotos.map(p => p.url);
+            const afterPhotoIds = afterPhotos.map(p => p.url);
+            const gatePhotoId = gatePhotos[0]?.url;
+
+            await tx.service.update({
+                where: { id: serviceId },
+                data: {
+                    beforePhotoIds,
+                    afterPhotoIds,
+                    gatePhotoId,
+                    updatedAt: new Date()
+                }
+            });
+
+            return createdPhotos;
+        });
+
+        return NextResponse.json({
+            success: true,
+            message: 'Photos uploaded successfully',
+            photos: result,
+            photoCounts: {
+                before: beforePhotos.length,
+                after: afterPhotos.length,
+                gate: gatePhotos.length
+            }
+        });
+
+    } catch (error) {
+        console.error('Photo upload error:', error);
+        
+        if (error instanceof z.ZodError) {
+            return NextResponse.json({
+                error: 'Invalid photo data',
+                details: error.errors
+            }, { status: 400 });
+        }
+
+        return NextResponse.json({
+            error: 'Failed to upload photos'
+        }, { status: 500 });
     }
 }
-// Add GET endpoint to retrieve photos for a service
+
 export async function GET(request, { params }) {
-    var _a;
     try {
-        // Verify authorization (employee or admin)
-        const token = (_a = request.headers.get('Authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
+        const { id: serviceId } = params;
+        
+        // Get and validate token
+        const cookieStore = await cookies();
+        const token = cookieStore.get('accessToken')?.value;
+        
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const decoded = await verifyToken(token);
-        if (!decoded || (decoded.role !== 'EMPLOYEE' && decoded.role !== 'ADMIN')) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+        const { userId } = await validateUserToken(token);
+        
+        // Get the service with photos
+        const service = await prisma.service.findFirst({
+            where: { id: serviceId },
+            include: {
+                photos: {
+                    orderBy: { createdAt: 'asc' }
+                }
+            }
+        });
+
+        if (!service) {
+            return NextResponse.json({ error: 'Service not found' }, { status: 404 });
         }
-        // Get photos for the service
-        const photos = await prisma.servicePhoto.findMany({
-            where: { serviceId: (await params).serviceId },
-            orderBy: { timestamp: 'desc' }
-        });
+
+        // Verify authorization (employee assigned or customer owner)
+        if (service.employeeId !== userId && service.customerId !== userId) {
+            return NextResponse.json({ error: 'Not authorized to view this service' }, { status: 403 });
+        }
+
+        // Organize photos by type
+        const photos = {
+            before: service.photos.filter(p => p.type === 'BEFORE'),
+            after: service.photos.filter(p => p.type === 'AFTER'),
+            gate: service.photos.filter(p => p.type === 'GATE')
+        };
+
         return NextResponse.json({
+            success: true,
             photos,
-            remainingSlots: MAX_PHOTOS_PER_SERVICE - photos.length
+            serviceId: service.id
         });
-    }
-    catch (error) {
+
+    } catch (error) {
         console.error('Error fetching photos:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return NextResponse.json({
+            error: 'Failed to fetch photos'
+        }, { status: 500 });
     }
+}
+
+export async function OPTIONS(request) {
+    const response = new NextResponse(null, { status: 204 });
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*');
+    response.headers.set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
 }

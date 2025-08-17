@@ -37,7 +37,7 @@ export async function GET(request) {
                     include: {
                         customer: {
                             include: {
-                                User: {
+                                user: {
                                     select: {
                                         name: true,
                                         email: true,
@@ -47,7 +47,7 @@ export async function GET(request) {
                         },
                         employee: {
                             include: {
-                                User: {
+                                user: {
                                     select: {
                                         name: true,
                                         email: true,
@@ -75,9 +75,9 @@ export async function GET(request) {
             return ({
                 id: payment.id,
                 employeeId: payment.employeeId,
-                employeeName: ((_b = (_a = payment.service) === null || _a === void 0 ? void 0 : _a.employee) === null || _b === void 0 ? void 0 : _b.User) === null || _b === void 0 ? void 0 : _b.name || 'Unknown Employee',
+                employeeName: ((_b = (_a = payment.service) === null || _a === void 0 ? void 0 : _a.employee) === null || _b === void 0 ? void 0 : _b.user) === null || _b === void 0 ? void 0 : _b.name || 'Unknown Employee',
                 customerId: payment.customerId,
-                customerName: ((_d = (_c = payment.service) === null || _c === void 0 ? void 0 : _c.customer) === null || _d === void 0 ? void 0 : _d.User) === null || _d === void 0 ? void 0 : _d.name || 'Unknown Customer',
+                customerName: ((_d = (_c = payment.service) === null || _c === void 0 ? void 0 : _c.customer) === null || _d === void 0 ? void 0 : _d.user) === null || _d === void 0 ? void 0 : _d.name || 'Unknown Customer',
                 referralId: payment.referredId,
                 referrerName: ((_h = payment.referredBy) === null || _h === void 0 ? void 0 : _h.name) || 'N/A',
                 amount: payment.amount,

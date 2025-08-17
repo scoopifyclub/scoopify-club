@@ -9,7 +9,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMapMarkerAlt, faCalendarAlt, faDollarSign, faUsers } from '@fortawesome/free-solid-svg-icons';
 import PaymentInfoReminder from '@/components/PaymentInfoReminder';
 import { format } from 'date-fns';
-import { JobPool } from './components/JobPool';
+import JobPool from './components/JobPool';
 import { JobPoolSocket } from './components/JobPoolSocket';
 import { ServiceAreaManager } from './components/ServiceAreaManager';
 import { EarningsCalculator } from './components/EarningsCalculator';
@@ -409,68 +409,93 @@ export default function EmployeeDashboard() {
             {/* Job Pool Section */}
             <div className="mb-8">
                 <h2 className="text-xl font-semibold mb-4">Available Jobs</h2>
-                <JobPool employeeId={user?.id} />
+                <div className="bg-white rounded-lg border shadow-sm">
+                    <div className="p-6">
+                        <JobPool employeeId={user?.id} />
+                    </div>
+                </div>
             </div>
 
             {/* Service Area Management */}
             <div className="mb-8">
                 <h2 className="text-xl font-semibold mb-4">Manage Service Areas</h2>
-                <ServiceAreaManager employeeId={user?.id} />
+                <div className="bg-white rounded-lg border shadow-sm">
+                    <div className="p-6">
+                        <ServiceAreaManager employeeId={user?.id} />
+                    </div>
+                </div>
             </div>
 
             {/* Earnings Section */}
             <div className="mb-8">
                 <h2 className="text-xl font-semibold mb-4">Earnings</h2>
-                <EarningsCalculator employeeId={user?.id} />
+                <div className="bg-white rounded-lg border shadow-sm">
+                    <div className="p-6">
+                        <EarningsCalculator employeeId={user?.id} />
+                    </div>
+                </div>
             </div>
 
             {/* Ratings Section */}
             <div className="mb-8">
                 <h2 className="text-xl font-semibold mb-4">Ratings</h2>
-                <ScooperRatings employeeId={user?.id} />
+                <div className="bg-white rounded-lg border shadow-sm">
+                    <div className="p-6">
+                        <ScooperRatings employeeId={user?.id} />
+                    </div>
+                </div>
             </div>
 
             {/* Service History Section */}
             <div className="mb-8">
                 <h2 className="text-xl font-semibold mb-4">Service History</h2>
-                <ServiceHistory employeeId={user?.id} />
+                <div className="bg-white rounded-lg border shadow-sm">
+                    <div className="p-6">
+                        <ServiceHistory employeeId={user?.id} />
+                    </div>
+                </div>
             </div>
 
             {/* Upcoming Services */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Upcoming Services</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <ScrollArea className="h-[400px]">
-                        {dashboardData?.services?.length === 0 ? (
-                            <p className="text-center text-gray-500">No upcoming services</p>
-                        ) : (
-                            <div className="space-y-4">
-                                {dashboardData?.services?.map((service) => (
-                                    <div key={service.id} className="flex items-center space-x-4 p-4 border rounded-lg">
-                                        <Avatar>
-                                            <AvatarImage src={service.customer?.avatar} />
-                                            <AvatarFallback>
-                                                {service.customer?.name?.charAt(0) || 'C'}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex-1">
-                                            <p className="font-medium">{service.customer?.name}</p>
-                                            <p className="text-sm text-gray-500">
-                                                {service.scheduledDate ? new Date(service.scheduledDate).toLocaleDateString() : 'Date TBD'}
-                                            </p>
+            <div className="mb-8">
+                <h2 className="text-xl font-semibold mb-4">Upcoming Services</h2>
+                <Card className="shadow-sm">
+                    <CardHeader>
+                        <CardTitle>Your Schedule</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <ScrollArea className="h-[400px] w-full">
+                            {dashboardData?.services?.length === 0 ? (
+                                <div className="text-center py-8">
+                                    <p className="text-gray-500">No upcoming services scheduled</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4 pr-4">
+                                    {dashboardData?.services?.map((service) => (
+                                        <div key={service.id} className="flex items-center space-x-4 p-4 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
+                                            <Avatar>
+                                                <AvatarImage src={service.customer?.avatar} />
+                                                <AvatarFallback>
+                                                    {service.customer?.name?.charAt(0) || 'C'}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="font-medium truncate">{service.customer?.name}</p>
+                                                <p className="text-sm text-gray-500">
+                                                    {service.scheduledDate ? new Date(service.scheduledDate).toLocaleDateString() : 'Date TBD'}
+                                                </p>
+                                            </div>
+                                            <Button variant="outline" size="sm">
+                                                View Details
+                                            </Button>
                                         </div>
-                                        <Button variant="outline" size="sm">
-                                            View Details
-                                        </Button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </ScrollArea>
-                </CardContent>
-            </Card>
+                                    ))}
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }

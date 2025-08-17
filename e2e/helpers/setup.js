@@ -37,7 +37,8 @@ async function globalSetup(config) {
                     data: {
                         email: userData.email,
                         password: hashedPassword,
-                        name: userData.name,
+                        firstName: userData.name.split(' ')[0] || 'Test',
+        lastName: userData.name.split(' ').slice(1).join(' ') || 'User',
                         role: userData.role,
                         emailverified: true,
                     },

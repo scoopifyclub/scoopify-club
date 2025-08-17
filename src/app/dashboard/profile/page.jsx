@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { CustomerDashboardLayout } from '@/components/layouts/CustomerDashboardLayout';
+
 export default function ProfilePage() {
     var _a, _b, _c, _d;
     const [profile, setProfile] = useState({
@@ -78,13 +80,20 @@ export default function ProfilePage() {
         }
     };
     if (loading) {
-        return (<div className="flex min-h-screen items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold">Loading profile...</h2>
-        </div>
-      </div>);
+        return (
+            <CustomerDashboardLayout>
+                <div className="flex min-h-screen items-center justify-center">
+                    <div className="text-center">
+                        <h2 className="text-2xl font-semibold">Loading profile...</h2>
+                    </div>
+                </div>
+            </CustomerDashboardLayout>
+        );
     }
-    return (<div className="container mx-auto max-w-4xl py-8">
+    
+    return (
+        <CustomerDashboardLayout>
+            <div className="container mx-auto max-w-4xl py-8">
       <h1 className="mb-8 text-3xl font-bold">Profile Settings</h1>
 
       <form onSubmit={handleSubmit} className="space-y-8">
@@ -143,5 +152,7 @@ export default function ProfilePage() {
           </Button>
         </div>
       </form>
-    </div>);
+            </div>
+        </CustomerDashboardLayout>
+    );
 }

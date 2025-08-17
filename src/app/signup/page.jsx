@@ -15,6 +15,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements, } from '@stripe/react-stripe-js';
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+
 const SERVICE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 function SignupForm({ onUncoveredZip }) {
     const router = useRouter();
@@ -40,21 +41,52 @@ function SignupForm({ onUncoveredZip }) {
         isOneTimeService: false,
         referralCode: '',
     });
+    const generateDeviceFingerprint = () => {
+        // Generate a simple device fingerprint based on available browser info
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.textBaseline = 'top';
+        ctx.font = '14px Arial';
+        ctx.fillText('Device fingerprint', 2, 2);
+        
+        const fingerprint = [
+            navigator.userAgent,
+            navigator.language,
+            screen.width + 'x' + screen.height,
+            new Date().getTimezoneOffset(),
+            canvas.toDataURL()
+        ].join('|');
+        
+        return btoa(fingerprint).slice(0, 32); // Base64 encode and truncate
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
 
         // Check zip code coverage BEFORE payment attempt
         try {
-          const res = await fetch('/api/coverage-area/active-zips');
+          const res = await fetch('/api/coverage-area/check-coverage', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ zipCode: formData.zipCode }),
+          });
+          
           if (res.ok) {
-            const coveredZips = await res.json();
-            if (!coveredZips.includes(formData.zipCode)) {
-              toast.error('Sorry, our service is not available in your area yet.');
+            const coverageData = await res.json();
+            if (!coverageData.isCovered) {
+              toast.error(`Sorry, our service is not available in your area yet. ${coverageData.reason || ''}`);
               onUncoveredZip(formData.zipCode);
               setLoading(false);
               return;
             }
+            console.log('Coverage confirmed:', coverageData);
+          } else {
+            toast.error('Could not verify service coverage. Please try again.');
+            setLoading(false);
+            return;
           }
         } catch (err) {
           toast.error('Could not verify service coverage. Please try again.');
@@ -89,7 +121,28 @@ function SignupForm({ onUncoveredZip }) {
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(Object.assign(Object.assign({}, formData), { isOneTimeService: isOneTime, paymentMethodId: paymentMethod.id })),
+                body: JSON.stringify({
+                    email: formData.email,
+                    name: `${formData.firstName} ${formData.lastName}`,
+                    password: formData.password,
+                    firstName: formData.firstName,
+                    lastName: formData.lastName,
+                    phone: formData.phone,
+                    address: {
+                        street: formData.street,
+                        city: formData.city,
+                        state: formData.state,
+                        zipCode: formData.zipCode,
+                        gateCode: formData.gateCode
+                    },
+                    serviceDay: formData.serviceDay,
+                    startDate: formData.startDate,
+                    isOneTimeService: isOneTime,
+                    paymentMethodId: paymentMethod.id,
+                    referralCode: formData.referralCode,
+                    serviceType: formData.serviceType,
+                    deviceFingerprint: generateDeviceFingerprint()
+                }),
             });
             if (!response.ok) {
                 const data = await response.json();
@@ -294,7 +347,7 @@ function SignupForm({ onUncoveredZip }) {
                     iconColor: '#9e2146',
                 },
             },
-            hidePostalCode: true,
+            hidePostalCode: false,
         }}/>
             </div>
           </div>
@@ -305,6 +358,8 @@ function SignupForm({ onUncoveredZip }) {
             <span>Your payment information is encrypted and secure</span>
           </div>
         </div>
+
+
       </div>
 
       <Button type="submit" className="w-full py-6 text-lg font-semibold bg-blue-600 hover:bg-blue-700" disabled={loading}>

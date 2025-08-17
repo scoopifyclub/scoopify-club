@@ -4,22 +4,28 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { useAuth } from '@/hooks/useAuth';
 import { Bell, CheckCircle, AlertTriangle, XCircle, Info } from 'lucide-react';
 
-export function Notifications({ onUnreadCountChange, settings }) {
-  const [notifications, setNotifications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+export function Notifications({ onUnreadCountChange, settings, notifications: propNotifications, employeeId }) {
+  const [notifications, setNotifications] = useState(propNotifications || []);
+  const [loading, setLoading] = useState(!propNotifications);
 
+  // Update local state when props change
   useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
+    if (propNotifications) {
+      setNotifications(propNotifications);
+      setLoading(false);
+    }
+  }, [propNotifications]);
 
   const fetchNotifications = async () => {
+    // Only fetch if we don't have notifications from props
+    if (propNotifications) {
+      return;
+    }
+
     try {
+      setLoading(true);
       const response = await fetch('/api/employee/notifications', {
         credentials: 'include'
       });
@@ -27,10 +33,14 @@ export function Notifications({ onUnreadCountChange, settings }) {
         throw new Error('Failed to fetch notifications');
       }
       const data = await response.json();
+      console.log('🔔 Notifications API response:', data); // Debug log
+      
       // Filter notifications by settings
-      let filtered = data;
+      let filtered = data.notifications || data; // Handle both data.notifications and direct array
+      console.log('🔔 Filtered notifications:', filtered); // Debug log
+      
       if (settings) {
-        filtered = data.filter(n => {
+        filtered = filtered.filter(n => {
           if (n.type === 'ONBOARDING_REMINDER') return settings.onboarding !== false;
           if (n.type === 'job') return settings.job !== false;
           if (n.type === 'payment') return settings.payment !== false;
@@ -38,7 +48,7 @@ export function Notifications({ onUnreadCountChange, settings }) {
         });
       }
       // Play sound if enabled and new notification arrived
-      if (settings && settings.sound && filtered.length > notifications.length) {
+      if (settings && settings.sound && filtered.length > 0) {
         try {
           const ctx = new (window.AudioContext || window.webkitAudioContext)();
           const o = ctx.createOscillator();
@@ -65,6 +75,15 @@ export function Notifications({ onUnreadCountChange, settings }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Only set up polling if we're fetching our own notifications
+    if (!propNotifications) {
+      fetchNotifications();
+      const interval = setInterval(fetchNotifications, 30000); // Poll every 30 seconds
+      return () => clearInterval(interval);
+    }
+  }, []); // Empty dependency array since we only want this to run once
 
   const markAsRead = async (notificationId) => {
     try {
@@ -108,10 +127,17 @@ export function Notifications({ onUnreadCountChange, settings }) {
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {notifications.map((notification) => {
+          {Array.isArray(notifications) && notifications.map((notification) => {
+            // Add safety checks
+            if (!notification || !notification.id) {
+              console.warn('Invalid notification:', notification);
+              return null;
+            }
+
             let icon = <Info className="h-5 w-5 text-blue-500 mr-2" />;
             let bg = 'bg-blue-50';
             let text = 'text-blue-800';
+            
             if (notification.type === 'success') {
               icon = <CheckCircle className="h-5 w-5 text-green-500 mr-2" />;
               bg = 'bg-green-50';
@@ -129,6 +155,7 @@ export function Notifications({ onUnreadCountChange, settings }) {
               bg = 'bg-orange-50 border-l-4 border-orange-400';
               text = 'text-orange-800';
             }
+            
             return (
               <div
                 key={notification.id}
@@ -137,13 +164,13 @@ export function Notifications({ onUnreadCountChange, settings }) {
                 <div className="flex-shrink-0 mt-1">{icon}</div>
                 <div className="flex-1 ml-2">
                   <h3 className="font-medium">
-                    {notification.title}
+                    {notification.title || 'Notification'}
                   </h3>
                   <p className="text-sm text-gray-700 mt-1">
-                    {notification.message}
+                    {notification.message || 'No message'}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {new Date(notification.createdAt).toLocaleString()}
+                    {notification.createdAt ? new Date(notification.createdAt).toLocaleString() : 'Unknown date'}
                   </p>
                 </div>
                 {!notification.read && (
@@ -159,9 +186,9 @@ export function Notifications({ onUnreadCountChange, settings }) {
               </div>
             );
           })}
-          {notifications.length === 0 && (
+          {(!Array.isArray(notifications) || notifications.length === 0) && (
             <p className="text-gray-500 text-center py-4">
-              No notifications yet
+              {!Array.isArray(notifications) ? 'Loading notifications...' : 'No notifications yet'}
             </p>
           )}
         </div>

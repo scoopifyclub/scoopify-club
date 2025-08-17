@@ -28,7 +28,7 @@ export async function GET(request, { params }) {
                             include: {
                                 customer: {
                                     include: {
-                                        User: {
+                                        user: {
                                             select: {
                                                 name: true,
                                                 email: true,
@@ -83,7 +83,7 @@ export async function PUT(request, { params }) {
                             include: {
                                 customer: {
                                     include: {
-                                        User: true,
+                                        user: true,
                                     },
                                 },
                             },

@@ -18,7 +18,7 @@ export function CustomerDashboardLayout({ children }) {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState('overview');
     // Determine if on dashboard
-    const isDashboard = pathname === '/customer/dashboard';
+    const isDashboard = pathname.startsWith('/dashboard');
     
     // Add handleLogout function
     const handleLogout = async () => {
@@ -39,20 +39,17 @@ export function CustomerDashboardLayout({ children }) {
         }
     };
     
-    // Function to set active tab and update URL
+    // Function to set active tab and navigate to the appropriate page
     const setDashboardTab = (tab) => {
         setActiveTab(tab);
         localStorage.setItem('dashboard_active_tab', tab);
-        // Update URL without page reload
-        const newUrl = new URL(window.location.href);
-        newUrl.searchParams.set('tab', tab);
-        window.history.pushState({}, '', newUrl.toString());
-        // Dispatch storage event to sync across components
-        window.dispatchEvent(new StorageEvent('storage', {
-            key: 'dashboard_active_tab',
-            newValue: tab,
-            storageArea: localStorage
-        }));
+        
+        // Navigate to the appropriate page based on tab
+        if (tab === 'overview') {
+            router.push('/dashboard');
+        } else {
+            router.push(`/dashboard/${tab}`);
+        }
     };
     
     // Listen for tab changes
@@ -66,12 +63,12 @@ export function CustomerDashboardLayout({ children }) {
         if (isDashboard && typeof window !== 'undefined') {
             const urlParams = new URLSearchParams(window.location.search);
             const tabParam = urlParams.get('tab');
-            if (tabParam && ['overview', 'services', 'billing', 'profile'].includes(tabParam)) {
+            if (tabParam && ['overview', 'services', 'schedule', 'billing', 'profile', 'subscription'].includes(tabParam)) {
                 setActiveTab(tabParam);
             }
             // Also check localStorage
             const storedTab = localStorage.getItem('dashboard_active_tab');
-            if (storedTab && ['overview', 'services', 'billing', 'profile'].includes(storedTab)) {
+            if (storedTab && ['overview', 'services', 'schedule', 'billing', 'profile', 'subscription'].includes(storedTab)) {
                 setActiveTab(storedTab);
             }
             window.addEventListener('storage', handleStorageChange);
@@ -101,6 +98,12 @@ export function CustomerDashboardLayout({ children }) {
               <Calendar className={`w-5 h-5 mr-3 ${activeTab === 'services' ? 'text-white' : 'text-blue-500'}`}/>
               <span className="font-medium">My Services</span>
             </button>
+            <button onClick={() => setDashboardTab('schedule')} className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${activeTab === 'schedule'
+            ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+            : 'text-gray-700 hover:bg-blue-50'}`}>
+              <Calendar className={`w-5 h-5 mr-3 ${activeTab === 'schedule' ? 'text-white' : 'text-blue-500'}`}/>
+              <span className="font-medium">Schedule New</span>
+            </button>
             <button onClick={() => setDashboardTab('billing')} className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${activeTab === 'billing'
             ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
             : 'text-gray-700 hover:bg-blue-50'}`}>
@@ -112,6 +115,13 @@ export function CustomerDashboardLayout({ children }) {
             : 'text-gray-700 hover:bg-blue-50'}`}>
               <User className={`w-5 h-5 mr-3 ${activeTab === 'profile' ? 'text-white' : 'text-blue-500'}`}/>
               <span className="font-medium">Profile Settings</span>
+            </button>
+            
+            <button onClick={() => setDashboardTab('subscription')} className={`w-full flex items-center px-4 py-3 rounded-xl transition-colors ${activeTab === 'subscription'
+            ? 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'
+            : 'text-gray-700 hover:bg-blue-50'}`}>
+              <CreditCard className={`w-5 h-5 mr-3 ${activeTab === 'subscription' ? 'text-white' : 'text-blue-500'}`}/>
+              <span className="font-medium">Subscription</span>
             </button>
             
             {/* Add Logout Button */}

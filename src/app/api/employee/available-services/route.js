@@ -1,78 +1,40 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/api-auth';
-import { startOfDay, endOfDay, setHours, format, isAfter, isBefore } from 'date-fns';
+import { prisma } from "@/lib/prisma";
+import { validateUserToken } from '@/lib/jwt-utils';
+import { cookies } from 'next/headers';
 import { calculateDistance } from '@/lib/geolocation';
+import { setHours, startOfDay, endOfDay, isAfter, isBefore } from 'date-fns';
 
-// Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
-
 
 export async function GET(request) {
     try {
-        // Extract token for authorization
-        const token = request.headers.get('Authorization')?.split(' ')[1];
+        // Get and validate token
+        const cookieStore = await cookies();
+        const token = cookieStore.get('accessToken')?.value;
+        
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const { userId } = await validateUserToken(token, 'EMPLOYEE');
         
-        const decoded = await verifyToken(token);
-        if (!decoded || decoded.role !== 'EMPLOYEE') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Get employee location from query params if available
-        const url = new URL(request.url);
-        const latitude = parseFloat(url.searchParams.get('latitude') || '0');
-        const longitude = parseFloat(url.searchParams.get('longitude') || '0');
-        const hasLocation = latitude !== 0 && longitude !== 0;
-
-        // Get current date and set time boundaries
-        const today = new Date();
-        const now = new Date();
-        const eightAM = setHours(startOfDay(today), 8); // 8 AM today
-        const sevenPM = setHours(startOfDay(today), 19); // 7 PM today
-
-        // Check if current time is before 8 AM
-        if (isBefore(now, eightAM)) {
-            const timeUntilUnlock = eightAM.getTime() - now.getTime();
-            const minutesUntilUnlock = Math.ceil(timeUntilUnlock / (1000 * 60));
-            
-            return NextResponse.json({
-                services: [],
-                message: `Jobs unlock at 8:00 AM (${minutesUntilUnlock} minutes remaining)`,
-                unlockTime: eightAM.toISOString(),
-                timeUntilUnlock: minutesUntilUnlock
-            });
-        }
-
-        // Check if current time is after 7 PM
-        if (isAfter(now, sevenPM)) {
-            return NextResponse.json({
-                services: [],
-                message: "Services are only available between 8:00 AM and 7:00 PM"
-            });
-        }
-
-        // Get the current day of the week
-        const currentDayOfWeek = format(today, 'EEEE');
-
-        // Get employee with their current active service and rating
-        const employee = await prisma.employee.findUnique({
-            where: { userId: decoded.userId },
+        // Get the employee with their service areas and current services
+        const employee = await prisma.employee.findFirst({
+            where: { userId },
             include: {
+                serviceAreas: true,
                 services: {
                     where: {
                         scheduledDate: {
-                            gte: startOfDay(today),
-                            lt: endOfDay(today)
+                            gte: startOfDay(new Date()),
+                            lt: endOfDay(new Date())
                         },
                         status: {
-                            in: ['IN_PROGRESS'] // Use correct enum value
+                            in: ['PENDING', 'IN_PROGRESS']
                         }
                     }
-                },
-                serviceAreas: true
+                }
             }
         });
 
@@ -80,91 +42,165 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
         }
 
-        // Check if employee has an active service (currently working on a job)
-        const hasActiveService = employee.services.length > 0;
-
-        // Get employee's average rating
-        const employeeRating = employee.averageRating || 0;
-        const canQueueJobs = employeeRating >= 4.5;
-
-        // If employee has an active service and can't queue, return empty list
-        if (hasActiveService && !canQueueJobs) {
-            return NextResponse.json({
-                services: [],
-                message: "You have an active service. Complete it before claiming another. (Rating-based queuing requires 4.5+ stars)"
-            });
+        // Check if current time is between 8am and 7pm
+        const now = new Date();
+        const today = new Date();
+        const eightAM = setHours(startOfDay(today), 8);
+        const sevenPM = setHours(startOfDay(today), 19);
+        
+        if (isBefore(now, eightAM) || isAfter(now, sevenPM)) {
+            return NextResponse.json({ 
+                error: 'Services can only be viewed between 8:00 AM and 7:00 PM' 
+            }, { status: 400 });
         }
 
-        // Only show services that are:
-        // 1. SCHEDULED status
-        // 2. Not claimed by any employee
-        // 3. Unlocked (isLocked: false)
-        // 4. Scheduled for today between 8 AM and 7 PM
-        // 5. Match the customer's preferred service day
-        // 6. In employee's service areas
+        // Get employee's current location (from last service or service area)
+        let employeeLatitude, employeeLongitude;
+        const hasLocation = request.nextUrl.searchParams.has('latitude') && request.nextUrl.searchParams.has('longitude');
+        
+        if (hasLocation) {
+            employeeLatitude = parseFloat(request.nextUrl.searchParams.get('latitude'));
+            employeeLongitude = parseFloat(request.nextUrl.searchParams.get('longitude'));
+        } else {
+            // Try to get location from last completed service
+            const lastService = await prisma.service.findFirst({
+                where: {
+                    employeeId: employee.id,
+                    status: 'COMPLETED',
+                    location: {
+                        isNot: null
+                    }
+                },
+                include: {
+                    location: true
+                },
+                orderBy: {
+                    completedDate: 'desc'
+                }
+            });
+
+            if (lastService?.location) {
+                employeeLatitude = lastService.location.latitude;
+                employeeLongitude = lastService.location.longitude;
+            } else if (employee.serviceAreas.length > 0) {
+                // Use first service area as approximate location
+                // This would need to be enhanced with actual coordinates for service areas
+                employeeLatitude = 39.7392; // Default coordinates (would come from service area)
+                employeeLongitude = -104.9903;
+            }
+        }
+
+        // Get employee's service area zip codes
+        const employeeZipCodes = employee.serviceAreas.map(area => area.zipCode);
+
+        // Get available services in employee's service areas
         const services = await prisma.service.findMany({
             where: {
                 status: 'SCHEDULED',
                 employeeId: null,
-                isLocked: false, // Only show unlocked jobs
-                scheduledDate: {
-                    gte: eightAM,
-                    lte: sevenPM
-                },
                 customer: {
-                    serviceDay: currentDayOfWeek
-                },
-                address: {
-                    zipCode: {
-                        in: employee.serviceAreas.map(area => area.zipCode)
+                    address: {
+                        zipCode: {
+                            in: employeeZipCodes
+                        }
                     }
                 }
             },
             include: {
                 customer: {
-                    select: {
-                        name: true,
-                        phone: true,
-                        address: true,
-                        gateCode: true,
-                        serviceDay: true
+                    include: {
+                        user: {
+                            select: {
+                                name: true
+                            }
+                        },
+                        address: true
                     }
                 },
-                servicePlan: true
+                servicePlan: {
+                    select: {
+                        name: true,
+                        price: true,
+                        duration: true
+                    }
+                }
+            },
+            orderBy: {
+                scheduledDate: 'asc'
             }
         });
 
-        // Sort services by proximity if location is provided
+        // Calculate distance for each service and add distance information
         let sortedServices = [...services];
-        if (hasLocation) {
-            // Calculate distance for each service
+        if (employeeLatitude && employeeLongitude) {
             sortedServices = services.map(service => {
                 const customerAddress = service.customer.address;
+                let distance = null;
+                
                 if (customerAddress?.latitude && customerAddress?.longitude) {
-                    const distance = calculateDistance(
-                        latitude, 
-                        longitude, 
+                    // Calculate actual distance using coordinates
+                    distance = calculateDistance(
+                        employeeLatitude, 
+                        employeeLongitude, 
                         customerAddress.latitude, 
                         customerAddress.longitude
                     );
-                    return { ...service, distance };
+                } else if (customerAddress?.zipCode) {
+                    // Estimate distance based on zip code (rough approximation)
+                    // This is a simplified calculation - in production you'd want more accurate zip-to-coordinate mapping
+                    const zipDistance = Math.abs(parseInt(customerAddress.zipCode) - parseInt(employeeZipCodes[0])) / 100;
+                    distance = Math.min(zipDistance, 50); // Cap at 50 miles for estimates
                 }
-                return { ...service, distance: 9999 }; // Large distance for unknown locations
+
+                return { 
+                    ...service, 
+                    distance,
+                    distanceText: distance ? `${distance} miles` : 'Distance unknown'
+                };
             });
 
-            // Sort by distance (closest first)
-            sortedServices.sort((a, b) => a.distance - b.distance);
+            // Sort by distance (closest first) if we have distance data
+            const servicesWithDistance = sortedServices.filter(s => s.distance !== null);
+            const servicesWithoutDistance = sortedServices.filter(s => s.distance === null);
+            
+            servicesWithDistance.sort((a, b) => a.distance - b.distance);
+            sortedServices = [...servicesWithDistance, ...servicesWithoutDistance];
         }
 
-        // Limit to closest 10 jobs
-        const closestJobs = sortedServices.slice(0, 10);
+        // Check employee's rating for queuing eligibility
+        const employeeRating = employee.averageRating || 0;
+        const canQueueJobs = employeeRating >= 4.5;
+        const hasActiveService = employee.services.length > 0;
+
+        // Limit to closest 15 jobs
+        const closestJobs = sortedServices.slice(0, 15);
 
         // Add employee status information
         const response = {
-            services: closestJobs,
-            message: `Found ${closestJobs.length} available jobs (showing closest 10)`,
+            services: closestJobs.map(service => ({
+                id: service.id,
+                customerName: service.customer.user?.name || 'Unknown Customer',
+                address: service.customer.address ? {
+                    street: service.customer.address.street,
+                    city: service.customer.address.city,
+                    state: service.customer.address.state,
+                    zipCode: service.customer.address.zipCode,
+                    latitude: service.customer.address.latitude,
+                    longitude: service.customer.address.longitude
+                } : null,
+                scheduledDate: service.scheduledDate,
+                servicePlan: service.servicePlan,
+                distance: service.distance,
+                distanceText: service.distanceText,
+                estimatedEarnings: service.servicePlan?.price || 0
+            })),
+            message: `Found ${closestJobs.length} available jobs${employeeLatitude && employeeLongitude ? ' (sorted by distance)' : ''}`,
             unlockTime: eightAM.toISOString(),
             currentTime: now.toISOString(),
+            employeeLocation: employeeLatitude && employeeLongitude ? {
+                latitude: employeeLatitude,
+                longitude: employeeLongitude
+            } : null,
             employeeStatus: {
                 hasActiveService,
                 canQueueJobs,
@@ -184,6 +220,17 @@ export async function GET(request) {
 
     } catch (error) {
         console.error('Error fetching available services:', error);
-        return NextResponse.json({ error: 'Failed to fetch available services' }, { status: 500 });
+        return NextResponse.json({ 
+            error: 'Failed to fetch available services' 
+        }, { status: 500 });
     }
+}
+
+export async function OPTIONS(request) {
+    const response = new NextResponse(null, { status: 204 });
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    return response;
 }

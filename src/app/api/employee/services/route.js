@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
+import prisma from '@/lib/prisma';
 import { verifyToken, getAuthUserFromCookies } from '@/lib/api-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
@@ -27,10 +27,10 @@ export async function GET(request) {
             },
             include: {
                 customer: {
-                    include: {
-                        address: true,
-                        user: true
-                    }
+                                                         include: {
+             address: true,
+             user: true
+         }
                 },
                 servicePlan: true,
                 photos: true

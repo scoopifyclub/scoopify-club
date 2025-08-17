@@ -38,10 +38,10 @@ export async function POST(request) {
         }
 
         const body = await request.json();
-        const { email, name, password, deviceFingerprint, role = 'CUSTOMER', address, firstName, lastName, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, travelDistance, coveredZips } = body;
+        const { email, firstName, lastName, password, deviceFingerprint, role = 'CUSTOMER', address, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, travelDistance, coveredZips } = body;
         // Validate required fields based on role
-        if (!email || !name || !password) {
-            return NextResponse.json({ error: 'Email, name, and password are required' }, { status: 400 });
+        if (!email || !firstName || !lastName || !password) {
+            return NextResponse.json({ error: 'Email, first name, last name, and password are required' }, { status: 400 });
         }
         // deviceFingerprint is only required for customers
         if (role === 'CUSTOMER' && !deviceFingerprint) {
@@ -80,18 +80,30 @@ export async function POST(request) {
 
         // Only create Stripe customer and handle referrals for customer signups
         if (role === 'CUSTOMER') {
-            // Check if the customer's ZIP code is covered by any active scooper
+            // Check if the customer's ZIP code is covered by any active scooper using proximity
             if (!address?.zipCode) {
                 return NextResponse.json({ error: 'ZIP code is required for customers' }, { status: 400 });
             }
-            const isCovered = await prisma.coverageArea.findFirst({
-                where: {
-                    zipCode: address.zipCode,
-                    active: true
+            
+            // Get all active coverage areas and check proximity
+            const activeCoverageAreas = await prisma.coverageArea.findMany({
+                where: { active: true },
+                select: {
+                    id: true,
+                    zipCode: true,
+                    employeeId: true,
+                    travelDistance: true
                 }
             });
-            if (!isCovered) {
-                return NextResponse.json({ error: 'Sorry, we do not currently service your area.' }, { status: 400 });
+            
+            // Import and use proximity check
+            const { checkCustomerCoverage } = await import('@/lib/zip-proximity');
+            const coverageResult = checkCustomerCoverage(address.zipCode, activeCoverageAreas);
+            
+            if (!coverageResult.isCovered) {
+                return NextResponse.json({ 
+                    error: `Sorry, we do not currently service your area. ${coverageResult.reason || 'No active scoopers within range.'}` 
+                }, { status: 400 });
             }
             // Create Stripe customer
             stripeCustomer = await stripeInstance.customers.create({
@@ -123,13 +135,20 @@ export async function POST(request) {
         }
 
         // Create user and profile in transaction
-        const { user, customer, employee } = await prisma.$transaction(async (tx) => {
+        console.log('Starting database transaction for role:', role);
+        console.log('Covered ZIPs:', coveredZips);
+        console.log('Travel distance:', travelDistance);
+        
+        let transactionResult;
+        try {
+            transactionResult = await prisma.$transaction(async (tx) => {
             // Create user
             const newUser = await tx.user.create({
                 data: {
                     id: crypto.randomUUID(),
                     email,
-                    name,
+                    firstName,
+                    lastName,
                     password: hashedPassword,
                     role,
                     deviceFingerprint,
@@ -144,6 +163,7 @@ export async function POST(request) {
             let employee = null;
 
             if (role === 'EMPLOYEE') {
+                console.log('Creating employee with phone:', phone);
                 // Create employee first
                 employee = await tx.employee.create({
                     data: {
@@ -156,22 +176,7 @@ export async function POST(request) {
                         hasSetServiceArea: !!address?.zipCode // Set to true if zipCode provided
                     }
                 });
-
-                // Create coverage areas for all zip codes in coveredZips, or just the entered zip if not provided
-                const zipCodesToCover = Array.isArray(coveredZips) && coveredZips.length > 0 ? coveredZips : (address?.zipCode ? [address.zipCode] : []);
-                for (const zip of zipCodesToCover) {
-                    await tx.coverageArea.create({
-                        data: {
-                            id: crypto.randomUUID(),
-                            employeeId: employee.id,
-                            zipCode: zip,
-                            active: true,
-                            travelDistance: travelDistance || 20, // Default to 20 miles
-                            createdAt: new Date(),
-                            updatedAt: new Date()
-                        }
-                    });
-                }
+                console.log('Employee created successfully:', employee.id);
             } else if (role === 'CUSTOMER') {
                 customer = await tx.customer.create({
                     data: {
@@ -208,7 +213,46 @@ export async function POST(request) {
                 customer, 
                 employee 
             };
-        });
+            });
+            
+            console.log('Database transaction completed successfully');
+        } catch (transactionError) {
+            console.error('Database transaction failed:', transactionError);
+            throw new Error(`Database transaction failed: ${transactionError.message}`);
+        }
+        
+        const { user, customer, employee } = transactionResult;
+
+        // Create coverage areas for employees (outside transaction to avoid timeout)
+        if (role === 'EMPLOYEE' && employee) {
+            console.log('Creating coverage areas outside transaction...');
+            const zipCodesToCover = Array.isArray(coveredZips) && coveredZips.length > 0 ? coveredZips : (address?.zipCode ? [address.zipCode] : []);
+            console.log('ZIP codes to cover:', zipCodesToCover);
+            console.log('Travel distance for coverage areas:', travelDistance);
+            
+            try {
+                for (const zip of zipCodesToCover) {
+                    console.log('Creating coverage area for ZIP:', zip);
+                    await prisma.coverageArea.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            employeeId: employee.id,
+                            zipCode: zip,
+                            active: true,
+                            travelDistance: travelDistance || 20, // Default to 20 miles
+                            createdAt: new Date(),
+                            updatedAt: new Date()
+                        }
+                    });
+                    console.log('Coverage area created for ZIP:', zip);
+                }
+                console.log('All coverage areas created successfully');
+            } catch (coverageError) {
+                console.error('Error creating coverage areas:', coverageError);
+                // Don't fail the entire signup if coverage areas fail
+                // The employee can still be created and coverage areas can be added later
+            }
+        }
 
         // Only handle subscriptions and payments for customers
         if (role === 'CUSTOMER') {
@@ -272,6 +316,26 @@ export async function POST(request) {
                     default:
                         return NextResponse.json({ error: 'Invalid service type' }, { status: 400 });
                 }
+
+                // Find the corresponding ServicePlan in the database
+                const servicePlan = await prisma.servicePlan.findFirst({
+                    where: {
+                        OR: [
+                            { name: serviceType },
+                            { code: serviceType },
+                            { stripePriceId: priceId }
+                        ],
+                        isActive: true
+                    }
+                });
+
+                if (!servicePlan) {
+                    console.error(`ServicePlan not found for serviceType: ${serviceType}, priceId: ${priceId}`);
+                    return NextResponse.json({ 
+                        error: 'Service plan not found. Please contact support.' 
+                    }, { status: 400 });
+                }
+
                 // Create subscription
                 const stripeSubscription = await stripeInstance.subscriptions.create({
                     customer: stripeCustomer.id,
@@ -287,8 +351,9 @@ export async function POST(request) {
                     data: {
                         customerId: customer.id,
                         status: stripeSubscription.status,
-                        planId: serviceType,
-                        startDate: new Date()
+                        planId: servicePlan.id, // Use the actual ServicePlan ID
+                        startDate: new Date(),
+                        nextBillingDate: new Date(stripeSubscription.current_period_end * 1000)
                     },
                 });
                 // Schedule first service based on preferred day
@@ -298,7 +363,7 @@ export async function POST(request) {
                         customerId: customer.id,
                         scheduledDate: new Date(startDate),
                         status: 'SCHEDULED',
-                        servicePlanId: serviceType
+                        servicePlanId: servicePlan.id // Use the actual ServicePlan ID
                     },
                 });
             }
@@ -318,6 +383,26 @@ export async function POST(request) {
                     },
                     confirm: true,
                 });
+
+                // Find the corresponding ServicePlan for one-time service
+                const oneTimeServicePlan = await prisma.servicePlan.findFirst({
+                    where: {
+                        OR: [
+                            { name: serviceType },
+                            { code: serviceType },
+                            { type: 'ONE_TIME' }
+                        ],
+                        isActive: true
+                    }
+                });
+
+                if (!oneTimeServicePlan) {
+                    console.error(`One-time ServicePlan not found for serviceType: ${serviceType}`);
+                    return NextResponse.json({ 
+                        error: 'One-time service plan not found. Please contact support.' 
+                    }, { status: 400 });
+                }
+
                 // Create one-time service
                 await prisma.service.create({
                     data: {
@@ -325,7 +410,7 @@ export async function POST(request) {
                         customerId: customer.id,
                         scheduledDate: new Date(startDate),
                         status: 'SCHEDULED',
-                        servicePlanId: serviceType
+                        servicePlanId: oneTimeServicePlan.id // Use the actual ServicePlan ID
                     },
                 });
             }

@@ -1,63 +1,79 @@
 import { NextResponse } from 'next/server';
-import { sendEmail, handleEmailRequest } from '@/lib/email-service';
-
-export async function POST(request) {
-  try {
-    const { to, template, data } = await request.json();
-
-    // Validate input
-    if (!to || !template) {
-      return NextResponse.json({ 
-        error: 'Email address and template are required' 
-      }, { status: 400 });
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(to)) {
-      return NextResponse.json({ 
-        error: 'Invalid email format' 
-      }, { status: 400 });
-    }
-
-    // Send test email
-    const result = await sendEmail(to, template, data || {});
-
-    return NextResponse.json({
-      success: true,
-      message: 'Test email sent successfully',
-      result
-    });
-
-  } catch (error) {
-    console.error('Email test failed:', error);
-    return NextResponse.json({
-      error: 'Failed to send test email',
-      details: error.message
-    }, { status: 500 });
-  }
-}
+import { testEmailConnection } from '@/lib/unified-email-service';
 
 export async function GET() {
-  try {
-    // Test email configuration
-    const configValid = !!process.env.NAMECHEAP_EMAIL_USER && !!process.env.NAMECHEAP_EMAIL_PASS;
-    
-    return NextResponse.json({
-      success: true,
-      configValid,
-      providers: {
-        namecheap: !!process.env.NAMECHEAP_EMAIL_USER,
-        smtp: !!process.env.NAMECHEAP_SMTP_HOST
-      },
-      primaryProvider: 'namecheap'
-    });
+    try {
+        console.log('Testing email connection...');
+        
+        // Log environment variables for debugging
+        console.log('Environment variables:', {
+            SMTP_HOST: process.env.SMTP_HOST,
+            SMTP_PORT: process.env.SMTP_PORT,
+            SMTP_USER: process.env.SMTP_USER,
+            SMTP_PASSWORD: process.env.SMTP_PASSWORD ? '***' : 'NOT_SET',
+            EMAIL_FROM: process.env.EMAIL_FROM
+        });
 
-  } catch (error) {
-    console.error('Email config test failed:', error);
-    return NextResponse.json({
-      error: 'Failed to test email configuration',
-      details: error.message
-    }, { status: 500 });
-  }
+        const result = await testEmailConnection();
+        
+        if (result.success) {
+            return NextResponse.json({
+                success: true,
+                message: 'Email connection successful',
+                config: {
+                    host: process.env.SMTP_HOST,
+                    port: process.env.SMTP_PORT,
+                    user: process.env.SMTP_USER,
+                    from: process.env.EMAIL_FROM
+                }
+            });
+        } else {
+            return NextResponse.json({
+                success: false,
+                error: result.error,
+                config: {
+                    host: process.env.SMTP_HOST,
+                    port: process.env.SMTP_PORT,
+                    user: process.env.SMTP_USER
+                }
+            }, { status: 500 });
+        }
+    } catch (error) {
+        console.error('Error testing email connection:', error);
+        return NextResponse.json({
+            success: false,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        }, { status: 500 });
+    }
+}
+
+export async function POST(request) {
+    try {
+        const { to, template, data } = await request.json();
+        
+        if (!to || !template) {
+            return NextResponse.json({
+                error: 'Missing required fields: to, template'
+            }, { status: 400 });
+        }
+
+        // Import the email service dynamically
+        const { sendEmail } = await import('@/lib/unified-email-service');
+        const result = await sendEmail(to, template, data || {});
+        
+        return NextResponse.json({
+            success: true,
+            message: 'Test email sent successfully',
+            result: result
+        });
+
+    } catch (error) {
+        console.error('Test email send error:', error);
+        return NextResponse.json({
+            success: false,
+            error: 'Failed to send test email',
+            details: error.message
+        }, { status: 500 });
+    }
 } 

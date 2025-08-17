@@ -110,7 +110,7 @@ async function getRouteData(employee) {
   const waypoints = todaysServices.map((service, index) => ({
     id: service.id,
     position: index + 1,
-    customerName: service.customer.User?.name || 'Unknown Customer',
+                    customerName: service.customer.user?.name || 'Unknown Customer',
     address: service.customer.address ? {
       street: service.customer.address.street,
       city: service.customer.address.city,
@@ -170,12 +170,12 @@ async function getJobsData(employee) {
     },
     include: {
       customer: {
-        include: {
-          User: {
-            select: {
-              name: true
-            }
-          },
+                   include: {
+             user: {
+               select: {
+                 name: true
+               }
+             },
           address: true
         }
       }
@@ -187,7 +187,7 @@ async function getJobsData(employee) {
 
   const jobsData = availableJobs.map(job => ({
     id: job.id,
-    customerName: job.customer.User?.name || 'Unknown Customer',
+                    customerName: job.customer.user?.name || 'Unknown Customer',
     address: job.customer.address ? {
       street: job.customer.address.street,
       city: job.customer.address.city,

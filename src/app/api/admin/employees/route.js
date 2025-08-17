@@ -25,7 +25,7 @@ export async function GET(request) {
         const employees = await withAdminDatabase(async (prisma) => {
             return await prisma.employee.findMany({
                 include: {
-                    User: {
+                    user: {
                         select: {
                             id: true,
                             name: true,

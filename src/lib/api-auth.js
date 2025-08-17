@@ -65,7 +65,8 @@ export async function getAuthUserFromCookies(request) {
         select: {
           id: true,
           email: true,
-          name: true,
+          firstName: true,
+          lastName: true,
           role: true,
         }
       });
@@ -97,7 +98,8 @@ export async function validateUser(token, role = null) {
             user: {
               select: {
                 email: true,
-                name: true
+                firstName: true,
+                lastName: true
               }
             }
           }

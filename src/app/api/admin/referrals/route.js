@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/api-auth';
+import { validateUserToken } from '@/lib/jwt-utils';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -12,7 +12,7 @@ export async function GET(req) {
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const decoded = await verifyToken(token);
+        const decoded = await validateUserToken(token);
         if (!decoded || decoded.role !== 'ADMIN') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
@@ -20,7 +20,7 @@ export async function GET(req) {
             include: {
                 referrer: {
                     include: {
-                        User: {
+                        user: {
                             select: {
                                 name: true,
                                 email: true,
@@ -30,7 +30,7 @@ export async function GET(req) {
                 },
                 referred: {
                     include: {
-                        User: {
+                        user: {
                             select: {
                                 name: true,
                                 email: true,
@@ -45,8 +45,8 @@ export async function GET(req) {
         });
         const formattedReferrals = referrals.map(referral => ({
             ...referral,
-            referrerName: referral.referrer?.User?.name || 'Unknown Referrer',
-            referredName: referral.referred?.User?.name || 'Unknown Referred',
+            referrerName: referral.referrer?.user?.name || 'Unknown Referrer',
+            referredName: referral.referred?.user?.name || 'Unknown Referred',
         }));
         const stats = {
             totalReferrals: referrals.length,
@@ -71,7 +71,7 @@ export async function PATCH(req) {
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const decoded = await verifyToken(token);
+        const decoded = await validateUserToken(token);
         if (!decoded || decoded.role !== 'ADMIN') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
@@ -87,12 +87,12 @@ export async function PATCH(req) {
             include: {
                 referrer: {
                     include: {
-                        User: true,
+                        user: true,
                     },
                 },
                 referred: {
                     include: {
-                        User: true,
+                        user: true,
                     },
                 },
             },
@@ -113,7 +113,7 @@ export async function PATCH(req) {
             // Create a notification for the referrer
             await prisma.notification.create({
                 data: {
-                    userId: referral.referrer.User.id,
+                    userId: referral.referrer.user.id,
                     type: 'REFERRAL_PAID',
                     title: 'Referral Reward Paid',
                     message: `Your referral reward of $10.00 has been paid out via Cash App. Transaction ID: ${cashAppTransactionId || 'N/A'}`

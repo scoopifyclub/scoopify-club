@@ -49,8 +49,10 @@ export function ServiceAreaManager({ employeeId, onOnboardingComplete }) {
       setLoading(false);
     } catch (error) {
       console.error('Error fetching service areas:', error);
-      toast.error('Failed to load service areas');
+      // Don't show toast error, just log it
       setLoading(false);
+      // Set empty service areas instead of breaking
+      setServiceAreas([]);
     }
   };
 
@@ -148,12 +150,47 @@ export function ServiceAreaManager({ employeeId, onOnboardingComplete }) {
 
   if (loading) {
     return (
-      <Card className="p-6">
-        <div className="space-y-4">
+      <Card>
+        <div className="space-y-4 p-6">
           <div className="h-4 bg-gray-200 rounded w-32" />
           <div className="h-4 bg-gray-200 rounded w-24" />
           <div className="h-4 bg-gray-200 rounded w-20" />
         </div>
+      </Card>
+    );
+  }
+
+  // Show message when no service areas or when API fails
+  if (serviceAreas.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Manage Service Areas</CardTitle>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="text-center text-gray-500">
+            <p>No service areas configured yet</p>
+            <p className="text-sm mb-4">Add your first service area to get started</p>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter ZIP code"
+                  value={newArea.zipCode}
+                  onChange={(e) => setNewArea({ ...newArea, zipCode: e.target.value })}
+                  className="flex-1"
+                />
+                <Input
+                  type="number"
+                  placeholder="Travel range (miles)"
+                  value={newArea.travelRange}
+                  onChange={(e) => setNewArea({ ...newArea, travelRange: parseInt(e.target.value) || 10 })}
+                  className="w-32"
+                />
+                <Button onClick={handleAddArea}>Add Area</Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
       </Card>
     );
   }

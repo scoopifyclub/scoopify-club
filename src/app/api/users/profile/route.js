@@ -1,118 +1,129 @@
 import { NextResponse } from 'next/server';
-import { requireAuth } from '@/lib/api-auth';
-import prisma from "@/lib/prisma";
-
-// Force Node.js runtime for Prisma and other Node.js APIs
-export const runtime = 'nodejs';
+import { cookies } from 'next/headers';
+import { validateUserToken } from '@/lib/jwt-utils';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(request) {
     try {
-        const user = await requireAuth(request);
-        const profile = await prisma.user.findUnique({
-            where: { id: user.id },
-            include: {
-                customer: true,
-                employee: true,
-            },
-        });
-        if (!profile) {
-            return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+        const cookieStore = await cookies();
+        
+        // Try to get token from various cookie names
+        const token = cookieStore.get('accessToken')?.value || 
+                     cookieStore.get('token')?.value || 
+                     cookieStore.get('accessToken_client')?.value;
+
+        if (!token) {
+            return NextResponse.json({ error: 'No token found' }, { status: 401 });
         }
-        return NextResponse.json(profile);
-    }
-    catch (error) {
-        if (error instanceof Error) {
-            if (error.message === 'Unauthorized') {
-                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-            }
-            if (error.message === 'Forbidden') {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-            }
+
+        // Validate the token
+        const userData = await validateUserToken(token);
+        if (!userData) {
+            return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
-        return NextResponse.json({ error: 'An unexpected error occurred' }, { status: 500 });
-    }
-}
-export async function PUT(request) {
-    try {
-        const user = await requireAuth(request);
-        const data = await request.json();
-        // Validate required fields
-        if (!data.name || !data.email) {
-            return NextResponse.json({ error: 'Name and email are required' }, { status: 400 });
-        }
-        // Check if email is already in use by another user
-        const existingUser = await prisma.user.findFirst({
-            where: {
-                email: data.email,
-                id: { not: user.id }
-            }
-        });
-        if (existingUser) {
-            return NextResponse.json({ error: 'Email is already in use' }, { status: 400 });
-        }
-        // Update user profile
-        const updatedUser = await prisma.user.update({
-            where: { id: user.id },
-            data: {
-                name: data.name,
-                email: data.email,
-                customer: {
-                    upsert: {
-                        create: {
-                            address: data.address ? {
-                                create: {
-                                    street: data.address.street,
-                                    city: data.address.city,
-                                    state: data.address.state,
-                                    zipCode: data.address.zipCode
-                                }
-                            } : undefined
-                        },
-                        update: {
-                            address: data.address ? {
-                                upsert: {
-                                    create: {
-                                        street: data.address.street,
-                                        city: data.address.city,
-                                        state: data.address.state,
-                                        zipCode: data.address.zipCode
-                                    },
-                                    update: {
-                                        street: data.address.street,
-                                        city: data.address.city,
-                                        state: data.address.state,
-                                        zipCode: data.address.zipCode
-                                    }
-                                }
-                            } : undefined
-                        },
-                    },
-                },
-            },
+
+        // Get user profile with customer data
+        const user = await prisma.user.findUnique({
+            where: { id: userData.userId },
             include: {
                 customer: {
                     include: {
                         address: true
                     }
-                },
-            },
+                }
+            }
         });
-        return NextResponse.json(updatedUser);
-    }
-    catch (error) {
-        console.error('Profile update error:', error);
-        // Handle Prisma errors
-        if (error instanceof Error) {
-            if (error.message.includes('Unique constraint')) {
-                return NextResponse.json({ error: 'Email is already in use' }, { status: 400 });
-            }
-            if (error.message === 'Unauthorized') {
-                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-            }
-            if (error.message === 'Forbidden') {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-            }
+
+        if (!user) {
+            return NextResponse.json({ error: 'User not found' }, { status: 404 });
         }
-        return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
+
+        return NextResponse.json({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            customer: user.customer
+        });
+
+    } catch (error) {
+        console.error('Profile error:', error);
+        return NextResponse.json(
+            { error: 'Failed to get profile' }, 
+            { status: 500 }
+        );
+    }
+}
+
+export async function PUT(request) {
+    try {
+        const cookieStore = await cookies();
+        
+        // Try to get token from various cookie names
+        const token = cookieStore.get('accessToken')?.value || 
+                     cookieStore.get('token')?.value || 
+                     cookieStore.get('accessToken_client')?.value;
+
+        if (!token) {
+            return NextResponse.json({ error: 'No token found' }, { status: 401 });
+        }
+
+        // Validate the token
+        const userData = await validateUserToken(token);
+        if (!userData) {
+            return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+        }
+
+        const body = await request.json();
+        const { name, email, phone, gateCode, serviceDay, address, cashAppName } = body;
+
+        // Update user and customer in a transaction
+        const updatedUser = await prisma.$transaction(async (tx) => {
+            // Update user
+            const user = await tx.user.update({
+                where: { id: userData.userId },
+                data: { name, email }
+            });
+
+            // Update customer
+            const customer = await tx.customer.update({
+                where: { userId: userData.userId },
+                data: {
+                    phone,
+                    gateCode,
+                    serviceDay,
+                    cashAppName,
+                    ...(address && {
+                        address: {
+                            upsert: {
+                                where: { customerId: user.customer.id },
+                                create: { ...address, customerId: user.customer.id },
+                                update: address
+                            }
+                        }
+                    })
+                },
+                include: {
+                    address: true,
+                    user: {
+                        select: {
+                            email: true,
+                            name: true
+                        }
+                    }
+                }
+            });
+
+            return { user, customer };
+        });
+
+        return NextResponse.json(updatedUser);
+
+    } catch (error) {
+        console.error('Profile update error:', error);
+        return NextResponse.json(
+            { error: 'Failed to update profile' }, 
+            { status: 500 }
+        );
     }
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/api-auth';
+import { validateUserToken } from '@/lib/jwt-utils';
 import { prisma } from '@/lib/prisma';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
@@ -13,7 +13,7 @@ export async function POST(request) {
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const payload = await verifyToken(token);
+        const payload = await validateUserToken(token);
         if (payload.role !== 'ADMIN') {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }

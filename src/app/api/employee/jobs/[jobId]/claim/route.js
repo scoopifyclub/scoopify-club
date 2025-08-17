@@ -1,105 +1,144 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/api-auth';
+import { prisma } from '@/lib/prisma';
+import { getAuthUserFromCookies } from '@/lib/api-auth';
 
-// Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function POST(request, { params }) {
-    var _a;
-    try {
-        // Verify employee authorization
-        const token = (_a = request.headers.get('Authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const decoded = await verifyToken(token);
-        if (!decoded || decoded.role !== 'EMPLOYEE') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Get employee details
-        const employee = await prisma.employee.findUnique({
-            where: { userId: decoded.id },
-            include: {
-                serviceAreas: true,
-                services: {
-                    where: {
-                        scheduledFor: {
-                            gte: new Date()
-                        }
-                    }
-                }
-            }
-        });
-        if (!employee) {
-            return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
-        }
-        // Get the service
-        const service = await prisma.service.findUnique({
-            where: { id: (await params).jobId },
-            include: {
-                address: true
-            }
-        });
-        if (!service) {
-            return NextResponse.json({ error: 'Service not found' }, { status: 404 });
-        }
-        // Verify service is still available
-        if (service.employeeId) {
-            return NextResponse.json({ error: 'Service has already been claimed' }, { status: 400 });
-        }
-        // Verify service is in employee's service area
-        const isInServiceArea = employee.serviceAreas.some(area => area.zipCode === service.address.zipCode);
-        if (!isInServiceArea) {
-            return NextResponse.json({ error: 'Service is not in your service area' }, { status: 400 });
-        }
-        // Check for scheduling conflicts
-        const serviceHour = new Date(service.scheduledFor).getHours();
-        const hasConflict = employee.services.some(existingService => new Date(existingService.scheduledFor).getHours() === serviceHour);
-        if (hasConflict) {
-            return NextResponse.json({ error: 'You already have a service scheduled at this time' }, { status: 400 });
-        }
-        // Claim the service
-        const updatedService = await prisma.service.update({
-            where: { id: (await params).jobId },
-            data: {
-                employeeId: employee.id,
-                status: 'ASSIGNED'
-            },
-            include: {
-                customer: {
-                    include: {
-                        user: {
-                            select: {
-                                email: true,
-                                phone: true
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        // Create notification for customer
-        await prisma.notification.create({
-            data: {
-                userId: updatedService.customer.user.id,
-                type: 'SERVICE_ASSIGNED',
-                title: 'Service Provider Assigned',
-                message: `${employee.name} will be servicing your yard on ${new Date(service.scheduledFor).toLocaleDateString()} at ${new Date(service.scheduledFor).toLocaleTimeString()}`,
-                data: { serviceId: service.id }
-            }
-        });
+  try {
+    const user = await getAuthUserFromCookies(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
-        // Create notification for employee about service status update
-        const { notifyServiceStatusUpdate } = await import('@/lib/notification-utils');
-        await notifyServiceStatusUpdate(employee.id, service.id, 'ASSIGNED');
-        return NextResponse.json({
-            message: 'Service claimed successfully',
-            service: updatedService
-        });
+    const { jobId } = params;
+
+    if (!jobId) {
+      return NextResponse.json({ error: 'Job ID is required' }, { status: 400 });
     }
-    catch (error) {
-        console.error('Error claiming service:', error);
-        return NextResponse.json({ error: 'Failed to claim service' }, { status: 500 });
+
+    // Get the employee
+    const employee = await prisma.employee.findUnique({
+      where: { userId: user.id },
+      include: {
+        serviceAreas: {
+          where: { active: true },
+          select: { zipCode: true }
+        }
+      }
+    });
+
+    if (!employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
+
+    // Check if the job exists and is available
+    const job = await prisma.service.findUnique({
+      where: { id: jobId },
+      include: {
+        customer: {
+          select: {
+            userId: true,
+            address: {
+              select: { zipCode: true }
+            }
+          }
+        }
+      }
+    });
+
+    if (!job) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    if (job.employeeId) {
+      return NextResponse.json({ error: 'Job has already been claimed' }, { status: 400 });
+    }
+
+    if (!['PENDING', 'SCHEDULED'].includes(job.status)) {
+      return NextResponse.json({ error: 'Job is not available for claiming' }, { status: 400 });
+    }
+
+    // Check if the job is in the employee's service area
+    const employeeZipCodes = employee.serviceAreas.map(area => area.zipCode);
+    const jobZipCode = job.customer?.address?.zipCode;
+
+    if (!jobZipCode || !employeeZipCodes.includes(jobZipCode)) {
+      return NextResponse.json({ 
+        error: 'Job is not in your service area' 
+      }, { status: 400 });
+    }
+
+    // Claim the job
+    const updatedJob = await prisma.service.update({
+      where: { id: jobId },
+      data: {
+        employeeId: employee.id,
+        status: 'IN_PROGRESS',
+        claimedAt: new Date(),
+        updatedAt: new Date()
+      },
+      include: {
+        customer: {
+          include: {
+            user: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true
+              }
+            },
+            address: {
+              select: {
+                street: true,
+                city: true,
+                state: true,
+                zipCode: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Create a notification for the customer
+    try {
+      await prisma.notification.create({
+        data: {
+          id: crypto.randomUUID(),
+          userId: job.customer.userId,
+          type: 'service-claimed',
+          title: 'Service Claimed',
+          message: `Your service has been claimed and is now in progress. A scooper will arrive soon.`,
+          metadata: {
+            serviceId: jobId,
+            employeeId: employee.id,
+            scheduledDate: job.scheduledDate
+          },
+          createdAt: new Date()
+        }
+      });
+    } catch (notificationError) {
+      console.warn('Failed to create customer notification:', notificationError);
+      // Don't fail the job claim if notification fails
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Job claimed successfully',
+      job: {
+        id: updatedJob.id,
+        status: updatedJob.status,
+        claimedAt: updatedJob.claimedAt,
+        customer: updatedJob.customer
+      }
+    });
+
+  } catch (error) {
+    console.error('Error claiming job:', error);
+    return NextResponse.json(
+      { error: 'Failed to claim job' },
+      { status: 500 }
+    );
+  }
 }

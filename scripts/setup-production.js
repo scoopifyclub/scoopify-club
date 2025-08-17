@@ -1,167 +1,223 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+#!/usr/bin/env node
+
+import { PrismaClient } from '@prisma/client';
 import { execSync } from 'child_process';
+import { readFileSync, existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-console.log('🚀 Production Setup Script');
-console.log('==========================\n');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-async function setupProduction() {
-    console.log('📋 Checking production readiness...\n');
+const prisma = new PrismaClient();
 
-    // 1. Check environment variables
-    console.log('🔧 1. Environment Variables Check');
-    console.log('================================');
-    
-    const requiredEnvVars = [
-        'DATABASE_URL',
-        'NEXTAUTH_SECRET',
-        'NEXTAUTH_URL',
-        'STRIPE_SECRET_KEY',
-        'STRIPE_PUBLISHABLE_KEY',
-        'STRIPE_WEBHOOK_SECRET',
-        'NAMECHEAP_EMAIL_USER',
-        'NAMECHEAP_EMAIL_PASS',
-        'NAMECHEAP_SMTP_HOST',
-        'NEXT_PUBLIC_APP_URL',
-        'ADMIN_EMAIL'
-    ];
+console.log('🚀 Scoopify Club Production Setup Script');
+console.log('==========================================\n');
 
-    const missingVars = [];
-    for (const envVar of requiredEnvVars) {
-        if (!process.env[envVar]) {
-            missingVars.push(envVar);
-            console.log(`❌ Missing: ${envVar}`);
-        } else {
-            console.log(`✅ Found: ${envVar}`);
-        }
+async function checkEnvironment() {
+  console.log('1️⃣ Checking environment variables...');
+  
+  const requiredEnvVars = [
+    'DATABASE_URL',
+    'STRIPE_SECRET_KEY',
+    'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
+    'STRIPE_WEBHOOK_SECRET',
+    'STRIPE_WEEKLY_1_DOG_PRICE_ID',
+    'STRIPE_WEEKLY_2_DOGS_PRICE_ID',
+    'STRIPE_WEEKLY_3_PLUS_DOGS_PRICE_ID',
+    'STRIPE_ONE_TIME_1_DOG_PRICE_ID',
+    'STRIPE_ONE_TIME_2_DOGS_PRICE_ID',
+    'STRIPE_ONE_TIME_3_PLUS_DOGS_PRICE_ID',
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'SMTP_USER',
+    'SMTP_PASSWORD',
+    'EMAIL_FROM'
+  ];
+
+  const missing = [];
+  for (const envVar of requiredEnvVars) {
+    if (!process.env[envVar]) {
+      missing.push(envVar);
     }
+  }
 
-    if (missingVars.length > 0) {
-        console.log(`\n⚠️  Missing ${missingVars.length} environment variables`);
-        console.log('Please set these in your Vercel dashboard:');
-        console.log('https://vercel.com/dashboard/scoopifyclub/scoopify-club/settings/environment-variables');
-        console.log('\nMissing variables:');
-        missingVars.forEach(varName => console.log(`  - ${varName}`));
-    } else {
-        console.log('\n✅ All required environment variables are set');
-    }
+  if (missing.length > 0) {
+    console.log('❌ Missing required environment variables:');
+    missing.forEach(envVar => console.log(`   - ${envVar}`));
+    console.log('\nPlease set these environment variables before continuing.');
+    return false;
+  }
 
-    // 2. Check database connection
-    console.log('\n🗄️  2. Database Connection Check');
-    console.log('===============================');
-    
-    try {
-        const { PrismaClient } = await import('@prisma/client');
-        const prisma = new PrismaClient();
-        
-        await prisma.$connect();
-        console.log('✅ Database connection successful');
-        
-        // Check if tables exist
-        const tableCount = await prisma.$queryRaw`SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = 'public'`;
-        console.log(`✅ Database has ${tableCount[0].count} tables`);
-        
-        await prisma.$disconnect();
-    } catch (error) {
-        console.log('❌ Database connection failed:', error.message);
-    }
-
-    // 3. Check build status
-    console.log('\n🔨 3. Build Status Check');
-    console.log('=======================');
-    
-    try {
-        console.log('Running production build test...');
-        execSync('npm run build', { stdio: 'pipe' });
-        console.log('✅ Production build successful');
-    } catch (error) {
-        console.log('❌ Production build failed');
-        console.log('Error:', error.message);
-    }
-
-    // 4. Check security configuration
-    console.log('\n🔒 4. Security Configuration Check');
-    console.log('==================================');
-    
-    const securityChecks = [
-        { name: 'NEXTAUTH_SECRET', check: () => process.env.NEXTAUTH_SECRET && process.env.NEXTAUTH_SECRET.length >= 32 },
-        { name: 'HTTPS Only', check: () => process.env.NODE_ENV === 'production' },
-        { name: 'Security Headers', check: () => existsSync('next.config.js') && readFileSync('next.config.js', 'utf8').includes('securityHeaders') },
-        { name: 'CORS Configuration', check: () => existsSync('next.config.js') && readFileSync('next.config.js', 'utf8').includes('cors') }
-    ];
-
-    securityChecks.forEach(({ name, check }) => {
-        if (check()) {
-            console.log(`✅ ${name}`);
-        } else {
-            console.log(`❌ ${name}`);
-        }
-    });
-
-    // 5. Check external services
-    console.log('\n🌐 5. External Services Check');
-    console.log('============================');
-    
-    const serviceChecks = [
-        { name: 'Stripe Configuration', check: () => process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PUBLISHABLE_KEY },
-        { name: 'Email Service (Namecheap)', check: () => process.env.NAMECHEAP_EMAIL_USER && process.env.NAMECHEAP_EMAIL_PASS },
-        { name: 'Database URL', check: () => process.env.DATABASE_URL && process.env.DATABASE_URL.includes('postgresql') },
-        { name: 'App URL Configuration', check: () => process.env.NEXT_PUBLIC_APP_URL }
-    ];
-
-    serviceChecks.forEach(({ name, check }) => {
-        if (check()) {
-            console.log(`✅ ${name}`);
-        } else {
-            console.log(`❌ ${name}`);
-        }
-    });
-
-    // 6. Generate production checklist
-    console.log('\n📝 6. Production Checklist');
-    console.log('==========================');
-    
-    const checklist = [
-        '✅ Environment variables configured',
-        '✅ Database connection established',
-        '✅ Production build successful',
-        '✅ Security headers configured',
-        '✅ CORS properly configured',
-        '✅ Stripe integration ready',
-        '✅ Email service configured',
-        '✅ SEO optimization complete',
-        '✅ Referral system active',
-        '✅ Automation systems ready',
-        '✅ Admin dashboard functional',
-        '✅ Customer portal ready',
-        '✅ Employee portal ready'
-    ];
-
-    checklist.forEach(item => console.log(item));
-
-    // 7. Next steps
-    console.log('\n🎯 7. Next Steps for Production');
-    console.log('===============================');
-    
-    const nextSteps = [
-        '1. Monitor Vercel deployment status',
-        '2. Test all user flows in production',
-        '3. Verify payment processing',
-        '4. Test email notifications',
-        '5. Check admin dashboard functionality',
-        '6. Verify referral system',
-        '7. Test automation systems',
-        '8. Monitor error logs',
-        '9. Set up monitoring and alerts',
-        '10. Configure backup systems'
-    ];
-
-    nextSteps.forEach(step => console.log(step));
-
-    console.log('\n🚀 Production setup check completed!');
-    console.log('\n📊 Deployment Status:');
-    console.log('• Vercel Dashboard: https://vercel.com/dashboard/scoopifyclub/scoopify-club');
-    console.log('• Live URL: https://scoopifyclub.vercel.app');
-    console.log('• Environment Variables: https://vercel.com/dashboard/scoopifyclub/scoopify-club/settings/environment-variables');
+  console.log('✅ All required environment variables are set!\n');
+  return true;
 }
 
-setupProduction().catch(console.error); 
+async function setupDatabase() {
+  console.log('2️⃣ Setting up database...');
+  
+  try {
+    // Generate Prisma client
+    console.log('   Generating Prisma client...');
+    execSync('npx prisma generate', { stdio: 'inherit' });
+    console.log('   ✅ Prisma client generated');
+
+    // Push schema to database
+    console.log('   Pushing schema to database...');
+    execSync('npx prisma db push', { stdio: 'inherit' });
+    console.log('   ✅ Database schema updated');
+
+    // Seed the database
+    console.log('   Seeding database...');
+    execSync('npx prisma db seed', { stdio: 'inherit' });
+    console.log('   ✅ Database seeded');
+
+    console.log('✅ Database setup completed!\n');
+    return true;
+  } catch (error) {
+    console.log('❌ Database setup failed:', error.message);
+    return false;
+  }
+}
+
+async function verifyDatabaseConnection() {
+  console.log('3️⃣ Verifying database connection...');
+  
+  try {
+    await prisma.$connect();
+    console.log('   ✅ Database connection successful');
+
+    // Check if tables exist
+    const tableCount = await prisma.$queryRaw`
+      SELECT COUNT(*) as count 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+    console.log(`   ✅ Found ${tableCount[0].count} tables`);
+
+    // Check if service plans exist
+    const servicePlanCount = await prisma.servicePlan.count();
+    console.log(`   ✅ Found ${servicePlanCount} service plans`);
+
+    // Check if users exist
+    const userCount = await prisma.user.count();
+    console.log(`   ✅ Found ${userCount} users`);
+
+    console.log('✅ Database verification completed!\n');
+    return true;
+  } catch (error) {
+    console.log('❌ Database verification failed:', error.message);
+    return false;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+async function checkStripeProducts() {
+  console.log('4️⃣ Checking Stripe configuration...');
+  
+  try {
+    const stripe = new (await import('stripe')).default(process.env.STRIPE_SECRET_KEY);
+    
+    // Check if price IDs exist
+    const priceIds = [
+      process.env.STRIPE_WEEKLY_1_DOG_PRICE_ID,
+      process.env.STRIPE_WEEKLY_2_DOGS_PRICE_ID,
+      process.env.STRIPE_WEEKLY_3_PLUS_DOGS_PRICE_ID,
+      process.env.STRIPE_ONE_TIME_1_DOG_PRICE_ID,
+      process.env.STRIPE_ONE_TIME_2_DOGS_PRICE_ID,
+      process.env.STRIPE_ONE_TIME_3_PLUS_DOGS_PRICE_ID
+    ];
+
+    for (const priceId of priceIds) {
+      if (priceId) {
+        try {
+          const price = await stripe.prices.retrieve(priceId);
+          console.log(`   ✅ Price ${priceId}: ${price.nickname || 'Unnamed'} - $${price.unit_amount / 100}`);
+        } catch (error) {
+          console.log(`   ❌ Price ${priceId}: Not found in Stripe`);
+        }
+      }
+    }
+
+    console.log('✅ Stripe configuration check completed!\n');
+    return true;
+  } catch (error) {
+    console.log('❌ Stripe configuration check failed:', error.message);
+    return false;
+  }
+}
+
+function showNextSteps() {
+  console.log('🎯 NEXT STEPS FOR LAUNCH:');
+  console.log('==========================\n');
+  
+  console.log('1. 🚀 Deploy to Vercel:');
+  console.log('   npm run vercel:deploy\n');
+  
+  console.log('2. 🔐 Set GitHub Secrets for Cron Jobs:');
+  console.log('   - CRON_SECRET: Your 32-character secret');
+  console.log('   - CRON_API_KEY: Your cron API key');
+  console.log('   - VERCEL_URL: Your Vercel app URL\n');
+  
+  console.log('3. 🧪 Test the App:');
+  console.log('   - Test customer signup');
+  console.log('   - Test scooper login');
+  console.log('   - Test job claiming');
+  console.log('   - Test Stripe payments\n');
+  
+  console.log('4. 📧 Verify Email Setup:');
+  console.log('   - Test password reset emails');
+  console.log('   - Test service notifications\n');
+  
+  console.log('5. 🔄 Monitor Cron Jobs:');
+  console.log('   - Check GitHub Actions for cron job success');
+  console.log('   - Monitor Vercel logs for any errors\n');
+  
+  console.log('🎉 Your app should be ready for customers!');
+}
+
+async function main() {
+  try {
+    // Load environment variables
+    const envPath = join(__dirname, '..', '.env.local');
+    if (existsSync(envPath)) {
+      const envContent = readFileSync(envPath, 'utf8');
+      envContent.split('\n').forEach(line => {
+        const [key, ...valueParts] = line.split('=');
+        if (key && valueParts.length > 0) {
+          const value = valueParts.join('=').replace(/^["']|["']$/g, '');
+          process.env[key.trim()] = value.trim();
+        }
+      });
+    }
+
+    const envOk = await checkEnvironment();
+    if (!envOk) {
+      process.exit(1);
+    }
+
+    const dbOk = await setupDatabase();
+    if (!dbOk) {
+      process.exit(1);
+    }
+
+    const verifyOk = await verifyDatabaseConnection();
+    if (!verifyOk) {
+      process.exit(1);
+    }
+
+    const stripeOk = await checkStripeProducts();
+    if (!stripeOk) {
+      console.log('⚠️  Stripe issues detected - fix before launch\n');
+    }
+
+    showNextSteps();
+    
+  } catch (error) {
+    console.error('❌ Setup failed:', error);
+    process.exit(1);
+  }
+}
+
+main(); 

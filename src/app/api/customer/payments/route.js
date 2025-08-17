@@ -33,7 +33,15 @@ async function getTokenAndValidate(request, role = 'CUSTOMER') {
         // Fetch customer data
         const customer = await prisma.customer.findFirst({
             where: { userId: decoded.userId },
-            select: { id: true, name: true, email: true }
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true
+                    }
+                }
+            }
         });
         
         if (!customer) {

@@ -46,15 +46,47 @@ model Cache {
 }
 
 model ChatMessage {
-  id         String   @id
-  senderId   String
-  receiverId String
-  content    String
-  read       Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  id             String       @id @default(uuid())
+  senderId       String
+  receiverId     String
+  content        String
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  attachments    String[]
+  conversationId String
+  messageType    MessageType  @default(TEXT)
+  metadata       Json?
+  readAt         DateTime?
+  updatedAt      DateTime     @updatedAt
+  conversation   Conversation @relation("ConversationToMessages", fields: [conversationId], references: [id])
+  receiver       User         @relation("UserToReceivedMessages", fields: [receiverId], references: [id])
+  sender         User         @relation("UserToSentMessages", fields: [senderId], references: [id])
 
-  @@index([receiverId])
+  @@index([conversationId])
   @@index([senderId])
+  @@index([receiverId])
+  @@index([createdAt])
+}
+
+model Conversation {
+  id            String             @id @default(uuid())
+  customerId    String
+  employeeId    String?
+  serviceId     String?
+  status        ConversationStatus @default(ACTIVE)
+  lastMessageAt DateTime           @default(now())
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  messages      ChatMessage[]      @relation("ConversationToMessages")
+  customer      Customer           @relation("CustomerToConversations", fields: [customerId], references: [id])
+  employee      Employee?          @relation("EmployeeToConversations", fields: [employeeId], references: [id])
+  service       Service?           @relation("ServiceToConversations", fields: [serviceId], references: [id])
+
+  @@unique([customerId, employeeId, serviceId])
+  @@index([customerId])
+  @@index([employeeId])
+  @@index([serviceId])
+  @@index([lastMessageAt])
 }
 
 model CleanupTask {
@@ -89,25 +121,27 @@ model CoverageArea {
 }
 
 model Customer {
-  id                String    @id
-  userId            String    @unique
-  subscriptionId    String?   @unique
-  createdAt         DateTime  @default(now())
+  id                String             @id
+  userId            String             @unique
+  subscriptionId    String?            @unique
+  createdAt         DateTime           @default(now())
   updatedAt         DateTime
-  stripeCustomerId  String?   @unique
+  stripeCustomerId  String?            @unique
   gateCode          String?
   phone             String?
   serviceDay        String?
   cashAppName       String?
-  referralCode      String?   @unique
+  referralCode      String?            @unique
   creditsDepletedAt DateTime?
   referrerId        String?
   referredId        String?
-  serviceCredits    Int       @default(0)
-  address           Address?  @relation("CustomerToAddress")
-  User              User      @relation("UserToCustomer", fields: [userId], references: [id])
-  services          Service[] @relation("ServiceToCustomer")
+  serviceCredits    Int                @default(0)
+  address           Address?           @relation("CustomerToAddress")
+  conversations     Conversation[]     @relation("CustomerToConversations")
+  user              User               @relation("UserToCustomer", fields: [userId], references: [id])
   feedback          CustomerFeedback[] @relation("CustomerToFeedback")
+  services          Service[]          @relation("ServiceToCustomer")
+  subscriptions     Subscription[]     @relation("CustomerToSubscription")
 
   @@index([subscriptionId])
 }
@@ -133,29 +167,30 @@ model Earning {
 }
 
 model Employee {
-  id                     String         @id
-  userId                 String         @unique
+  id                     String              @id
+  userId                 String              @unique
   phone                  String?
   cashAppUsername        String?
-  stripeAccountId        String?        @unique
+  stripeAccountId        String?             @unique
   bio                    String?
   availability           Json?
   rating                 Float?
-  completedJobs          Int            @default(0)
-  createdAt              DateTime       @default(now())
+  completedJobs          Int                 @default(0)
+  createdAt              DateTime            @default(now())
   updatedAt              DateTime
   averageRating          Float?
   preferredPaymentMethod PaymentMethod?
-  status                 EmployeeStatus @default(ACTIVE)
-  hasSetServiceArea      Boolean        @default(false)
-  stripeAccountStatus    String?        @default("PENDING")
-  stripeConnectAccountId String?        @unique
-  serviceAreas           CoverageArea[] @relation("EmployeeToServiceAreas")
-  User                   User           @relation("UserToEmployee", fields: [userId], references: [id])
-  payouts                Payout[]       @relation("EmployeeToPayouts")
-  services               Service[]      @relation("ServiceToEmployee")
-  qualityControl         QualityControl[] @relation("EmployeeToQualityControl")
+  status                 EmployeeStatus      @default(ACTIVE)
+  hasSetServiceArea      Boolean             @default(false)
+  stripeAccountStatus    String?             @default("PENDING")
+  stripeConnectAccountId String?             @unique
+  conversations          Conversation[]      @relation("EmployeeToConversations")
+  serviceAreas           CoverageArea[]      @relation("EmployeeToServiceAreas")
+  user                   User                @relation("UserToEmployee", fields: [userId], references: [id])
+  payouts                Payout[]            @relation("EmployeeToPayouts")
+  qualityControl         QualityControl[]    @relation("EmployeeToQualityControl")
   routeOptimizations     RouteOptimization[] @relation("EmployeeToRouteOptimization")
+  services               Service[]           @relation("ServiceToEmployee")
 }
 
 model Location {
@@ -439,7 +474,7 @@ model RefreshToken {
 }
 
 model Service {
-  id                 String            @id
+  id                 String             @id
   customerId         String
   scheduledDate      DateTime
   completedDate      DateTime?
@@ -449,45 +484,45 @@ model Service {
   potentialEarnings  Float?
   stripeFees         Float?
   netAmount          Float?
-  paymentStatus      String            @default("PENDING")
+  paymentStatus      String             @default("PENDING")
   paymentApprovedAt  DateTime?
   paymentApprovedBy  String?
-  createdAt          DateTime          @default(now())
+  createdAt          DateTime           @default(now())
   updatedAt          DateTime
-  status             ServiceStatus     @default(SCHEDULED)
-  workflowStatus     String            @default("AVAILABLE")
+  status             ServiceStatus      @default(SCHEDULED)
+  workflowStatus     String             @default("AVAILABLE")
   arrivedAt          DateTime?
-  checklistCompleted Boolean           @default(false)
+  checklistCompleted Boolean            @default(false)
   beforePhotoIds     String[]
   afterPhotoIds      String[]
   gatePhotoId        String?
   notes              String?
-  rated              Boolean           @default(false)
+  rated              Boolean            @default(false)
   claimedAt          DateTime?
   arrivalDeadline    DateTime?
-  isLocked           Boolean           @default(true)  // NEW: Job locking system
-  unlockedAt         DateTime?         // NEW: When job was unlocked
-  lockExpiresAt      DateTime?         // NEW: When lock expires
-  
-  location           Location?         @relation("ServiceToLocation")
-  payments           Payment[]         @relation("ServiceToPayments")
-  customer           Customer          @relation("ServiceToCustomer", fields: [customerId], references: [id])
-  employee           Employee?         @relation("ServiceToEmployee", fields: [employeeId], references: [id])
-  serviceArea        ServiceArea?      @relation("ServiceToArea", fields: [serviceAreaId], references: [id])
-  servicePlan        ServicePlan       @relation("ServiceToPlan", fields: [servicePlanId], references: [id])
-  checklist          ServiceChecklist? @relation("ServiceToChecklist")
-  delays             ServiceDelay[]    @relation("ServiceToDelays")
-  photos             ServicePhoto[]    @relation("ServiceToPhotos")
-  rating             ServiceRating?    @relation("ServiceToRating")
-  timeExtensions     TimeExtension[]   @relation("ServiceToExtensions")
-  qualityControl     QualityControl[] @relation("ServiceToQualityControl")
+  isLocked           Boolean            @default(true)
+  unlockedAt         DateTime?
+  lockExpiresAt      DateTime?
+  conversations      Conversation[]     @relation("ServiceToConversations")
   feedback           CustomerFeedback[] @relation("ServiceToFeedback")
+  location           Location?          @relation("ServiceToLocation")
+  payments           Payment[]          @relation("ServiceToPayments")
+  qualityControl     QualityControl[]   @relation("ServiceToQualityControl")
+  customer           Customer           @relation("ServiceToCustomer", fields: [customerId], references: [id])
+  employee           Employee?          @relation("ServiceToEmployee", fields: [employeeId], references: [id])
+  serviceArea        ServiceArea?       @relation("ServiceToArea", fields: [serviceAreaId], references: [id])
+  servicePlan        ServicePlan        @relation("ServiceToPlan", fields: [servicePlanId], references: [id])
+  checklist          ServiceChecklist?  @relation("ServiceToChecklist")
+  delays             ServiceDelay[]     @relation("ServiceToDelays")
+  photos             ServicePhoto[]     @relation("ServiceToPhotos")
+  rating             ServiceRating?     @relation("ServiceToRating")
+  timeExtensions     TimeExtension[]    @relation("ServiceToExtensions")
 
   @@index([customerId])
   @@index([employeeId])
   @@index([paymentStatus])
   @@index([serviceAreaId])
-  @@index([isLocked])  // NEW: Index for job locking queries
+  @@index([isLocked])
 }
 
 model ServiceChecklist {
@@ -538,16 +573,19 @@ model ServicePhoto {
 }
 
 model ServicePlan {
-  id          String    @id
-  name        String
-  description String?
-  price       Float
-  duration    Int
-  type        String
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime
-  services    Service[] @relation("ServiceToPlan")
+  id            String         @id
+  name          String
+  description   String?
+  price         Float
+  duration      Int
+  type          String
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime
+  code          String?        @unique
+  stripePriceId String?        @unique
+  services      Service[]      @relation("ServiceToPlan")
+  subscriptions Subscription[] @relation("ServicePlanToSubscription")
 }
 
 model ServiceRating {
@@ -566,14 +604,24 @@ model ServiceRating {
 }
 
 model Subscription {
-  id         String             @id
-  customerId String
-  planId     String
-  startDate  DateTime
-  endDate    DateTime?
-  createdAt  DateTime           @default(now())
-  updatedAt  DateTime
-  status     SubscriptionStatus @default(ACTIVE)
+  id                   String             @id
+  customerId           String
+  planId               String
+  startDate            DateTime
+  endDate              DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime
+  status               SubscriptionStatus @default(ACTIVE)
+  lastBillingDate      DateTime?
+  nextBillingDate      DateTime?
+  stripeSubscriptionId String?            @unique
+  customer             Customer           @relation("CustomerToSubscription", fields: [customerId], references: [id])
+  servicePlan          ServicePlan        @relation("ServicePlanToSubscription", fields: [planId], references: [id])
+
+  @@index([customerId])
+  @@index([planId])
+  @@index([status])
+  @@index([stripeSubscriptionId])
 }
 
 model TimeExtension {
@@ -592,9 +640,9 @@ model TimeExtension {
 
 model SystemLog {
   id        String   @id @default(uuid())
-  type      String   // AUTOMATION_TRIGGER, ERROR, INFO, WARNING
+  type      String
   message   String
-  data      Json?    // Additional data for the log entry
+  data      Json?
   createdAt DateTime @default(now())
 
   @@index([type])
@@ -604,7 +652,6 @@ model SystemLog {
 model User {
   id                      String         @id
   email                   String         @unique
-  name                    String?
   password                String
   resetTokenExpiry        DateTime?      @db.Timestamp(6)
   image                   String?
@@ -618,6 +665,10 @@ model User {
   verificationToken       String?        @unique
   verificationTokenExpiry DateTime?      @db.Timestamp(6)
   role                    String
+  firstName               String?
+  lastName                String?
+  receivedMessages        ChatMessage[]  @relation("UserToReceivedMessages")
+  sentMessages            ChatMessage[]  @relation("UserToSentMessages")
   customer                Customer?      @relation("UserToCustomer")
   employee                Employee?      @relation("UserToEmployee")
   RefreshToken            RefreshToken[]
@@ -633,6 +684,74 @@ model EarningToPayment {
   @@unique([A, B], map: "_EarningToPayment_AB_unique")
   @@index([B], map: "_EarningToPayment_B_index")
   @@map("_EarningToPayment")
+}
+
+model InventoryItem {
+  id          Int      @id @default(autoincrement())
+  name        String
+  category    String
+  quantity    Int      @default(0)
+  minQuantity Int      @default(0)
+  unit        String?
+  cost        Float    @default(0)
+  lastUpdated DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([name])
+}
+
+model QualityControl {
+  id             String   @id @default(uuid())
+  serviceId      String
+  employeeId     String
+  photos         Json?
+  notes          String?
+  completionTime DateTime
+  status         String   @default("PENDING")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  employee       Employee @relation("EmployeeToQualityControl", fields: [employeeId], references: [id])
+  service        Service  @relation("ServiceToQualityControl", fields: [serviceId], references: [id])
+
+  @@index([serviceId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+model CustomerFeedback {
+  id         String   @id @default(uuid())
+  serviceId  String
+  customerId String
+  rating     Int
+  review     String?
+  category   String   @default("GENERAL")
+  status     String   @default("ACTIVE")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  customer   Customer @relation("CustomerToFeedback", fields: [customerId], references: [id])
+  service    Service  @relation("ServiceToFeedback", fields: [serviceId], references: [id])
+
+  @@index([serviceId])
+  @@index([customerId])
+  @@index([rating])
+  @@index([category])
+}
+
+model RouteOptimization {
+  id            String   @id @default(uuid())
+  employeeId    String
+  date          DateTime
+  services      Json
+  totalDistance Float
+  estimatedTime Int
+  efficiency    Int
+  createdAt     DateTime @default(now())
+  employee      Employee @relation("EmployeeToRouteOptimization", fields: [employeeId], references: [id])
+
+  @@index([employeeId])
+  @@index([date])
 }
 
 enum BusinessPayoutMethod {
@@ -703,74 +822,16 @@ enum UserRole {
   BUSINESS_PARTNER
 }
 
-// Operational Efficiency Models
-model InventoryItem {
-  id          Int      @id @default(autoincrement())
-  name        String
-  category    String
-  quantity    Int      @default(0)
-  minQuantity Int      @default(0)
-  unit        String?
-  cost        Float    @default(0)
-  lastUpdated DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([category])
-  @@index([name])
+enum MessageType {
+  TEXT
+  IMAGE
+  LOCATION
+  SERVICE_UPDATE
+  SYSTEM
 }
 
-model QualityControl {
-  id             String   @id @default(uuid())
-  serviceId      String
-  employeeId     String
-  photos         Json?    // Array of photo URLs
-  notes          String?
-  completionTime DateTime
-  status         String   @default("PENDING") // PENDING, COMPLETED, FAILED
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  
-  service        Service  @relation("ServiceToQualityControl", fields: [serviceId], references: [id])
-  employee       Employee @relation("EmployeeToQualityControl", fields: [employeeId], references: [id])
-
-  @@index([serviceId])
-  @@index([employeeId])
-  @@index([status])
-}
-
-model CustomerFeedback {
-  id         String   @id @default(uuid())
-  serviceId  String
-  customerId String
-  rating     Int      // 1-5 stars
-  review     String?
-  category   String   @default("GENERAL") // GENERAL, QUALITY, TIMELINESS, COMMUNICATION
-  status     String   @default("ACTIVE") // ACTIVE, HIDDEN, DELETED
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  
-  service    Service  @relation("ServiceToFeedback", fields: [serviceId], references: [id])
-  customer   Customer @relation("CustomerToFeedback", fields: [customerId], references: [id])
-
-  @@index([serviceId])
-  @@index([customerId])
-  @@index([rating])
-  @@index([category])
-}
-
-model RouteOptimization {
-  id             String   @id @default(uuid())
-  employeeId     String
-  date           DateTime
-  services       Json     // Array of service IDs in optimized order
-  totalDistance  Float
-  estimatedTime  Int      // Minutes
-  efficiency     Int      // Percentage
-  createdAt      DateTime @default(now())
-  
-  employee       Employee @relation("EmployeeToRouteOptimization", fields: [employeeId], references: [id])
-
-  @@index([employeeId])
-  @@index([date])
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+  BLOCKED
 }

@@ -39,7 +39,7 @@ async function getTokenAndValidate(request, role = 'CUSTOMER') {
         const customer = await prisma.customer.findFirst({
             where: { userId: userData.userId },
             include: {
-                User: {
+                user: {
                     select: {
                         id: true,
                         name: true,
@@ -87,7 +87,7 @@ export async function GET(request) {
                 include: {
                     employee: {
                         include: {
-                            User: {
+                            user: {
                                 select: {
                                     id: true,
                                     name: true,
@@ -172,9 +172,15 @@ export async function GET(request) {
 const createServiceSchema = z.object({
     scheduledDate: z.string().datetime(),
     servicePlanId: z.string().min(1),
+    yardSize: z.enum(['small', 'medium', 'large', 'xlarge']).optional(),
+    dogCount: z.number().min(1).max(20).optional(),
+    specialInstructions: z.string().optional(),
+    gateCode: z.string().optional(),
+    accessNotes: z.string().optional(),
+    isRecurring: z.boolean().optional(),
     notes: z.string().optional(),
-    latitude: z.number(),
-    longitude: z.number(),
+    latitude: z.number().optional(),
+    longitude: z.number().optional(),
     address: z.string().optional(),
 });
 export async function POST(request) {
@@ -193,39 +199,97 @@ export async function POST(request) {
         const { userId } = await validateUserToken(accessToken, 'CUSTOMER');
         const customer = await prisma.customer.findFirst({
             where: { userId },
-            select: { id: true }
+            select: { 
+                id: true, 
+                serviceCredits: true, 
+                subscriptionId: true,
+                serviceDay: true
+            }
         });
         if (!customer) {
             return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
         }
+        
+        // Check if customer has an active subscription
+        if (!customer.subscriptionId) {
+            return NextResponse.json({ error: 'Active subscription required to schedule services' }, { status: 400 });
+        }
+        
+        // Check if customer has available credits
+        if (customer.serviceCredits <= 0) {
+            return NextResponse.json({ error: 'No service credits available. Please check your subscription.' }, { status: 400 });
+        }
         const body = await request.json();
         const validatedData = createServiceSchema.parse(body);
-        const service = await prisma.service.create({
-            data: {
-                customerId: customer.id,
-                scheduledDate: new Date(validatedData.scheduledDate),
-                servicePlanId: validatedData.servicePlanId,
-                notes: validatedData.notes,
-                status: 'SCHEDULED',
-                location: {
-                    create: {
-                        latitude: validatedData.latitude,
-                        longitude: validatedData.longitude,
-                        address: validatedData.address
-                    }
+        // Create the service with enhanced data
+        const serviceData = {
+            customerId: customer.id,
+            scheduledDate: new Date(validatedData.scheduledDate),
+            servicePlanId: validatedData.servicePlanId,
+            notes: validatedData.notes || validatedData.specialInstructions,
+            status: 'SCHEDULED',
+            workflowStatus: 'PENDING',
+            // Add new fields to the service
+            ...(validatedData.yardSize && { yardSize: validatedData.yardSize }),
+            ...(validatedData.dogCount && { dogCount: validatedData.dogCount }),
+            ...(validatedData.gateCode && { gateCode: validatedData.gateCode }),
+            ...(validatedData.accessNotes && { accessNotes: validatedData.accessNotes }),
+        };
+
+        // Only create location if coordinates are provided
+        if (validatedData.latitude && validatedData.longitude) {
+            serviceData.location = {
+                create: {
+                    latitude: validatedData.latitude,
+                    longitude: validatedData.longitude,
+                    address: validatedData.address
                 }
-            },
-            include: {
-                servicePlan: {
-                    select: {
-                        name: true,
-                        price: true,
-                        duration: true
-                    }
-                },
-                location: true
-            }
+            };
+        }
+
+        // Use a transaction to create service and deduct credit atomically
+        const result = await prisma.$transaction(async (tx) => {
+            // Create the service
+            const service = await tx.service.create({
+                data: serviceData,
+                include: {
+                    servicePlan: {
+                        select: {
+                            name: true,
+                            price: true,
+                            duration: true
+                        }
+                    },
+                    location: true
+                }
+            });
+            
+            // Deduct one credit from customer
+            await tx.customer.update({
+                where: { id: customer.id },
+                data: { serviceCredits: customer.serviceCredits - 1 }
+            });
+            
+            return service;
         });
+        
+        const service = result;
+
+        // If this is a recurring service, create additional scheduled services
+        if (validatedData.isRecurring) {
+            // For now, just create one additional service 1 week later
+            // In a full implementation, this would create a subscription
+            const nextWeek = new Date(validatedData.scheduledDate);
+            nextWeek.setDate(nextWeek.getDate() + 7);
+            
+            await prisma.service.create({
+                data: {
+                    ...serviceData,
+                    scheduledDate: nextWeek,
+                    notes: `${serviceData.notes || ''} (Recurring service)`.trim()
+                }
+            });
+        }
         return NextResponse.json(service, { status: 201 });
     }
     catch (error) {

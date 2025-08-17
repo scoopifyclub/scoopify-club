@@ -524,6 +524,73 @@ export default function CustomerDashboard() {
             toast.error('Failed to update Cash App name');
         }
     };
+    const handleManageSubscription = async () => {
+        try {
+            const response = await fetch('/api/stripe/portal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const { url } = await response.json();
+                window.open(url, '_blank');
+            } else {
+                const error = await response.json();
+                toast.error(error.error || 'Failed to open subscription manager');
+            }
+        } catch (error) {
+            console.error('Error opening subscription manager:', error);
+            toast.error('Failed to open subscription manager');
+        }
+    };
+
+    const handleSetupPaymentMethod = async () => {
+        try {
+            const response = await fetch('/api/stripe/setup', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const { clientSecret } = await response.json();
+                // In a real app, you would use Stripe.js to collect payment method
+                // For now, redirect to Stripe portal
+                toast.info('Redirecting to Stripe to set up payment method...');
+                setTimeout(() => {
+                    handleStripeCustomerPortal();
+                }, 1000);
+            } else {
+                const error = await response.json();
+                toast.error(error.error || 'Failed to set up payment method');
+            }
+        } catch (error) {
+            console.error('Error setting up payment method:', error);
+            toast.error('Failed to set up payment method');
+        }
+    };
+
+    const handleStripeCustomerPortal = async () => {
+        try {
+            const response = await fetch('/api/stripe/portal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const { url } = await response.json();
+                window.open(url, '_blank');
+            } else {
+                const error = await response.json();
+                toast.error(error.error || 'Failed to open Stripe portal');
+            }
+        } catch (error) {
+            console.error('Error opening Stripe portal:', error);
+            toast.error('Failed to open Stripe portal');
+        }
+    };
     // Function to navigate to a tab using the layout's mechanism
     const navigateToTab = (tab) => {
         if (typeof window !== 'undefined') {
@@ -914,27 +981,119 @@ export default function CustomerDashboard() {
           </div>
         </>)}
 
-      {activeTab === 'billing' && (
+            {activeTab === 'billing' && (
         // Billing tab content
         <>
           <h1 className="text-3xl font-bold mb-6">Billing & Payments</h1>
           
+          {/* Current Subscription Status */}
+          {subscription && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle>Current Subscription</CardTitle>
+                <CardDescription>Manage your recurring service plan</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="font-medium text-lg">{subscription.plan?.name || 'Service Plan'}</p>
+                      <p className="text-gray-500">
+                        ${subscription.plan?.price || '0.00'}/{subscription.plan?.frequency || 'month'}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        Next billing: {(() => {
+                          try {
+                            if (!subscription.nextBilling) return "Not available";
+                            const date = new Date(subscription.nextBilling);
+                            if (isNaN(date.getTime())) return "Date unavailable";
+                            return format(date, 'MMMM d, yyyy');
+                          } catch (error) {
+                            return "Date unavailable";
+                          }
+                        })()}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge className={subscription.status === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                        {subscription.status || 'UNKNOWN'}
+                      </Badge>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleManageSubscription()}
+                        className="flex items-center gap-2"
+                      >
+                        <CreditCard className="w-4 h-4" />
+                        Manage
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Status</span>
+                    <span className="font-medium">{subscription.status || 'Unknown'}</span>
+                  </div>
+                  
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">Start Date</span>
+                    <span className="font-medium">
+                      {(() => {
+                        try {
+                          if (!subscription.startDate) return "Not available";
+                          const date = new Date(subscription.startDate);
+                          if (isNaN(date.getTime())) return "Date unavailable";
+                          return format(date, 'MMM d, yyyy');
+                        } catch (error) {
+                          return "Date unavailable";
+                        }
+                      })()}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Payment Method */}
           <Card className="mb-6">
             <CardHeader>
               <CardTitle>Payment Method</CardTitle>
-              <CardDescription>Update your payment information</CardDescription>
+              <CardDescription>Manage your payment information for recurring charges</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <CreditCard className="w-4 h-4"/>
-                    <span>Current Card: **** **** **** 4242</span>
+                {customer?.stripeCustomerId ? (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <CreditCard className="w-4 h-4"/>
+                      <span>Payment method configured</span>
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleUpdatePaymentMethod()}
+                      >
+                        Update Card
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => handleStripeCustomerPortal()}
+                      >
+                        Manage in Stripe
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="outline" onClick={() => setShowPaymentModal(true)}>
-                    Update Card
-                  </Button>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-gray-500 mb-3">No payment method configured</p>
+                    <Button onClick={() => handleSetupPaymentMethod()}>
+                      Set Up Payment Method
+                    </Button>
+                  </div>
+                )}
+                
+                <div className="text-sm text-gray-500 bg-blue-50 p-3 rounded">
+                  <p>💳 Your payment method is securely stored with Stripe and will be automatically charged for your recurring service.</p>
                 </div>
               </div>
             </CardContent>
@@ -948,30 +1107,41 @@ export default function CustomerDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {payments.map((payment) => (<div key={payment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div>
-                      <p className="font-medium">${payment.amount || '0.00'}</p>
-                      <p className="text-sm text-gray-500">
-                        {(() => {
-                    try {
-                        return format(new Date(payment.createdAt), 'MMMM d, yyyy');
-                    }
-                    catch (error) {
-                        console.error('Error formatting payment date:', error);
-                        return 'Date unavailable';
-                    }
-                })()}
-                      </p>
+                {payments.length > 0 ? (
+                  payments.map((payment) => (
+                    <div key={payment.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium">${payment.amount || '0.00'}</p>
+                        <p className="text-sm text-gray-500">
+                          {(() => {
+                            try {
+                              return format(new Date(payment.createdAt), 'MMMM d, yyyy');
+                            } catch (error) {
+                              console.error('Error formatting payment date:', error);
+                              return 'Date unavailable';
+                            }
+                          })()}
+                        </p>
+                        <p className="text-xs text-gray-400">{payment.type || 'Payment'}</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge variant={payment.status === 'PAID' || payment.status === 'COMPLETED' ? 'default' : 'destructive'}>
+                          {payment.status}
+                        </Badge>
+                        {payment.receiptUrl && (
+                          <Button variant="outline" size="sm" onClick={() => window.open(payment.receiptUrl, '_blank')}>
+                            Download Receipt
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <Badge variant={payment.status === 'PAID' ? 'default' : 'destructive'}>
-                        {payment.status}
-                      </Badge>
-                      {payment.receiptUrl && (<Button variant="outline" size="sm" onClick={() => window.open(payment.receiptUrl, '_blank')}>
-                          Download Receipt
-                        </Button>)}
-                    </div>
-                  </div>))}
+                  ))
+                ) : (
+                  <div className="text-center py-8">
+                    <CreditCard className="w-12 h-12 text-gray-300 mx-auto mb-2"/>
+                    <p className="text-gray-500">No billing history yet</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -990,11 +1160,11 @@ export default function CustomerDashboard() {
                     <p className="text-sm text-gray-500">Share this code with friends</p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <code className="px-3 py-1 bg-gray-100 rounded">{customer === null || customer === void 0 ? void 0 : customer.referralCode}</code>
+                    <code className="px-3 py-1 bg-gray-100 rounded">{customer?.referralCode}</code>
                     <Button variant="outline" size="sm" onClick={() => {
-                navigator.clipboard.writeText((customer === null || customer === void 0 ? void 0 : customer.referralCode) || '');
-                toast.success('Referral code copied to clipboard');
-            }}>
+                        navigator.clipboard.writeText(customer?.referralCode || '');
+                        toast.success('Referral code copied to clipboard');
+                    }}>
                       Copy
                     </Button>
                   </div>
@@ -1003,8 +1173,14 @@ export default function CustomerDashboard() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Cash App Name</label>
                   <div className="flex space-x-2">
-                    <input type="text" value={(customer === null || customer === void 0 ? void 0 : customer.cashAppName) || ''} onChange={(e) => setCustomer(Object.assign(Object.assign({}, customer), { cashAppName: e.target.value }))} className="flex-1 px-3 py-2 border rounded-md" placeholder="Enter your Cash App name"/>
-                    <Button onClick={() => handleUpdateCashAppName((customer === null || customer === void 0 ? void 0 : customer.cashAppName) || '')}>
+                    <input
+                      type="text"
+                      value={customer?.cashAppName || ''}
+                      onChange={(e) => setCustomer({...customer, cashAppName: e.target.value})}
+                      className="flex-1 px-3 py-2 border rounded-md"
+                      placeholder="Enter your Cash App name"
+                    />
+                    <Button onClick={() => handleUpdateCashAppName(customer?.cashAppName || '')}>
                       Save
                     </Button>
                   </div>
@@ -1015,7 +1191,8 @@ export default function CustomerDashboard() {
               </div>
             </CardContent>
           </Card>
-        </>)}
+        </>
+      )}
 
       {activeTab === 'profile' && (
         // Profile tab content

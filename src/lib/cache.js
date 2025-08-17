@@ -35,7 +35,8 @@ export async function setCache(key, value, ttl = 3600, tags = []) {
                 key,
                 value,
                 expiresAt,
-                tags
+                tags,
+                id: `cache_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
             }
         });
     }

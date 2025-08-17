@@ -40,22 +40,22 @@ export async function GET(request) {
         orderBy: { createdAt: 'desc' },
         include: {
           customer: {
-            include: { User: true }
+            include: { user: true }
           },
           employee: {
-            include: { User: true }
+            include: { user: true }
           }
         }
       }),
       prisma.customer.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
-        include: { User: true }
+        include: { user: true }
       }),
       prisma.employee.findMany({
         take: 5,
         orderBy: { createdAt: 'desc' },
-        include: { User: true }
+        include: { user: true }
       }),
       prisma.service.groupBy({
         by: ['status'],

@@ -46,7 +46,7 @@ export async function GET(request) {
                     include: {
                         customer: {
                             include: {
-                                User: {
+                                user: {
                                     select: {
                                         name: true,
                                         email: true
@@ -56,7 +56,7 @@ export async function GET(request) {
                         },
                         employee: {
                             include: {
-                                User: {
+                                user: {
                                     select: {
                                         name: true
                                     }
@@ -95,7 +95,7 @@ export async function GET(request) {
                         customerIds.length > 0 ? prisma.customer.findMany({
                             where: { id: { in: customerIds } },
                             include: {
-                                User: {
+                                user: {
                                     select: { name: true, email: true }
                                 }
                             }
@@ -103,7 +103,7 @@ export async function GET(request) {
                         employeeIds.length > 0 ? prisma.employee.findMany({
                             where: { id: { in: employeeIds } },
                             include: {
-                                User: {
+                                user: {
                                     select: { name: true }
                                 }
                             }
@@ -284,8 +284,8 @@ export async function GET(request) {
                 id: service.id,
                 type: 'service',
                 status: service.status,
-                customerName: service.customer?.User?.name || 'Unknown',
-                employeeName: service.employee?.User?.name || 'Unassigned',
+                customerName: service.customer?.user?.name || 'Unknown',
+                employeeName: service.employee?.user?.name || 'Unassigned',
                 date: service.createdAt,
                 updatedAt: service.updatedAt
             }));

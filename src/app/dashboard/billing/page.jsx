@@ -1,5 +1,5 @@
 'use client';
-import { DashboardLayout } from '@/components/DashboardLayout';
+import { CustomerDashboardLayout } from '@/components/layouts/CustomerDashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CreditCard, Calendar, DollarSign, CheckCircle2 } from 'lucide-react';
@@ -27,7 +27,8 @@ const payments = [
     }
 ];
 export default function BillingPage() {
-    return (<DashboardLayout>
+    return (
+        <CustomerDashboardLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Billing</h1>
@@ -119,5 +120,6 @@ export default function BillingPage() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>);
+        </CustomerDashboardLayout>
+    );
 }

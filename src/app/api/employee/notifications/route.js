@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserFromToken } from '@/lib/api-auth';
+import { getAuthUserFromCookies } from '@/lib/api-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 
 export async function GET(request) {
-  const { userId } = getUserFromToken(request);
-  if (!userId) {
+  const user = await getAuthUserFromCookies(request);
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -19,7 +19,7 @@ export async function GET(request) {
 
     // Get employee
     const employee = await prisma.employee.findUnique({
-      where: { userId }
+      where: { userId: user.id }
     });
 
     if (!employee) {
@@ -68,8 +68,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { userId } = getUserFromToken(request);
-  if (!userId) {
+  const user = await getAuthUserFromCookies(request);
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -83,13 +83,22 @@ export async function POST(request) {
       );
     }
 
+    // Get employee
+    const employee = await prisma.employee.findUnique({
+      where: { userId: user.id }
+    });
+
+    if (!employee) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
     // Mark notifications as read
     await prisma.notification.updateMany({
       where: {
         id: {
           in: notificationIds
         },
-        userId
+        userId: employee.userId
       },
       data: {
         read: true

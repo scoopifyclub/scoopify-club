@@ -1,24 +1,23 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getUserFromToken } from '@/lib/api-auth';
+import { getAuthUserFromCookies } from '@/lib/api-auth';
 
-// Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
-
 export async function GET(request) {
-  const { userId } = getUserFromToken(request);
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   try {
-    // Get employee with their service areas
+    const user = await getAuthUserFromCookies(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get the employee and their coverage areas
     const employee = await prisma.employee.findUnique({
-      where: { userId },
+      where: { userId: user.id },
       include: {
         serviceAreas: {
-          where: { active: true }
+          where: { active: true },
+          select: { zipCode: true, travelDistance: true }
         }
       }
     });
@@ -27,22 +26,27 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
-    // Get employee's active service area zip codes
-    const employeeZipCodes = employee.serviceAreas.map(area => area.zipCode);
-
-    if (employeeZipCodes.length === 0) {
-      return NextResponse.json([]);
+    // Get ZIP codes the employee covers
+    const coveredZips = employee.serviceAreas.map(area => area.zipCode);
+    
+    if (coveredZips.length === 0) {
+      return NextResponse.json({ 
+        jobs: [],
+        message: 'No service areas configured. Please set up your coverage area first.'
+      });
     }
 
-    // Find available services in employee's service areas
-    const availableServices = await prisma.service.findMany({
+    // Find available jobs in the employee's coverage area
+    const availableJobs = await prisma.service.findMany({
       where: {
-        status: 'SCHEDULED',
-        employeeId: null, // Not assigned to anyone yet
+        status: {
+          in: ['PENDING', 'SCHEDULED']
+        },
+        employeeId: null, // Not yet claimed
         customer: {
           address: {
             zipCode: {
-              in: employeeZipCodes
+              in: coveredZips
             }
           }
         }
@@ -50,43 +54,65 @@ export async function GET(request) {
       include: {
         customer: {
           include: {
-            User: {
+            user: {
               select: {
-                name: true,
+                firstName: true,
+                lastName: true,
                 email: true
               }
             },
-            address: true
+            address: {
+              select: {
+                street: true,
+                city: true,
+                state: true,
+                zipCode: true
+              }
+            }
           }
         },
-        servicePlan: true
+        servicePlan: {
+          select: {
+            name: true,
+            price: true
+          }
+        }
       },
-      orderBy: {
-        scheduledDate: 'asc'
+      orderBy: [
+        { scheduledDate: 'asc' },
+        { createdAt: 'asc' }
+      ]
+    });
+
+    // Calculate potential earnings for each job
+    const jobsWithEarnings = availableJobs.map(job => {
+      // Use the potentialEarnings already calculated and stored in the service
+      // This should be calculated as: (monthlyPayment / 4) * 0.75
+      const potentialEarnings = job.potentialEarnings || 0;
+      
+      return {
+        id: job.id,
+        status: job.status,
+        scheduledDate: job.scheduledDate,
+        servicePlanId: job.servicePlanId,
+        potentialEarnings,
+        customer: job.customer,
+        servicePlan: job.servicePlan,
+        createdAt: job.createdAt
+      };
+    });
+
+    return NextResponse.json({
+      jobs: jobsWithEarnings,
+      totalCount: jobsWithEarnings.length,
+      employeeCoverage: {
+        zipCodes: coveredZips,
+        totalAreas: coveredZips.length
       }
     });
 
-    // Transform the data for the frontend
-    const jobs = availableServices.map(service => ({
-      id: service.id,
-      customerName: service.customer.User?.name || 'Unknown Customer',
-      customerEmail: service.customer.User?.email,
-      address: service.customer.address ? {
-        street: service.customer.address.street,
-        city: service.customer.address.city,
-        state: service.customer.address.state,
-        zipCode: service.customer.address.zipCode
-      } : null,
-      scheduledDate: service.scheduledDate,
-      serviceType: service.servicePlan?.name || 'Standard Service',
-      potentialEarnings: service.potentialEarnings || 0,
-      estimatedDuration: service.servicePlan?.estimatedDuration || 30,
-      specialInstructions: service.customer.gateCode ? `Gate Code: ${service.customer.gateCode}` : null
-    }));
-
-    return NextResponse.json(jobs);
   } catch (error) {
-    console.error('Error fetching job pool:', error);
+    console.error('Error fetching available jobs:', error);
     return NextResponse.json(
       { error: 'Failed to fetch available jobs' },
       { status: 500 }

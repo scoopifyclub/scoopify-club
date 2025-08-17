@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import prisma from '../../../../lib/prisma.js';
+import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/api-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs

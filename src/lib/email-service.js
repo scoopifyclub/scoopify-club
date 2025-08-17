@@ -1,19 +1,52 @@
 import nodemailer from 'nodemailer';
 
-// Create transporter for Namecheap email
+// Create transporter for Namecheap Private Email
 const createTransporter = () => {
-    return nodemailer.createTransport({
-        host: process.env.NAMECHEAP_SMTP_HOST || 'mail.privateemail.com',
-        port: process.env.NAMECHEAP_SMTP_PORT || 587,
-        secure: false, // true for 465, false for other ports
+    // Use the correct environment variables from .env.local
+    const config = {
+        host: process.env.SMTP_HOST || 'mail.privateemail.com',
+        port: Number(process.env.SMTP_PORT) || 465,
+        secure: true, // true for 465 (SSL), false for 587 (STARTTLS)
         auth: {
-            user: process.env.NAMECHEAP_EMAIL_USER,
-            pass: process.env.NAMECHEAP_EMAIL_PASS
+            user: process.env.SMTP_USER || 'services@scoopify.club',
+            pass: process.env.SMTP_PASSWORD
         },
         tls: {
-            rejectUnauthorized: false
-        }
+            rejectUnauthorized: false,
+            ciphers: 'SSLv3'
+        },
+        authMethod: 'LOGIN' // Force LOGIN authentication method
+    };
+
+    // For port 587 (STARTTLS), adjust settings
+    if (config.port === 587) {
+        config.secure = false;
+        config.requireTLS = true;
+        config.ignoreTLS = false;
+    }
+
+    console.log('Creating email transporter with config:', {
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        user: config.user,
+        authMethod: config.authMethod
     });
+
+    return nodemailer.createTransport(config);
+};
+
+// Test email connection
+export const testEmailConnection = async () => {
+    try {
+        const transporter = createTransporter();
+        await transporter.verify();
+        console.log('✅ Email connection verified successfully');
+        return { success: true, message: 'Email connection verified' };
+    } catch (error) {
+        console.error('❌ Email connection failed:', error);
+        return { success: false, error: error.message };
+    }
 };
 
 // Email templates
@@ -346,7 +379,7 @@ export async function sendEmail(to, template, data = {}) {
         }
 
         const mailOptions = {
-            from: process.env.NAMECHEAP_EMAIL_USER,
+            from: process.env.SMTP_USER || 'services@scoopify.club', // Use the new SMTP_USER
             to: to,
             subject: emailTemplate.subject,
             html: emailTemplate.html(data)
@@ -376,7 +409,7 @@ export async function sendBulkEmails(emails) {
             }
 
             const mailOptions = {
-                from: process.env.NAMECHEAP_EMAIL_USER,
+                from: process.env.SMTP_USER || 'services@scoopify.club', // Use the new SMTP_USER
                 to: email.to,
                 subject: emailTemplate.subject,
                 html: emailTemplate.html(email.data || {})

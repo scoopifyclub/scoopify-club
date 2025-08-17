@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import prisma from '../../../../lib/prisma.js';
-import { verifyToken } from '@/lib/api-auth';
+import { prisma } from '@/lib/prisma';
+import { validateUserToken } from '@/lib/jwt-utils';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -8,13 +8,11 @@ export const runtime = 'nodejs';
 
 export async function GET(request) {
   try {
-    console.log('📊 Fetching consolidated dashboard data...');
-    console.log('🔍 Prisma client type:', typeof prisma);
-    console.log('🔍 Prisma client:', prisma ? 'exists' : 'undefined');
+    // Fetching consolidated dashboard data
     
     // Check if prisma is properly imported
     if (!prisma) {
-      console.error('❌ Prisma client is undefined! Returning fallback data');
+      // Prisma client is undefined! Returning fallback data
       return NextResponse.json({ 
         stats: {
           totalServices: 0,
@@ -36,18 +34,18 @@ export async function GET(request) {
     // Get token from either cookie
     const token = request.cookies.get('token')?.value || request.cookies.get('accessToken')?.value;
     if (!token) {
-      console.log('❌ No token found in cookies');
+      // No token found in cookies
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Verify token and get user
-    const decoded = await verifyToken(token);
+    const decoded = await validateUserToken(token);
     if (!decoded) {
-      console.log('❌ Token verification failed');
+      // Token verification failed
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    console.log('👤 Looking up user with ID:', decoded.userId);
+    // Looking up user with ID
     
     // Get user data
     const user = await prisma.user.findUnique({
@@ -55,13 +53,14 @@ export async function GET(request) {
       select: {
         id: true,
         email: true,
-        name: true,
+        firstName: true,
+        lastName: true,
         role: true,
       }
     });
 
     if (!user || user.role !== 'EMPLOYEE') {
-      console.log('❌ Unauthorized - user:', user);
+      // Unauthorized - user
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -82,7 +81,7 @@ export async function GET(request) {
               customer: {
                 include: {
                   address: true,
-                  user: true
+                                                                           user: true
                 }
               },
               servicePlan: true,
@@ -95,7 +94,7 @@ export async function GET(request) {
         }
       });
     } catch (schemaError) {
-      console.log('❌ Schema error with complex query, trying simple query:', schemaError.message);
+      // Schema error with complex query, trying simple query
       
       // Fallback: get employee without complex includes
       try {
@@ -111,7 +110,7 @@ export async function GET(request) {
             });
             employee.serviceAreas = serviceAreas;
           } catch (coverageError) {
-            console.log('❌ Could not fetch coverage areas:', coverageError.message);
+            // Could not fetch coverage areas
             employee.serviceAreas = [];
           }
           
@@ -119,7 +118,7 @@ export async function GET(request) {
           employee.services = [];
         }
       } catch (fallbackError) {
-        console.log('❌ Even simple employee query failed:', fallbackError.message);
+        // Even simple employee query failed
         // Return fallback response when even basic queries fail
         return NextResponse.json({
           stats: {
@@ -141,14 +140,14 @@ export async function GET(request) {
     }
 
     if (!employee) {
-      console.log('❌ Employee profile not found for user:', user.email);
+      // Employee profile not found for user
       
       // Try to create employee profile if it doesn't exist
       try {
-        console.log('🆕 Creating employee profile...');
+        // Creating employee profile
         const newEmployee = await prisma.employee.create({
           data: {
-            id: require('uuid').v4(),
+            id: crypto.randomUUID(),
             userId: user.id,
             status: 'ACTIVE',
             hasSetServiceArea: false,
@@ -157,7 +156,7 @@ export async function GET(request) {
           include: { serviceAreas: true }
         });
         
-        console.log('✅ Employee profile created:', newEmployee.id);
+        // Employee profile created
         
         return NextResponse.json({
           stats: {
@@ -175,7 +174,7 @@ export async function GET(request) {
           }
         });
       } catch (createError) {
-        console.log('❌ Could not create employee profile:', createError.message);
+        // Could not create employee profile
         // Return fallback data even if we can't create employee
         return NextResponse.json({
           stats: {
@@ -196,7 +195,7 @@ export async function GET(request) {
       }
     }
 
-    console.log('📈 Calculating dashboard data for employee:', employee.id);
+    // Calculating dashboard data for employee
 
     // Calculate stats in parallel with fallbacks
     let totalServices = 0;
@@ -252,7 +251,7 @@ export async function GET(request) {
         }).catch(() => [])
       ]);
     } catch (statsError) {
-      console.log('❌ Error calculating stats, using defaults:', statsError.message);
+      // Error calculating stats, using defaults
       // All stats already have default values
     }
 
@@ -263,15 +262,11 @@ export async function GET(request) {
         where: { userId: user.id }
       });
     } catch (notifError) {
-      console.log('❌ Could not fetch notification settings:', notifError.message);
+      // Could not fetch notification settings
     }
 
-    console.log('✅ Dashboard data calculated successfully');
-    console.log('🔍 Employee hasSetServiceArea field:', employee.hasSetServiceArea);
-    console.log('🔍 Service areas count:', employee.serviceAreas ? employee.serviceAreas.length : 0);
-    
+    // Dashboard data calculated successfully
     const hasServiceAreaFinal = (employee.hasSetServiceArea || false) || (employee.serviceAreas && employee.serviceAreas.length > 0);
-    console.log('🔍 Final hasSetServiceArea value:', hasServiceAreaFinal);
 
     return NextResponse.json({
       stats: {
@@ -291,7 +286,7 @@ export async function GET(request) {
     });
 
   } catch (error) {
-    console.error('❌ Failed to fetch dashboard data:', error);
+    // Failed to fetch dashboard data
     // Return fallback data instead of error to prevent dashboard from breaking
     return NextResponse.json({
       stats: {

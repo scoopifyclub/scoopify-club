@@ -34,27 +34,27 @@ export async function GET(request) {
             const services = await prisma.service.findMany({
                 where,
                 include: {
-                    customer: {
-                        include: {
-                            User: {
-                                select: {
-                                    name: true,
-                                    email: true,
+                                            customer: {
+                            include: {
+                                user: {
+                                    select: {
+                                        name: true,
+                                        email: true,
+                                    },
                                 },
-                            },
-                            address: true
-                        }
-                    },
-                    employee: {
-                        include: {
-                            User: {
-                                select: {
-                                    name: true,
-                                    email: true,
-                                },
+                                address: true
+                            }
+                        },
+                                            employee: {
+                            include: {
+                                user: {
+                                    select: {
+                                        name: true,
+                                        email: true,
+                                    },
+                                }
                             }
                         }
-                    }
                 },
                 orderBy: {
                     createdAt: 'desc',
@@ -96,11 +96,11 @@ export async function GET(request) {
                     payoutStatus: earning ? earning.status : 'Pending',
                     referralStatus: referral ? (referral.payoutStatus || 'Pending') : 'N/A',
                     customer: {
-                        name: service.customer.User.name,
+                        name: service.customer.user.name,
                         address: service.customer.address.street
                     },
                     employee: service.employee ? {
-                        name: service.employee.User.name
+                        name: service.employee.user.name
                     } : undefined,
                     completedAt: service.completedDate
                 };

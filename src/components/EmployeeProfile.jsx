@@ -22,7 +22,8 @@ import { toast } from 'sonner';
 
 export default function EmployeeProfile({ employeeId }) {
   const [profile, setProfile] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     cashAppUsername: '',
@@ -40,10 +41,27 @@ export default function EmployeeProfile({ employeeId }) {
 
   const fetchProfile = async () => {
     try {
+      console.log('🔍 EmployeeProfile - Fetching profile...');
       const response = await fetch('/api/employee/profile');
       if (response.ok) {
         const data = await response.json();
-        setProfile(data);
+        console.log('🔍 EmployeeProfile - Profile data received:', data);
+        setProfile({
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          cashAppUsername: data.cashAppUsername || '',
+          preferredPaymentMethod: data.preferredPaymentMethod || 'STRIPE'
+        });
+        console.log('🔍 EmployeeProfile - Profile state set:', {
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          cashAppUsername: data.cashAppUsername || '',
+          preferredPaymentMethod: data.preferredPaymentMethod || 'STRIPE'
+        });
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -145,12 +163,21 @@ export default function EmployeeProfile({ employeeId }) {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="firstName">First Name</Label>
               <Input
-                id="name"
-                value={profile.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                placeholder="Enter your full name"
+                id="firstName"
+                value={profile.firstName}
+                onChange={(e) => handleInputChange('firstName', e.target.value)}
+                placeholder="Enter your first name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="lastName">Last Name</Label>
+              <Input
+                id="lastName"
+                value={profile.lastName}
+                onChange={(e) => handleInputChange('lastName', e.target.value)}
+                placeholder="Enter your last name"
               />
             </div>
             <div>
@@ -296,8 +323,22 @@ export default function EmployeeProfile({ employeeId }) {
               </div>
               <div className="space-y-2 text-sm">
                 <p className="text-gray-600">Automatic weekly payouts via Stripe</p>
+                <div className="text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span>Service Fee:</span>
+                    <span className="font-medium text-green-600">2.9% + $0.30</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Payout Fee:</span>
+                    <span className="font-medium text-green-600">$0.25</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1">
+                    <span className="font-semibold">Total Fee:</span>
+                    <span className="font-semibold text-green-600">~3.2%</span>
+                  </div>
+                </div>
                 <Badge variant="secondary" className="text-xs">
-                  Default
+                  Best Value
                 </Badge>
               </div>
             </div>
@@ -322,9 +363,54 @@ export default function EmployeeProfile({ employeeId }) {
               </div>
               <div className="space-y-2 text-sm">
                 <p className="text-gray-600">Instant payouts via Cash App (higher fees)</p>
+                <div className="text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span>Service Fee:</span>
+                    <span className="font-medium text-blue-600">2.9% + $0.30</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Cash App Fee:</span>
+                    <span className="font-medium text-blue-600">1.5%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Instant Fee:</span>
+                    <span className="font-medium text-blue-600">$0.50</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-1">
+                    <span className="font-semibold">Total Fee:</span>
+                    <span className="font-semibold text-blue-600">~4.7%</span>
+                  </div>
+                </div>
                 <Badge variant="outline" className="text-xs">
-                  Same Day
+                  Premium
                 </Badge>
+              </div>
+            </div>
+          </div>
+
+          {/* Fee Comparison Summary */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h4 className="font-semibold text-sm mb-3 text-gray-700">Fee Comparison</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Stripe (Weekly):</span>
+                  <span className="font-medium">~3.2% total</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Cash App (Same-day):</span>
+                  <span className="font-medium">~4.7% total</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Processing Time:</span>
+                  <span className="font-medium">Weekly vs Same-day</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Best For:</span>
+                  <span className="font-medium">Regular vs Emergency</span>
+                </div>
               </div>
             </div>
           </div>
