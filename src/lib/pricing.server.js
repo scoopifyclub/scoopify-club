@@ -1,5 +1,5 @@
 import { stripe as defaultStripe } from '@/lib/stripe';
-import { ALL_CATALOG_ITEMS, PLANS, findPlan, getConfiguredPriceId } from '@/lib/pricing-catalog';
+import { ALL_CATALOG_ITEMS, INITIAL_CLEANUP, PLANS, findPlan, getConfiguredPriceId } from '@/lib/pricing-catalog';
 
 function priceMatchesPlan(price, item) {
     if (!price || !price.active || price.currency !== 'usd') return false;
@@ -66,6 +66,21 @@ async function resolveItem(item, { stripe, env }) {
 export async function getPricingPlans({ stripe = defaultStripe, env = process.env, includeInitialCleanup = false } = {}) {
     const items = includeInitialCleanup ? ALL_CATALOG_ITEMS : PLANS;
     return Promise.all(items.map((item) => resolveItem(item, { stripe, env })));
+}
+
+// Initial cleanup as a one-time line on a subscription's first invoice: the
+// configured Stripe price, else the legacy signup amount (PENDING decision).
+export function getInitialCleanupLineItem(env = process.env) {
+    const priceId = getConfiguredPriceId(INITIAL_CLEANUP, env);
+    if (priceId) return { price: priceId, quantity: 1 };
+    return {
+        price_data: {
+            currency: 'usd',
+            product_data: { name: INITIAL_CLEANUP.name },
+            unit_amount: INITIAL_CLEANUP.legacySignupChargeCents,
+        },
+        quantity: 1,
+    };
 }
 
 // Resolves a plan the client asked to buy. Only catalog plans with a
