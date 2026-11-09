@@ -48,8 +48,37 @@ export async function signToken(payload, expiresIn = '24h') {
 }
 
 /**
+ * Admin session version: an HMAC over the admin's current DB identity
+ * (id, email, role, password hash) plus ADMIN_SESSION_EPOCH. It is embedded
+ * in admin tokens as `sv` and recomputed from the DB on every privileged
+ * request, so a token signed with a leaked JWT_SECRET is still useless
+ * without the account's password hash, and changing the password, the role
+ * or ADMIN_SESSION_EPOCH revokes every outstanding admin session.
+ * @param {object} user - User row with id, email, role, password
+ * @returns {Promise<string|null>}
+ */
+export async function computeAdminSessionVersion(user) {
+  if (!user?.id || !user?.password) {
+    return null;
+  }
+  const epoch = process.env.ADMIN_SESSION_EPOCH || '1';
+  const key = await crypto.subtle.importKey(
+    'raw',
+    JWT_SECRET_BYTES,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const data = new TextEncoder().encode(
+    ['admin-session', epoch, user.id, user.email, user.role, user.password].join('|')
+  );
+  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, data));
+  return Array.from(signature, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * Create a user token with standard claims
- * @param {object} user - User object with id, email, role
+ * @param {object} user - User object with id, email, role (and password for admins)
  * @returns {Promise<string|null>} - The signed token or null if failed
  */
 export async function createUserToken(user) {
@@ -59,6 +88,13 @@ export async function createUserToken(user) {
     role: user.role,
     type: 'user'
   };
+
+  if (user.role === 'ADMIN') {
+    const sv = await computeAdminSessionVersion(user);
+    if (sv) {
+      payload.sv = sv;
+    }
+  }
   
   return await signToken(payload, '24h');
 }
@@ -106,6 +142,7 @@ export async function validateUserToken(token, expectedRole = null) {
   return {
     userId: payload.userId,
     email: payload.email,
-    role: payload.role
+    role: payload.role,
+    sv: payload.sv
   };
 }

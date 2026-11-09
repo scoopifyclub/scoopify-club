@@ -206,6 +206,7 @@ export async function generateTokens(user) {
     id: user.id,
     email: user.email,
     role: user.role,
+    password: user.password,
   });
 
   const refreshToken = await createRefreshToken({
