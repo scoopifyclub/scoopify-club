@@ -7,7 +7,9 @@ The logic lives in `src/lib/scooper-payouts.js` (earnings and transfers),
 
 ## Pay rules
 
-From `src/lib/payment-calculator.js`:
+Pay comes from the job's `JobFinancialRecord`, written by the completion path
+(`src/lib/job-completion.js`, using `allocateVisit()` in
+`src/lib/job-financials.js`):
 
 | Job | Scooper earns |
 |---|---|
@@ -15,53 +17,56 @@ From `src/lib/payment-calculator.js`:
 | One-time job (any other plan type, e.g. `ONE_TIME`, `INITIAL_CLEANUP`) | 75% of the price ($99 → $74.25) |
 
 Scoopify keeps the rest and absorbs Stripe fees, Connect fees and referral
-rewards; none of them is deducted from the scooper's share. The amount comes
-from the job's plan when its earning is recorded. `Service.potentialEarnings`
-is only the figure shown when the job was offered.
+rewards; none of them is deducted from the scooper's share.
+`Service.potentialEarnings` is only the figure shown when the job was offered.
 
-## Earnings ledger
+## What gets paid
 
-A job earns pay once it is **verified complete**: `status = COMPLETED`, a
-`completedDate`, an assigned scooper and at least one `AFTER` photo. Jobs
-whose `Service.paymentStatus` is already `PAID` were paid by hand before this
-existed and are never paid again.
+A job is paid only if it has a `JobFinancialRecord`, which exists only once
+the job is **verified complete** (before and after photos and the checklist,
+through `completeService()`). The payout pays `scooperEarningCents` as it
+stands when the payout is created, so an admin correction made with
+`adjustFinancialRecord()` before then is included. Once a record is attached
+to a payout (`payoutId` set) or paid (`stripeTransferId` set) it can no longer
+be adjusted. Completed services without a record (completed before the
+completion path existed) are never paid automatically.
 
-Each verified job gets one `Earning` row (`kind = JOB`), unique per service.
-A job's pay that has to be taken back after it was paid gets one negative
-`kind = CLAWBACK` row.
-
-| `Earning.status` | Meaning |
+| `JobFinancialRecord.payoutStatus` | Meaning |
 |---|---|
 | `PENDING` | Owed; paid on the next Friday run once its week has ended |
-| `HELD` | Owed, but a refund or dispute hold covers it |
+| `HELD` | Owed, but a refund or dispute hold covers it (`holdReason`) |
 | `PROCESSING` | Attached to a payout whose transfer is not confirmed yet |
-| `PAID` | Transferred |
+| `PAID` | Transferred (`stripeTransferId`, `paidAt`) |
 | `VOID` | Never payable (refunded or dispute lost before it was paid) |
+
+The job's `Earning` row mirrors the same status for older screens. Pay taken
+back after it was paid is a negative `PayoutAdjustment` row (one per service),
+netted into the scooper's next payout.
 
 ## Weekly run
 
 `/api/cron/process-employee-payouts` (Fridays, see [cron-jobs.md](cron-jobs.md))
 calls `runPayouts()`:
 
-1. Record earnings for verified jobs completed before this Monday (Denver)
-   and apply holds.
+1. Apply holds to unpaid records.
 2. Retry any `PROCESSING` or `FAILED` payout from an earlier run.
-3. For each scooper with a positive balance of `PENDING` earnings and a
+3. For each scooper with a positive balance of `PENDING` records for jobs
+   completed before this Monday (Denver) plus pending adjustments, and a
    Stripe account that can receive transfers, create one `Payout` for the
-   period, attach the earnings and send one transfer.
+   period, attach the records and adjustments and send one transfer.
 
-A negative balance (clawbacks larger than new earnings) is carried forward.
+A negative balance (clawbacks larger than new pay) is carried forward.
 A scooper who has not finished Stripe onboarding is reported as
-`NEEDS_ONBOARDING`; their earnings stay `PENDING` and are paid on the first
+`NEEDS_ONBOARDING`; their records stay `PENDING` and are paid on the first
 run after Stripe enables payouts.
 
 **No double payment.** `Payout` is unique on `(employeeId, weekStart)`, so
-only one payout per scooper per period can exist. Earnings are attached with a
-conditional update, so an earning belongs to at most one payout. The transfer
+only one payout per scooper per period can exist. Records are attached with a
+conditional update, so a record belongs to at most one payout. The transfer
 uses idempotency key `scooper-payout-<payoutId>` and `transfer_group
 payout_<payoutId>`, and a retry first looks for an existing transfer in that
 group, so a crash or lost response is safe even after Stripe's 24-hour
-idempotency window. A failed payout is retried with the same earnings and
+idempotency window. A failed payout is retried with the same records and
 amount; jobs finished meanwhile wait for the next period.
 
 **Switches.** Transfers happen only when `PAYOUTS_ENABLED=true`; otherwise the
@@ -98,7 +103,7 @@ services; without `serviceIds`, every job the hold covers).
 | `GET/POST /api/employee/stripe-connect` | approved scooper | `onboarding-link` (creates the Express account once), `refresh-status`, `dashboard-link`, `status` |
 | `/employee/dashboard/payouts/return`, `/refresh` | scooper | Stripe onboarding return and refresh pages |
 | `POST /api/webhooks/stripe-payouts` | Stripe | `account.updated`, `charge.refunded`, `charge.dispute.*` |
-| `GET /api/admin/payouts/reconciliation?from&to` | admin | Revenue, Stripe fees, Connect fees, refunds, disputes, scooper and referral payouts, Scoopify margin; owed balances; mismatches |
+| `GET /api/admin/payouts/reconciliation?from&to` | admin | Per-job economics from `JobFinancialRecord`; revenue, Stripe fees, Connect fees, refunds, disputes, scooper and referral payouts, Scoopify margin; owed balances; mismatches |
 | `GET/POST /api/admin/payouts/holds` | admin | List and resolve holds |
 
 The old manual paths (`POST /api/earnings/payout`,
@@ -112,7 +117,7 @@ The old manual paths (`POST /api/earnings/payout`,
    customers and transfers to contractors).
 2. **Express settings.** Connect → Settings: account type Express; country US;
    capability **Transfers** only (no card payments); brand name, icon and
-   color;    Express payout schedule (default daily automatic is fine). If Scoopify
+   color; Express payout schedule (default daily automatic is fine). If Scoopify
    will file 1099-NEC forms through Stripe, turn on Connect tax reporting so
    onboarding collects each scooper's TIN.
 3. **Webhooks.** Developers → Webhooks, two endpoints at
@@ -135,8 +140,8 @@ The old manual paths (`POST /api/earnings/payout`,
 ## Tests
 
 `npm run test:cron` (needs `TEST_DATABASE_URL`, see the test header) runs
-`src/__tests__/cron/scooper-payouts.db.test.js`: pay rules, verified-only
-earnings, report-only mode, one transfer per scooper, overlapping runs,
+`src/__tests__/cron/scooper-payouts.db.test.js`: paying the financial record
+(with adjustments, never without a record), report-only mode, one transfer per scooper, overlapping runs,
 lost Stripe responses, declined transfers, onboarding, the live-key guard,
 dispute holds, refund voids and clawbacks, admin hold resolution, the scooper
 view, reconciliation and the cron and webhook routes.

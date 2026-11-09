@@ -95,7 +95,7 @@ describeDb('scooper payouts (real Postgres)', () => {
   let prisma;
   let payouts;
   let holds;
-  let calculator;
+  let financials;
   let connect;
   let reconciliation;
   let routes;
@@ -113,7 +113,7 @@ describeDb('scooper payouts (real Postgres)', () => {
     ({ prisma } = require('@/lib/prisma'));
     payouts = require('@/lib/scooper-payouts');
     holds = require('@/lib/payout-holds');
-    calculator = require('@/lib/payment-calculator');
+    financials = require('@/lib/job-financials');
     connect = require('@/lib/stripe-connect');
     reconciliation = require('@/lib/payout-reconciliation');
     routes = {
@@ -131,7 +131,7 @@ describeDb('scooper payouts (real Postgres)', () => {
     delete process.env.PAYOUTS_ALLOW_LIVE;
     process.env.STRIPE_SECRET_KEY = 'sk_test_payouts';
     await prisma.$executeRawUnsafe(
-      'TRUNCATE "PayoutHold", "Earning", "Payout", "Payment", "ServicePhoto", "Service", "Subscription", "ServicePlan", "Customer", "Employee", "User", "SystemLog" CASCADE'
+      'TRUNCATE "PayoutAdjustment", "PayoutHold", "JobFinancialRecord", "Earning", "Payout", "Payment", "ServicePhoto", "Service", "Subscription", "ServicePlan", "Customer", "Employee", "User", "SystemLog" CASCADE'
     );
     monthlyPlan = await prisma.servicePlan.create({
       data: { id: id('plan'), name: 'Weekly 1 dog', price: 79, duration: 30, type: 'MONTHLY', updatedAt: new Date() },
@@ -171,7 +171,10 @@ describeDb('scooper payouts (real Postgres)', () => {
     });
   }
 
-  async function completedJob({ scooper, customer, completedDate = LAST_WEEK, plan = monthlyPlan, afterPhoto = true, status = 'COMPLETED', paymentStatus = 'PENDING', potentialEarnings = 1.23 }) {
+  // A job completed through job-completion.js: verified (photos and checklist)
+  // and given its JobFinancialRecord and mirrored Earning. `record: false` is
+  // a completed service that never went through that path.
+  async function completedJob({ scooper, customer, completedDate = LAST_WEEK, plan = monthlyPlan, record = true }) {
     const owner = customer || (await createCustomer());
     const service = await prisma.service.create({
       data: {
@@ -180,54 +183,57 @@ describeDb('scooper payouts (real Postgres)', () => {
         servicePlanId: plan.id,
         employeeId: scooper.id,
         scheduledDate: completedDate,
-        completedDate: status === 'COMPLETED' ? completedDate : null,
-        status,
-        paymentStatus,
-        potentialEarnings,
+        arrivedAt: new Date(completedDate.getTime() - 30 * 60 * 1000),
+        completedDate,
+        status: 'COMPLETED',
+        paymentStatus: 'PENDING',
         updatedAt: new Date(),
       },
     });
-    if (afterPhoto) {
-      await prisma.servicePhoto.create({
-        data: { id: id('photo'), serviceId: service.id, type: 'AFTER', url: 'https://example.com/after.jpg', updatedAt: new Date() },
+    if (record) {
+      const data = financials.buildFinancialRecord({ service: { ...service, servicePlan: plan }, completedAt: completedDate });
+      await prisma.jobFinancialRecord.create({ data });
+      await prisma.earning.create({
+        data: { id: id('earn'), serviceId: service.id, employeeId: scooper.id, amount: data.scooperEarningCents / 100, status: 'PENDING', createdAt: completedDate, updatedAt: completedDate },
       });
     }
     return { service, customer: owner };
   }
 
-  const earningFor = (serviceId, kind = 'JOB') =>
-    prisma.earning.findUnique({ where: { serviceId_kind: { serviceId, kind } } });
+  const recordFor = (serviceId) => prisma.jobFinancialRecord.findUnique({ where: { serviceId } });
+  const earningFor = (serviceId) => prisma.earning.findUnique({ where: { serviceId } });
+  const clawbackFor = (serviceId) => prisma.payoutAdjustment.findUnique({ where: { key: `clawback:${serviceId}` } });
 
   const run = (stripe, now = FRIDAY) => payouts.runPayouts({ stripe, now, transfer: true });
 
-  describe('pay rules', () => {
-    it('pays monthly price x 12 / 52 x 75% per visit and 75% of one-time jobs, before fees', () => {
-      expect(calculator.scooperEarningPerVisit(79)).toBe(13.67);
-      expect(calculator.scooperEarningPerVisit(55)).toBe(9.52);
-      expect(calculator.scooperEarningOneTime(99)).toBe(74.25);
-      expect(calculator.scooperEarningForPlan({ type: 'MONTHLY', price: 89 })).toBe(15.40);
-      expect(calculator.scooperEarningForPlan({ type: 'INITIAL_CLEANUP', price: 49 })).toBe(36.75);
-      expect(calculator.scooperEarningForPlan({ type: 'MONTHLY', price: 0 })).toBeNull();
-      // Referrals and Stripe fees no longer reduce scooper pay.
-      expect(calculator.calculateMonthlyServicePayment(79, 'CUSTOMER').scooperPaymentPerService).toBe(13.67);
+  describe('what is paid', () => {
+    it('pays the financial record amount, including adjustments made before the payout', async () => {
+      const scooper = await createScooper();
+      const { service } = await completedJob({ scooper });
+      expect((await recordFor(service.id)).scooperEarningCents).toBe(1367);
+      await financials.adjustFinancialRecord({ serviceId: service.id, changes: { scooperEarningCents: 9367 }, reason: 'Extra yard', by: 'admin' });
+
+      const stripe = fakeStripe();
+      await run(stripe);
+      expect(stripe.created).toHaveLength(1);
+      expect(stripe.created[0].amount).toBe(1367 + 8000);
+      const record = await recordFor(service.id);
+      expect(record).toMatchObject({ payoutStatus: 'PAID', stripeTransferId: stripe.created[0].id });
+      expect(record.paidAt).toEqual(FRIDAY);
+      expect(await earningFor(service.id)).toMatchObject({ status: 'PAID', paidVia: 'STRIPE_CONNECT' });
+
+      await expect(
+        financials.adjustFinancialRecord({ serviceId: service.id, changes: { scooperEarningCents: 0 }, reason: 'Too late', by: 'admin' })
+      ).rejects.toThrow(/already been paid out/);
     });
 
-    it('records earnings only for verified completed jobs, priced from the plan', async () => {
+    it('never pays a completed service without a financial record', async () => {
       const scooper = await createScooper();
-      const { service: monthly } = await completedJob({ scooper });
-      const { service: oneTime } = await completedJob({ scooper, plan: oneTimePlan });
-      const { service: noPhoto } = await completedJob({ scooper, afterPhoto: false });
-      const { service: inProgress } = await completedJob({ scooper, status: 'IN_PROGRESS' });
-      const { service: paidByHand } = await completedJob({ scooper, paymentStatus: 'PAID' });
-
-      const result = await payouts.syncEarnings({ now: FRIDAY });
-      expect(result.created).toBe(2);
-      expect((await earningFor(monthly.id)).amount).toBe(13.67);
-      expect((await earningFor(oneTime.id)).amount).toBe(74.25);
-      for (const s of [noPhoto, inProgress, paidByHand]) expect(await earningFor(s.id)).toBeNull();
-
-      await payouts.syncEarnings({ now: FRIDAY });
-      expect(await prisma.earning.count()).toBe(2);
+      await completedJob({ scooper, record: false });
+      const stripe = fakeStripe();
+      const result = await run(stripe);
+      expect(result.results).toHaveLength(0);
+      expect(stripe.created).toHaveLength(0);
     });
   });
 
@@ -242,7 +248,7 @@ describeDb('scooper payouts (real Postgres)', () => {
       expect(result.summary.wouldPay).toBe(13.67);
       expect(stripe.created).toHaveLength(0);
       expect(await prisma.payout.count()).toBe(0);
-      expect((await prisma.earning.findFirst()).status).toBe('PENDING');
+      expect((await prisma.jobFinancialRecord.findFirst()).payoutStatus).toBe('PENDING');
     });
 
     it('pays each scooper one transfer for last week and never pays it again', async () => {
@@ -263,12 +269,12 @@ describeDb('scooper payouts (real Postgres)', () => {
       expect(toAlice.currency).toBe('usd');
       expect(first.summary.paid).toBe(13.67 + 74.25 + 13.67);
 
-      const payout = await prisma.payout.findFirst({ where: { employeeId: alice.id }, include: { earnings: true } });
+      const payout = await prisma.payout.findFirst({ where: { employeeId: alice.id }, include: { financialRecords: true } });
       expect(payout).toMatchObject({ status: 'PAID', amount: 87.92, serviceCount: 2, stripeTransferId: toAlice.id });
-      expect(payout.earnings.every((e) => e.status === 'PAID')).toBe(true);
+      expect(payout.financialRecords.every((r) => r.payoutStatus === 'PAID' && r.stripeTransferId === toAlice.id)).toBe(true);
       expect((await prisma.service.findUnique({ where: { id: a1.id } })).paymentStatus).toBe('PAID');
       // This week's job waits for next Friday.
-      expect(await earningFor(thisWeek.id)).toBeNull();
+      expect((await recordFor(thisWeek.id)).payoutStatus).toBe('PENDING');
 
       const again = await run(stripe);
       expect(stripe.created).toHaveLength(2);
@@ -295,6 +301,7 @@ describeDb('scooper payouts (real Postgres)', () => {
       expect(new Set(stripe.created.map((t) => t.destination)).size).toBe(3);
       expect(stripe.created.every((t) => t.amount === 2734)).toBe(true);
       expect(await prisma.payout.count({ where: { status: 'PAID' } })).toBe(3);
+      expect(await prisma.jobFinancialRecord.count({ where: { payoutStatus: 'PAID' } })).toBe(6);
       expect(await prisma.earning.count({ where: { status: 'PAID' } })).toBe(6);
     });
 
@@ -308,7 +315,10 @@ describeDb('scooper payouts (real Postgres)', () => {
       expect(first.results[0].status).toBe('FAILED');
       expect(stripe.created).toHaveLength(1);
       expect((await prisma.payout.findFirst()).status).toBe('FAILED');
-      expect((await prisma.earning.findFirst()).status).toBe('PROCESSING');
+      expect((await prisma.jobFinancialRecord.findFirst()).payoutStatus).toBe('PROCESSING');
+      await expect(
+        financials.adjustFinancialRecord({ serviceId: (await prisma.jobFinancialRecord.findFirst()).serviceId, changes: { scooperEarningCents: 1 }, reason: 'x', by: 'admin' })
+      ).rejects.toThrow(/payout being sent/);
 
       const retry = await run(stripe);
       expect(retry.results[0]).toMatchObject({ status: 'PAID', retried: true, transferId: stripe.created[0].id });
@@ -331,7 +341,7 @@ describeDb('scooper payouts (real Postgres)', () => {
       await run(stripe);
       expect(stripe.created).toHaveLength(1);
       expect(stripe.created[0].amount).toBe(1367);
-      expect(await prisma.earning.count({ where: { status: 'PENDING' } })).toBe(1);
+      expect(await prisma.jobFinancialRecord.count({ where: { payoutStatus: 'PENDING' } })).toBe(1);
     });
 
     it('waits for Stripe onboarding, then pays once account.updated reports payouts enabled', async () => {
@@ -395,12 +405,13 @@ describeDb('scooper payouts (real Postgres)', () => {
 
       await run(stripe);
       expect(stripe.created).toHaveLength(0);
+      expect((await recordFor(service.id)).payoutStatus).toBe('HELD');
       expect((await earningFor(service.id)).status).toBe('HELD');
 
       await holds.handleDispute({ ...dispute, status: 'won' });
       await run(stripe);
       expect(stripe.created).toHaveLength(1);
-      expect((await earningFor(service.id)).status).toBe('PAID');
+      expect((await recordFor(service.id)).payoutStatus).toBe('PAID');
     });
 
     it('voids an unpaid job when its payment is fully refunded', async () => {
@@ -415,6 +426,9 @@ describeDb('scooper payouts (real Postgres)', () => {
 
       await run(stripe);
       expect(stripe.created).toHaveLength(0);
+      const record = await recordFor(service.id);
+      expect(record).toMatchObject({ payoutStatus: 'VOID', scooperEarningCents: 0 });
+      expect(record.adjustments[0].changes.scooperEarningCents).toEqual({ from: 7425, to: 0 });
       expect((await earningFor(service.id)).status).toBe('VOID');
     });
 
@@ -429,7 +443,8 @@ describeDb('scooper payouts (real Postgres)', () => {
 
       await holds.handleChargeRefunded({ id: 'ch_r2', payment_intent: payment.stripePaymentIntentId, amount: 9900, amount_refunded: 9900, refunded: true }, { now: REFUNDED_AT });
       await holds.handleChargeRefunded({ id: 'ch_r2', payment_intent: payment.stripePaymentIntentId, amount: 9900, amount_refunded: 9900, refunded: true }, { now: REFUNDED_AT });
-      expect((await earningFor(service.id, 'CLAWBACK')).amount).toBe(-74.25);
+      expect((await clawbackFor(service.id)).amountCents).toBe(-7425);
+      expect(await prisma.payoutAdjustment.count()).toBe(1);
 
       // Next week: one $13.67 job does not cover the $74.25 clawback, so nothing is sent.
       await completedJob({ scooper, completedDate: THIS_WEEK });
@@ -443,7 +458,7 @@ describeDb('scooper payouts (real Postgres)', () => {
       await run(stripe, new Date('2026-11-27T16:00:00Z'));
       expect(stripe.created).toHaveLength(2);
       expect(stripe.created[1].amount).toBe(1367 + 7425 + 7425 - 7425);
-      expect((await earningFor(service.id, 'CLAWBACK')).status).toBe('PAID');
+      expect((await clawbackFor(service.id)).status).toBe('PAID');
     });
 
     it('holds a customer after a partial or subscription refund until an admin decides', async () => {
@@ -462,8 +477,8 @@ describeDb('scooper payouts (real Postgres)', () => {
       expect(rejected.status).toBe(400);
 
       await holds.resolveHold({ holdId, action: 'void', serviceIds: [s1.id], adminId: 'admin-1' });
-      expect((await earningFor(s1.id)).status).toBe('VOID');
-      expect((await earningFor(s2.id)).status).toBe('PENDING');
+      expect((await recordFor(s1.id)).payoutStatus).toBe('VOID');
+      expect((await recordFor(s2.id)).payoutStatus).toBe('PENDING');
       expect((await prisma.payoutHold.findUnique({ where: { id: holdId } })).status).toBe('RESOLVED');
 
       await run(stripe);
@@ -505,6 +520,7 @@ describeDb('scooper payouts (real Postgres)', () => {
       };
 
       const report = await reconciliation.payoutReconciliation({ stripe, from: '2026-11-01', to: '2026-11-14' });
+      expect(report.jobEconomics).toMatchObject({ jobsCompleted: 1, customerPriceAllocated: 99, scooperEarnings: 74.25, stripeFeesEstimated: 3.17, retainedContribution: 21.58 });
       expect(report.ledger).toMatchObject({ revenue: 99, stripeFeesRecorded: 3.17, scooperPayouts: 74.25, scoopifyMargin: 21.58 });
       expect(report.stripe).toMatchObject({ grossRevenue: 99, stripeFees: 3.17, connectFees: 2, scooperTransfers: 74.25, scoopifyMargin: 19.58 });
       expect(report.issues).toEqual([]);
