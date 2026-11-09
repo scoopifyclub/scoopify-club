@@ -54,10 +54,9 @@ Scooper routes accept the `accessToken` cookie or `Authorization: Bearer <token>
 ## Expiry schedule
 
 `/api/cron/release-expired-claims` accepts `Authorization: Bearer $CRON_SECRET`
-(or a verified admin session) and should run every 5 minutes. It is not
-scheduled yet; wiring it into the cron workflow is a separate task. Until then
-claim, check-in and every job feed run the same release first, so an abandoned
-job reappears the next time any scooper loads a feed or claims.
+(or a verified admin session) and runs every 5 minutes from Vercel Cron (see
+`docs/cron-jobs.md`). Claim, check-in and every job feed also run the same
+release first, so an abandoned job reappears even if a cron run is missed.
 
 ## Production steps
 
@@ -68,8 +67,8 @@ job reappears the next time any scooper loads a feed or claims.
 3. Every existing scooper is now pending. List them and approve the real ones:
    `node scripts/scooper-approvals.js list` then
    `node scripts/scooper-approvals.js approve <email> --apply`.
-4. Schedule `/api/cron/release-expired-claims` every 5 minutes with
-   `CRON_SECRET` set.
+4. Set `CRON_SECRET` in Vercel; `vercel.json` schedules
+   `/api/cron/release-expired-claims` every 5 minutes (see `docs/cron-jobs.md`).
 
 ## Tests
 
