@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import prisma from '@/lib/prisma';
 import { addWeeks, startOfWeek } from 'date-fns';
+import { perVisitEarnings } from '@/lib/recurring-services';
 import { logWebhookProcessed, logWebhookFailed, logSecurityCritical } from '@/lib/payment-logging';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
@@ -453,10 +454,7 @@ async function createServicesForSubscription(subscriptionId) {
 
       if (!existingService) {
         // Calculate potential earnings
-        const subscriptionAmount = subscription.servicePlan.price;
-        const stripeFee = subscriptionAmount * 0.029 + 0.30;
-        const netAmount = subscriptionAmount - stripeFee;
-        const potentialEarnings = Math.round((netAmount * 0.75) * 100) / 100;
+        const potentialEarnings = perVisitEarnings(subscription.servicePlan);
 
         await prisma.service.create({
           data: {
