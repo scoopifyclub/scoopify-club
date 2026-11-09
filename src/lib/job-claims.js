@@ -443,6 +443,24 @@ export async function checkInService({ serviceId, employeeId, latitude, longitud
   return getAssignedJob({ serviceId, employeeId, db, reason: 'check-in', now });
 }
 
+/** Shared POST handler for the scooper check-in/arrive routes. */
+export async function handleCheckInRequest(request, serviceId) {
+  try {
+    const auth = await requireScooper(request);
+    if (!auth.ok) return auth.response;
+    const body = await request.json().catch(() => ({}));
+    const service = await checkInService({
+      serviceId,
+      employeeId: auth.employee.id,
+      latitude: body?.latitude,
+      longitude: body?.longitude,
+    });
+    return NextResponse.json(service);
+  } catch (error) {
+    return jobClaimErrorResponse(error, 'Failed to check in to service');
+  }
+}
+
 /**
  * Prisma select for the customer on unclaimed-job feeds: no gate code,
  * street, phone, email, or notes until the job is claimed.
