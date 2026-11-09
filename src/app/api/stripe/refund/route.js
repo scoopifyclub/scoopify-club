@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { logPaymentSuccess, logPaymentFailure, logSecurityAlert } from '@/lib/payment-logging';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -12,14 +13,9 @@ export const runtime = 'nodejs';
 export async function POST(request) {
   try {
     // Authentication check
-    const token = cookies().get('accessToken')?.value;
-    const user = await verifyToken(token);
-
-    if (!user || !['ADMIN', 'MANAGER'].includes(user.role)) {
-      return NextResponse.json({ 
-        error: 'Unauthorized access' 
-      }, { status: 401 });
-    }
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+    const user = auth.user;
 
     const { paymentIntentId, amount, reason, customerId, description } = await request.json();
 
@@ -198,14 +194,8 @@ export async function POST(request) {
 // Get refund history
 export async function GET(request) {
   try {
-    const token = cookies().get('accessToken')?.value;
-    const user = await verifyToken(token);
-
-    if (!user || !['ADMIN', 'MANAGER'].includes(user.role)) {
-      return NextResponse.json({ 
-        error: 'Unauthorized access' 
-      }, { status: 401 });
-    }
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
     const paymentIntentId = searchParams.get('paymentIntentId');

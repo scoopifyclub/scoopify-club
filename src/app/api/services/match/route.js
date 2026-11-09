@@ -1,20 +1,17 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { requireAuth } from '@/lib/api-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function POST(req) {
     try {
-        const user = await requireAuth(req);
+        const auth = await requireAdmin(req);
+        if (!auth.ok) return auth.response;
         const { serviceId, employeeId } = await req.json();
         if (!serviceId || !employeeId) {
             return NextResponse.json({ error: 'Service ID and employee ID are required' }, { status: 400 });
-        }
-        // Only admins can manually match services
-        if (user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         const service = await prisma.service.findUnique({
             where: { id: serviceId },

@@ -116,5 +116,16 @@ export async function requireAdmin(request) {
   }
 
   const { password: _password, ...safeUser } = user;
-  return { ok: true, user: safeUser, userId: user.id, role: user.role };
+  return { ok: true, user: { ...safeUser, userId: user.id }, userId: user.id, role: user.role };
+}
+
+/**
+ * For routes shared by several roles where an ADMIN claim grants access to
+ * other users' data: the claim only counts if requireAdmin() accepts it.
+ * Returns an error response to send, or null to continue.
+ */
+export async function denyUnverifiedAdmin(request, role) {
+  if (role !== 'ADMIN') return null;
+  const auth = await requireAdmin(request);
+  return auth.ok ? null : auth.response;
 }

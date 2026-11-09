@@ -1,17 +1,14 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { requireAuth } from '@/lib/api-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function POST(req) {
     try {
-        const user = await requireAuth(req);
-        // Only admins can trigger weather delays
-        if (user.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(req);
+        if (!auth.ok) return auth.response;
         const { startDate, endDate, reason } = await req.json();
         if (!startDate || !endDate || !reason) {
             return NextResponse.json({ error: 'Start date, end date, and reason are required' }, { status: 400 });

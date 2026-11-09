@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -8,6 +9,8 @@ export const runtime = 'nodejs';
 // It opens the job pool and rolls over unclaimed jobs from previous days
 export async function POST(request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
     console.log('🚀 Opening job pool and rolling over unclaimed jobs...');
     
     const today = new Date();

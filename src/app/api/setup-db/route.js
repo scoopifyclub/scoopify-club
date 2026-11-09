@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import sql from '@/lib/db';
-export async function POST() {
+import { requireAdmin } from '@/lib/admin-auth';
+export async function POST(request) {
     try {
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         // Create users table first (base table)
         await sql `
       CREATE TABLE IF NOT EXISTS users (

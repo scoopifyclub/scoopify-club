@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
+import { requireAdmin } from '@/lib/admin-auth';
 import bcrypt from 'bcryptjs';
 import { generateTokens, validateUser } from '@/lib/api-auth';
 import { getZipCodesWithinRadiusGoogle } from '@/lib/googleZipRadius';
@@ -118,17 +118,8 @@ export async function POST(request) {
 
 export async function GET(request) {
     try {
-        const cookieStore = cookies();
-        const token = cookieStore.get('token')?.value;
-
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const decoded = await verifyToken(token);
-        if (!decoded || !['ADMIN', 'MANAGER'].includes(decoded.role)) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
 
         const employees = await prisma.employee.findMany({
             include: {

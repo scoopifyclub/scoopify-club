@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
+import { denyUnverifiedAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -22,6 +23,8 @@ export async function POST(request, { params }) {
         if (!decoded || !['EMPLOYEE', 'ADMIN'].includes(decoded.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, decoded.role);
+        if (adminDenied) return adminDenied;
 
         const { id } = params;
         const { url, type, description } = await request.json();
@@ -93,6 +96,8 @@ export async function GET(request, { params }) {
         if (!decoded) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, decoded.role);
+        if (adminDenied) return adminDenied;
 
         const { id } = params;
         const service = await prisma.service.findUnique({
@@ -160,6 +165,8 @@ export async function DELETE(request, { params }) {
         if (!decoded || !['EMPLOYEE', 'ADMIN'].includes(decoded.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, decoded.role);
+        if (adminDenied) return adminDenied;
 
         const { id } = params;
         const { photoId } = await request.json();

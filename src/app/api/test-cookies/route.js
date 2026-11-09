@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export async function GET(request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
     console.log('🧪 Testing cookies...');
     
     // Get all cookies

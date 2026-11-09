@@ -127,6 +127,11 @@ export async function validateUserToken(token, expectedRole = null) {
   if (!payload || payload.type !== 'user') {
     return null;
   }
+
+  // Admin tokens issued before session binding (no `sv`) are revoked
+  if (payload.role === 'ADMIN' && !payload.sv) {
+    return null;
+  }
   
   // Check if token has expired
   if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
