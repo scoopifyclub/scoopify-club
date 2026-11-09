@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import {
   S3Client,
   PutObjectCommand,
@@ -39,6 +38,8 @@ function getClient() {
   if (!client || clientKey !== key) {
     client = new S3Client({
       region: process.env.AWS_REGION,
+      // Otherwise presigned PUTs carry a checksum of an empty body and S3 rejects the upload.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID,
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -82,16 +83,19 @@ export async function readObjectPrefix(key, length = 32) {
   return Buffer.from(await res.Body.transformToByteArray());
 }
 
-/** Signed PUT for a direct browser upload; the client must send the same Content-Type. */
+/**
+ * Signed PUT for a direct browser upload. The browser must send exactly the
+ * returned headers; they are part of the signature.
+ */
 export async function getSignedUploadUrl(key, contentType, expiresIn = UPLOAD_URL_TTL_SECONDS) {
   const command = new PutObjectCommand({
     Bucket: getBucket(),
     Key: key,
     ContentType: contentType,
-    CacheControl: 'private, max-age=0, no-store',
     ServerSideEncryption: 'AES256',
   });
-  return getSignedUrl(getClient(), command, { expiresIn });
+  const url = await getSignedUrl(getClient(), command, { expiresIn, signableHeaders: new Set(['content-type']) });
+  return { url, headers: { 'Content-Type': contentType, 'x-amz-server-side-encryption': 'AES256' } };
 }
 
 export async function getSignedDownloadUrl(key, expiresIn = VIEW_URL_TTL_SECONDS) {
@@ -113,11 +117,4 @@ export function keyFromLegacyUrl(url) {
   } catch {
     return null;
   }
-}
-
-export async function uploadToS3(file, prefix = 'uploads') {
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const key = `${prefix}/${randomUUID()}`;
-  await putPrivateObject({ key, body: buffer, contentType: file.type || 'application/octet-stream' });
-  return key;
 }

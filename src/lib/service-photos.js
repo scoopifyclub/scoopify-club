@@ -145,12 +145,13 @@ export async function createPhotoUploadUrl({ serviceId, employeeId, type, conten
   assertStorage();
   await assertCanUpload(db, serviceId, employeeId);
   const key = photoKey(serviceId, photoType, ct);
+  const { url, headers } = await storage.getSignedUploadUrl(key, ct);
   return {
     key,
     type: photoType,
     method: 'PUT',
-    uploadUrl: await storage.getSignedUploadUrl(key, ct),
-    headers: { 'Content-Type': ct },
+    uploadUrl: url,
+    headers,
     expiresIn: storage.UPLOAD_URL_TTL_SECONDS,
     maxBytes: MAX_PHOTO_BYTES,
   };

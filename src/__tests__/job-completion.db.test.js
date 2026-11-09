@@ -357,8 +357,16 @@ describeDb('job photos and completion (real Postgres)', () => {
       const res = await ask({ type: 'AFTER', contentType: 'image/jpeg', size: 6 * 1024 * 1024 });
       expect(res.status).toBe(200);
       const grant = await res.json();
-      expect(grant).toMatchObject({ method: 'PUT', headers: { 'Content-Type': 'image/jpeg' }, expiresIn: 300 });
+      expect(grant).toMatchObject({
+        method: 'PUT',
+        headers: { 'Content-Type': 'image/jpeg', 'x-amz-server-side-encryption': 'AES256' },
+        expiresIn: 300,
+      });
       expectSignedUrl(grant.uploadUrl, 300);
+      const signed = new URL(grant.uploadUrl).searchParams;
+      expect(signed.get('X-Amz-SignedHeaders').split(';').sort()).toEqual(['content-type', 'host', 'x-amz-server-side-encryption']);
+      // A checksum signed at this point would be of an empty body and S3 would reject the real upload
+      expect([...signed.keys()].some((k) => k.toLowerCase().startsWith('x-amz-checksum'))).toBe(false);
       expect(grant.key.startsWith(`services/${service.id}/after/`)).toBe(true);
 
       expect((await confirm({ key: grant.key, type: 'AFTER' })).status).toBe(400);
