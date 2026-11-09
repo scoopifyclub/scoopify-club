@@ -46,7 +46,7 @@ the admin bulk `POST /api/services/schedule`.
 
 **No duplicates.** Each visit stores `subscriptionId` and `serviceDate` (the
 Denver date it was generated for). A unique index on that pair (migration
-`20261110010000_recurring_service_schedule`) and `createMany({ skipDuplicates })`
+`20261110020000_recurring_service_schedule`) and `createMany({ skipDuplicates })`
 make re-runs and concurrent runs no-ops. `serviceDate` is not changed when
 `open-job-pool` rolls a visit onto a later day, so the rolled visit is not
 recreated. A subscription that already has a visit in a Monday–Sunday week
@@ -122,7 +122,7 @@ APP_URL=https://www.scoopify.club CRON_SECRET=... npm run cron:run -- create-wee
    32 random characters (`openssl rand -hex 32`). Remove `CRON_API_KEY` and
    any `NEXT_PUBLIC_CRON_SECRET`.
 3. Deploy. `prisma migrate deploy` applies
-   `20261110010000_recurring_service_schedule`. The migration only adds
+   `20261110020000_recurring_service_schedule`. The migration only adds
    nullable columns, so existing rows cannot conflict.
 4. In Vercel, under Settings > Cron Jobs, check that the four jobs are listed.
    Use "Run" on `create-weekly-services`, and check that it returns 200 and
