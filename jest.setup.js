@@ -1,16 +1,9 @@
 import '@testing-library/jest-dom'
 import { TextEncoder, TextDecoder } from 'util'
-import { fetch, Headers, Request, Response } from 'cross-fetch'
 
-// Add fetch to global scope
-global.fetch = fetch
-global.Headers = Headers
-global.Request = Request
-global.Response = Response
-
-// Add TextEncoder/TextDecoder to global scope
-global.TextEncoder = TextEncoder
-global.TextDecoder = TextDecoder
+// Node 20 provides fetch/Request/Response; jsdom environments don't expose them
+global.TextEncoder = global.TextEncoder || TextEncoder
+global.TextDecoder = global.TextDecoder || TextDecoder
 
 // Mock next/navigation
 jest.mock('next/navigation', () => ({
@@ -43,7 +36,9 @@ process.env.STRIPE_SECRET_KEY = 'test-stripe-key'
 process.env.RESEND_API_KEY = 'test-resend-key'
 
 // Mock cookies
-Object.defineProperty(document, 'cookie', {
-  writable: true,
-  value: '',
-}) 
+if (typeof document !== 'undefined') {
+  Object.defineProperty(document, 'cookie', {
+    writable: true,
+    value: '',
+  })
+}
