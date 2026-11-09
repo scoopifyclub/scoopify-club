@@ -23,35 +23,84 @@ export default function EarningsPage() {
     const [recentServices, setRecentServices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [account, setAccount] = useState(null);
+    const [schedule, setSchedule] = useState(null);
+    const [connecting, setConnecting] = useState(false);
+
+    const startOnboarding = async () => {
+        setConnecting(true);
+        try {
+            const response = await fetch('/api/employee/stripe-connect', {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'onboarding-link' }),
+            });
+            const data = await response.json();
+            if (response.ok && data.url) {
+                window.location.href = data.url;
+                return;
+            }
+            setError(data.error || 'Could not start Stripe setup');
+        } catch (err) {
+            setError('Could not start Stripe setup');
+        }
+        setConnecting(false);
+    };
 
     useEffect(() => {
-        // Fetch real earnings data from existing dashboard API
         const fetchEarningsData = async () => {
             try {
-                const response = await fetch('/api/employee/dashboard', {
+                const response = await fetch('/api/employee/payouts', {
                     credentials: 'include',
                 });
                 
                 if (response.ok) {
                     const data = await response.json();
-                    
-                    // Use stats from dashboard API
-                    const stats = data.stats || {};
+                    const jobs = (data.earnings || []).filter((e) => e.kind === 'JOB' && e.status !== 'VOID');
+                    const now = new Date();
+                    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    const startOfWeek = new Date(startOfToday);
+                    startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+                    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+                    const sumSince = (since) => jobs
+                        .filter((e) => e.serviceDate && new Date(e.serviceDate) >= since)
+                        .reduce((sum, e) => sum + e.amount, 0);
+                    const totals = data.totals || {};
+                    const earned = (totals.pending || 0) + (totals.held || 0) + (totals.processing || 0) + (totals.paid || 0);
+
+                    setAccount(data.account);
+                    setSchedule({ nextPayoutDate: data.nextPayoutDate, automaticPayouts: data.automaticPayouts, held: totals.held || 0 });
                     setEarnings({
-                        today: 0, // Dashboard API doesn't have daily breakdown
-                        thisWeek: 0, // Dashboard API doesn't have weekly breakdown
-                        thisMonth: 0, // Dashboard API doesn't have monthly breakdown
-                        totalEarnings: stats.earnings || 0,
-                        pending: 0, // Dashboard API doesn't track pending separately
-                        avgPerService: stats.totalServices > 0 ? (stats.earnings / stats.totalServices) : 0,
-                        totalServices: stats.completedServices || 0,
-                        topCustomerValue: 0 // Not available in dashboard API
+                        today: sumSince(startOfToday),
+                        thisWeek: sumSince(startOfWeek),
+                        thisMonth: sumSince(startOfMonth),
+                        totalEarnings: earned,
+                        pending: (totals.pending || 0) + (totals.held || 0) + (totals.processing || 0),
+                        avgPerService: jobs.length > 0 ? jobs.reduce((s, e) => s + e.amount, 0) / jobs.length : 0,
+                        totalServices: jobs.length,
+                        topCustomerValue: jobs.reduce((max, e) => Math.max(max, e.amount), 0)
                     });
-                    
-                    // For now, use empty arrays for payouts and recent services
-                    // These could be populated from services API if needed
-                    setPayouts([]);
-                    setRecentServices([]);
+                    setPayouts((data.payouts || []).map((p) => ({
+                        id: p.id,
+                        method: 'Stripe transfer',
+                        status: p.status === 'PAID' ? 'paid' : p.status === 'FAILED' ? 'failed' : 'pending',
+                        periodStart: p.periodStart,
+                        periodEnd: p.periodEnd,
+                        date: p.paidAt || data.nextPayoutDate,
+                        amount: p.amount,
+                        jobCount: p.jobCount,
+                    })));
+                    setRecentServices((data.earnings || []).map((e) => ({
+                        id: e.id,
+                        customer: e.kind === 'ADJUSTMENT' ? 'Adjustment (refunded job)' : 'Completed job',
+                        service: e.status === 'HELD'
+                            ? `On hold: customer ${e.holdReason === 'DISPUTE' ? 'dispute' : 'refund'} under review`
+                            : e.status === 'VOID' ? 'Not payable: the customer was refunded' : '',
+                        status: { PENDING: 'pending', HELD: 'held', PROCESSING: 'processing', PAID: 'paid', VOID: 'void' }[e.status] || e.status,
+                        date: e.serviceDate,
+                        amount: e.amount,
+                    })));
                 } else {
                     console.error('Failed to fetch dashboard data');
                     setError('Failed to load earnings data');
@@ -100,6 +149,14 @@ export default function EarningsPage() {
                 return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
             case 'paid':
                 return <Badge className="bg-green-100 text-green-800">Paid</Badge>;
+            case 'processing':
+                return <Badge className="bg-blue-100 text-blue-800">Sending</Badge>;
+            case 'held':
+                return <Badge className="bg-orange-100 text-orange-800">On hold</Badge>;
+            case 'void':
+                return <Badge className="bg-gray-100 text-gray-600">Not payable</Badge>;
+            case 'failed':
+                return <Badge className="bg-red-100 text-red-800">Retrying</Badge>;
             default:
                 return <Badge variant="secondary">{status}</Badge>;
         }
@@ -144,6 +201,32 @@ export default function EarningsPage() {
                 <h1 className="text-2xl font-bold mb-2">Earnings</h1>
                 <p className="text-gray-600">Track your income and payment history</p>
             </div>
+
+            {account && (
+                <Card className="mb-6">
+                    <CardContent className="p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div>
+                            <p className="font-medium">
+                                {account.readyForTransfers
+                                    ? 'Payouts are set up'
+                                    : account.connected ? 'Finish your Stripe payout setup' : 'Set up payouts to get paid'}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                                {account.readyForTransfers
+                                    ? `Verified jobs from last week are sent to your bank through Stripe every Friday${schedule?.nextPayoutDate ? ` (next: ${new Date(`${schedule.nextPayoutDate}T12:00:00`).toLocaleDateString()})` : ''}.`
+                                    : 'Scoopify pays you by Stripe transfer. Stripe needs your identity and bank details once.'}
+                                {schedule && !schedule.automaticPayouts ? ' Automatic payouts are not switched on yet.' : ''}
+                                {schedule?.held > 0 ? ` $${schedule.held.toFixed(2)} is on hold while a customer refund or dispute is reviewed.` : ''}
+                            </p>
+                        </div>
+                        {!account.readyForTransfers && (
+                            <Button onClick={startOnboarding} disabled={connecting}>
+                                {connecting ? 'Opening Stripe…' : account.connected ? 'Continue setup' : 'Set up payouts'}
+                            </Button>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Earnings Overview */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -316,7 +399,7 @@ export default function EarningsPage() {
                                                         Period: {new Date(payout.periodStart).toLocaleDateString()} - {new Date(payout.periodEnd).toLocaleDateString()}
                                                     </p>
                                                     <p className="text-sm text-gray-500">
-                                                        {payout.status === 'completed' ? 'Paid on' : 'Expected'}: {new Date(payout.date).toLocaleDateString()}
+                                                        {payout.status === 'paid' ? 'Paid on' : 'Expected'}: {new Date(payout.date).toLocaleDateString()}
                                                     </p>
                                                 </div>
                                                 <div className="text-right">

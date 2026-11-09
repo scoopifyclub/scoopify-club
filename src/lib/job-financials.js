@@ -106,6 +106,7 @@ export async function adjustFinancialRecord({ serviceId, changes, reason, by, no
     const [record] = await tx.$queryRaw`SELECT * FROM "JobFinancialRecord" WHERE "serviceId" = ${serviceId} FOR UPDATE`;
     if (!record) throw new FinancialRecordError(`No financial record for service ${serviceId}`);
     if (record.stripeTransferId) throw new FinancialRecordError('This record has already been paid out');
+    if (record.payoutId) throw new FinancialRecordError('This record is part of a payout being sent');
     const next = { ...record, ...changes };
     const diff = Object.fromEntries(fields.map((f) => [f, { from: record[f], to: changes[f] }]));
     return tx.jobFinancialRecord.update({
