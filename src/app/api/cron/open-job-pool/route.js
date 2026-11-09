@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireCronOrAdmin } from '@/lib/cron-auth';
 import { releaseExpiredClaims, requeueOverdueUnclaimed } from '@/lib/job-claims';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-// This endpoint should be called by a cron job every day at 8:00 AM
-// It opens the job pool and rolls over unclaimed jobs from previous days
-export async function POST(request) {
+// Runs daily from Vercel Cron, early morning America/Denver (see vercel.json).
+// It opens the job pool and rolls over unclaimed jobs from previous Denver days
+async function handle(request) {
   try {
-    const auth = await requireAdmin(request);
+    const auth = await requireCronOrAdmin(request);
     if (!auth.ok) return auth.response;
     console.log('🚀 Opening job pool and rolling over unclaimed jobs...');
 
@@ -61,3 +62,6 @@ export async function POST(request) {
     );
   }
 }
+
+export const GET = handle;
+export const POST = handle;

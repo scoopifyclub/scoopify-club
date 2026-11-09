@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireCronOrAdmin } from '@/lib/cron-auth';
 import { prisma } from '@/lib/prisma';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
@@ -9,13 +10,8 @@ export const runtime = 'nodejs';
 // Recommended schedule: Every Monday at 2:00 AM
 export async function POST(request) {
   try {
-    // Verify cron secret to prevent unauthorized access
-    const { searchParams } = new URL(request.url);
-    const secret = searchParams.get('secret');
-    
-    if (secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireCronOrAdmin(request);
+    if (!auth.ok) return auth.response;
 
     console.log('🔄 Starting weekly payment reconciliation...');
 

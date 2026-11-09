@@ -105,10 +105,7 @@ export default function TestServicesPage() {
         try {
             const response = await fetch('/api/cron/create-weekly-services', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || 'test-secret'}`
-                },
+                credentials: 'include',
             });
 
             if (!response.ok) {
