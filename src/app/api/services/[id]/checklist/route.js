@@ -1,71 +1,40 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/api-auth';
+import { requireScooper, jobClaimErrorResponse } from '@/lib/job-claims';
+import { saveChecklist } from '@/lib/job-completion';
+import { authorizePhotoViewer } from '@/lib/service-photos';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function POST(request, { params }) {
-    var _a;
     try {
-        const token = (_a = request.headers.get('authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const decoded = verifyToken(token);
-        if (!decoded || decoded.role !== 'EMPLOYEE') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const service = await prisma.service.findUnique({
-            where: { id: (await params).serviceId },
-            include: { employee: true }
+        const { id } = await params;
+        const auth = await requireScooper(request);
+        if (!auth.ok) return auth.response;
+        const body = await request.json().catch(() => ({}));
+        const checklist = await saveChecklist({
+            serviceId: id,
+            employeeId: auth.employee.id,
+            checklist: body?.checklist ?? body?.items ?? body,
         });
-        if (!service) {
-            return NextResponse.json({ error: 'Service not found' }, { status: 404 });
-        }
-        if (service.employeeId !== decoded.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const checklist = await request.json();
-        const serviceChecklist = await prisma.serviceChecklist.create({
-            data: Object.assign({ serviceId: (await params).serviceId }, checklist)
-        });
-        return NextResponse.json(serviceChecklist);
+        return NextResponse.json(checklist);
     }
     catch (error) {
-        console.error('Error creating checklist:', error);
-        return NextResponse.json({ error: 'Failed to create checklist' }, { status: 500 });
+        return jobClaimErrorResponse(error, 'Failed to save checklist');
     }
 }
+
+// Same audience as the job's photos: assigned scooper, the customer, admins.
 export async function GET(request, { params }) {
-    var _a;
     try {
-        const token = (_a = request.headers.get('authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const decoded = verifyToken(token);
-        if (!decoded) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const service = await prisma.service.findUnique({
-            where: { id: (await params).serviceId },
-            include: { checklist: true }
-        });
-        if (!service) {
-            return NextResponse.json({ error: 'Service not found' }, { status: 404 });
-        }
-        // Only allow access to checklist if user is the customer or employee
-        if (decoded.role === 'CUSTOMER' && service.customerId !== decoded.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        if (decoded.role === 'EMPLOYEE' && service.employeeId !== decoded.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        return NextResponse.json(service.checklist);
+        const { id } = await params;
+        const viewer = await authorizePhotoViewer(request, id);
+        if (!viewer.ok) return viewer.response;
+        const checklist = await prisma.serviceChecklist.findUnique({ where: { serviceId: id } });
+        return NextResponse.json(checklist);
     }
     catch (error) {
-        console.error('Error fetching checklist:', error);
-        return NextResponse.json({ error: 'Failed to fetch checklist' }, { status: 500 });
+        return jobClaimErrorResponse(error, 'Failed to fetch checklist');
     }
 }

@@ -35,7 +35,7 @@ export function isApprovedScooper(employee) {
   return Boolean(employee && employee.status === 'ACTIVE' && employee.approvedAt);
 }
 
-async function getRequestToken(request) {
+export async function getRequestToken(request) {
   const header = request?.headers?.get?.('authorization');
   if (header && header.toLowerCase().startsWith('bearer ')) {
     const bearer = header.slice(7).trim();

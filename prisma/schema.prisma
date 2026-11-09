@@ -150,7 +150,7 @@ model Earning {
   id               String    @id
   amount           Float
   status           String    @default("PENDING")
-  serviceId        String
+  serviceId        String    @unique
   employeeId       String
   paidVia          String?
   paidAt           DateTime?
@@ -162,7 +162,6 @@ model Earning {
   updatedAt        DateTime
 
   @@index([employeeId])
-  @@index([serviceId])
   @@index([status])
 }
 
@@ -578,14 +577,20 @@ model ServiceMessage {
 }
 
 model ServicePhoto {
-  id        String    @id
-  url       String
-  type      PhotoType
-  serviceId String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime
-  expiresAt DateTime?
-  service   Service   @relation("ServiceToPhotos", fields: [serviceId], references: [id])
+  id           String    @id
+  url          String
+  type         PhotoType
+  serviceId    String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+  expiresAt    DateTime?
+  s3Key        String?   @unique
+  contentType  String?
+  sizeBytes    Int?
+  uploadedById String?
+  service      Service   @relation("ServiceToPhotos", fields: [serviceId], references: [id])
+
+  @@index([serviceId])
 }
 
 model ServicePlan {

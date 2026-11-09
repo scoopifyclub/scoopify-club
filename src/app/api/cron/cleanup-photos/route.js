@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireCronOrAdmin } from '@/lib/cron-auth';
 import prisma from "@/lib/prisma";
+import { deleteFromS3 } from "@/lib/s3";
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -35,14 +36,21 @@ export async function POST(request) {
         // Process each task
         for (const task of pendingTasks) {
             try {
-                // Find and delete expired photos for this service
-                const deletedPhotos = await prisma.servicePhoto.deleteMany({
+                // Find and delete expired photos for this service, objects first
+                const expired = await prisma.servicePhoto.findMany({
                     where: {
                         serviceId: task.targetId,
                         expiresAt: {
                             lte: now
                         }
-                    }
+                    },
+                    select: { id: true, s3Key: true }
+                });
+                for (const photo of expired) {
+                    if (photo.s3Key) await deleteFromS3(photo.s3Key);
+                }
+                const deletedPhotos = await prisma.servicePhoto.deleteMany({
+                    where: { id: { in: expired.map(photo => photo.id) } }
                 });
                 // Update the task status
                 await prisma.cleanupTask.update({
