@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { verifyJWT } from '@/lib/auth-server'
+import { validateUserToken } from '@/lib/jwt-utils'
 import { applySecurityMiddleware } from '@/middleware/security'
 
 // Helper function for conditional logging
@@ -13,26 +13,79 @@ const log = (message, data = null) => {
     }
 };
 
-// Define paths that don't require authentication
-const publicPaths = [
-  '/auth/signin',
-  '/auth/signup',
-  '/api/auth/signin',
-  '/api/auth/signup',
-  '/api/auth/signout',
-  '/login',
-  '/admin/login',
-  '/',
-  '/favicon.ico'
-]
+// Admin paths reachable without a session (exact match)
+const publicAdminPaths = ['/admin/login', '/api/admin/login']
 
-// Define paths that require specific roles
-const roleRestrictedPaths = {
-  '/admin': ['ADMIN', 'MANAGER'],
-  '/admin/dashboard': ['ADMIN', 'MANAGER'],
-  '/employee/dashboard': ['EMPLOYEE', 'ADMIN', 'MANAGER'],
-  '/api/admin': ['ADMIN', 'MANAGER'],
-  '/api/employee': ['EMPLOYEE', 'ADMIN', 'MANAGER'],
+// True when pathname is `prefix` itself or a sub-path of it. A bare
+// startsWith('/admin') would also match '/administrator', and
+// startsWith('/') matches everything.
+export function matchesPath(pathname, prefix) {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`)
+}
+
+export function isAdminPath(pathname) {
+  return matchesPath(pathname, '/admin') || matchesPath(pathname, '/api/admin')
+}
+
+function denyAdmin(request, status, reason) {
+  const { pathname } = request.nextUrl
+  log(`Denying ${pathname}: ${reason}`)
+
+  let response
+  if (pathname.startsWith('/api/')) {
+    response = NextResponse.json(
+      { error: status === 401 ? 'Authentication required' : 'Admin access required' },
+      { status }
+    )
+  } else {
+    const url = new URL('/admin/login', request.url)
+    url.searchParams.set('callbackUrl', pathname)
+    response = NextResponse.redirect(url)
+  }
+
+  if (status === 401) {
+    response.cookies.delete('accessToken')
+    response.cookies.delete('token')
+  }
+  return response
+}
+
+// Edge-side gate for /admin and /api/admin. It cannot reach the database, so
+// every privileged route handler also calls requireAdmin() (src/lib/admin-auth.js),
+// which re-checks the role, the ADMIN_EMAILS allowlist and the session version.
+async function gateAdmin(request) {
+  const token =
+    request.cookies.get('accessToken')?.value ||
+    request.cookies.get('token')?.value ||
+    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
+    null
+
+  if (!token) {
+    return denyAdmin(request, 401, 'no session')
+  }
+
+  const payload = await validateUserToken(token)
+  if (!payload) {
+    return denyAdmin(request, 401, 'invalid or expired token')
+  }
+  if (payload.role !== 'ADMIN') {
+    return denyAdmin(request, 403, `role ${payload.role}`)
+  }
+  if (!payload.sv) {
+    // Admin token minted before session binding existed
+    return denyAdmin(request, 401, 'unbound admin session')
+  }
+
+  return nextWithAdminPathname(request)
+}
+
+// src/app/admin/layout.jsx skips its server-side check only when this header
+// is '/admin/login'. It is overwritten on every /admin request so clients
+// cannot spoof it.
+function nextWithAdminPathname(request) {
+  const requestHeaders = new Headers(request.headers)
+  requestHeaders.set('x-admin-pathname', request.nextUrl.pathname)
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export async function middleware(request) {
@@ -44,113 +97,17 @@ export async function middleware(request) {
     return securityResponse;
   }
 
-  // Allow public paths
-  if (publicPaths.some(path => pathname.startsWith(path))) {
-    return NextResponse.next();
+  if (isAdminPath(pathname) && !publicAdminPaths.includes(pathname)) {
+    return gateAdmin(request)
   }
 
-  // ADMIN routes: check for accessToken, refreshToken, or general token
-  if (pathname.startsWith('/admin') || pathname.startsWith('/api/admin')) {
-    const accessToken = request.cookies.get('accessToken')?.value;
-    const refreshToken = request.cookies.get('refreshToken')?.value;
-    const generalToken = request.cookies.get('token')?.value;
-    
-    // If no tokens found, redirect to login
-    if (!accessToken && !refreshToken && !generalToken) {
-      log('No access, refresh, or general token found, redirecting to login');
-      const url = new URL('/login', request.url);
-      url.searchParams.set('callbackUrl', pathname);
-      return NextResponse.redirect(url);
-    }
-
-    try {
-      // Try access token first, then refresh token, then general token
-      const token = accessToken || refreshToken || generalToken;
-      const payload = await verifyJWT(token);
-      
-      if (!payload || payload.role !== 'ADMIN') {
-        log('Invalid token or non-admin role, redirecting to login');
-        return NextResponse.redirect(new URL('/login', request.url));
-      }
-
-      // Add user info to headers for downstream use
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set('x-user-id', payload.userId);
-      requestHeaders.set('x-user-role', payload.role);
-      
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
-    } catch (error) {
-      console.error('Token verification failed:', error);
-      // Clear all tokens and redirect to login
-      const response = NextResponse.redirect(new URL('/login', request.url));
-      response.cookies.delete('accessToken');
-      response.cookies.delete('refreshToken');
-      response.cookies.delete('token');
-      return response;
-    }
+  if (matchesPath(pathname, '/admin')) {
+    return nextWithAdminPathname(request)
   }
 
-  // All other protected routes: check for any available token
-  const accessToken = request.cookies.get('accessToken')?.value;
-  const refreshToken = request.cookies.get('refreshToken')?.value;
-  const generalToken = request.cookies.get('token')?.value;
-  const token = accessToken || refreshToken || generalToken;
-  
-  if (!token) {
-    const url = new URL('/login', request.url);
-    url.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(url);
-  }
-
-  try {
-    const payload = await verifyJWT(token);
-    
-    // Admin routes protection
-    if (pathname.startsWith('/admin') && payload.role !== 'ADMIN') {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-
-    // Employee routes protection
-    if (pathname.startsWith('/employee') && payload.role !== 'EMPLOYEE') {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-
-    // Customer routes protection
-    if (pathname.startsWith('/customer') && payload.role !== 'CUSTOMER') {
-      return NextResponse.redirect(new URL('/', request.url));
-    }
-
-    // Check role restrictions
-    for (const [path, roles] of Object.entries(roleRestrictedPaths)) {
-      if (pathname.startsWith(path) && !roles.includes(payload.role)) {
-        return new NextResponse(null, { status: 403 })
-      }
-    }
-
-    // Add user info to headers for downstream use
-    const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-user-id', payload.userId)
-    requestHeaders.set('x-user-role', payload.role)
-
-    // Apply scheduling validation for service scheduling routes
-
-    return NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    })
-  } catch (error) {
-    // If token verification fails, clear all tokens and redirect to login
-    const response = NextResponse.redirect(new URL('/login', request.url));
-    response.cookies.delete('accessToken');
-    response.cookies.delete('refreshToken');
-    response.cookies.delete('token');
-    return response;
-  }
+  // Customer and scooper pages/APIs enforce auth in their own route handlers
+  // and client-side session checks; they are not gated here.
+  return NextResponse.next()
 }
 
 export const config = {
