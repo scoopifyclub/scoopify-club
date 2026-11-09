@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+import { denyUnverifiedAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -27,6 +28,8 @@ export async function GET(request, { params }) {
         if (!isAdmin && !isCustomerOwner) {
             return new NextResponse('Forbidden', { status: 403 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, role);
+        if (adminDenied) return adminDenied;
         // Fetch customer and subscription data
         const customer = await prisma.customer.findUnique({
             where: { id: customerId },

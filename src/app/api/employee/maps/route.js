@@ -225,7 +225,7 @@ async function getJobsData(employee) {
         include: {
           user: {
             select: {
-              name: true
+              firstName: true
             }
           },
           address: true
@@ -248,9 +248,8 @@ async function getJobsData(employee) {
         if (coordinates) {
           jobsData.push({
             id: job.id,
-            customerName: job.customer.user?.name || 'Unknown Customer',
+            customerName: job.customer.user?.firstName || 'Customer',
             address: {
-              street: address.street,
               city: address.city,
               state: address.state,
               zipCode: address.zipCode
@@ -269,9 +268,8 @@ async function getJobsData(employee) {
       // Fallback to approximate coordinates for Peyton, CO area
       jobsData.push({
         id: job.id,
-        customerName: job.customer.user?.name || 'Unknown Customer',
+        customerName: job.customer.user?.firstName || 'Customer',
         address: job.customer.address ? {
-          street: job.customer.address.street,
           city: job.customer.address.city,
           state: job.customer.address.state,
           zipCode: job.customer.address.zipCode

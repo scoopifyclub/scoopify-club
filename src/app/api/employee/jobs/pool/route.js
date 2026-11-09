@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getAuthUserFromCookies } from '@/lib/api-auth';
+import { requireScooper, releaseExpiredClaims, UNCLAIMED_JOB_CUSTOMER_SELECT } from '@/lib/job-claims';
 
 export const runtime = 'nodejs';
 
 export async function GET(request) {
   try {
-    const user = await getAuthUserFromCookies(request);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await requireScooper(request);
+    if (!auth.ok) return auth.response;
+
+    await releaseExpiredClaims();
 
     // Get the employee and their coverage areas
     const employee = await prisma.employee.findUnique({
-      where: { userId: user.id },
+      where: { id: auth.employee.id },
       include: {
         serviceAreas: {
           where: { active: true },
@@ -39,9 +39,7 @@ export async function GET(request) {
     // Find available jobs in the employee's coverage area
     const availableJobs = await prisma.service.findMany({
       where: {
-        status: {
-          in: ['PENDING', 'SCHEDULED']
-        },
+        status: 'SCHEDULED',
         employeeId: null, // Not yet claimed
         customer: {
           address: {
@@ -52,25 +50,7 @@ export async function GET(request) {
         }
       },
       include: {
-        customer: {
-          include: {
-            user: {
-              select: {
-                firstName: true,
-                lastName: true,
-                email: true
-              }
-            },
-            address: {
-              select: {
-                street: true,
-                city: true,
-                state: true,
-                zipCode: true
-              }
-            }
-          }
-        },
+        customer: UNCLAIMED_JOB_CUSTOMER_SELECT,
         servicePlan: {
           select: {
             name: true,

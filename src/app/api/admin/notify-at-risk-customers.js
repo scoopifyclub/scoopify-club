@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendCustomerAtRiskEmail } from '@/lib/email-service';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 
 // POST: Notify all customers in at-risk zips (customers, no scoopers)
-export async function POST() {
+export async function POST(request) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) return auth.response;
   // Get all zips with at least one active customer
   const customerZips = await prisma.customer.findMany({
     where: { status: 'ACTIVE', zipCode: { not: null } },

@@ -1,9 +1,8 @@
-import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from "next/server";
-import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
 import { logPaymentEvent } from '@/lib/payment-audit';
 import { logger } from '@/lib/logger';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -12,10 +11,8 @@ export const runtime = 'nodejs';
 // Get all payment batches with optional filters
 export async function GET(request) {
     try {
-        const user = await requireRole('ADMIN');
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
         const page = parseInt(searchParams.get("page") || "1");
@@ -83,10 +80,8 @@ export async function GET(request) {
 // Create a new payment batch
 export async function POST(request) {
     try {
-        const user = await requireRole('ADMIN');
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         const data = await request.json();
         const { name, description } = data;
         if (!name) {
@@ -126,16 +121,9 @@ export async function POST(request) {
 export async function PUT(request) {
     var _a;
     try {
-        // Verify admin permission
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-        const { userId, role } = await requireRole('ADMIN');
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
+        const { userId } = auth;
         const { batchId, addPaymentIds, removePaymentIds, status, notes } = await request.json();
         // Validate input
         if (!batchId) {

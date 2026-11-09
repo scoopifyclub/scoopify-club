@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { validateUserToken } from '@/lib/jwt-utils';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -8,15 +8,8 @@ export const runtime = 'nodejs';
 export async function POST(request) {
     var _a;
     try {
-        // Verify admin authorization
-        const token = (_a = request.headers.get('Authorization')) === null || _a === void 0 ? void 0 : _a.split(' ')[1];
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const payload = await validateUserToken(token);
-        if (payload.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         const { referralId, amount, cashAppPaymentId } = await request.json();
         if (!referralId || !amount || !cashAppPaymentId) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });

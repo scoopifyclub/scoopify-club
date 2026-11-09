@@ -1,11 +1,14 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
-export async function POST() {
+export async function POST(request) {
     try {
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         // Find and delete test customer
         const testCustomer = await prisma.user.findUnique({
             where: { email: 'testcustomer@scoopify.com' },

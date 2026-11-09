@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import { createUserToken } from '@/lib/jwt-utils';
 import { cookies } from 'next/headers';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
+import { isAllowlistedAdminEmail } from '@/lib/admin-auth';
 
 // Force Node.js runtime for bcryptjs, Prisma, and other Node.js APIs
 export const runtime = 'nodejs';
@@ -59,8 +60,8 @@ export async function POST(request) {
             }
         });
 
-        if (!user || user.role !== 'ADMIN') {
-            console.log('❌ Admin user not found or invalid role');
+        if (!user || user.role !== 'ADMIN' || !isAllowlistedAdminEmail(user.email)) {
+            console.log('❌ Admin user not found, invalid role, or not in ADMIN_EMAILS');
             return NextResponse.json(
                 { error: 'Invalid credentials' },
                 { status: 401 }
@@ -83,6 +84,7 @@ export async function POST(request) {
             id: user.id,
             email: user.email,
             role: user.role,
+            password: user.password,
         });
 
         // Create response first

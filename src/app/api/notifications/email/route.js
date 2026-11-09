@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/email-service';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export async function POST(req) {
     try {
+        const auth = await requireAdmin(req);
+        if (!auth.ok) return auth.response;
         const { to, subject, html } = await req.json();
         if (!to || !subject || !html) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });

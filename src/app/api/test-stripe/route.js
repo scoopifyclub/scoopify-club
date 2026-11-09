@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
-export async function GET() {
+import { requireAdmin } from '@/lib/admin-auth';
+export async function GET(request) {
     try {
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         // Test the Stripe connection by listing products and prices
         const products = await stripe.products.list({ limit: 1 });
         const prices = await stripe.prices.list({ limit: 3 });

@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { withApiSecurity } from '@/lib/security-middleware';
 import { handleEmailRequest } from '@/lib/email-service';
+import { requireAdmin } from '@/lib/admin-auth';
 
 async function handler(req) {
     try {
+        const auth = await requireAdmin(req);
+        if (!auth.ok) return auth.response;
+
         if (req.method !== 'POST') {
             return NextResponse.json({ error: 'Method not allowed' }, { status: 405 });
         }

@@ -1,8 +1,11 @@
 import { monitoring } from '@/lib/monitoring';
 import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
 
 export async function GET(request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit')) || 100;
     const type = searchParams.get('type') || 'all';
@@ -41,6 +44,8 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
     const body = await request.json();
     const { metric, value, metadata } = body;
 

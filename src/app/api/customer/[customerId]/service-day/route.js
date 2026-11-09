@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/api-auth';
+import { denyUnverifiedAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -20,6 +21,8 @@ export async function PUT(request, { params }) {
             (payload.role !== 'CUSTOMER' || payload.customerId !== customerId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, payload.role);
+        if (adminDenied) return adminDenied;
         // Get the service day from request body
         const { serviceDay } = await request.json();
         // Validate service day
@@ -69,6 +72,8 @@ export async function GET(request, { params }) {
             (payload.role !== 'CUSTOMER' || payload.customerId !== customerId)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, payload.role);
+        if (adminDenied) return adminDenied;
         // Get the customer record
         const customer = await prisma.customer.findUnique({
             where: { id: customerId },

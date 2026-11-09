@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { validateUser } from '@/lib/api-auth';
-import { cookies } from 'next/headers';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -9,17 +8,8 @@ export const runtime = 'nodejs';
 export async function GET(request) {
     var _a;
     try {
-        // Get access token from cookies
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Validate the token and check admin role
-        const { role } = await validateUser(accessToken, 'ADMIN');
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         // Get query parameters for filtering
         const url = new URL(request.url);
         const type = url.searchParams.get('type');
@@ -104,17 +94,8 @@ export async function GET(request) {
 export async function POST(request) {
     var _a;
     try {
-        // Get access token from cookies
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Validate the token and check admin role
-        const { role } = await validateUser(accessToken, 'ADMIN');
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         const { employeeId, amount, paymentMethod } = await request.json();
         const payment = await prisma.payment.create({
             data: {
@@ -137,17 +118,9 @@ export async function POST(request) {
 export async function PUT(request) {
     var _a;
     try {
-        // Get access token from cookies
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Validate the token and check admin role
-        const { userId, role } = await validateUser(accessToken, 'ADMIN');
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
+        const { userId } = auth;
         const { paymentIds, paymentMethod } = await request.json();
         if (!paymentIds || !Array.isArray(paymentIds) || paymentIds.length === 0) {
             return NextResponse.json({ error: 'Invalid request: paymentIds must be a non-empty array' }, { status: 400 });

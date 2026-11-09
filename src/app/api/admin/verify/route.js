@@ -1,21 +1,10 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { validateUserToken } from '@/lib/jwt-utils';
-export async function GET() {
+import { requireAdmin } from '@/lib/admin-auth';
+export async function GET(request) {
     try {
-        const cookieStore = cookies();
-        const token = cookieStore.get('accessToken')?.value;
-        if (!token) {
-            console.log('No access token found in cookies');
-            return NextResponse.json(
-                { error: 'Unauthorized - No token found' },
-                { status: 401 }
-            );
-        }
-        const decoded = await validateUserToken(token);
-        if (!decoded || decoded.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
+        const decoded = auth.user;
         return NextResponse.json({
             success: true,
             user: {
@@ -31,8 +20,8 @@ export async function GET() {
     }
 }
 // Add POST method that does the same thing as GET
-export async function POST() {
-    return GET();
+export async function POST(request) {
+    return GET(request);
 }
 // Handle OPTIONS request for CORS preflight
 export async function OPTIONS(request) {

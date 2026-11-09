@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 // Set to run on nodejs runtime for database access
 export const runtime = 'nodejs';
 /**
@@ -7,6 +8,8 @@ export const runtime = 'nodejs';
  * It returns information about the runtime environment and checks critical systems.
  */
 export async function GET(request) {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
     const startTime = Date.now();
     // Get environment information
     const debugInfo = {

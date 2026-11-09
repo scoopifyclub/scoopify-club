@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { validateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
+import { denyUnverifiedAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -23,6 +24,8 @@ export async function GET(request, { params }) {
             (userData.role !== 'CUSTOMER' || userData.customerId !== customerId)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, userData.role);
+        if (adminDenied) return adminDenied;
         // Get customer preferences
         const customer = await prisma.customer.findUnique({
             where: { id: customerId },
@@ -87,6 +90,8 @@ export async function PUT(request, { params }) {
             (userData.role !== 'CUSTOMER' || userData.customerId !== customerId)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, userData.role);
+        if (adminDenied) return adminDenied;
         // Get the request body
         const data = await request.json();
         // Update only allowed fields

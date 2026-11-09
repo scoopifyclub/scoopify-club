@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
+import { requireCronOrAdmin } from '@/lib/cron-auth';
 import { processMonthlyReferralPayments } from '@/lib/payment';
 export async function POST(request) {
     try {
-        // Validate API key for security
-        const apiKey = request.headers.get('x-api-key');
-        if (apiKey !== process.env.CRON_API_KEY) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireCronOrAdmin(request);
+        if (!auth.ok) return auth.response;
         // Process monthly referral payments
         const results = await processMonthlyReferralPayments();
         return NextResponse.json({

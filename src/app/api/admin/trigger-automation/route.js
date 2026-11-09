@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withApiSecurity } from '@/lib/security-middleware';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -8,6 +9,9 @@ export const runtime = 'nodejs';
 
 async function postHandler(request) {
   try {
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
+
     const { automationType } = await request.json();
 
     if (!automationType) {

@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { emitServiceStatusChange } from '@/lib/socket';
 import { sendServiceNotificationEmail } from '@/lib/email-service';
+import { denyUnverifiedAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -20,6 +21,8 @@ export async function PUT(request, { params }) {
         if (!user || !['ADMIN', 'EMPLOYEE'].includes(user.role)) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, user.role);
+        if (adminDenied) return adminDenied;
 
         const { id } = params;
         const { status, notes } = await request.json();
@@ -134,6 +137,8 @@ export async function GET(request, { params }) {
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+        const adminDenied = await denyUnverifiedAdmin(request, user.role);
+        if (adminDenied) return adminDenied;
 
         const { id } = params;
         const service = await prisma.service.findUnique({

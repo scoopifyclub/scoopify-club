@@ -1,26 +1,15 @@
 import { NextResponse } from 'next/server';
 import { withAdminDatabase } from '@/lib/prisma';
-import { validateUserToken } from '@/lib/jwt-utils';
-import { cookies } from 'next/headers';
 import { Prisma } from '@prisma/client';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('accessToken')?.value;
-        if (!token) {
-            console.log('No access token found in cookies');
-            return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
-        }
-        const decoded = await validateUserToken(token);
-        console.log('Token verification result:', decoded ? 'success' : 'failed');
-        if (!decoded || decoded.role !== 'ADMIN') {
-            console.log('Invalid token or not admin:', decoded?.role);
-            return NextResponse.json({ error: 'Unauthorized - Not admin' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
 
         const result = await withAdminDatabase(async (prisma) => {
             console.log('📊 Fetching admin customers...');
@@ -153,18 +142,8 @@ export async function GET(request) {
 
 export async function PUT(request) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('accessToken')?.value;
-        if (!token) {
-            console.log('No access token found in cookies');
-            return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
-        }
-        const decoded = await validateUserToken(token);
-        console.log('Token verification result:', decoded ? 'success' : 'failed');
-        if (!decoded || decoded.role !== 'ADMIN') {
-            console.log('Invalid token or not admin:', decoded?.role);
-            return NextResponse.json({ error: 'Unauthorized - Not admin' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
 
         const { id, ...data } = await request.json();
 
@@ -205,18 +184,8 @@ export async function PUT(request) {
 
 export async function DELETE(request) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('accessToken')?.value;
-        if (!token) {
-            console.log('No access token found in cookies');
-            return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
-        }
-        const decoded = await validateUserToken(token);
-        console.log('Token verification result:', decoded ? 'success' : 'failed');
-        if (!decoded || decoded.role !== 'ADMIN') {
-            console.log('Invalid token or not admin:', decoded?.role);
-            return NextResponse.json({ error: 'Unauthorized - Not admin' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
 
         const { id } = await request.json();
 

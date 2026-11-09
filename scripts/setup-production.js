@@ -62,9 +62,9 @@ async function setupDatabase() {
     execSync('npx prisma generate', { stdio: 'inherit' });
     console.log('   ✅ Prisma client generated');
 
-    // Push schema to database
-    console.log('   Pushing schema to database...');
-    execSync('npx prisma db push', { stdio: 'inherit' });
+    // An existing database must be baselined first (docs/database-migrations.md).
+    console.log('   Applying migrations...');
+    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
     console.log('   ✅ Database schema updated');
 
     // Seed the database

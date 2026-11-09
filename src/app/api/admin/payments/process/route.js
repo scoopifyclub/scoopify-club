@@ -1,7 +1,7 @@
-import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -9,10 +9,9 @@ export const runtime = 'nodejs';
 
 export async function POST(request) {
     try {
-        const user = await requireRole('ADMIN');
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
+        const user = auth.user;
 
         const { paymentId } = await request.json();
         if (!paymentId) {

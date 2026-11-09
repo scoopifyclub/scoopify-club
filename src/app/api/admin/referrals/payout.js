@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyToken } from '@/lib/api-auth';
 import Stripe from 'stripe';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -11,10 +11,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 // POST: Process referral payouts (Stripe) - Only allowed on Fridays unless override=true
 export async function POST(req) {
   try {
-    const token = req.headers.get('Authorization')?.split(' ')[1];
-    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const decoded = await verifyToken(token);
-    if (!decoded || decoded.role !== 'ADMIN') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) return auth.response;
 
     const { override } = await req.json();
     const now = new Date();

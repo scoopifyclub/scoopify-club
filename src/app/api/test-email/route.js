@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { testEmailConnection } from '@/lib/unified-email-service';
+import { requireAdmin } from '@/lib/admin-auth';
 
-export async function GET() {
+export async function GET(request) {
     try {
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         console.log('Testing email connection...');
         
         // Log environment variables for debugging
@@ -50,6 +53,8 @@ export async function GET() {
 
 export async function POST(request) {
     try {
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         const { to, template, data } = await request.json();
         
         if (!to || !template) {

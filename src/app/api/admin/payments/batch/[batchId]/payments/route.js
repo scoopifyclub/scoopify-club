@@ -1,7 +1,6 @@
-import { requireRole } from '@/lib/api-auth';
 import { NextResponse } from "next/server";
-import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -10,10 +9,9 @@ export const runtime = 'nodejs';
 // Get all payments in a specific batch
 export async function GET(request, { params }) {
     try {
-        const user = await requireRole('ADMIN');
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
+        const user = auth.user;
         const { batchId } = params;
         if (!batchId) {
             return NextResponse.json(
@@ -66,15 +64,8 @@ export async function POST(request, { params }) {
     var _a;
     try {
         // Verify user is admin
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-        const { role } = await requireRole('ADMIN');
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         const { batchId } = await params;
         // First check if the batch exists and is in DRAFT status
         const batch = await prisma.paymentBatch.findUnique({
@@ -119,15 +110,8 @@ export async function DELETE(request, { params }) {
     var _a;
     try {
         // Verify user is admin
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-        const { role } = await requireRole('ADMIN');
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         const { batchId } = await params;
         // First check if the batch exists and is in DRAFT status
         const batch = await prisma.paymentBatch.findUnique({

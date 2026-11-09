@@ -1,136 +1,36 @@
 import { NextResponse } from 'next/server';
-import { prisma } from "@/lib/prisma";
-import { validateUserToken } from '@/lib/jwt-utils';
-import { cookies } from 'next/headers';
-import { sendServiceClaimedNotification } from '@/lib/unified-email-service';
+import { prisma } from '@/lib/prisma';
+import { requireScooper, claimService, jobClaimErrorResponse } from '@/lib/job-claims';
 
 export const runtime = 'nodejs';
 
+const fullName = (user) => [user?.firstName, user?.lastName].filter(Boolean).join(' ');
+
 export async function POST(request, { params }) {
     try {
-        const { id: serviceId } = params;
+        const { id: serviceId } = await params;
 
-        // Get and validate token
-        const cookieStore = await cookies();
-        const token = cookieStore.get('accessToken')?.value;
+        const auth = await requireScooper(request);
+        if (!auth.ok) return auth.response;
 
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const { userId } = await validateUserToken(token, 'EMPLOYEE');
-
-        // Get the employee
-        const employee = await prisma.employee.findFirst({
-            where: { userId },
-            include: {
-                user: {
-                    select: {
-                        name: true,
-                        image: true
-                    }
-                }
-            }
-        });
-
-        if (!employee) {
-            return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
-        }
-
-        // Get the service and check if it's available
-        const service = await prisma.service.findFirst({
-            where: {
-                id: serviceId,
-                status: 'SCHEDULED',
-                employeeId: null, // Not already claimed
-                isLocked: false // Not locked by another employee
-            },
-            include: {
-                customer: {
-                    include: {
-                        user: {
-                            select: {
-                                email: true,
-                                name: true
-                            }
-                        }
-                    }
-                },
-                servicePlan: {
-                    select: {
-                        name: true,
-                        price: true,
-                        duration: true
-                    }
-                }
-            }
-        });
-
-        if (!service) {
-            return NextResponse.json({
-                error: 'Service not available for claiming'
-            }, { status: 400 });
-        }
-
-        // Check if employee has set their service area
-        if (!employee.hasSetServiceArea) {
-            return NextResponse.json({
-                error: 'You must set your service area before claiming jobs'
-            }, { status: 400 });
-        }
-
-        // Use a transaction to claim the service and send notification
-        const result = await prisma.$transaction(async (tx) => {
-            // Claim the service
-            const claimedService = await tx.service.update({
-                where: { id: serviceId },
-                data: {
-                    employeeId: employee.id,
-                    claimedAt: new Date(),
-                    status: 'PENDING',
-                    workflowStatus: 'CLAIMED',
-                    updatedAt: new Date()
-                },
-                include: {
-                    employee: {
-                        include: {
-                            user: {
-                                select: {
-                                    name: true,
-                                    image: true
-                                }
-                            }
-                        }
-                    },
-                    customer: {
-                        include: {
-                            user: {
-                                select: {
-                                    email: true,
-                                    name: true
-                                }
-                            }
-                        }
-                    },
-                    servicePlan: {
-                        select: {
-                            name: true,
-                            price: true,
-                            duration: true
-                        }
-                    }
-                }
-            });
-
-            return claimedService;
-        });
+        const service = await claimService({ serviceId, employeeId: auth.employee.id });
 
         // Send notification to customer that job has been claimed
         let emailResult = null;
         try {
-            // Import and use our new unified email service
+            const customerUser = (await prisma.customer.findUnique({
+                where: { id: service.customerId },
+                select: { user: { select: { email: true, firstName: true, lastName: true } } }
+            }))?.user;
+            const scooperUser = service.employee?.user;
             const { sendServiceClaimedEmail } = await import('@/lib/unified-email-service');
-            emailResult = await sendServiceClaimedEmail(result, result.employee);
+            emailResult = await sendServiceClaimedEmail(
+                {
+                    ...service,
+                    customer: { user: { email: customerUser?.email, name: fullName(customerUser) } }
+                },
+                { user: { name: fullName(scooperUser), image: scooperUser?.image } }
+            );
         } catch (emailError) {
             console.error('Email notification failed:', emailError);
             // Don't fail the entire request if email fails
@@ -140,16 +40,13 @@ export async function POST(request, { params }) {
         return NextResponse.json({
             success: true,
             message: 'Service claimed successfully!',
-            service: result,
+            service,
             emailSent: emailResult?.success || false,
             emailError: emailResult?.error || null
         });
 
     } catch (error) {
-        console.error('Service claim error:', error);
-        return NextResponse.json({
-            error: 'Failed to claim service'
-        }, { status: 500 });
+        return jobClaimErrorResponse(error, 'Failed to claim service');
     }
 }
 
