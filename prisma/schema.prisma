@@ -184,6 +184,8 @@ model Employee {
   hasSetServiceArea      Boolean             @default(false)
   stripeAccountStatus    String?             @default("PENDING")
   stripeConnectAccountId String?             @unique
+  approvedAt             DateTime?
+  approvedBy             String?
   conversations          Conversation[]      @relation("EmployeeToConversations")
   serviceAreas           CoverageArea[]      @relation("EmployeeToServiceAreas")
   user                   User                @relation("UserToEmployee", fields: [userId], references: [id])
@@ -532,6 +534,7 @@ model Service {
   @@index([paymentStatus])
   @@index([serviceAreaId])
   @@index([isLocked])
+  @@index([status, arrivalDeadline])
 }
 
 model ServiceChecklist {
