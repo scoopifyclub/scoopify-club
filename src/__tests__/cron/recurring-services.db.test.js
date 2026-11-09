@@ -43,6 +43,7 @@ describeDb('recurring visits (real Postgres)', () => {
   let claims;
   let payment;
   let routes;
+  let createUserToken;
   let seq = 0;
   let plan;
 
@@ -58,7 +59,10 @@ describeDb('recurring visits (real Postgres)', () => {
     routes = {
       weekly: require('@/app/api/cron/create-weekly-services/route'),
       payouts: require('@/app/api/cron/process-employee-payouts/route'),
+      release: require('@/app/api/cron/release-expired-claims/route'),
+      openJobPool: require('@/app/api/cron/open-job-pool/route'),
     };
+    ({ createUserToken } = require('@/lib/jwt-utils'));
   }, 120000);
 
   afterAll(async () => {
@@ -302,6 +306,66 @@ describeDb('recurring visits (real Postgres)', () => {
     expect(requeued).toBe(0);
     const [visit] = await servicesFor(subscription.id);
     expect(visit.scheduledDate.toISOString()).toBe('2026-11-09T14:00:00.000Z');
+  });
+
+  describe('claim release without a frequent cron', () => {
+    async function abandonedClaim() {
+      const { subscription } = await createSubscriber();
+      await recurring.createRecurringServices({ now: MONDAY_EARLY });
+      const user = await prisma.user.create({
+        data: { id: id('user'), email: `${id('scooper')}@example.com`, password: 'x', role: 'EMPLOYEE', updatedAt: new Date() },
+      });
+      const employee = await prisma.employee.create({
+        data: { id: id('emp'), userId: user.id, approvedAt: new Date(), updatedAt: new Date() },
+      });
+      const claimedAt = new Date(Date.now() - 60 * 60 * 1000);
+      const [visit] = await servicesFor(subscription.id);
+      await prisma.service.update({
+        where: { id: visit.id },
+        data: {
+          employeeId: employee.id,
+          status: 'PENDING',
+          workflowStatus: 'CLAIMED',
+          claimedAt,
+          arrivalDeadline: new Date(claimedAt.getTime() + 45 * 60 * 1000),
+        },
+      });
+      return visit.id;
+    }
+
+    async function createAdmin() {
+      const user = await prisma.user.create({
+        data: {
+          id: id('admin'),
+          email: 'owner@scoopify.club',
+          password: '$2a$10$abcdefghijklmnopqrstuuJ3aCq0b8lU6a1o2m3n4o5p6q7r8s9t0',
+          role: 'ADMIN',
+          updatedAt: new Date(),
+        },
+      });
+      return createUserToken(user);
+    }
+
+    it('an admin session can trigger the release manually', async () => {
+      const serviceId = await abandonedClaim();
+      const token = await createAdmin();
+      const res = await routes.release.POST(
+        new NextRequest(`${BASE}/api/cron/release-expired-claims`, { method: 'POST', headers: { cookie: `accessToken=${token}` } })
+      );
+      expect(res.status).toBe(200);
+      expect((await res.json()).released).toBe(1);
+      const after = await prisma.service.findUnique({ where: { id: serviceId } });
+      expect(after).toMatchObject({ employeeId: null, status: 'SCHEDULED' });
+    });
+
+    it('the daily open-job-pool run releases expired claims', async () => {
+      const serviceId = await abandonedClaim();
+      const res = await routes.openJobPool.GET(cronRequest('/api/cron/open-job-pool'));
+      expect(res.status).toBe(200);
+      expect((await res.json()).releasedExpiredClaims).toBe(1);
+      const after = await prisma.service.findUnique({ where: { id: serviceId } });
+      expect(after).toMatchObject({ employeeId: null, status: 'SCHEDULED' });
+    });
   });
 
   describe('payout report', () => {
