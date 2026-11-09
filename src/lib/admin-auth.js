@@ -63,7 +63,8 @@ function deny(status, error) {
  *   if (!auth.ok) return auth.response;
  *
  * @param {Request} [request] - Incoming request; cookies() is used when omitted.
- * @returns {Promise<{ok: true, user: object, userId: string, role: 'ADMIN'} | {ok: false, status: number, error: string, response: NextResponse}>}
+ * @returns {Promise<{ok: boolean, response?: NextResponse, status?: number, error?: string, user?: object, userId?: string, role?: string}>}
+ *   On success `ok` is true and user/userId/role are set; otherwise `response` is the 401/403 to return.
  */
 export async function requireAdmin(request) {
   let token;
