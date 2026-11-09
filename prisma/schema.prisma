@@ -234,8 +234,8 @@ model Payment {
   createdAt             DateTime       @default(now())
   updatedAt             DateTime
   subscriptionId        String?
-  stripePaymentIntentId String?
-  stripeInvoiceId       String?
+  stripePaymentIntentId String?        @unique
+  stripeInvoiceId       String?        @unique
   stripeTransferId      String?
   refundedAmount        Float?
   refundedAt            DateTime?
@@ -631,6 +631,16 @@ model Subscription {
   @@index([planId])
   @@index([status])
   @@index([stripeSubscriptionId])
+}
+
+// Stripe webhook events already applied; the primary key dedupes redeliveries.
+model StripeEvent {
+  id          String   @id
+  type        String
+  objectId    String?
+  processedAt DateTime @default(now())
+
+  @@index([objectId])
 }
 
 model TimeExtension {
