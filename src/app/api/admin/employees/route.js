@@ -11,13 +11,20 @@ export async function GET(request) {
         const auth = await requireAdmin(request);
         if (!auth.ok) return auth.response;
 
+        const approval = new URL(request.url).searchParams.get('approval');
         const employees = await withAdminDatabase(async (prisma) => {
             return await prisma.employee.findMany({
+                where: approval === 'pending'
+                    ? { approvedAt: null }
+                    : approval === 'approved'
+                        ? { approvedAt: { not: null } }
+                        : undefined,
                 include: {
                     user: {
                         select: {
                             id: true,
-                            name: true,
+                            firstName: true,
+                            lastName: true,
                             email: true,
                             createdAt: true,
                         },

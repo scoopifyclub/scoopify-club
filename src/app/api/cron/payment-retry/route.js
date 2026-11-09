@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireCronOrAdmin } from '@/lib/cron-auth';
 import { prisma } from '@/lib/prisma';
 import { sendPaymentRetryEmail } from '@/lib/email-service';
 
@@ -7,10 +8,8 @@ export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        const authHeader = request.headers.get('authorization');
-        if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-            return new NextResponse('Unauthorized', { status: 401 });
-        }
+        const auth = await requireCronOrAdmin(request);
+        if (!auth.ok) return auth.response;
         const now = new Date();
         const retries = await prisma.paymentRetry.findMany({
             where: {

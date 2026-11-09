@@ -63,14 +63,17 @@ This will:
 # Generate Prisma client
 npm run prisma:generate
 
-# Push schema to database
-npm run prisma:push
+# Apply migrations to your local database
+npm run prisma:migrate:dev
 
 # Seed with test data
 npm run prisma:seed
 ```
 
-**Production (Vercel/Neon):**
+**Production (Vercel/Neon):** production builds apply migrations with
+`prisma migrate deploy`. The existing production database has to be baselined
+once first; see `docs/database-migrations.md`.
+
 ```bash
 # Run the production setup script
 npm run setup:production

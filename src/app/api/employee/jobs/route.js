@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
-import { verifyToken } from '@/lib/api-auth';
+import { requireScooper, releaseExpiredClaims, UNCLAIMED_JOB_CUSTOMER_SELECT, toUnclaimedCustomerView } from '@/lib/job-claims';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -8,21 +8,16 @@ export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        // Verify employee authorization
-        const token = request.headers.get('Authorization')?.split(' ')[1];
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        const decoded = await verifyToken(token);
-        if (!decoded || decoded.role !== 'EMPLOYEE') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireScooper(request);
+        if (!auth.ok) return auth.response;
+
+        await releaseExpiredClaims();
 
         // Get employee's service areas
         const employee = await prisma.employee.findUnique({
-            where: { userId: decoded.userId || decoded.id },
+            where: { id: auth.employee.id },
             include: {
-                serviceAreas: true
+                serviceAreas: { where: { active: true } }
             }
         });
 
@@ -54,12 +49,7 @@ export async function GET(request) {
                 }
             },
             include: {
-                customer: {
-                    include: {
-                        address: true,
-                        user: true
-                    }
-                }
+                customer: UNCLAIMED_JOB_CUSTOMER_SELECT
             },
             orderBy: {
                 scheduledDate: 'asc'
@@ -84,6 +74,7 @@ export async function GET(request) {
             // Estimate duration
             const estimatedDuration = serviceType.includes('one-time') ? 45 : 30;
 
+            const customer = toUnclaimedCustomerView(service.customer);
             return {
                 id: service.id,
                 scheduledDate: service.scheduledDate,
@@ -92,25 +83,9 @@ export async function GET(request) {
                 type: serviceType, // Maintain backward compatibility
                 estimatedDuration,
                 payment,
-                specialInstructions: service.specialInstructions,
-                customer: {
-                    name: service.customer.user.name,
-                    phone: service.customer.phone,
-                    address: {
-                        street: service.customer.address.street,
-                        city: service.customer.address.city,
-                        state: service.customer.address.state,
-                        zipCode: service.customer.address.zipCode
-                    },
-                    gateCode: service.customer.gateCode
-                },
-                // Legacy fields for backward compatibility
-                address: {
-                    street: service.customer.address.street,
-                    city: service.customer.address.city,
-                    state: service.customer.address.state,
-                    zipCode: service.customer.address.zipCode
-                }
+                customer,
+                // Legacy field for backward compatibility
+                address: customer.address
             };
         });
 
