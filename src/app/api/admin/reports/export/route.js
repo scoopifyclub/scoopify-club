@@ -1,21 +1,14 @@
 import { NextResponse } from 'next/server';
 import { withAdminDatabase } from '@/lib/prisma';
-import { validateUserToken } from '@/lib/jwt-utils';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        const token = request.headers.get('authorization')?.split(' ')[1];
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-                       const decoded = await validateUserToken(token);
-        if (!decoded || decoded.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
 
         const { searchParams } = new URL(request.url);
         const range = searchParams.get('range') || '30days';

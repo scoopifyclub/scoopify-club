@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -7,12 +8,16 @@ export const runtime = 'nodejs';
 
 // GET: List all priority zip codes
 export async function GET(req) {
+  const auth = await requireAdmin(req);
+  if (!auth.ok) return auth.response;
   const zips = await prisma.coveragePriority.findMany({ orderBy: { createdAt: 'desc' } });
   return NextResponse.json(zips);
 }
 
 // POST: Add a priority zip code
 export async function POST(req) {
+  const auth = await requireAdmin(req);
+  if (!auth.ok) return auth.response;
   const { zipCode } = await req.json();
   if (!zipCode || !/^[0-9]{5}$/.test(zipCode)) {
     return NextResponse.json({ error: 'Invalid zip code' }, { status: 400 });
@@ -27,6 +32,8 @@ export async function POST(req) {
 
 // DELETE: Remove a priority zip code
 export async function DELETE(req) {
+  const auth = await requireAdmin(req);
+  if (!auth.ok) return auth.response;
   const { zipCode } = await req.json();
   if (!zipCode) {
     return NextResponse.json({ error: 'Zip code required' }, { status: 400 });

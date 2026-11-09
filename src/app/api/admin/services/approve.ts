@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAuthUser } from '@/lib/api-auth';
 import { Stripe } from 'stripe';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // POST: Admin approves a completed service for payout
 export async function POST(request: Request) {
+  const auth = await requireAdmin(request);
+  if (!auth.ok) return auth.response;
   const user = await getAuthUser(request);
   if (!user?.isAdmin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

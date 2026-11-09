@@ -1,24 +1,14 @@
 import { NextResponse } from 'next/server';
 import { withAdminDatabase } from '@/lib/prisma';
-import { validateUserToken } from '@/lib/jwt-utils';
-import { cookies } from 'next/headers';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('accessToken')?.value;
-        
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
-        }
-        
-        const decoded = await validateUserToken(token);
-        if (!decoded || decoded.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
 
         const settings = await withAdminDatabase(async (prisma) => {
             console.log('⚙️ Fetching admin settings...');
@@ -66,17 +56,8 @@ export async function GET(request) {
 
 export async function PUT(request) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('accessToken')?.value;
-        
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized - No token' }, { status: 401 });
-        }
-        
-        const decoded = await validateUserToken(token);
-        if (!decoded || decoded.role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
 
         const body = await request.json();
 

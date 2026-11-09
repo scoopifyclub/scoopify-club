@@ -1,11 +1,9 @@
 import { NextResponse } from 'next/server';
-import { validateUser } from '@/lib/api-auth';
-import { cookies } from 'next/headers';
 import { reconcileStripePayments, getRecentReconciliationReports, getReconciliationReport } from '@/lib/payment-reconciliation';
 import { logger } from '@/lib/logger';
-import { requireRole } from '@/lib/auth-server';
 import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -15,18 +13,8 @@ export const runtime = 'nodejs';
 export async function GET(request) {
     var _a;
     try {
-        // Verify admin permission
-        // Get access token from cookies
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        // Validate the token and check role
-        const { userId, role } = await validateUser(accessToken);
-        if (role !== 'ADMIN') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
         const url = new URL(request.url);
         const reportId = url.searchParams.get('reportId');
         // If reportId is provided, get specific report details
@@ -51,10 +39,8 @@ export async function GET(request) {
 // POST: Run a new reconciliation
 export async function POST(request) {
     try {
-        const user = await requireRole('ADMIN');
-        if (!user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireAdmin(request);
+        if (!auth.ok) return auth.response;
 
         const { startDate, endDate } = await request.json();
         if (!startDate || !endDate) {
