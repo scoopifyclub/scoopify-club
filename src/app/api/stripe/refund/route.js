@@ -110,11 +110,16 @@ export async function POST(request) {
       where: { 
         stripePaymentIntentId: paymentIntentId 
       },
+      // PaymentStatus has no REFUNDED; the charge stays PAID and the refund
+      // is tracked on the refund* fields. `amount` is in cents.
       data: {
-        status: 'REFUNDED',
+        refundStatus: refund.status === 'failed' ? 'FAILED' : refund.status === 'succeeded' ? 'COMPLETED' : 'PENDING',
         refundedAt: new Date(),
-        refundAmount: amount,
-        refundReason: reason
+        refundedAmount: refund.amount / 100,
+        refundedBy: user.id,
+        refundReason: reason,
+        refundTransactionId: refund.id,
+        updatedAt: new Date()
       }
     });
 
