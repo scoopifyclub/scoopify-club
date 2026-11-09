@@ -457,8 +457,7 @@ describeDb('job claiming (real Postgres)', () => {
 
     test('unclaimed-job feeds never include gate codes, street, phone or notes', async () => {
       jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'clearImmediate', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'queueMicrotask', 'hrtime', 'performance'] });
-      const noon = new Date();
-      noon.setHours(12, 0, 0, 0);
+      const noon = new Date('2026-11-10T19:00:00Z'); // 12:00 PM MST
       jest.setSystemTime(noon);
       try {
         const a = await createScooper();
@@ -479,6 +478,24 @@ describeDb('job claiming (real Postgres)', () => {
           expect(JSON.stringify(body)).toContain(ZIP);
           expect({ name, leaks: containsSecrets(body) }).toEqual({ name, leaks: false });
         }
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test('available-services is closed outside 8 AM-7 PM America/Denver regardless of server time', async () => {
+      jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate', 'clearImmediate', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'queueMicrotask', 'hrtime', 'performance'] });
+      try {
+        const a = await createScooper();
+        // 14:00 UTC is 7:00 AM MST: open in UTC, closed in Denver
+        jest.setSystemTime(new Date('2026-11-10T14:00:00Z'));
+        const early = await routes.availableServices.GET(req('/api/employee/available-services', { token: a.token }));
+        expect(early.status).toBe(400);
+        expect((await early.json()).unlockTime).toBe('2026-11-10T15:00:00.000Z');
+        // 01:30 UTC next day is 6:30 PM MST: closed in UTC, open in Denver
+        jest.setSystemTime(new Date('2026-11-11T01:30:00Z'));
+        const token = await createUserToken({ id: a.user.id, email: a.user.email, role: 'EMPLOYEE' });
+        expect((await routes.availableServices.GET(req('/api/employee/available-services', { token }))).status).toBe(200);
       } finally {
         jest.useRealTimers();
       }
