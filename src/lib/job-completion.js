@@ -2,8 +2,7 @@ import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { prisma as defaultDb } from '@/lib/prisma';
 import { JobClaimError, jobClaimErrorResponse, requireScooper } from '@/lib/job-claims';
-import { calculateOneTimeServicePayment } from '@/lib/payment-calculator';
-import { perVisitEarnings } from '@/lib/recurring-services';
+import { buildFinancialRecord } from '@/lib/job-financials';
 import { toPhotoView } from '@/lib/service-photos';
 
 export const REQUIRED_PHOTOS = { BEFORE: 4, AFTER: 4 };
@@ -56,22 +55,6 @@ export function missingChecklistItems(items) {
   return REQUIRED_CHECKLIST_ITEMS.filter((name) => items[name] !== true);
 }
 
-/**
- * What the scooper earns for one visit: 75% of the plan price after Stripe
- * fees (per visit for monthly plans, the whole visit for one-time plans), the
- * same rule the scheduler uses for potentialEarnings. Falls back to the
- * job's potentialEarnings only when the plan has no usable price.
- */
-export function scooperEarningAmount(service) {
-  const plan = service.servicePlan;
-  const price = Number(plan?.price);
-  if (Number.isFinite(price) && price > 0) {
-    if (String(plan.type || '').toUpperCase() === 'ONE_TIME') return calculateOneTimeServicePayment(price).scooperPayment;
-    return perVisitEarnings(plan);
-  }
-  return Number.isFinite(service.potentialEarnings) ? service.potentialEarnings : null;
-}
-
 async function logSystemEvent(db, type, message, data) {
   try {
     await db.systemLog.create({ data: { type, message, data } });
@@ -96,15 +79,17 @@ const COMPLETION_SELECT = {
 
 /** The completion record for a job: status, timestamps, checklist, earning, photo counts. */
 export async function getCompletionSummary({ serviceId, db = defaultDb }) {
-  const [service, earning, photoCounts] = await Promise.all([
+  const [service, earning, financialRecord, photoCounts] = await Promise.all([
     db.service.findUnique({ where: { id: serviceId }, select: COMPLETION_SELECT }),
     db.earning.findUnique({ where: { serviceId } }),
+    db.jobFinancialRecord.findUnique({ where: { serviceId } }),
     db.servicePhoto.groupBy({ by: ['type'], where: { serviceId }, _count: { _all: true } }),
   ]);
   if (!service) throw new JobClaimError(404, 'JOB_NOT_FOUND', 'Job not found');
   return {
     service,
     earning: earning && { id: earning.id, amount: earning.amount, status: earning.status, createdAt: earning.createdAt },
+    financialRecord,
     photoCounts: Object.fromEntries(photoCounts.map((row) => [row.type, row._count._all])),
   };
 }
@@ -152,8 +137,8 @@ export async function sendCompletionEmail({ serviceId, db = defaultDb, now = new
  * checklist saved earlier) and REQUIRED_PHOTOS uploaded to storage. In one
  * transaction the status moves IN_PROGRESS -> COMPLETED with a conditional
  * update, so only one request can complete a job; that request records the
- * checklist and the scooper's Earning (unique per job) and later sends the
- * customer email. Repeating the call returns the existing completion with
+ * checklist, the job's JobFinancialRecord and the matching Earning (both
+ * unique per job) and later sends the customer email. Repeating the call returns the existing completion with
  * alreadyCompleted: true and changes nothing. COMPLETED is not an active
  * status, so the scooper can claim their next job right away.
  */
@@ -162,8 +147,10 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
     where: { id: serviceId },
     select: {
       ...COMPLETION_SELECT,
-      potentialEarnings: true,
-      servicePlan: { select: { price: true, type: true } },
+      subscriptionId: true,
+      servicePlanId: true,
+      servicePlan: { select: { id: true, price: true, type: true } },
+      subscription: { select: { servicePlan: { select: { id: true, price: true, type: true } } } },
       photos: { where: { s3Key: { not: null } }, select: { id: true, type: true } },
     },
   });
@@ -194,7 +181,7 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
     throw new JobClaimError(400, 'PHOTOS_REQUIRED', 'Upload the required before and after photos first', { missingPhotos });
   }
 
-  const amount = scooperEarningAmount(service);
+  const financial = buildFinancialRecord({ service, completedAt: now });
   const scooperNotes = typeof notes === 'string' && notes.trim() ? notes.trim().slice(0, 2000) : undefined;
   let completedNow = false;
 
@@ -219,9 +206,18 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
       create: { id: randomUUID(), serviceId, items, notes: scooperNotes, completedAt: now, updatedAt: now },
       update: { items, completedAt: now, updatedAt: now, ...(scooperNotes && { notes: scooperNotes }) },
     });
-    if (amount != null) {
+    if (financial) {
+      await tx.jobFinancialRecord.create({ data: financial });
       await tx.earning.create({
-        data: { id: randomUUID(), amount, status: 'PENDING', serviceId, employeeId, createdAt: now, updatedAt: now },
+        data: {
+          id: randomUUID(),
+          amount: financial.scooperEarningCents / 100,
+          status: 'PENDING',
+          serviceId,
+          employeeId,
+          createdAt: now,
+          updatedAt: now,
+        },
       });
     }
     await tx.employee.update({ where: { id: employeeId }, data: { completedJobs: { increment: 1 }, updatedAt: now } });
@@ -247,8 +243,8 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
     throw new JobClaimError(409, 'JOB_STATE_CHANGED', 'This job changed before it could be completed. Refresh and try again.');
   }
 
-  if (amount == null) {
-    await logSystemEvent(db, 'EARNING_AMOUNT_MISSING', `No earning recorded for service ${serviceId}: plan has no price`, {
+  if (!financial) {
+    await logSystemEvent(db, 'EARNING_AMOUNT_MISSING', `No financial record for service ${serviceId}: plan has no price`, {
       serviceId,
       employeeId,
     });
@@ -327,8 +323,9 @@ export async function getCompletionEvidence({ serviceId, db = defaultDb }) {
     },
   });
   if (!service) throw new JobClaimError(404, 'JOB_NOT_FOUND', 'Job not found');
-  const [earning, emailLog, photos] = await Promise.all([
+  const [earning, financialRecord, emailLog, photos] = await Promise.all([
     db.earning.findUnique({ where: { serviceId } }),
+    db.jobFinancialRecord.findUnique({ where: { serviceId } }),
     db.systemLog.findMany({
       where: { type: 'SERVICE_COMPLETION_EMAIL', data: { path: ['serviceId'], equals: serviceId } },
       orderBy: { createdAt: 'desc' },
@@ -336,5 +333,5 @@ export async function getCompletionEvidence({ serviceId, db = defaultDb }) {
     }),
     Promise.all(service.photos.map((photo) => toPhotoView(photo))),
   ]);
-  return { service: { ...service, photos: undefined }, photos, earning, emailLog };
+  return { service: { ...service, photos: undefined }, photos, earning, financialRecord, emailLog };
 }

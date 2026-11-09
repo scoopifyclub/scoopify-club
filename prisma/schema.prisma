@@ -530,6 +530,7 @@ model Service {
   photos             ServicePhoto[]     @relation("ServiceToPhotos")
   rating             ServiceRating?     @relation("ServiceToRating")
   timeExtensions     TimeExtension[]    @relation("ServiceToExtensions")
+  financialRecord    JobFinancialRecord? @relation("ServiceToFinancialRecord")
 
   @@index([customerId])
   @@index([employeeId])
@@ -574,6 +575,43 @@ model ServiceMessage {
 
   @@index([employeeId])
   @@index([serviceId])
+}
+
+/// One row per completed job, written in the completion transaction. Amounts
+/// are integer cents. retainedContributionCents = customerPriceCents -
+/// scooperEarningCents - referralExpenseCents - stripeFeeCents. Change amounts
+/// only through adjustFinancialRecord (src/lib/job-financials.js), which
+/// appends to `adjustments`. payoutStatus, stripeTransferId and paidAt belong
+/// to the payouts worker. See docs/job-completion.md.
+model JobFinancialRecord {
+  id                        String    @id
+  serviceId                 String    @unique
+  employeeId                String
+  customerId                String
+  subscriptionId            String?
+  servicePlanId             String
+  pricingBasis              String
+  planPriceCents            Int
+  customerPriceCents        Int
+  scooperEarningCents       Int
+  referralExpenseCents      Int       @default(0)
+  stripeFeeCents            Int
+  stripeFeeEstimated        Boolean   @default(true)
+  retainedContributionCents Int
+  adjustments               Json      @default("[]")
+  checkedInAt               DateTime?
+  completedAt               DateTime
+  serviceDurationSeconds    Int?
+  payoutStatus              String    @default("PENDING")
+  stripeTransferId          String?   @unique
+  paidAt                    DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime
+  service                   Service   @relation("ServiceToFinancialRecord", fields: [serviceId], references: [id])
+
+  @@index([employeeId, payoutStatus])
+  @@index([customerId])
+  @@index([completedAt])
 }
 
 model ServicePhoto {

@@ -41,7 +41,6 @@ describeDb('recurring visits (real Postgres)', () => {
   let prisma;
   let recurring;
   let claims;
-  let payment;
   let routes;
   let seq = 0;
   let plan;
@@ -54,7 +53,6 @@ describeDb('recurring visits (real Postgres)', () => {
     ({ prisma } = require('@/lib/prisma'));
     recurring = require('@/lib/recurring-services');
     claims = require('@/lib/job-claims');
-    payment = require('@/lib/payment-calculator');
     routes = {
       weekly: require('@/app/api/cron/create-weekly-services/route'),
       payouts: require('@/app/api/cron/process-employee-payouts/route'),
@@ -129,7 +127,8 @@ describeDb('recurring visits (real Postgres)', () => {
     expect(visit.status).toBe('SCHEDULED');
     expect(visit.employeeId).toBeNull();
     expect(visit.servicePlanId).toBe(plan.id);
-    expect(visit.potentialEarnings).toBe(payment.calculateMonthlyServicePayment(55).scooperPaymentPerService);
+    // $55 x 12 / 52 x 75%
+    expect(visit.potentialEarnings).toBe(9.52);
   });
 
   it('running weekly creation twice yields no duplicates', async () => {

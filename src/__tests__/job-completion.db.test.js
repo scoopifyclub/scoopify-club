@@ -78,8 +78,22 @@ const ZIP = '80831';
 const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]), Buffer.alloc(2048, 7)]);
 const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(512, 1)]);
 const CHECKLIST = { allWasteRemoved: true, gateClosed: true, cornersChecked: true };
-// $55 monthly plan: (55 - 2.9% - $0.30) * 75% / 4 visits
-const EXPECTED_EARNING = 9.96;
+// $79/month plan: per visit $79 x 12 / 52 = $18.23, scooper 75% = $13.67,
+// Stripe fee ($79 x 2.9% + $0.30) x 12 / 52 = $0.60, retained $3.96
+const EXPECTED_EARNING = 13.67;
+const EXPECTED_RECORD = {
+  pricingBasis: 'SUBSCRIPTION_WEEKLY',
+  planPriceCents: 7900,
+  customerPriceCents: 1823,
+  scooperEarningCents: 1367,
+  referralExpenseCents: 0,
+  stripeFeeCents: 60,
+  stripeFeeEstimated: true,
+  retainedContributionCents: 396,
+  adjustments: [],
+  payoutStatus: 'PENDING',
+  stripeTransferId: null,
+};
 
 describeDb('job photos and completion (real Postgres)', () => {
   let prisma;
@@ -120,7 +134,7 @@ describeDb('job photos and completion (real Postgres)', () => {
 
   beforeEach(async () => {
     await prisma.$executeRawUnsafe(
-      'TRUNCATE "ServicePhoto", "ServiceChecklist", "Earning", "Location", "Service", "CoverageArea", "Address", "Customer", "Employee", "User", "ServicePlan", "SystemLog", "Notification" CASCADE'
+      'TRUNCATE "JobFinancialRecord", "ServicePhoto", "ServiceChecklist", "Earning", "Location", "Service", "CoverageArea", "Address", "Customer", "Employee", "User", "ServicePlan", "SystemLog", "Notification" CASCADE'
     );
     mockS3Objects.clear();
     mockS3Calls.length = 0;
@@ -175,10 +189,10 @@ describeDb('job photos and completion (real Postgres)', () => {
     return { user, customer, token };
   }
 
-  async function createJob(customer) {
+  async function createJob(customer, { price = 79, type = 'MONTHLY' } = {}) {
     const owner = customer || (await createCustomer());
     const plan = await prisma.servicePlan.create({
-      data: { id: id('plan'), name: 'Weekly', price: 55, duration: 30, type: 'MONTHLY', updatedAt: new Date() },
+      data: { id: id('plan'), name: 'Weekly', price, duration: 30, type, updatedAt: new Date() },
     });
     const service = await prisma.service.create({
       data: {
@@ -237,9 +251,9 @@ describeDb('job photos and completion (real Postgres)', () => {
     routes.complete.POST(req(`/api/employee/services/${serviceId}/complete`, { method: 'POST', bearer: scooper.token, body }), params({ id: serviceId }));
 
   /** A job claimed and checked in by a fresh scooper. */
-  async function activeJob(customer) {
+  async function activeJob(customer, plan) {
     const scooper = await createScooper();
-    const { service, owner } = await createJob(customer);
+    const { service, owner } = await createJob(customer, plan);
     expect((await routes.claim.POST(req(`/api/employee/services/${service.id}/claim`, { method: 'POST', bearer: scooper.token }), params({ id: service.id }))).status).toBe(200);
     expect((await routes.arrive.POST(req(`/api/employee/services/${service.id}/arrive`, { method: 'POST', bearer: scooper.token, body: {} }), params({ id: service.id }))).status).toBe(200);
     return { scooper, service, owner };
@@ -465,6 +479,8 @@ describeDb('job photos and completion (real Postgres)', () => {
       const customer = await createCustomer({ serviceCredits: 1 });
       const { scooper, service, owner } = await activeJob(customer);
       await uploadRequiredPhotos(service.id, scooper);
+      const arrivedAt = new Date(Date.now() - 25 * 60 * 1000);
+      await prisma.service.update({ where: { id: service.id }, data: { arrivedAt } });
 
       const before = Date.now();
       const res = await complete(service.id, scooper, { checklist: ['allWasteRemoved', 'gateClosedOnExit'], notes: 'Two piles by the shed' });
@@ -474,6 +490,7 @@ describeDb('job photos and completion (real Postgres)', () => {
         success: true,
         alreadyCompleted: false,
         earning: { amount: EXPECTED_EARNING, status: 'PENDING' },
+        financialRecord: EXPECTED_RECORD,
         photoCounts: { BEFORE: 4, AFTER: 4 },
         email: { sent: true, outcome: 'sent' },
       });
@@ -485,6 +502,19 @@ describeDb('job photos and completion (real Postgres)', () => {
       expect(row.afterPhotoIds).toHaveLength(4);
       expect(row.checklist).toMatchObject({ items: { allWasteRemoved: true, gateClosed: true }, notes: 'Two piles by the shed' });
       expect(row.checklist.completedAt).toBeInstanceOf(Date);
+
+      const records = await prisma.jobFinancialRecord.findMany();
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        ...EXPECTED_RECORD,
+        serviceId: service.id,
+        employeeId: scooper.employee.id,
+        customerId: owner.customer.id,
+        checkedInAt: arrivedAt,
+        completedAt: row.completedDate,
+      });
+      expect(records[0].serviceDurationSeconds).toBeGreaterThanOrEqual(25 * 60);
+      expect(records[0].serviceDurationSeconds).toBeLessThan(26 * 60);
 
       const earnings = await prisma.earning.findMany();
       expect(earnings).toHaveLength(1);
@@ -507,6 +537,7 @@ describeDb('job photos and completion (real Postgres)', () => {
       expect(again.status).toBe(200);
       expect(await again.json()).toMatchObject({ alreadyCompleted: true, earning: { amount: EXPECTED_EARNING } });
       expect(await prisma.earning.count()).toBe(1);
+      expect(await prisma.jobFinancialRecord.count()).toBe(1);
       expect(email.sendServiceCompletedEmail).toHaveBeenCalledTimes(1);
       expect((await prisma.employee.findUnique({ where: { id: scooper.employee.id } })).completedJobs).toBe(1);
 
@@ -532,6 +563,7 @@ describeDb('job photos and completion (real Postgres)', () => {
       const bodies = await Promise.all(responses.map((r) => r.json()));
       expect(bodies.filter((b) => b.alreadyCompleted === false)).toHaveLength(1);
       expect(await prisma.earning.count({ where: { serviceId: service.id } })).toBe(1);
+      expect(await prisma.jobFinancialRecord.count({ where: { serviceId: service.id } })).toBe(1);
       expect(email.sendServiceCompletedEmail).toHaveBeenCalledTimes(1);
     });
 
@@ -589,12 +621,52 @@ describeDb('job photos and completion (real Postgres)', () => {
       expect(evidence.photos).toHaveLength(8);
       evidence.photos.forEach((photo) => expectSignedUrl(photo.url, 300));
       expect(evidence.earning).toMatchObject({ amount: EXPECTED_EARNING });
+      expect(evidence.financialRecord).toMatchObject(EXPECTED_RECORD);
       expect(evidence.emailLog[0].data).toMatchObject({ serviceId: service.id, outcome: 'sent' });
 
       const list = await routes.adminPhotos.GET(req(`/api/admin/photos?serviceId=${service.id}&limit=20`, { token: admin.token }));
       expect(list.status).toBe(200);
       expect((await list.json()).photos).toHaveLength(8);
       expect((await routes.adminPhotos.GET(req('/api/admin/photos', { token: scooper.token }))).status).toBe(403);
+    });
+
+    test('a one-time job records the full price and 75% of it', async () => {
+      const { scooper, service } = await activeJob(undefined, { price: 99, type: 'ONE_TIME' });
+      await uploadRequiredPhotos(service.id, scooper);
+      expect((await complete(service.id, scooper)).status).toBe(200);
+      expect(await prisma.jobFinancialRecord.findUnique({ where: { serviceId: service.id } })).toMatchObject({
+        pricingBasis: 'ONE_TIME',
+        customerPriceCents: 9900,
+        scooperEarningCents: 7425,
+        stripeFeeCents: 317,
+        retainedContributionCents: 2158,
+      });
+      expect((await prisma.earning.findUnique({ where: { serviceId: service.id } })).amount).toBe(74.25);
+    });
+
+    test('adjustments recompute the retained contribution and keep a history', async () => {
+      const { adjustFinancialRecord } = require('@/lib/job-financials');
+      const { scooper, service } = await activeJob();
+      await uploadRequiredPhotos(service.id, scooper);
+      await complete(service.id, scooper);
+
+      const at = new Date('2026-11-12T18:00:00Z');
+      const updated = await adjustFinancialRecord({
+        serviceId: service.id,
+        changes: { referralExpenseCents: 2500 },
+        reason: 'Referral reward for first paid visit',
+        by: 'admin-1',
+        now: at,
+      });
+      expect(updated).toMatchObject({ referralExpenseCents: 2500, retainedContributionCents: 396 - 2500 });
+      expect(updated.adjustments).toEqual([
+        { at: at.toISOString(), by: 'admin-1', reason: 'Referral reward for first paid visit', changes: { referralExpenseCents: { from: 0, to: 2500 } } },
+      ]);
+
+      await expect(adjustFinancialRecord({ serviceId: service.id, changes: { scooperEarningCents: 1500 } })).rejects.toThrow('reason');
+      await expect(adjustFinancialRecord({ serviceId: service.id, changes: { retainedContributionCents: 1 }, reason: 'x' })).rejects.toThrow();
+      await prisma.jobFinancialRecord.update({ where: { serviceId: service.id }, data: { stripeTransferId: 'tr_123', payoutStatus: 'PAID' } });
+      await expect(adjustFinancialRecord({ serviceId: service.id, changes: { scooperEarningCents: 1500 }, reason: 'x' })).rejects.toThrow('paid out');
     });
 
     test('an email failure does not undo the completion and is logged', async () => {

@@ -41,8 +41,9 @@ the admin bulk `POST /api/services/schedule`.
   once 07:00 has passed, and covers 7 days (`?days=N`, up to 35, for backfill).
 - Visits are not created before the subscription's `startDate` or after its
   `endDate`.
-- `potentialEarnings` uses `calculateMonthlyServicePayment(plan.price)` (75% of
-  the post-Stripe-fee amount, divided by 4). Referral deductions are not applied.
+- `potentialEarnings` is the scooper's pay per visit: monthly price x 12 / 52 x 75%
+  (`src/lib/job-financials.js`; Scoopify absorbs Stripe fees). The amount actually
+  owed is fixed at completion in `JobFinancialRecord` (see `docs/job-completion.md`).
 
 **No duplicates.** Each visit stores `subscriptionId` and `serviceDate` (the
 Denver date it was generated for). A unique index on that pair (migration
