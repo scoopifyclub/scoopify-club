@@ -292,6 +292,8 @@ const ASSIGNED_JOB_SELECT = {
   customerId: true,
   servicePlan: { select: { name: true, price: true, duration: true } },
   location: { select: { latitude: true, longitude: true, address: true } },
+  photos: { select: { id: true, url: true, type: true, createdAt: true } },
+  checklist: { select: { items: true, completedAt: true, notes: true } },
   customer: {
     select: {
       userId: true,
