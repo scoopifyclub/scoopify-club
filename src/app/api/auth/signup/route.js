@@ -417,7 +417,8 @@ export async function POST(request) {
         const token = await createUserToken({ 
             id: user.id, 
             email: user.email,
-            role: user.role
+            role: user.role,
+            password: user.password
         });
 
         // Set cookie
