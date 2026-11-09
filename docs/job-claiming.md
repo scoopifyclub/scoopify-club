@@ -27,7 +27,7 @@ Unclaimed and a `JOB_CLAIM_EXPIRED` row is written to `SystemLog`.
   job produce one success and 409 for the rest.
 - **One active job.** The scooper's Employee row is locked for the duration of
   the claim, and the `Service_one_active_job_per_employee` partial unique index
-  (in the `20261109230000_job_claiming` migration, not in `schema.prisma`)
+  (in the `20261110000000_job_claiming` migration, not in `schema.prisma`)
   rejects a second `PENDING`/`IN_PROGRESS` job for the same scooper from any
   code path.
 - **Access details.** Unclaimed-job feeds return only the customer's first name
@@ -64,7 +64,7 @@ job reappears the next time any scooper loads a feed or claims.
 1. Before deploying, check that no scooper holds two active jobs, or the
    migration's unique index fails (and so does the Vercel build):
    `DATABASE_URL=... node scripts/scooper-approvals.js active-jobs-check`
-2. Deploy. `prisma migrate deploy` applies `20261109230000_job_claiming`.
+2. Deploy. `prisma migrate deploy` applies `20261110000000_job_claiming`.
 3. Every existing scooper is now pending. List them and approve the real ones:
    `node scripts/scooper-approvals.js list` then
    `node scripts/scooper-approvals.js approve <email> --apply`.
