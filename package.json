@@ -25,7 +25,7 @@
     "lint": "next lint",
     "test": "jest",
     "test:jest": "jest",
-    "test:security": "jest src/__tests__/admin-access.test.js",
+    "test:security": "jest src/__tests__/admin-access.test.js src/__tests__/password-reset.test.js",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",
