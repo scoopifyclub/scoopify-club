@@ -23,6 +23,8 @@ import crypto from 'crypto';
 // Force Node.js runtime for bcryptjs, crypto, and Prisma
 export const runtime = 'nodejs';
 
+const SELF_SIGNUP_ROLES = ['CUSTOMER', 'EMPLOYEE'];
+
 const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
     apiVersion: '2023-10-16',
 });
@@ -39,6 +41,10 @@ export async function POST(request) {
 
         const body = await request.json();
         const { email, firstName, lastName, password, deviceFingerprint, role = 'CUSTOMER', address, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, travelDistance, coveredZips } = body;
+        // Privileged roles (ADMIN, etc.) are never self-assignable
+        if (!SELF_SIGNUP_ROLES.includes(role)) {
+            return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
+        }
         // Validate required fields based on role
         if (!email || !firstName || !lastName || !password) {
             return NextResponse.json({ error: 'Email, first name, last name, and password are required' }, { status: 400 });
@@ -426,10 +432,17 @@ export async function POST(request) {
         });
 
         // Remove sensitive data before sending response
-        const { password: _, ...userWithoutPassword } = user;
+        const {
+            password: _,
+            verificationToken: _verificationToken,
+            verificationTokenExpiry: _verificationTokenExpiry,
+            resetToken: _resetToken,
+            resetTokenExpiry: _resetTokenExpiry,
+            ...safeUser
+        } = user;
         
         const response = NextResponse.json({
-            user: userWithoutPassword,
+            user: safeUser,
             customer,
             employee,
             token,

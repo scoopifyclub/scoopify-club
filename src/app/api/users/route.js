@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/api-auth";
-import { cookies } from "next/headers";
+import { requireAdmin } from "@/lib/admin-auth";
 import bcrypt from "bcrypt";
 
 // Force Node.js runtime for Prisma and other Node.js APIs
@@ -10,15 +9,8 @@ export const runtime = 'nodejs';
 
 export async function GET(request) {
   try {
-    const token = cookies().get("token")?.value;
-    const user = await verifyToken(token);
-
-    if (!user || !["ADMIN", "MANAGER"].includes(user.role)) {
-      return NextResponse.json(
-        { error: "Unauthorized access" },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page")) || 1;
@@ -92,15 +84,8 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const token = cookies().get("token")?.value;
-    const currentUser = await verifyToken(token);
-
-    if (!currentUser || !["ADMIN", "MANAGER"].includes(currentUser.role)) {
-      return NextResponse.json(
-        { error: "Unauthorized access" },
-        { status: 401 }
-      );
-    }
+    const auth = await requireAdmin(request);
+    if (!auth.ok) return auth.response;
 
     const body = await request.json();
     const { name, email, password, role, phone, address, serviceAreas } = body;
@@ -108,6 +93,14 @@ export async function POST(request) {
     if (!name || !email || !password || !role) {
       return NextResponse.json(
         { error: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    // Admins are provisioned via ADMIN_EMAILS + scripts/admin-accounts.js, not this endpoint
+    if (!["CUSTOMER", "EMPLOYEE"].includes(role)) {
+      return NextResponse.json(
+        { error: "Invalid role" },
         { status: 400 }
       );
     }
