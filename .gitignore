@@ -65,7 +65,6 @@ prisma/generated/
 postgresql-installer.exe
 
 # Prisma
-/prisma/migrations/
 /prisma/dev.db 
 
 # clerk configuration (can include secrets)
