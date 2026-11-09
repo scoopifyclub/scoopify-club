@@ -21,6 +21,7 @@ const UNIQUE = {
   customer: ['id', 'stripeCustomerId', 'userId'],
   user: ['id', 'email'],
   servicePlan: ['id', 'code', 'stripePriceId'],
+  service: ['id', 'stripeCheckoutSessionId'],
 };
 const mockDb = { tables: {}, failOn: null };
 const resetDb = () => {
@@ -30,7 +31,17 @@ const resetDb = () => {
 
 jest.mock('@/lib/prisma', () => {
   const uniqueError = (model, field) => Object.assign(new Error(`Unique constraint failed on ${model}.${field}`), { code: 'P2002' });
-  const matches = (row, where) => Object.entries(where).every(([k, v]) => row[k] === v);
+  const value = (v) => (v instanceof Date ? v.getTime() : v);
+  const matchOne = (actual, cond) => {
+    if (cond && typeof cond === 'object' && !(cond instanceof Date)) {
+      if ('in' in cond && !cond.in.includes(actual)) return false;
+      if ('gt' in cond && !(value(actual) > value(cond.gt))) return false;
+      if ('not' in cond && value(actual) === value(cond.not)) return false;
+      return true;
+    }
+    return value(actual) === value(cond);
+  };
+  const matches = (row, where) => Object.entries(where).every(([k, v]) => matchOne(row[k], v));
   const delegate = (model) => {
     const rows = () => mockDb.tables[model];
     const check = (model_, row, selfId) => {
@@ -70,6 +81,12 @@ jest.mock('@/lib/prisma', () => {
         Object.assign(row, data);
         return { ...row };
       },
+      updateMany: async ({ where = {}, data }) => {
+        guard('updateMany');
+        const hit = rows().filter((r) => matches(r, where));
+        hit.forEach((r) => Object.assign(r, data));
+        return { count: hit.length };
+      },
       upsert: async ({ where, create, update }) => {
         const row = rows().find((r) => matches(r, where));
         return row ? api.update({ where: { id: row.id }, data: update }) : api.create({ data: create });
@@ -79,7 +96,7 @@ jest.mock('@/lib/prisma', () => {
   };
   const prisma = Object.fromEntries(Object.keys(UNIQUE).map((m) => [m, delegate(m)]));
   prisma.$transaction = async (fn) => {
-    const snapshot = JSON.parse(JSON.stringify(mockDb.tables));
+    const snapshot = structuredClone(mockDb.tables);
     try {
       return await fn(prisma);
     } catch (error) {
@@ -410,5 +427,154 @@ describe('Stripe webhook: failures make Stripe retry', () => {
     } finally {
       process.env.STRIPE_WEBHOOK_SECRET = saved;
     }
+  });
+});
+
+describe('Stripe webhook: refunds', () => {
+  const charge = (overrides = {}) => ({
+    id: 'ch_1',
+    object: 'charge',
+    payment_intent: 'pi_once_1',
+    invoice: null,
+    amount: 7500,
+    amount_refunded: 7500,
+    created: Math.floor(Date.now() / 1000) - 600,
+    refunds: { data: [{ id: 're_1', created: PERIOD_START + 100, reason: 'requested_by_customer' }] },
+    ...overrides,
+  });
+  const seedPayment = (overrides = {}) => mockDb.tables.payment.push({
+    id: 'pay_1', customerId: 'cust_1', amount: 75, status: 'PAID', stripePaymentIntentId: 'pi_once_1', ...overrides,
+  });
+
+  it('charge.refunded records the refund on the Payment and keeps it PAID', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    seedPayment();
+    expect((await deliver(makeEvent('charge.refunded', charge()))).status).toBe(200);
+    expect(mockDb.tables.payment[0]).toMatchObject({
+      status: 'PAID',
+      refundStatus: 'COMPLETED',
+      refundedAmount: 75,
+      refundTransactionId: 're_1',
+      refundReason: 'requested_by_customer',
+      refundedAt: new Date((PERIOD_START + 100) * 1000),
+    });
+  });
+
+  it('a second partial refund updates the cumulative amount and keeps the admin reason', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    seedPayment({ refundReason: 'Missed visit' });
+    await deliver(makeEvent('charge.refunded', charge({ amount_refunded: 2000 })));
+    await deliver(makeEvent('charge.refunded', charge({
+      amount_refunded: 3500,
+      refunds: { data: [{ id: 're_2', created: PERIOD_START + 200 }, { id: 're_1' }] },
+    })));
+    expect(mockDb.tables.payment[0]).toMatchObject({ refundedAmount: 35, refundTransactionId: 're_2', refundReason: 'Missed visit' });
+  });
+
+  it('matches invoice charges by invoice id', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    seedPayment({ stripePaymentIntentId: null, stripeInvoiceId: 'in_123' });
+    await deliver(makeEvent('charge.refunded', charge({ payment_intent: 'pi_other', invoice: 'in_123', amount_refunded: 5500 })));
+    expect(mockDb.tables.payment[0]).toMatchObject({ refundStatus: 'COMPLETED', refundedAmount: 55 });
+  });
+
+  it('retries a recent refund whose Payment is not recorded yet, but acknowledges old unrecorded charges', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    const recent = await deliver(makeEvent('charge.refunded', charge()));
+    expect(recent.status).toBe(500);
+    expect(mockDb.tables.stripeEvent).toHaveLength(0);
+
+    const old = await deliver(makeEvent('charge.refunded', charge({ id: 'ch_old', created: PERIOD_START - 90 * 86400 })));
+    expect(old.status).toBe(200);
+    expect(mockDb.tables.payment).toHaveLength(0);
+  });
+});
+
+describe('Stripe webhook: service visits', () => {
+  const DAY = 86400 * 1000;
+  const planId = () => mockDb.tables.servicePlan.find((p) => p.code === 'single-dog-monthly').id;
+  const visit = (id, overrides) => ({ id, customerId: 'cust_1', status: 'SCHEDULED', ...overrides });
+
+  it('a paid signup checkout creates the first visit once, however many events report it', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    const session = checkoutSession({ metadata: { planId: 'single-dog-monthly', customerId: 'cust_1', startDate: '2026-11-16' } });
+    await deliver(makeEvent('checkout.session.completed', session));
+    await deliver(makeEvent('checkout.session.completed', session)); // redelivered with a new event id
+    await deliver(makeEvent('checkout.session.async_payment_succeeded', session));
+
+    expect(mockDb.tables.service).toHaveLength(1);
+    expect(mockDb.tables.service[0]).toMatchObject({
+      customerId: 'cust_1',
+      servicePlanId: planId(),
+      scheduledDate: new Date('2026-11-16'),
+      status: 'SCHEDULED',
+      stripeCheckoutSessionId: 'cs_123',
+    });
+  });
+
+  it('creates the visit for a paid one-time checkout and none for unpaid or dateless sessions', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    await deliver(makeEvent('checkout.session.completed', checkoutSession({
+      id: 'cs_once', mode: 'payment', subscription: null, payment_intent: 'pi_once_1', amount_total: 7500,
+      metadata: { planId: 'one-time-single-dog', startDate: '2026-11-20' },
+    })));
+    await deliver(makeEvent('checkout.session.completed', checkoutSession({
+      id: 'cs_unpaid', payment_status: 'unpaid', metadata: { planId: 'single-dog-monthly', startDate: '2026-11-20' },
+    })));
+    await deliver(makeEvent('checkout.session.completed', checkoutSession({ id: 'cs_pricing_page' })));
+
+    expect(mockDb.tables.service).toHaveLength(1);
+    const oneTimePlan = mockDb.tables.servicePlan.find((p) => p.code === 'one-time-single-dog');
+    expect(mockDb.tables.service[0]).toMatchObject({ stripeCheckoutSessionId: 'cs_once', servicePlanId: oneTimePlan.id });
+  });
+
+  it('a deleted subscription cancels only future, unstarted visits on that plan', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    await deliver(makeEvent('customer.subscription.created', stripeSubscription()));
+    const now = Date.now();
+    mockDb.tables.servicePlan.push({ id: 'plan_once', code: 'one-time-single-dog' });
+    mockDb.tables.service.push(
+      visit('future', { servicePlanId: planId(), scheduledDate: new Date(now + 3 * DAY) }),
+      visit('future_pending', { servicePlanId: planId(), scheduledDate: new Date(now + 10 * DAY), status: 'PENDING' }),
+      visit('in_progress', { servicePlanId: planId(), scheduledDate: new Date(now + DAY), status: 'IN_PROGRESS' }),
+      visit('past', { servicePlanId: planId(), scheduledDate: new Date(now - 3 * DAY) }),
+      visit('one_time', { servicePlanId: 'plan_once', scheduledDate: new Date(now + 3 * DAY) }),
+      visit('other_customer', { customerId: 'cust_2', servicePlanId: planId(), scheduledDate: new Date(now + 3 * DAY) }),
+    );
+
+    const ended = Math.floor(now / 1000);
+    mockStripeObjects.subscriptions.set('sub_123', stripeSubscription({ status: 'canceled', ended_at: ended, canceled_at: ended }));
+    expect((await deliver(makeEvent('customer.subscription.deleted', stripeSubscription({ status: 'canceled' })))).status).toBe(200);
+
+    const status = Object.fromEntries(mockDb.tables.service.map((s) => [s.id, s.status]));
+    expect(status).toEqual({
+      future: 'CANCELLED',
+      future_pending: 'CANCELLED',
+      in_progress: 'IN_PROGRESS',
+      past: 'SCHEDULED',
+      one_time: 'SCHEDULED',
+      other_customer: 'SCHEDULED',
+    });
+  });
+
+  it('keeps visits when the customer still has another live subscription on the same plan', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    await deliver(makeEvent('customer.subscription.created', stripeSubscription()));
+    mockDb.tables.subscription.push({ id: 'sub_row_2', customerId: 'cust_1', planId: planId(), status: 'ACTIVE', stripeSubscriptionId: 'sub_456' });
+    mockDb.tables.service.push(visit('future', { servicePlanId: planId(), scheduledDate: new Date(Date.now() + 3 * DAY) }));
+
+    mockStripeObjects.subscriptions.set('sub_123', stripeSubscription({ status: 'canceled', ended_at: PERIOD_END }));
+    await deliver(makeEvent('customer.subscription.deleted', stripeSubscription({ status: 'canceled' })));
+    expect(mockDb.tables.service[0].status).toBe('SCHEDULED');
+  });
+
+  it('a cancellation scheduled for period end keeps visits until the subscription actually ends', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    await deliver(makeEvent('customer.subscription.created', stripeSubscription()));
+    mockDb.tables.service.push(visit('future', { servicePlanId: planId(), scheduledDate: new Date(Date.now() + 3 * DAY) }));
+
+    mockStripeObjects.subscriptions.set('sub_123', stripeSubscription({ cancel_at_period_end: true, canceled_at: PERIOD_START + 5 }));
+    await deliver(makeEvent('customer.subscription.updated', stripeSubscription({ cancel_at_period_end: true })));
+    expect(mockDb.tables.service[0].status).toBe('SCHEDULED');
   });
 });

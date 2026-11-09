@@ -132,11 +132,104 @@ export async function upsertSubscriptionFromStripe(db, stripeSubscription, { cus
         nextBillingDate: status === 'CANCELLED' ? null : toDate(stripeSubscription.current_period_end),
         updatedAt: now,
     };
-    return db.subscription.upsert({
+    const subscription = await db.subscription.upsert({
         where: { stripeSubscriptionId: stripeSubscription.id },
         create: { id: crypto.randomUUID(), stripeSubscriptionId: stripeSubscription.id, ...data },
         update: data,
     });
+    if (status === 'CANCELLED') {
+        await cancelFutureServices(db, subscription);
+    }
+    return subscription;
+}
+
+const CANCELLABLE_SERVICE_STATUSES = ['PENDING', 'SCHEDULED'];
+
+// When a subscription ends, its not-yet-started visits must not be worked.
+// Services have no subscription link, so visits are matched on customer +
+// the subscription's plan; one-time visits use other plans and are kept.
+// Skipped while the customer still has another live subscription on that plan.
+export async function cancelFutureServices(db, subscription, { now = new Date() } = {}) {
+    const otherLive = await db.subscription.findFirst({
+        where: {
+            customerId: subscription.customerId,
+            planId: subscription.planId,
+            status: { in: ['ACTIVE', 'SUSPENDED'] },
+            id: { not: subscription.id },
+        },
+    });
+    if (otherLive) return { count: 0 };
+    return db.service.updateMany({
+        where: {
+            customerId: subscription.customerId,
+            servicePlanId: subscription.planId,
+            status: { in: CANCELLABLE_SERVICE_STATUSES },
+            scheduledDate: { gt: now },
+        },
+        data: { status: 'CANCELLED', updatedAt: now },
+    });
+}
+
+// The first visit for a paid Checkout. The unique stripeCheckoutSessionId
+// keeps it to one visit per session however many events report the payment.
+export async function ensureInitialService(db, { sessionId, customerId, servicePlanId, scheduledDate }) {
+    const existing = await db.service.findUnique({ where: { stripeCheckoutSessionId: sessionId } });
+    if (existing) return existing;
+    const now = new Date();
+    return db.service.create({
+        data: {
+            id: crypto.randomUUID(),
+            customerId,
+            servicePlanId,
+            scheduledDate,
+            status: 'SCHEDULED',
+            stripeCheckoutSessionId: sessionId,
+            updatedAt: now,
+        },
+    });
+}
+
+// A refund this soon after the charge may beat the payment's own webhook, so
+// retry; older charges without a Payment row predate payment recording.
+const UNRECORDED_CHARGE_RETRY_WINDOW_SECONDS = 24 * 60 * 60;
+
+// charge.refunded: mirror the charge's cumulative refunded amount onto the
+// Payment it paid for. The charge stays PAID; refunds live on refund* fields.
+export async function recordChargeRefund(db, charge) {
+    const stripePaymentIntentId = idOf(charge.payment_intent);
+    const stripeInvoiceId = idOf(charge.invoice);
+    const payment = (stripePaymentIntentId && await db.payment.findUnique({ where: { stripePaymentIntentId } }))
+        || (stripeInvoiceId && await db.payment.findUnique({ where: { stripeInvoiceId } }))
+        || null;
+    if (!payment) {
+        const ageSeconds = Date.now() / 1000 - (charge.created || 0);
+        if (ageSeconds > UNRECORDED_CHARGE_RETRY_WINDOW_SECONDS) {
+            // Charges from before payments were recorded have no row to update.
+            console.warn(`charge.refunded: no Payment for ${charge.id} (${stripePaymentIntentId || stripeInvoiceId}); not retrying`);
+            return null;
+        }
+        throw new RetryableWebhookError(`No Payment yet for refunded charge ${charge.id} (${stripePaymentIntentId || stripeInvoiceId})`);
+    }
+    const latestRefund = charge.refunds?.data?.[0];
+    const now = new Date();
+    return db.payment.update({
+        where: { id: payment.id },
+        data: {
+            refundedAmount: charge.amount_refunded / 100,
+            refundStatus: 'COMPLETED',
+            refundedAt: toDate(latestRefund?.created) || now,
+            refundTransactionId: latestRefund?.id || payment.refundTransactionId,
+            refundReason: payment.refundReason || latestRefund?.reason || null,
+            updatedAt: now,
+        },
+    });
+}
+
+// Refund statuses from the Stripe Refund object to our RefundStatus enum.
+export function mapRefundStatus(stripeRefundStatus) {
+    if (stripeRefundStatus === 'succeeded') return 'COMPLETED';
+    if (stripeRefundStatus === 'failed' || stripeRefundStatus === 'canceled') return 'FAILED';
+    return 'PENDING';
 }
 
 // One Payment row per Stripe invoice. A failed attempt followed by a

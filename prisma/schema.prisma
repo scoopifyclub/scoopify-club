@@ -512,6 +512,8 @@ model Service {
   isLocked           Boolean            @default(true)
   unlockedAt         DateTime?
   lockExpiresAt      DateTime?
+  // Set on the first visit created from a paid Stripe Checkout; at most one per session.
+  stripeCheckoutSessionId String?    @unique
   conversations      Conversation[]     @relation("ServiceToConversations")
   feedback           CustomerFeedback[] @relation("ServiceToFeedback")
   location           Location?          @relation("ServiceToLocation")
