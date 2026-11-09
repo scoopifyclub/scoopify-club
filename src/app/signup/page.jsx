@@ -11,6 +11,16 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from 'sonner';
+import { PLANS, QUOTE_MIN_DOGS, QUOTE_REQUEST_PATH } from '@/lib/pricing-catalog';
+
+const QUOTE_OPTION = 'quote';
+
+function planOptionLabel(plan) {
+    const dogs = `${plan.numberOfDogs} Dog${plan.numberOfDogs > 1 ? 's' : ''}`;
+    return plan.kind === 'subscription'
+        ? `Weekly Service (${dogs}) - $${plan.displayAmount}/month`
+        : `One-Time Service (${dogs}) - from $${plan.displayAmount}`;
+}
 
 const SERVICE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 function SignupForm({ onUncoveredZip }) {
@@ -54,8 +64,13 @@ function SignupForm({ onUncoveredZip }) {
         return btoa(fingerprint).slice(0, 32); // Base64 encode and truncate
     };
 
+    const needsQuote = formData.serviceType === QUOTE_OPTION;
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (needsQuote) {
+            router.push(QUOTE_REQUEST_PATH);
+            return;
+        }
         setLoading(true);
 
         // Check zip code coverage BEFORE payment attempt
@@ -224,7 +239,7 @@ function SignupForm({ onUncoveredZip }) {
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Service Type</Label>
-            <RadioGroup defaultValue="subscription" onValueChange={(value) => setIsOneTime(value === 'one-time')} className="flex flex-col space-y-2">
+            <RadioGroup defaultValue="subscription" onValueChange={(value) => { setIsOneTime(value === 'one-time'); handleChange('serviceType', ''); }} className="flex flex-col space-y-2">
               <div className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-50">
                 <RadioGroupItem value="subscription" id="subscription"/>
                 <Label htmlFor="subscription" className="cursor-pointer">Subscription Service</Label>
@@ -243,18 +258,17 @@ function SignupForm({ onUncoveredZip }) {
                 <SelectValue placeholder="Select a plan"/>
               </SelectTrigger>
               <SelectContent>
-                {isOneTime ? (<>
-                    {/* One-time prices are pending; the charged amount is the configured Stripe price */}
-                    <SelectItem value="one-time-1">One-Time Service (1 Dog)</SelectItem>
-                    <SelectItem value="one-time-2">One-Time Service (2 Dogs)</SelectItem>
-                    <SelectItem value="one-time-3">One-Time Service (3+ Dogs)</SelectItem>
-                  </>) : (<>
-                    <SelectItem value="weekly-1">Weekly Service (1 Dog) - $55/month</SelectItem>
-                    <SelectItem value="weekly-2">Weekly Service (2 Dogs) - $70/month</SelectItem>
-                    <SelectItem value="weekly-3">Weekly Service (3+ Dogs) - $100/month</SelectItem>
-                  </>)}
+                {/* Labels show catalog amounts; checkout charges the configured Stripe price */}
+                {PLANS.filter((plan) => (plan.kind === 'subscription') !== isOneTime).map((plan) => (<SelectItem key={plan.id} value={plan.id}>{planOptionLabel(plan)}</SelectItem>))}
+                <SelectItem value={QUOTE_OPTION}>{QUOTE_MIN_DOGS}+ Dogs - Request a quote</SelectItem>
               </SelectContent>
             </Select>
+            {needsQuote && (<p className="text-sm text-gray-600">
+                For {QUOTE_MIN_DOGS} or more dogs we quote your yard first. <a href={QUOTE_REQUEST_PATH} className="text-primary-600 underline">Request a quote</a> and we&apos;ll get back to you.
+              </p>)}
+            {isOneTime && formData.serviceType && !needsQuote && (<p className="text-sm text-gray-600">
+                Starting price; large or neglected yards may be quoted separately.
+              </p>)}
           </div>
 
           {!isOneTime && (<div className="space-y-2">
@@ -302,7 +316,7 @@ function SignupForm({ onUncoveredZip }) {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
             <span>Creating your account...</span>
-          </div>) : ('Create Account & Continue to Payment')}
+          </div>) : needsQuote ? 'Request a Quote' : ('Create Account & Continue to Payment')}
       </Button>
     </form>);
 }

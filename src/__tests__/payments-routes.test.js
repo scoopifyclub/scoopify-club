@@ -165,7 +165,7 @@ describe('create-checkout-session for signup', () => {
     expect(params.client_reference_id).toBe('cust_1');
     expect(params.line_items).toEqual([
       { price: 'price_monthly_1', quantity: 1 },
-      { price_data: { currency: 'usd', product_data: { name: expect.any(String) }, unit_amount: 3000 }, quantity: 1 },
+      { price_data: { currency: 'usd', product_data: { name: 'Initial Catch-Up Cleanup' }, unit_amount: 4900 }, quantity: 1 },
     ]);
     expect(params.metadata).toMatchObject({ planId: 'single-dog-monthly', customerId: 'cust_1', startDate: '2026-11-16' });
     expect(params.cancel_url).toBe('http://localhost:3000/signup/payment?plan=single-dog-monthly');
@@ -263,6 +263,12 @@ describe('customer signup', () => {
     prisma.user.create.mockRejectedValue(Object.assign(new Error('Unique constraint failed on email'), { code: 'P2002' }));
     const res = await signupRoute.POST(request('/api/auth/signup', { body: body() }));
     expect(res.status).toBe(409);
+  });
+
+  it('rejects the 4+ dogs quote option: those customers request a quote instead of checking out', async () => {
+    const res = await signupRoute.POST(request('/api/auth/signup', { body: body({ serviceType: 'quote' }) }));
+    expect(res.status).toBe(400);
+    expect(stripe.customers.create).not.toHaveBeenCalled();
   });
 
   it('rejects an unavailable plan before creating anything in Stripe', async () => {

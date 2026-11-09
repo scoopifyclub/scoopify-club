@@ -3,7 +3,7 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { PLANS, getConfiguredPriceId } from '../src/lib/pricing-catalog.js';
+import { ALL_CATALOG_ITEMS, getConfiguredPriceId } from '../src/lib/pricing-catalog.js';
 
 const prisma = new PrismaClient();
 
@@ -42,17 +42,15 @@ async function upsertUser(email, data, password) {
 }
 
 async function seedServicePlans() {
-    // Monthly plans have agreed amounts; one-time plans and the initial cleanup
-    // are priced in Stripe (pending) and get their ServicePlan row from the
-    // webhook on first purchase.
-    for (const plan of PLANS.filter((p) => p.kind === 'subscription')) {
+    // Pilot amounts from the catalog; checkout still charges the Stripe Price.
+    for (const plan of ALL_CATALOG_ITEMS) {
         const stripePriceId = getConfiguredPriceId(plan) || null;
         const data = {
             name: plan.name,
             description: plan.description,
-            price: plan.displayAmount ?? 0,
+            price: plan.displayAmount,
             duration: 30,
-            type: 'MONTHLY',
+            type: plan.kind === 'subscription' ? 'MONTHLY' : 'ONE_TIME',
             stripePriceId,
             isActive: true,
             updatedAt: new Date(),

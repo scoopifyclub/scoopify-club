@@ -22,7 +22,7 @@ async function resolveItem(item, { stripe, env }) {
         serviceCount: item.serviceCount,
         features: item.features,
         popular: Boolean(item.popular),
-        pendingDecision: item.pendingDecision || null,
+        startingAt: Boolean(item.startingAt),
         priceId,
         price: item.displayAmount,
         available: false,
@@ -68,8 +68,8 @@ export async function getPricingPlans({ stripe = defaultStripe, env = process.en
     return Promise.all(items.map((item) => resolveItem(item, { stripe, env })));
 }
 
-// Initial cleanup as a one-time line on a subscription's first invoice: the
-// configured Stripe price, else the legacy signup amount (PENDING decision).
+// Catch-up cleanup as a one-time line on a subscription's first invoice: the
+// configured Stripe price, else the pilot fallback amount.
 export function getInitialCleanupLineItem(env = process.env) {
     const priceId = getConfiguredPriceId(INITIAL_CLEANUP, env);
     if (priceId) return { price: priceId, quantity: 1 };
@@ -77,7 +77,7 @@ export function getInitialCleanupLineItem(env = process.env) {
         price_data: {
             currency: 'usd',
             product_data: { name: INITIAL_CLEANUP.name },
-            unit_amount: INITIAL_CLEANUP.legacySignupChargeCents,
+            unit_amount: INITIAL_CLEANUP.fallbackChargeCents,
         },
         quantity: 1,
     };

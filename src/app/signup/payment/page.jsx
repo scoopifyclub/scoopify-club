@@ -54,7 +54,7 @@ function PaymentStep() {
     const planPrice = prices?.[plan.id];
     const cleanup = prices?.[INITIAL_CLEANUP.id];
     const planAmount = planPrice?.price ?? null;
-    const cleanupAmount = isSubscription ? (cleanup?.price ?? INITIAL_CLEANUP.legacySignupChargeCents / 100) : 0;
+    const cleanupAmount = isSubscription ? (cleanup?.price ?? INITIAL_CLEANUP.fallbackChargeCents / 100) : 0;
     const unavailable = planPrice && (!planPrice.available || planAmount == null);
     const total = planAmount != null ? planAmount + cleanupAmount : null;
 
@@ -121,7 +121,7 @@ function PaymentStep() {
               <span className="font-medium">{planAmount != null ? money(planAmount) : '…'}</span>
             </div>
             {isSubscription && (<div className="flex justify-between">
-                <span className="text-gray-600">Initial Cleanup Fee</span>
+                <span className="text-gray-600">{INITIAL_CLEANUP.name}</span>
                 <span className="font-medium">{money(cleanupAmount)}</span>
               </div>)}
             <div className="flex justify-between border-t border-gray-200 pt-4">
@@ -129,7 +129,10 @@ function PaymentStep() {
               <span className="text-lg font-semibold">{total != null ? money(total) : '…'}</span>
             </div>
             {isSubscription && planAmount != null && (<p className="text-sm text-gray-500">
-                Then {money(planAmount)} per month. Cancel anytime.
+                Today: your first month plus the one-time catch-up cleanup. Then {money(planAmount)} per month. Cancel anytime.
+              </p>)}
+            {!isSubscription && (<p className="text-sm text-gray-500">
+                Starting price for a standard yard; large or neglected yards may be quoted separately.
               </p>)}
           </div>
         </div>

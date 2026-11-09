@@ -28,9 +28,9 @@ const catalog = require('@/lib/pricing-catalog');
 const { getPricingPlans, resolvePurchasablePlan } = require('@/lib/pricing.server');
 
 const STRIPE_PRICES = {
-  price_m1: { id: 'price_m1', active: true, currency: 'usd', type: 'recurring', recurring: { interval: 'month' }, unit_amount: 5500 },
-  price_m2: { id: 'price_m2', active: true, currency: 'usd', type: 'recurring', recurring: { interval: 'month' }, unit_amount: 7000 },
-  price_m3: { id: 'price_m3', active: true, currency: 'usd', type: 'recurring', recurring: { interval: 'month' }, unit_amount: 10000 },
+  price_m1: { id: 'price_m1', active: true, currency: 'usd', type: 'recurring', recurring: { interval: 'month' }, unit_amount: 7900 },
+  price_m2: { id: 'price_m2', active: true, currency: 'usd', type: 'recurring', recurring: { interval: 'month' }, unit_amount: 8900 },
+  price_m3: { id: 'price_m3', active: true, currency: 'usd', type: 'recurring', recurring: { interval: 'month' }, unit_amount: 9900 },
   price_once: { id: 'price_once', active: true, currency: 'usd', type: 'one_time', unit_amount: 4200 },
 };
 
@@ -53,18 +53,30 @@ describe('pricing catalog', () => {
     for (const item of items) expect(item.priceEnv).toMatch(/^STRIPE_[A-Z0-9_]+_PRICE_ID$/);
   });
 
-  it('keeps the agreed monthly amounts and leaves undecided amounts unset and flagged', () => {
-    const amounts = Object.fromEntries(catalog.PLANS.map((p) => [p.id, p.displayAmount]));
-    expect(amounts['single-dog-monthly']).toBe(55);
-    expect(amounts['two-dogs-monthly']).toBe(70);
-    expect(amounts['three-plus-dogs-monthly']).toBe(100);
-    for (const plan of catalog.PLANS.filter((p) => p.kind === 'one_time')) {
-      expect(plan.displayAmount).toBeNull();
-      expect(plan.pendingDecision).toMatch(/not decided/);
-    }
-    expect(catalog.INITIAL_CLEANUP.displayAmount).toBeNull();
-    expect(catalog.INITIAL_CLEANUP.pendingDecision).toMatch(/not decided/);
-    expect(catalog.UPFRONT_POLICY).toBeNull();
+  it('carries the provisional pilot amounts', () => {
+    const amounts = Object.fromEntries(catalog.ALL_CATALOG_ITEMS.map((p) => [p.id, p.displayAmount]));
+    expect(amounts).toEqual({
+      'single-dog-monthly': 79,
+      'two-dogs-monthly': 89,
+      'three-plus-dogs-monthly': 99,
+      'one-time-single-dog': 79,
+      'one-time-two-dogs': 99,
+      'one-time-three-plus-dogs': 119,
+      'initial-cleanup': 49,
+    });
+    // One-time cleanups and the catch-up are starting prices; monthly plans are flat
+    expect(catalog.ALL_CATALOG_ITEMS.filter((p) => p.startingAt).map((p) => p.id).sort()).toEqual(
+      ['initial-cleanup', 'one-time-single-dog', 'one-time-three-plus-dogs', 'one-time-two-dogs'],
+    );
+    expect(catalog.INITIAL_CLEANUP.fallbackChargeCents).toBe(4900);
+    expect(catalog.UPFRONT_POLICY).toBe('FIRST_MONTH_PLUS_CATCH_UP');
+  });
+
+  it('sells 1 to 3 dogs online and sends 4+ dogs to a quote request', () => {
+    expect(catalog.PLANS.map((p) => p.numberOfDogs)).toEqual([1, 2, 3, 1, 2, 3]);
+    expect(catalog.QUOTE_MIN_DOGS).toBe(4);
+    expect(catalog.QUOTE_REQUEST_PATH).toBe('/contact?subject=Quote%20request%3A%204%2B%20dogs');
+    expect(catalog.findPlan('quote')).toBeNull();
   });
 
   it('resolves the plan names signup and older code send', () => {
@@ -90,13 +102,28 @@ describe('pricing catalog', () => {
   });
 });
 
+describe('customer-facing copy', () => {
+  it('no longer shows the old amounts or "3+ dogs" plans', () => {
+    const read = (p) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
+    for (const file of [
+      'src/app/signup/page.jsx',
+      'src/app/signup/payment/page.jsx',
+      'src/app/dashboard/subscription/page.jsx',
+      'src/app/api/flyers/generate/route.js',
+    ]) {
+      expect(read(file)).not.toMatch(/\$(30|55|70|89|100)\b|3\+ Dogs/);
+    }
+  });
+});
+
 describe('getPricingPlans', () => {
   it('uses the Stripe Price amount and marks configured monthly plans available', async () => {
     const plans = await getPricingPlans({ stripe: mockStripe, env: PRICE_ENV });
     const byId = Object.fromEntries(plans.map((p) => [p.id, p]));
-    expect(byId['single-dog-monthly']).toMatchObject({ priceId: 'price_m1', price: 55, available: true });
-    expect(byId['three-plus-dogs-monthly']).toMatchObject({ price: 100, available: true });
-    expect(byId['one-time-single-dog']).toMatchObject({ priceId: null, price: null, available: false });
+    expect(byId['single-dog-monthly']).toMatchObject({ priceId: 'price_m1', price: 79, available: true, startingAt: false });
+    expect(byId['three-plus-dogs-monthly']).toMatchObject({ price: 99, available: true });
+    // Shown as a starting price, but not sellable until its Stripe Price ID is set
+    expect(byId['one-time-single-dog']).toMatchObject({ priceId: null, price: 79, startingAt: true, available: false });
   });
 
   it('prefers Stripe over the catalog when they disagree', async () => {
@@ -117,7 +144,7 @@ describe('getPricingPlans', () => {
 
   it('falls back to the agreed amounts without Stripe credentials', async () => {
     const plans = await getPricingPlans({ stripe: null, env: PRICE_ENV });
-    expect(plans.filter((p) => p.available).map((p) => p.price)).toEqual([55, 70, 100]);
+    expect(plans.filter((p) => p.available).map((p) => p.price)).toEqual([79, 89, 99]);
   });
 
   it('only allows buying catalog prices', () => {
@@ -132,10 +159,12 @@ describe('/pricing page', () => {
   it('renders plans and prices on the server (no client fetch, no "Loading Plans")', async () => {
     const PricingPage = require('@/app/pricing/page').default;
     const html = renderToStaticMarkup(await PricingPage());
-    expect(html).toContain('$55');
-    expect(html).toContain('$70');
-    expect(html).toContain('$100');
-    expect(html).toContain('Pricing coming soon');
+    for (const amount of ['$79', '$89', '$99', '$119']) expect(html).toContain(amount);
+    expect(html).toMatch(/From<\/span><span class="text-4xl font-bold">\$119/);
+    expect(html).not.toContain('3+');
+    // 4+ dogs get a quote link, not a checkout button
+    expect(html).toContain('4+ dogs?');
+    expect(html).toContain('href="/contact?subject=Quote%20request%3A%204%2B%20dogs"');
     expect(html).not.toContain('Loading Plans');
   });
 
@@ -153,7 +182,7 @@ describe('/api/prices', () => {
     const { GET } = require('@/app/api/prices/route');
     const body = await (await GET()).json();
     expect(body.plans.map((p) => p.id)).toEqual(catalog.ALL_CATALOG_ITEMS.map((i) => i.id));
-    expect(body.plans[0]).toMatchObject({ priceId: 'price_m1', price: 55, available: true });
+    expect(body.plans[0]).toMatchObject({ priceId: 'price_m1', price: 79, available: true });
   });
 });
 
