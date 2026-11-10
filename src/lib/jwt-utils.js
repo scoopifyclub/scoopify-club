@@ -48,20 +48,23 @@ export async function signToken(payload, expiresIn = '24h') {
 }
 
 /**
- * Admin session version: an HMAC over the admin's current DB identity
- * (id, email, role, password hash) plus ADMIN_SESSION_EPOCH. It is embedded
- * in admin tokens as `sv` and recomputed from the DB on every privileged
- * request, so a token signed with a leaked JWT_SECRET is still useless
- * without the account's password hash, and changing the password, the role
- * or ADMIN_SESSION_EPOCH revokes every outstanding admin session.
+ * Session version: an HMAC over the account's current DB identity
+ * (id, email, role, password hash). It is embedded in tokens as `sv` and
+ * recomputed from the DB by server-side verifiers, so changing the password
+ * (including a password reset) or the role revokes every outstanding session,
+ * and a token signed with a leaked JWT_SECRET is useless without the
+ * account's password hash. Admin versions also include ADMIN_SESSION_EPOCH,
+ * which revokes every admin session when bumped.
  * @param {object} user - User row with id, email, role, password
  * @returns {Promise<string|null>}
  */
-export async function computeAdminSessionVersion(user) {
+export async function computeSessionVersion(user) {
   if (!user?.id || !user?.password) {
     return null;
   }
-  const epoch = process.env.ADMIN_SESSION_EPOCH || '1';
+  const parts = user.role === 'ADMIN'
+    ? ['admin-session', process.env.ADMIN_SESSION_EPOCH || '1']
+    : ['user-session'];
   const key = await crypto.subtle.importKey(
     'raw',
     JWT_SECRET_BYTES,
@@ -70,15 +73,36 @@ export async function computeAdminSessionVersion(user) {
     ['sign']
   );
   const data = new TextEncoder().encode(
-    ['admin-session', epoch, user.id, user.email, user.role, user.password].join('|')
+    [...parts, user.id, user.email, user.role, user.password].join('|')
   );
   const signature = new Uint8Array(await crypto.subtle.sign('HMAC', key, data));
   return Array.from(signature, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+export const computeAdminSessionVersion = computeSessionVersion;
+
+/**
+ * True when the token's `sv` claim matches the user's current DB row.
+ * Tokens without `sv` (minted before session binding) never match.
+ * @param {object} user - User row with id, email, role, password
+ * @param {string} sv - The `sv` claim from a verified token
+ * @returns {Promise<boolean>}
+ */
+export async function isCurrentSessionVersion(user, sv) {
+  if (typeof sv !== 'string') return false;
+  const expected = await computeSessionVersion(user);
+  if (!expected || expected.length !== sv.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ sv.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 /**
  * Create a user token with standard claims
- * @param {object} user - User object with id, email, role (and password for admins)
+ * @param {object} user - User object with id, email, role and password hash
+ *   (without the hash the token has no `sv` and DB-backed verifiers reject it)
  * @returns {Promise<string|null>} - The signed token or null if failed
  */
 export async function createUserToken(user) {
@@ -89,11 +113,9 @@ export async function createUserToken(user) {
     type: 'user'
   };
 
-  if (user.role === 'ADMIN') {
-    const sv = await computeAdminSessionVersion(user);
-    if (sv) {
-      payload.sv = sv;
-    }
+  const sv = await computeSessionVersion(user);
+  if (sv) {
+    payload.sv = sv;
   }
   
   return await signToken(payload, '24h');
@@ -101,7 +123,7 @@ export async function createUserToken(user) {
 
 /**
  * Create a refresh token
- * @param {object} user - User object with id, email, role
+ * @param {object} user - User object with id, email, role and password hash
  * @returns {Promise<string|null>} - The signed refresh token or null if failed
  */
 export async function createRefreshToken(user) {
@@ -111,6 +133,11 @@ export async function createRefreshToken(user) {
     role: user.role,
     type: 'refresh'
   };
+
+  const sv = await computeSessionVersion(user);
+  if (sv) {
+    payload.sv = sv;
+  }
   
   return await signToken(payload, '7d');
 }

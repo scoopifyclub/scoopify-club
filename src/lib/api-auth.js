@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { withDatabase } from './prisma';
-import { validateUserToken, createUserToken, createRefreshToken } from './jwt-utils';
+import { validateUserToken, createUserToken, createRefreshToken, isCurrentSessionVersion } from './jwt-utils';
 import { compare } from 'bcryptjs';
 
 // Helper function for conditional logging
@@ -24,7 +24,8 @@ export async function signToken(payload) {
   return await createUserToken({
     id: payload.userId || payload.id,
     email: payload.email,
-    role: payload.role
+    role: payload.role,
+    password: payload.password
   });
 }
 
@@ -96,6 +97,16 @@ export async function validateUser(token, role = null) {
   try {
     const decoded = await validateUserToken(token, role);
     if (!decoded) {
+      return null;
+    }
+
+    const account = await withDatabase((prisma) =>
+      prisma.user.findUnique({
+        where: { id: decoded.userId },
+        select: { id: true, email: true, role: true, password: true },
+      })
+    );
+    if (!account || !(await isCurrentSessionVersion(account, decoded.sv))) {
       return null;
     }
 
@@ -213,6 +224,7 @@ export async function generateTokens(user) {
     id: user.id,
     email: user.email,
     role: user.role,
+    password: user.password,
   });
 
   return { accessToken, refreshToken };
@@ -258,7 +270,7 @@ export async function refreshToken(token) {
       where: { id: decoded.userId },
     });
 
-    if (!user) {
+    if (!user || !(await isCurrentSessionVersion(user, decoded.sv))) {
       return null;
     }
 
