@@ -36,6 +36,9 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 
+# Local durable log exports / Vercel log capture (see docs/logging.md)
+/logs/
+
 # local env files
 .env
 .env.local
