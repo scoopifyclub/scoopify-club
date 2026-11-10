@@ -241,6 +241,20 @@ describe('Content-Security-Policy', () => {
   });
 });
 
+describe('canonical legal redirects', () => {
+  it('sends /legal/* to /privacy and /terms', async () => {
+    const { default: nextConfig } = await import('../../next.config.js');
+    const redirects = await nextConfig.redirects();
+    expect(redirects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: '/legal/privacy', destination: '/privacy', permanent: true }),
+        expect.objectContaining({ source: '/legal/terms', destination: '/terms', permanent: true }),
+        expect.objectContaining({ source: '/legal', destination: '/privacy', permanent: true }),
+      ])
+    );
+  });
+});
+
 describe('Stripe module split', () => {
   it('imports @/lib/stripe without keys instead of throwing', () => {
     const saved = process.env.STRIPE_SECRET_KEY;

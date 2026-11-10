@@ -1,91 +1,183 @@
-'use client';
+import Link from 'next/link';
+
+const LAST_UPDATED = 'November 10, 2026';
+
 export default function PrivacyPage() {
-    return (<>
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="prose prose-lg max-w-none">
-          <h1 className="text-4xl font-bold text-gray-900 mb-8">Privacy Policy</h1>
-          
-          <p className="text-gray-600 mb-6">
-            Last updated: {new Date().toLocaleDateString()}
-          </p>
+    return (
+        <main className="min-h-screen bg-[color:var(--brand-surface)]">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-16">
+                <h1 className="text-4xl font-bold text-[color:var(--brand-ink)] mb-3">
+                    Privacy Policy
+                </h1>
+                <p className="text-[color:var(--brand-ink-muted)] mb-10">
+                    Last updated: {LAST_UPDATED}
+                </p>
 
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Introduction</h2>
-            <p className="text-gray-600 mb-4">
-              At ScoopifyClub, we take your privacy seriously. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our service.
-            </p>
-          </section>
+                <div className="space-y-10 text-[color:var(--brand-ink-muted)] leading-relaxed">
+                    <section>
+                        <h2 className="text-2xl font-semibold text-[color:var(--brand-ink)] mb-3">
+                            1. Who we are
+                        </h2>
+                        <p>
+                            Scoopify Club (&quot;Scoopify,&quot; &quot;we,&quot; &quot;us&quot;) provides weekly dog
+                            waste removal and catch-up cleanups. We are currently running a local pilot
+                            based in Peyton, Colorado, serving Peyton, Falcon, and nearby areas. This
+                            page explains how we handle information in plain language for that pilot —
+                            it is not a lawyer-drafted policy.
+                        </p>
+                    </section>
 
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Information We Collect</h2>
-            <p className="text-gray-600 mb-4">
-              We collect information that you provide directly to us, including:
-            </p>
-            <ul className="list-disc pl-6 text-gray-600 mb-4">
-              <li>Name and contact information</li>
-              <li>Service address and preferences</li>
-              <li>Payment information</li>
-              <li>Communication preferences</li>
-            </ul>
-          </section>
+                    <section>
+                        <h2 className="text-2xl font-semibold text-[color:var(--brand-ink)] mb-3">
+                            2. Information we collect
+                        </h2>
+                        <p className="mb-3">Depending on how you use Scoopify, we may collect:</p>
+                        <ul className="list-disc pl-6 space-y-2">
+                            <li>
+                                <strong className="text-[color:var(--brand-ink)]">Account &amp; contact details</strong>
+                                {' '}— name, email, phone number, and password (stored hashed).
+                            </li>
+                            <li>
+                                <strong className="text-[color:var(--brand-ink)]">Service details</strong>
+                                {' '}— service address, gate/access notes, preferred service day, dog
+                                count, and related preferences you give us.
+                            </li>
+                            <li>
+                                <strong className="text-[color:var(--brand-ink)]">Payment information</strong>
+                                {' '}— billing is handled by Stripe. We receive payment status and Stripe
+                                customer/subscription identifiers; we do not store full card numbers on
+                                our servers.
+                            </li>
+                            <li>
+                                <strong className="text-[color:var(--brand-ink)]">Service records</strong>
+                                {' '}— visit history, completion photos scoopers upload for quality
+                                checks, messages you send us, and basic site logs (such as IP address
+                                and device/browser info) needed to run and secure the product.
+                            </li>
+                        </ul>
+                    </section>
 
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">3. How We Use Your Information</h2>
-            <p className="text-gray-600 mb-4">
-              We use the information we collect to:
-            </p>
-            <ul className="list-disc pl-6 text-gray-600 mb-4">
-              <li>Provide and maintain our services</li>
-              <li>Process your payments</li>
-              <li>Communicate with you about your service</li>
-              <li>Improve our services</li>
-              <li>Comply with legal obligations</li>
-            </ul>
-          </section>
+                    <section>
+                        <h2 className="text-2xl font-semibold text-[color:var(--brand-ink)] mb-3">
+                            3. How we use information
+                        </h2>
+                        <p className="mb-3">We use this information to:</p>
+                        <ul className="list-disc pl-6 space-y-2">
+                            <li>Create accounts, schedule visits, and perform scoop service</li>
+                            <li>Process payments and manage subscriptions through Stripe</li>
+                            <li>Communicate about visits, billing, support, and service changes</li>
+                            <li>Verify completed work and improve ops during the pilot</li>
+                            <li>Comply with law and protect against fraud or abuse</li>
+                        </ul>
+                    </section>
 
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">4. Information Sharing</h2>
-            <p className="text-gray-600 mb-4">
-              We do not sell, rent, or share your personal information with any third parties under any circumstances, with one exception:
-            </p>
-            <ul className="list-disc pl-6 text-gray-600 mb-4">
-              <li>Law enforcement agencies when required by a valid court order</li>
-            </ul>
-            <p className="text-gray-600 mb-4">
-              Your privacy is our priority. We maintain strict internal access controls and do not provide your information to service providers, business partners, or any other external parties.
-            </p>
-          </section>
+                    <section>
+                        <h2 className="text-2xl font-semibold text-[color:var(--brand-ink)] mb-3">
+                            4. Who we share information with
+                        </h2>
+                        <p className="mb-3">
+                            We do <em>not</em> sell your personal information. We also do not pretend
+                            that data never leaves our systems — running a scoop service requires sharing
+                            what is needed with people and tools that help us deliver it:
+                        </p>
+                        <ul className="list-disc pl-6 space-y-2">
+                            <li>
+                                <strong className="text-[color:var(--brand-ink)]">Stripe</strong>
+                                {' '}— to process payments, subscriptions, and related billing events.
+                                Stripe has its own privacy policy for payment data.
+                            </li>
+                            <li>
+                                <strong className="text-[color:var(--brand-ink)]">Scoopers and ops</strong>
+                                {' '}— assigned scoopers and Scoopify operators receive the service
+                                address, access notes, schedule, and related job details needed to
+                                clean the yard and confirm the visit.
+                            </li>
+                            <li>
+                                <strong className="text-[color:var(--brand-ink)]">Infrastructure providers</strong>
+                                {' '}— hosting, email, storage, and similar vendors that process data on
+                                our behalf so the site and notifications work.
+                            </li>
+                            <li>
+                                <strong className="text-[color:var(--brand-ink)]">Legal requirements</strong>
+                                {' '}— if we are required by a valid legal process, or need to protect
+                                people, property, or our rights.
+                            </li>
+                        </ul>
+                    </section>
 
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">5. Data Security</h2>
-            <p className="text-gray-600 mb-4">
-              We implement appropriate security measures to protect your personal information. However, no method of transmission over the Internet is 100% secure.
-            </p>
-          </section>
+                    <section>
+                        <h2 className="text-2xl font-semibold text-[color:var(--brand-ink)] mb-3">
+                            5. Photos and location
+                        </h2>
+                        <p>
+                            Scoopers typically upload completion photos so we can confirm the visit.
+                            Those photos are used for quality and customer visibility, not for sale or
+                            advertising without asking you. Service addresses are used for routing and
+                            job assignment in the pilot area.
+                        </p>
+                    </section>
 
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">6. Your Rights</h2>
-            <p className="text-gray-600 mb-4">
-              You have the right to:
-            </p>
-            <ul className="list-disc pl-6 text-gray-600 mb-4">
-              <li>Access your personal information</li>
-              <li>Correct inaccurate information</li>
-              <li>Request deletion of your information</li>
-              <li>Opt-out of marketing communications</li>
-            </ul>
-          </section>
+                    <section>
+                        <h2 className="text-2xl font-semibold text-[color:var(--brand-ink)] mb-3">
+                            6. Retention and your choices
+                        </h2>
+                        <p className="mb-3">
+                            We keep account, billing, and service records while you are a customer and
+                            for a reasonable period afterward for support, accounting, and dispute
+                            handling. You can ask us to:
+                        </p>
+                        <ul className="list-disc pl-6 space-y-2">
+                            <li>Correct inaccurate account or service details</li>
+                            <li>Cancel service or close an account</li>
+                            <li>Delete information we no longer need to keep for ops or legal reasons</li>
+                            <li>Stop non-essential marketing messages (service and billing messages still go through)</li>
+                        </ul>
+                    </section>
 
-          <section className="mb-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-4">7. Contact Us</h2>
-            <p className="text-gray-600 mb-4">
-              If you have any questions about this Privacy Policy, please contact us at:
-            </p>
-            <p className="text-gray-600">
-              Email: services@scoopify.club
-            </p>
-          </section>
-        </div>
-      </main>
-    </>);
+                    <section>
+                        <h2 className="text-2xl font-semibold text-[color:var(--brand-ink)] mb-3">
+                            7. Changes
+                        </h2>
+                        <p>
+                            As the pilot evolves, we may update this page. The &quot;Last updated&quot;
+                            date at the top will change when we do. Continued use of Scoopify after an
+                            update means you are okay with the revised practices described here.
+                        </p>
+                    </section>
+
+                    <section>
+                        <h2 className="text-2xl font-semibold text-[color:var(--brand-ink)] mb-3">
+                            8. Contact
+                        </h2>
+                        <p className="mb-3">
+                            Questions about privacy or your data? Email{' '}
+                            <a
+                                href="mailto:services@scoopify.club"
+                                className="text-[color:var(--brand-leaf)] hover:text-[color:var(--brand-leaf-deep)] font-medium"
+                            >
+                                services@scoopify.club
+                            </a>
+                            .
+                        </p>
+                        <p>
+                            Scoopify Club
+                            <br />
+                            7535 Gallard Heights
+                            <br />
+                            Peyton, CO 80831
+                        </p>
+                        <p className="mt-6">
+                            Related:{' '}
+                            <Link
+                                href="/terms"
+                                className="text-[color:var(--brand-leaf)] hover:text-[color:var(--brand-leaf-deep)] font-medium"
+                            >
+                                Terms of Service
+                            </Link>
+                        </p>
+                    </section>
+                </div>
+            </div>
+        </main>
+    );
 }
