@@ -105,6 +105,10 @@ services; without `serviceIds`, every job the hold covers).
 | `POST /api/webhooks/stripe-payouts` | Stripe | `account.updated`, `charge.refunded`, `charge.dispute.*` |
 | `GET /api/admin/payouts/reconciliation?from&to` | admin | Per-job economics from `JobFinancialRecord`; revenue, Stripe fees, Connect fees, refunds, disputes, scooper and referral payouts, Scoopify margin; owed balances; mismatches |
 | `GET/POST /api/admin/payouts/holds` | admin | List and resolve holds |
+| `GET /api/admin/financials?from&to` | admin | Ops snapshot for `/admin/dashboard/financials`: job economics, owed balances, open holds, recent payouts |
+| `GET /api/admin/financials/jobs?from&to&payoutStatus&pricingBasis&q` | admin | Filtered per-job `JobFinancialRecord` rows (revenue, scooper share, Stripe fees, Scoopify keep) |
+
+Admin UI: **Financials** tab at `/admin/dashboard/financials` (requireAdmin).
 
 The old manual paths (`POST /api/earnings/payout`,
 `POST /api/employee/payouts/request`) return 410.
