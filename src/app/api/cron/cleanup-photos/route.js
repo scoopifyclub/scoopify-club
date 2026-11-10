@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { requireCronOrAdmin } from '@/lib/cron-auth';
 import prisma from "@/lib/prisma";
 
 // Force Node.js runtime for Prisma and other Node.js APIs
@@ -13,11 +14,8 @@ export const runtime = 'nodejs';
  */
 export async function POST(request) {
     try {
-        // Verify API key for security
-        const apiKey = request.headers.get('x-api-key');
-        if (apiKey !== process.env.CRON_API_KEY) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireCronOrAdmin(request);
+        if (!auth.ok) return auth.response;
         const now = new Date();
         // Find all pending photo cleanup tasks that are due
         const pendingTasks = await prisma.cleanupTask.findMany({

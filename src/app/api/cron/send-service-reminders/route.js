@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireCronOrAdmin } from '@/lib/cron-auth';
 import { prisma } from '@/lib/prisma';
 import { sendServiceReminderEmail } from '@/lib/unified-email-service';
 
 export async function POST(request) {
     try {
-        // Verify cron secret to ensure this is called by authorized cron job
-        const { cronSecret } = await request.json();
-        if (cronSecret !== process.env.CRON_SECRET) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireCronOrAdmin(request);
+        if (!auth.ok) return auth.response;
 
         console.log('🕐 Starting service reminder email job...');
 

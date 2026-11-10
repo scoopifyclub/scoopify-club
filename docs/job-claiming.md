@@ -27,7 +27,7 @@ Unclaimed and a `JOB_CLAIM_EXPIRED` row is written to `SystemLog`.
   job produce one success and 409 for the rest.
 - **One active job.** The scooper's Employee row is locked for the duration of
   the claim, and the `Service_one_active_job_per_employee` partial unique index
-  (in the `20261110000000_job_claiming` migration, not in `schema.prisma`)
+  (in the `20261109230000_job_claiming` migration, not in `schema.prisma`)
   rejects a second `PENDING`/`IN_PROGRESS` job for the same scooper from any
   code path.
 - **Access details.** Unclaimed-job feeds return only the customer's first name
@@ -56,22 +56,21 @@ Scooper routes accept the `accessToken` cookie or `Authorization: Bearer <token>
 ## Expiry schedule
 
 `/api/cron/release-expired-claims` accepts `Authorization: Bearer $CRON_SECRET`
-(or a verified admin session) and should run every 5 minutes. It is not
-scheduled yet; wiring it into the cron workflow is a separate task. Until then
-claim, check-in and every job feed run the same release first, so an abandoned
-job reappears the next time any scooper loads a feed or claims.
+(or a verified admin session). On Vercel Hobby there is no frequent cron:
+claim, check-in and every job feed run the release first, `open-job-pool`
+runs it daily, an admin can run it from `/admin/test-services`, and an
+optional GitHub workflow can call it every 15 minutes (see `docs/cron-jobs.md`).
 
 ## Production steps
 
 1. Before deploying, check that no scooper holds two active jobs, or the
    migration's unique index fails (and so does the Vercel build):
    `DATABASE_URL=... node scripts/scooper-approvals.js active-jobs-check`
-2. Deploy. `prisma migrate deploy` applies `20261110000000_job_claiming`.
+2. Deploy. `prisma migrate deploy` applies `20261109230000_job_claiming`.
 3. Every existing scooper is now pending. List them and approve the real ones:
    `node scripts/scooper-approvals.js list` then
    `node scripts/scooper-approvals.js approve <email> --apply`.
-4. Schedule `/api/cron/release-expired-claims` every 5 minutes with
-   `CRON_SECRET` set.
+4. Set `CRON_SECRET` in Vercel (see `docs/cron-jobs.md` for the release schedule).
 
 ## Tests
 

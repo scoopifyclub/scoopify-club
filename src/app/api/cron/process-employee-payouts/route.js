@@ -1,322 +1,110 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { startOfWeek, endOfWeek, subWeeks } from 'date-fns';
+import { requireCronOrAdmin } from '@/lib/cron-auth';
+import { addDays, localDateString, weekStartOf, zonedTimeToUtc } from '@/lib/business-time';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
+// Automatic scooper payouts are NOT implemented. This route used to create
+// Payout rows, mark services PAID and notify scoopers using a mocked Stripe
+// transfer, so it reported money as paid that was never sent. Until real
+// Stripe Connect transfers exist it only reports what is owed for the last
+// Denver week (completed services still paymentStatus PENDING) and records
+// that report in SystemLog. It moves no money and changes no Service,
+// Earning or Payout rows.
+const PAYOUTS_ENABLED = false;
 
-// This endpoint should be called by a cron job (e.g., Vercel Cron)
-// Recommended schedule: Every Friday at 6:00 PM
-export async function POST(request) {
+async function handle(request) {
+  const auth = await requireCronOrAdmin(request);
+  if (!auth.ok) return auth.response;
+
   try {
-    // Verify cron secret to prevent unauthorized access
-    const { searchParams } = new URL(request.url);
-    const secret = searchParams.get('secret');
-    
-    if (secret !== process.env.CRON_SECRET) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const thisWeek = weekStartOf(localDateString(new Date()));
+    const lastWeek = addDays(thisWeek, -7);
+    const weekStart = zonedTimeToUtc(lastWeek);
+    const weekEnd = zonedTimeToUtc(thisWeek);
 
-    const now = new Date();
-    const lastWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }); // Monday
-    const lastWeekEnd = endOfWeek(subWeeks(now, 1), { weekStartsOn: 1 }); // Sunday
-
-    console.log(`Processing payouts for week: ${lastWeekStart.toISOString()} to ${lastWeekEnd.toISOString()}`);
-
-    // Get all employees with completed services in the last week
-    const employees = await prisma.employee.findMany({
-      include: {
-        services: {
-          where: {
-            status: 'COMPLETED',
-            completedDate: {
-              gte: lastWeekStart,
-              lte: lastWeekEnd
-            },
-            paymentStatus: 'PENDING'
+    const services = await prisma.service.findMany({
+      where: {
+        status: 'COMPLETED',
+        employeeId: { not: null },
+        paymentStatus: 'PENDING',
+        completedDate: { gte: weekStart, lt: weekEnd },
+      },
+      select: {
+        id: true,
+        potentialEarnings: true,
+        employee: {
+          select: {
+            id: true,
+            stripeConnectAccountId: true,
+            cashAppUsername: true,
+            user: { select: { firstName: true, lastName: true, email: true } },
           },
-          include: {
-            customer: {
-              include: {
-                user: true
-              }
-            }
-          }
         },
-        User: true
-      }
+      },
     });
 
-    const payoutResults = [];
-    const errors = [];
+    const byEmployee = new Map();
+    for (const service of services) {
+      const employee = service.employee;
+      const entry = byEmployee.get(employee.id) || {
+        employeeId: employee.id,
+        employeeName: [employee.user?.firstName, employee.user?.lastName].filter(Boolean).join(' ') || null,
+        email: employee.user?.email || null,
+        hasStripeConnect: Boolean(employee.stripeConnectAccountId),
+        cashAppUsername: employee.cashAppUsername || null,
+        serviceCount: 0,
+        amountOwed: 0,
+        servicesMissingEarnings: 0,
+      };
+      entry.serviceCount++;
+      if (service.potentialEarnings == null) entry.servicesMissingEarnings++;
+      entry.amountOwed = Math.round((entry.amountOwed + (service.potentialEarnings || 0)) * 100) / 100;
+      byEmployee.set(employee.id, entry);
+    }
+    const owed = [...byEmployee.values()];
+    const totalOwed = Math.round(owed.reduce((sum, e) => sum + e.amountOwed, 0) * 100) / 100;
+    const week = { start: lastWeek, end: addDays(thisWeek, -1), timeZone: 'America/Denver' };
+    const message = 'Automatic payouts are not enabled. Nothing was paid; pay these scoopers manually and record it.';
 
-    for (const employee of employees) {
-      try {
-        if (employee.services.length === 0) {
-          console.log(`No completed services for employee ${employee.User.name}`);
-          continue;
-        }
-
-        const payoutResult = await processEmployeePayout(employee, lastWeekStart, lastWeekEnd);
-        payoutResults.push(payoutResult);
-
-      } catch (error) {
-        console.error(`Error processing payout for employee ${employee.User.name}:`, error);
-        errors.push({
-          employeeId: employee.id,
-          employeeName: employee.User.name,
-          error: error.message
-        });
-      }
+    try {
+      await prisma.systemLog.create({
+        data: {
+          type: 'PAYOUT_REPORT',
+          message: `Payout report for ${week.start}..${week.end}: $${totalOwed.toFixed(2)} owed to ${owed.length} scooper(s). ${message}`,
+          data: { week, totalOwed, owed },
+        },
+      });
+    } catch (error) {
+      console.error('Failed to record payout report:', error);
     }
 
-    // Send payout summary report
-    await sendPayoutSummaryReport(payoutResults, errors, lastWeekStart, lastWeekEnd);
+    console.log(`Payout report ${week.start}..${week.end}: $${totalOwed.toFixed(2)} owed to ${owed.length} scooper(s); payouts disabled`);
 
     return NextResponse.json({
       success: true,
+      payoutsEnabled: PAYOUTS_ENABLED,
+      mode: 'report-only',
+      message,
+      week,
       summary: {
-        totalEmployees: employees.length,
-        successfulPayouts: payoutResults.filter(r => r.success).length,
-        failedPayouts: errors.length,
-        totalAmount: payoutResults.reduce((sum, r) => sum + (r.amount || 0), 0)
+        employeesOwed: owed.length,
+        servicesUnpaid: services.length,
+        totalOwed,
       },
-      results: payoutResults,
-      errors: errors
+      owed,
     });
-
   } catch (error) {
-    console.error('Error in employee payout processing:', error);
+    console.error('Error building employee payout report:', error);
     return NextResponse.json(
-      { error: 'Failed to process employee payouts' },
+      { error: 'Failed to build employee payout report' },
       { status: 500 }
     );
   }
 }
 
-async function processEmployeePayout(employee, weekStart, weekEnd) {
-  const completedServices = employee.services;
-  const totalEarnings = completedServices.reduce((sum, service) => sum + (service.potentialEarnings || 0), 0);
-
-  if (totalEarnings === 0) {
-    return {
-      employeeId: employee.id,
-      employeeName: employee.User.name,
-      success: false,
-      reason: 'No earnings to payout',
-      amount: 0
-    };
-  }
-
-  try {
-    // Create payout record
-    const payout = await prisma.payout.create({
-      data: {
-        employeeId: employee.id,
-        amount: totalEarnings,
-        status: 'PENDING',
-        weekStart: weekStart,
-        weekEnd: weekEnd,
-        serviceCount: completedServices.length,
-        paymentMethod: 'STRIPE', // Weekly payouts default to Stripe
-        isSameDay: false // Weekly payouts are not same-day
-      }
-    });
-
-    // Weekly payouts default to Stripe for lower fees
-    // Employees can request same-day Cash App payouts separately
-    const paymentResult = await processStripePayout(employee, totalEarnings, payout.id);
-
-    if (paymentResult.success) {
-      // Update payout status
-      await prisma.payout.update({
-        where: { id: payout.id },
-        data: {
-          status: 'COMPLETED',
-          processedAt: new Date(),
-          transactionId: paymentResult.transactionId
-        }
-      });
-
-      // Update service payment status
-      await prisma.service.updateMany({
-        where: {
-          id: {
-            in: completedServices.map(s => s.id)
-          }
-        },
-        data: {
-          paymentStatus: 'PAID',
-          paidAt: new Date()
-        }
-      });
-
-      // Create earnings records
-      for (const service of completedServices) {
-        await prisma.earning.create({
-          data: {
-            employeeId: employee.id,
-            serviceId: service.id,
-            amount: service.potentialEarnings || 0,
-            status: 'PAID',
-            payoutId: payout.id,
-            paidAt: new Date()
-          }
-        });
-      }
-
-      // Send payout notification to employee
-      await sendPayoutNotification(employee, totalEarnings, completedServices.length);
-
-      return {
-        employeeId: employee.id,
-        employeeName: employee.User.name,
-        success: true,
-        amount: totalEarnings,
-        serviceCount: completedServices.length,
-        paymentMethod: employee.cashAppUsername ? 'CASH_APP' : 'STRIPE',
-        transactionId: paymentResult.transactionId
-      };
-
-    } else {
-      // Update payout status to failed
-      await prisma.payout.update({
-        where: { id: payout.id },
-        data: {
-          status: 'FAILED',
-          failureReason: paymentResult.error
-        }
-      });
-
-      return {
-        employeeId: employee.id,
-        employeeName: employee.User.name,
-        success: false,
-        reason: paymentResult.error,
-        amount: totalEarnings
-      };
-    }
-
-  } catch (error) {
-    console.error(`Error processing payout for ${employee.User.name}:`, error);
-    throw error;
-  }
-}
-
-async function processCashAppPayout(employee, amount, payoutId) {
-  try {
-    // This would integrate with Cash App's API
-    // For now, we'll simulate a successful payment
-    
-    console.log(`Processing Cash App payout of $${amount} to ${employee.cashAppUsername}`);
-    
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Generate a mock transaction ID
-    const transactionId = `cashapp_${Date.now()}_${employee.id}`;
-    
-    return {
-      success: true,
-      transactionId: transactionId
-    };
-    
-  } catch (error) {
-    console.error('Cash App payout error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-async function processStripePayout(employee, amount, payoutId) {
-  try {
-    // This would integrate with Stripe's payout API
-    // For now, we'll simulate a successful payment
-    
-    console.log(`Processing Stripe payout of $${amount} to employee ${employee.id}`);
-    
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Generate a mock transaction ID
-    const transactionId = `stripe_${Date.now()}_${employee.id}`;
-    
-    return {
-      success: true,
-      transactionId: transactionId
-    };
-    
-  } catch (error) {
-    console.error('Stripe payout error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-}
-
-async function sendPayoutNotification(employee, amount, serviceCount) {
-  try {
-    // Create notification for employee
-    await prisma.notification.create({
-      data: {
-        userId: employee.userId,
-        type: 'PAYOUT_COMPLETED',
-        title: 'Payout Completed',
-        message: `Your weekly payout of $${amount.toFixed(2)} for ${serviceCount} services has been processed.`,
-        metadata: {
-          amount: amount,
-          serviceCount: serviceCount,
-          weekStart: new Date().toISOString()
-        }
-      }
-    });
-
-    // This would also integrate with email/SMS notifications
-    console.log(`Sent payout notification to ${employee.User.email}`);
-    
-  } catch (error) {
-    console.error('Error sending payout notification:', error);
-  }
-}
-
-async function sendPayoutSummaryReport(payoutResults, errors, weekStart, weekEnd) {
-  try {
-    const successfulPayouts = payoutResults.filter(r => r.success);
-    const totalAmount = successfulPayouts.reduce((sum, r) => sum + (r.amount || 0), 0);
-    
-    console.log('=== Weekly Payout Summary Report ===');
-    console.log(`Week: ${weekStart.toLocaleDateString()} - ${weekEnd.toLocaleDateString()}`);
-    console.log(`Total Payouts: ${successfulPayouts.length}`);
-    console.log(`Total Amount: $${totalAmount.toFixed(2)}`);
-    console.log(`Failed Payouts: ${errors.length}`);
-    
-    if (successfulPayouts.length > 0) {
-      console.log('\nSuccessful Payouts:');
-      successfulPayouts.forEach(payout => {
-        console.log(`- ${payout.employeeName}: $${payout.amount.toFixed(2)} (${payout.serviceCount} services)`);
-      });
-    }
-    
-    if (errors.length > 0) {
-      console.log('\nFailed Payouts:');
-      errors.forEach(error => {
-        console.log(`- ${error.employeeName}: ${error.error}`);
-      });
-    }
-    
-    // This would integrate with your email service to send to admin
-    // await sendEmail({
-    //   to: 'admin@scoopify.club',
-    //   subject: 'Weekly Payout Summary',
-    //   template: 'payout-summary',
-    //   data: { payoutResults, errors, weekStart, weekEnd }
-    // });
-    
-  } catch (error) {
-    console.error('Error sending payout summary report:', error);
-  }
-} 
+export const GET = handle;
+export const POST = handle;

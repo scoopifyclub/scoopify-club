@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma as defaultDb } from '@/lib/prisma';
 import { validateUserToken } from '@/lib/jwt-utils';
+import { localDateString, localTimeOfDay, zonedTimeToUtc } from '@/lib/business-time';
 
 export const CLAIM_WINDOW_MINUTES = 45;
 export const CLAIM_WINDOW_MS = CLAIM_WINDOW_MINUTES * 60 * 1000;
@@ -188,12 +189,13 @@ export async function releaseExpiredClaims({ now = new Date(), db = defaultDb } 
 }
 
 /**
- * Moves unclaimed jobs whose date has passed onto today (same time of day),
- * keeping the same row so nothing is duplicated.
+ * Moves unclaimed jobs whose Denver date has passed onto today (same Denver
+ * time of day), keeping the same row so nothing is duplicated. serviceDate
+ * keeps the original date, so the recurring scheduler does not recreate it.
  */
 export async function requeueOverdueUnclaimed({ now = new Date(), db = defaultDb } = {}) {
-  const startOfToday = new Date(now);
-  startOfToday.setHours(0, 0, 0, 0);
+  const today = localDateString(now);
+  const startOfToday = zonedTimeToUtc(today);
   const overdue = await db.service.findMany({
     where: { status: 'SCHEDULED', employeeId: null, scheduledDate: { lt: startOfToday } },
     select: { id: true, scheduledDate: true, customer: { select: { userId: true } } },
@@ -201,8 +203,8 @@ export async function requeueOverdueUnclaimed({ now = new Date(), db = defaultDb
 
   const requeued = [];
   for (const service of overdue) {
-    const newDate = new Date(startOfToday);
-    newDate.setHours(service.scheduledDate.getHours(), service.scheduledDate.getMinutes(), 0, 0);
+    const { hour, minute } = localTimeOfDay(service.scheduledDate);
+    const newDate = zonedTimeToUtc(today, hour, minute);
     const { count } = await db.service.updateMany({
       where: { id: service.id, status: 'SCHEDULED', employeeId: null, scheduledDate: service.scheduledDate },
       data: { scheduledDate: newDate, workflowStatus: 'AVAILABLE', updatedAt: now },
