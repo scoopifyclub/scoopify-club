@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { withAdminDatabase } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
 
@@ -102,39 +103,61 @@ export async function POST(request) {
         if (!auth.ok) return auth.response;
 
         const body = await request.json();
-        const { customerId, employeeId, servicePlanId, scheduledDate, notes } = body;
+        const { customerId, employeeId, servicePlanId, scheduledDate, notes, potentialEarnings } = body;
+
+        if (!customerId || !servicePlanId || !scheduledDate) {
+            return NextResponse.json(
+                { error: 'customerId, servicePlanId, and scheduledDate are required' },
+                { status: 400 }
+            );
+        }
+
+        // Omit employeeId (or pass null) to put an unclaimed job in the pool.
+        // Assigned jobs stay SCHEDULED with workflowStatus CLAIMED for admin-assigned work.
+        const assigned = Boolean(employeeId);
+        const now = new Date();
 
         const newJob = await withAdminDatabase(async (prisma) => {
             return await prisma.service.create({
                 data: {
+                    id: crypto.randomUUID(),
                     customerId,
-                    employeeId,
+                    employeeId: assigned ? employeeId : null,
                     servicePlanId,
                     scheduledDate: new Date(scheduledDate),
-                    notes,
+                    notes: notes || null,
+                    potentialEarnings: potentialEarnings ?? null,
                     status: 'SCHEDULED',
-                    workflowStatus: 'PENDING'
+                    workflowStatus: assigned ? 'CLAIMED' : 'AVAILABLE',
+                    updatedAt: now,
                 },
                 include: {
                     customer: {
                         include: {
                             user: {
                                 select: {
-                                    name: true,
+                                    firstName: true,
+                                    lastName: true,
                                     email: true
                                 }
-                            }
+                            },
+                            address: true,
                         }
                     },
-                    employee: {
-                        include: {
-                            user: {
-                                select: {
-                                    name: true
+                    ...(assigned
+                        ? {
+                            employee: {
+                                include: {
+                                    user: {
+                                        select: {
+                                            firstName: true,
+                                            lastName: true,
+                                        }
+                                    }
                                 }
                             }
                         }
-                    },
+                        : {}),
                     servicePlan: true
                 }
             });

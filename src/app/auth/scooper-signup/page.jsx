@@ -87,7 +87,9 @@ export default function ScooperSignUp() {
             log('Covered ZIPs count:', coveredZips.length);
             log('Travel distance:', formData.travelDistance);
             
-            const response = await fetch('/api/auth/scooper-signup', {
+            // Same /api/auth/signup path as customer signup; role EMPLOYEE creates
+            // a pending scooper (ACTIVE but approvedAt null until admin approval).
+            const response = await fetch('/api/auth/signup', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -100,17 +102,9 @@ export default function ScooperSignUp() {
             if (response.ok) {
                 const data = await response.json();
                 log('Response data:', data);
-                
-                if (data.success) {
-                    // Assuming toast is available globally or imported
-                    // import { toast } from 'react-toastify'; 
-                    // toast.success('Account created successfully! Please check your email to verify your account.');
-                    router.push('/employee/login');
-                } else {
-                    setError(data.error || 'Signup failed');
-                }
+                router.push('/employee/login');
             } else {
-                const data = await response.json();
+                const data = await response.json().catch(() => ({}));
                 log('API Error:', data);
                 setError(data.error || 'Signup failed');
             }
