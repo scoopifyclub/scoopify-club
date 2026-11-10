@@ -184,6 +184,8 @@ model Employee {
   hasSetServiceArea      Boolean             @default(false)
   stripeAccountStatus    String?             @default("PENDING")
   stripeConnectAccountId String?             @unique
+  approvedAt             DateTime?
+  approvedBy             String?
   conversations          Conversation[]      @relation("EmployeeToConversations")
   serviceAreas           CoverageArea[]      @relation("EmployeeToServiceAreas")
   user                   User                @relation("UserToEmployee", fields: [userId], references: [id])
@@ -512,6 +514,8 @@ model Service {
   isLocked           Boolean            @default(true)
   unlockedAt         DateTime?
   lockExpiresAt      DateTime?
+  subscriptionId     String?
+  serviceDate        DateTime?          @db.Date
   conversations      Conversation[]     @relation("ServiceToConversations")
   feedback           CustomerFeedback[] @relation("ServiceToFeedback")
   location           Location?          @relation("ServiceToLocation")
@@ -521,6 +525,7 @@ model Service {
   employee           Employee?          @relation("ServiceToEmployee", fields: [employeeId], references: [id])
   serviceArea        ServiceArea?       @relation("ServiceToArea", fields: [serviceAreaId], references: [id])
   servicePlan        ServicePlan        @relation("ServiceToPlan", fields: [servicePlanId], references: [id])
+  subscription       Subscription?      @relation("SubscriptionToServices", fields: [subscriptionId], references: [id], onDelete: SetNull)
   checklist          ServiceChecklist?  @relation("ServiceToChecklist")
   delays             ServiceDelay[]     @relation("ServiceToDelays")
   photos             ServicePhoto[]     @relation("ServiceToPhotos")
@@ -532,6 +537,8 @@ model Service {
   @@index([paymentStatus])
   @@index([serviceAreaId])
   @@index([isLocked])
+  @@index([status, arrivalDeadline])
+  @@unique([subscriptionId, serviceDate])
 }
 
 model ServiceChecklist {
@@ -626,6 +633,7 @@ model Subscription {
   stripeSubscriptionId String?            @unique
   customer             Customer           @relation("CustomerToSubscription", fields: [customerId], references: [id])
   servicePlan          ServicePlan        @relation("ServicePlanToSubscription", fields: [planId], references: [id])
+  services             Service[]          @relation("SubscriptionToServices")
 
   @@index([customerId])
   @@index([planId])

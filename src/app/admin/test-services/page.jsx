@@ -105,10 +105,7 @@ export default function TestServicesPage() {
         try {
             const response = await fetch('/api/cron/create-weekly-services', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || 'test-secret'}`
-                },
+                credentials: 'include',
             });
 
             if (!response.ok) {
@@ -123,6 +120,29 @@ export default function TestServicesPage() {
         } catch (error) {
             console.error('Error running cron:', error);
             toast.error('Failed to run weekly services cron');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const releaseExpiredClaims = async () => {
+        setLoading(true);
+        try {
+            const response = await fetch('/api/cron/release-expired-claims', {
+                method: 'POST',
+                credentials: 'include',
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to release expired claims');
+            }
+
+            const data = await response.json();
+            toast.success(`Released ${data.released} expired claim(s)`);
+            fetchData();
+        } catch (error) {
+            console.error('Error releasing expired claims:', error);
+            toast.error('Failed to release expired claims');
         } finally {
             setLoading(false);
         }
@@ -231,7 +251,7 @@ export default function TestServicesPage() {
             </div>
 
             {/* Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 <Card>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
@@ -271,6 +291,28 @@ export default function TestServicesPage() {
                             className="w-full"
                         >
                             {loading ? 'Running...' : 'Run Weekly Cron'}
+                        </Button>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <RefreshCw className="h-5 w-5" />
+                            Release Expired Claims
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-gray-600 mb-4">
+                            Requeue jobs claimed over 45 minutes ago without a check-in
+                        </p>
+                        <Button 
+                            onClick={releaseExpiredClaims} 
+                            disabled={loading}
+                            variant="outline"
+                            className="w-full"
+                        >
+                            {loading ? 'Running...' : 'Release Now'}
                         </Button>
                     </CardContent>
                 </Card>
