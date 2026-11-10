@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 64" fill="none" role="img" aria-label="Scoopify Club">
+  <defs>
+    <linearGradient id="bagFaceLogo" x1="12" y1="10" x2="52" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#97BF6F"/>
+      <stop offset="1" stop-color="#6F9A34"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(0 0)">
+    <path
+      d="M16.5 20.5c0-1.4 1.1-2.5 2.5-2.5h26c1.4 0 2.5 1.1 2.5 2.5v30c0 2.5-2 4.5-4.5 4.5h-22c-2.5 0-4.5-2-4.5-4.5v-30z"
+      fill="url(#bagFaceLogo)"
+    />
+    <path
+      d="M19.5 21.5h12c.6 0 1 .4 1 1v24.5c0 .8-.7 1.5-1.5 1.5H21c-.8 0-1.5-.7-1.5-1.5V22.5c0-.6.4-1 1-1z"
+      fill="#ffffff"
+      fill-opacity="0.14"
+    />
+    <path
+      d="M24 18c0-4.4 3.6-8 8-8s8 3.6 8 8"
+      stroke="#56742B"
+      stroke-width="3.2"
+      stroke-linecap="round"
+      fill="none"
+    />
+    <ellipse cx="32" cy="40.5" rx="6.2" ry="5.2" fill="#ffffff"/>
+    <circle cx="24.8" cy="33.2" r="2.35" fill="#ffffff"/>
+    <circle cx="29.2" cy="30.4" r="2.55" fill="#ffffff"/>
+    <circle cx="34.8" cy="30.4" r="2.55" fill="#ffffff"/>
+    <circle cx="39.2" cy="33.2" r="2.35" fill="#ffffff"/>
+  </g>
+  <text x="78" y="42" font-family="Outfit, Plus Jakarta Sans, Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.04em" fill="#1F2A1A">Scoopify</text>
+  <text x="232" y="42" font-family="Outfit, Plus Jakarta Sans, Arial, sans-serif" font-size="34" font-weight="500" letter-spacing="-0.03em" fill="#6F9A34">Club</text>
+</svg>

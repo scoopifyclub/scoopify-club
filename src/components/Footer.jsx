@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Facebook, Twitter, Instagram, Mail, Phone, MapPin } from 'lucide-react';
+import { Logo } from '@/components/Logo';
 
 /**
  * @typedef {Object} NavigationItem
@@ -84,27 +85,30 @@ const socialLinks = [
  * @returns {JSX.Element} The rendered component
  */
 export default function Footer() {
-    return (<footer className="bg-white border-t">
-      <div className="mx-auto max-w-7xl overflow-hidden px-6 py-20 sm:py-24 lg:px-8">
+    return (<footer className="bg-[color:var(--brand-surface)] border-t border-[color:var(--brand-line)]">
+      <div className="mx-auto max-w-7xl overflow-hidden px-6 py-16 sm:py-20 lg:px-8">
+        <div className="flex justify-center mb-10">
+          <Logo size="sm" href="/" />
+        </div>
         <nav className="-mb-6 columns-2 sm:flex sm:justify-center sm:space-x-12" aria-label="Footer">
           {navigation.main.map((item) => (<div key={item.name} className="pb-6">
-              <Link href={item.href} className="text-sm leading-6 text-gray-600 hover:text-gray-900" data-testid={`footer-${item.name.toLowerCase()}`}>
+              <Link href={item.href} className="text-sm leading-6 text-[color:var(--brand-ink-muted)] hover:text-[color:var(--brand-leaf)]" data-testid={`footer-${item.name.toLowerCase()}`}>
                 {item.name}
               </Link>
             </div>))}
           <div className="pb-6">
-            <Link href="/business-signup" className="text-sm leading-6 text-blue-600 hover:text-blue-900 font-semibold" data-testid="footer-business-partner-signup">
+            <Link href="/business-signup" className="text-sm leading-6 text-[color:var(--brand-leaf)] hover:text-[color:var(--brand-leaf-deep)] font-semibold" data-testid="footer-business-partner-signup">
               Business Partner Signup
             </Link>
           </div>
         </nav>
         <div className="mt-10 flex justify-center space-x-10">
-          {navigation.legal.map((item) => (<Link key={item.name} href={item.href} className="text-sm leading-6 text-gray-600 hover:text-gray-900" data-testid={`footer-${item.name.toLowerCase()}`}>
+          {navigation.legal.map((item) => (<Link key={item.name} href={item.href} className="text-sm leading-6 text-[color:var(--brand-ink-muted)] hover:text-[color:var(--brand-leaf)]" data-testid={`footer-${item.name.toLowerCase()}`}>
               {item.name}
             </Link>))}
         </div>
-        <p className="mt-10 text-center text-xs leading-5 text-gray-500">
-          &copy; {new Date().getFullYear()} ScoopifyClub. All rights reserved.
+        <p className="mt-10 text-center text-xs leading-5 text-[color:var(--brand-ink-muted)]">
+          &copy; {new Date().getFullYear()} Scoopify Club. All rights reserved. Pilot: Peyton &amp; Falcon, CO.
         </p>
       </div>
     </footer>);

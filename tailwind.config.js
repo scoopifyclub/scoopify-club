@@ -108,12 +108,21 @@ module.exports = {
   		},
   		fontFamily: {
   			sans: [
-  				'-apple-system',
-  				'BlinkMacSystemFont',
-  				'Segoe UI"',
-  				'Roboto',
-  				'Helvetica Neue"',
-  				'Arial',
+  				'var(--font-body)',
+  				'Plus Jakarta Sans',
+  				'ui-sans-serif',
+  				'sans-serif'
+  			],
+  			body: [
+  				'var(--font-body)',
+  				'Plus Jakarta Sans',
+  				'ui-sans-serif',
+  				'sans-serif'
+  			],
+  			display: [
+  				'var(--font-display)',
+  				'Outfit',
+  				'ui-sans-serif',
   				'sans-serif'
   			]
   		},

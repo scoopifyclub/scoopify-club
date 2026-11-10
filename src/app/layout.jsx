@@ -87,7 +87,7 @@ export const metadata = {
     },
 };
 
-import { Inter } from "next/font/google";
+import { Outfit, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Navbar } from "../components/Navbar";
@@ -95,11 +95,21 @@ import Footer from "../components/Footer";
 import { Toaster } from "@/components/ui/toaster";
 import { PWAInstaller } from "../components/PWAInstaller";
 
-const inter = Inter({ subsets: ["latin"] });
+const outfit = Outfit({
+    subsets: ["latin"],
+    variable: "--font-display",
+    display: "swap",
+});
+
+const plusJakarta = Plus_Jakarta_Sans({
+    subsets: ["latin"],
+    variable: "--font-body",
+    display: "swap",
+});
 
 export default function RootLayout({ children }) {
-    return (<html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+    return (<html lang="en" suppressHydrationWarning className={`${outfit.variable} ${plusJakarta.variable}`}>
+      <body className="font-body antialiased">
         <Providers>
           <div className="relative min-h-screen flex flex-col">
             <Navbar />
