@@ -84,7 +84,7 @@ export default function Home() {
               Why Choose Scoopify Club?
             </h2>
             <p className="text-lg text-[color:var(--brand-ink-muted)]">
-              App-powered waste removal with real-time updates and full control over your schedule.
+              Recurring weekly scoop service for the Peyton &amp; Falcon pilot — with catch-up cleanups when a yard needs a reset first.
             </p>
           </div>
 
@@ -94,8 +94,8 @@ export default function Home() {
                 <SafeIcon icon={faBroom} className="w-5 h-5 text-[color:var(--brand-leaf)]"/>
               </div>
               <div>
-                <h3 className="font-display text-xl font-semibold mb-2 text-[color:var(--brand-ink)]">Professional Service</h3>
-                <p className="text-[color:var(--brand-ink-muted)]">Email updates and completion photos in your dashboard after every visit.</p>
+                <h3 className="font-display text-xl font-semibold mb-2 text-[color:var(--brand-ink)]">Weekly Recurring Scoop</h3>
+                <p className="text-[color:var(--brand-ink-muted)]">Same-day visits each week, plus an optional catch-up cleanup before your club schedule starts.</p>
               </div>
             </div>
 
@@ -114,8 +114,8 @@ export default function Home() {
                 <SafeIcon icon={faMobileScreen} className="w-5 h-5 text-[color:var(--brand-leaf)]"/>
               </div>
               <div>
-                <h3 className="font-display text-xl font-semibold mb-2 text-[color:var(--brand-ink)]">Mobile App</h3>
-                <p className="text-[color:var(--brand-ink-muted)]">Schedule, photos, and scooper updates from your phone.</p>
+                <h3 className="font-display text-xl font-semibold mb-2 text-[color:var(--brand-ink)]">Photo Updates</h3>
+                <p className="text-[color:var(--brand-ink-muted)]">Completion photos and status in your dashboard after every visit.</p>
               </div>
             </div>
           </div>
@@ -130,7 +130,7 @@ export default function Home() {
               Smart Pet Waste Management
             </h2>
             <p className="text-lg text-[color:var(--brand-ink-muted)]">
-              A modern platform built for busy dog households in Colorado.
+              Built for busy dog households in Peyton, Falcon, and nearby Colorado Springs.
             </p>
           </div>
 
@@ -193,7 +193,7 @@ export default function Home() {
               Ready for a cleaner yard?
             </h2>
             <p className="text-lg text-white/90 mb-10">
-              Join Scoopify Club and spend less time scooping — more time outside with your dogs.
+              Join the Peyton &amp; Falcon pilot — weekly scoop service so you spend less time cleaning and more time outside with your dogs.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link href="/signup" className="inline-flex items-center justify-center bg-white text-[color:var(--brand-leaf-deep)] font-semibold px-6 py-3.5 rounded-xl hover:bg-[color:var(--brand-mist)] transition-colors duration-200">

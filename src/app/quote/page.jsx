@@ -66,8 +66,9 @@ export default function QuoteRequestPage() {
         </p>
         <h1 className="text-3xl font-semibold text-slate-900 mb-2">Request a quote</h1>
         <p className="text-slate-600 mb-8">
-          {QUOTE_MIN_DOGS}+ dogs, large or neglected yards, unusual access, and remote addresses
-          need a custom quote. We never auto-accept unprofitable jobs — an admin reviews every request.
+          Serving Peyton, Falcon, and nearby Colorado Springs. {QUOTE_MIN_DOGS}+ dogs, large or
+          neglected yards, unusual access, and remote addresses need a custom quote — including
+          catch-up cleanups outside standard plans. An admin reviews every request.
         </p>
 
         {status.type === 'success' ? (
