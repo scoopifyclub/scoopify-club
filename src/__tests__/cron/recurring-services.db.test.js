@@ -1,8 +1,9 @@
 /**
  * @jest-environment node
  *
- * Recurring visit creation and rollover against a real Postgres. Needs
- * TEST_DATABASE_URL pointing at a local, disposable database whose name contains "test" (tables are truncated). Run with: npm run test:cron
+ * Recurring visit creation, rollover and the payout report against a real
+ * Postgres. Needs TEST_DATABASE_URL pointing at a local, disposable database
+ * whose name contains "test" (tables are truncated). Run with: npm run test:cron
  */
 import { execSync } from 'child_process';
 import { NextRequest } from 'next/server';
@@ -40,7 +41,9 @@ describeDb('recurring visits (real Postgres)', () => {
   let prisma;
   let recurring;
   let claims;
+  let payment;
   let routes;
+  let createUserToken;
   let seq = 0;
   let plan;
 
@@ -52,9 +55,14 @@ describeDb('recurring visits (real Postgres)', () => {
     ({ prisma } = require('@/lib/prisma'));
     recurring = require('@/lib/recurring-services');
     claims = require('@/lib/job-claims');
+    payment = require('@/lib/payment-calculator');
     routes = {
       weekly: require('@/app/api/cron/create-weekly-services/route'),
+      payouts: require('@/app/api/cron/process-employee-payouts/route'),
+      release: require('@/app/api/cron/release-expired-claims/route'),
+      openJobPool: require('@/app/api/cron/open-job-pool/route'),
     };
+    ({ createUserToken } = require('@/lib/jwt-utils'));
   }, 120000);
 
   afterAll(async () => {
@@ -125,8 +133,7 @@ describeDb('recurring visits (real Postgres)', () => {
     expect(visit.status).toBe('SCHEDULED');
     expect(visit.employeeId).toBeNull();
     expect(visit.servicePlanId).toBe(plan.id);
-    // $55 x 12 / 52 x 75%
-    expect(visit.potentialEarnings).toBe(9.52);
+    expect(visit.potentialEarnings).toBe(payment.calculateMonthlyServicePayment(55).scooperPaymentPerService);
   });
 
   it('running weekly creation twice yields no duplicates', async () => {
@@ -299,5 +306,139 @@ describeDb('recurring visits (real Postgres)', () => {
     expect(requeued).toBe(0);
     const [visit] = await servicesFor(subscription.id);
     expect(visit.scheduledDate.toISOString()).toBe('2026-11-09T14:00:00.000Z');
+  });
+
+  describe('claim release without a frequent cron', () => {
+    async function abandonedClaim() {
+      const { subscription } = await createSubscriber();
+      await recurring.createRecurringServices({ now: MONDAY_EARLY });
+      const user = await prisma.user.create({
+        data: { id: id('user'), email: `${id('scooper')}@example.com`, password: 'x', role: 'EMPLOYEE', updatedAt: new Date() },
+      });
+      const employee = await prisma.employee.create({
+        data: { id: id('emp'), userId: user.id, approvedAt: new Date(), updatedAt: new Date() },
+      });
+      const claimedAt = new Date(Date.now() - 60 * 60 * 1000);
+      const [visit] = await servicesFor(subscription.id);
+      await prisma.service.update({
+        where: { id: visit.id },
+        data: {
+          employeeId: employee.id,
+          status: 'PENDING',
+          workflowStatus: 'CLAIMED',
+          claimedAt,
+          arrivalDeadline: new Date(claimedAt.getTime() + 45 * 60 * 1000),
+        },
+      });
+      return visit.id;
+    }
+
+    async function createAdmin() {
+      const user = await prisma.user.create({
+        data: {
+          id: id('admin'),
+          email: 'owner@scoopify.club',
+          password: '$2a$10$abcdefghijklmnopqrstuuJ3aCq0b8lU6a1o2m3n4o5p6q7r8s9t0',
+          role: 'ADMIN',
+          updatedAt: new Date(),
+        },
+      });
+      return createUserToken(user);
+    }
+
+    it('an admin session can trigger the release manually', async () => {
+      const serviceId = await abandonedClaim();
+      const token = await createAdmin();
+      const res = await routes.release.POST(
+        new NextRequest(`${BASE}/api/cron/release-expired-claims`, { method: 'POST', headers: { cookie: `accessToken=${token}` } })
+      );
+      expect(res.status).toBe(200);
+      expect((await res.json()).released).toBe(1);
+      const after = await prisma.service.findUnique({ where: { id: serviceId } });
+      expect(after).toMatchObject({ employeeId: null, status: 'SCHEDULED' });
+    });
+
+    it('the daily open-job-pool run releases expired claims', async () => {
+      const serviceId = await abandonedClaim();
+      const res = await routes.openJobPool.GET(cronRequest('/api/cron/open-job-pool'));
+      expect(res.status).toBe(200);
+      expect((await res.json()).releasedExpiredClaims).toBe(1);
+      const after = await prisma.service.findUnique({ where: { id: serviceId } });
+      expect(after).toMatchObject({ employeeId: null, status: 'SCHEDULED' });
+    });
+  });
+
+  describe('payout report', () => {
+    async function completedVisit({ employeeId, completedDate, potentialEarnings = 9.97 }) {
+      const { customer } = await createSubscriber();
+      return prisma.service.create({
+        data: {
+          id: id('svc'),
+          customerId: customer.id,
+          servicePlanId: plan.id,
+          employeeId,
+          scheduledDate: completedDate,
+          completedDate,
+          status: 'COMPLETED',
+          paymentStatus: 'PENDING',
+          potentialEarnings,
+          updatedAt: new Date(),
+        },
+      });
+    }
+
+    async function createEmployee() {
+      const user = await prisma.user.create({
+        data: {
+          id: id('user'),
+          email: `${id('scooper')}@example.com`,
+          password: 'x',
+          role: 'EMPLOYEE',
+          firstName: 'Sam',
+          lastName: 'Scooper',
+          updatedAt: new Date(),
+        },
+      });
+      return prisma.employee.create({ data: { id: id('emp'), userId: user.id, updatedAt: new Date() } });
+    }
+
+    it('reports what is owed for last week and pays nothing', async () => {
+      jest.useFakeTimers({
+        now: new Date('2026-11-13T16:00:00Z'),
+        doNotFake: ['hrtime', 'nextTick', 'performance', 'queueMicrotask', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'],
+      });
+      try {
+        const employee = await createEmployee();
+        // Last week (Mon Nov 2 - Sun Nov 8, Denver): two visits. This week: one, not reported.
+        const a = await completedVisit({ employeeId: employee.id, completedDate: new Date('2026-11-02T18:00:00Z') });
+        const b = await completedVisit({ employeeId: employee.id, completedDate: new Date('2026-11-09T05:00:00Z') });
+        await completedVisit({ employeeId: employee.id, completedDate: new Date('2026-11-10T18:00:00Z') });
+
+        const res = await routes.payouts.GET(cronRequest('/api/cron/process-employee-payouts'));
+        const body = await res.json();
+
+        expect(res.status).toBe(200);
+        expect(body.payoutsEnabled).toBe(false);
+        expect(body.mode).toBe('report-only');
+        expect(body.week).toEqual({ start: '2026-11-02', end: '2026-11-08', timeZone: 'America/Denver' });
+        expect(body.summary).toEqual({ employeesOwed: 1, servicesUnpaid: 2, totalOwed: 19.94 });
+        expect(body.owed[0]).toMatchObject({ employeeId: employee.id, employeeName: 'Sam Scooper', serviceCount: 2, amountOwed: 19.94 });
+
+        expect(await prisma.payout.count()).toBe(0);
+        expect(await prisma.earning.count()).toBe(0);
+        expect(await prisma.notification.count()).toBe(0);
+        const after = await prisma.service.findMany({ where: { id: { in: [a.id, b.id] } } });
+        expect(after.every((s) => s.paymentStatus === 'PENDING')).toBe(true);
+        expect(await prisma.systemLog.count({ where: { type: 'PAYOUT_REPORT' } })).toBe(1);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('returns 200 with nothing owed', async () => {
+      const res = await routes.payouts.POST(cronRequest('/api/cron/process-employee-payouts', 'POST'));
+      expect(res.status).toBe(200);
+      expect((await res.json()).summary.totalOwed).toBe(0);
+    });
   });
 });

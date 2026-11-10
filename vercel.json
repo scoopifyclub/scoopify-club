@@ -8,7 +8,6 @@
     }
   },
   "crons": [
-    { "path": "/api/cron/release-expired-claims", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/create-weekly-services", "schedule": "0 11 * * *" },
     { "path": "/api/cron/open-job-pool", "schedule": "0 12 * * *" },
     { "path": "/api/cron/process-employee-payouts", "schedule": "0 16 * * 5" }
