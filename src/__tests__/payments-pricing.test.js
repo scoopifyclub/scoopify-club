@@ -75,8 +75,12 @@ describe('pricing catalog', () => {
   it('sells 1 to 3 dogs online and sends 4+ dogs to a quote request', () => {
     expect(catalog.PLANS.map((p) => p.numberOfDogs)).toEqual([1, 2, 3, 1, 2, 3]);
     expect(catalog.QUOTE_MIN_DOGS).toBe(4);
-    expect(catalog.QUOTE_REQUEST_PATH).toBe('/contact?subject=Quote%20request%3A%204%2B%20dogs');
+    expect(catalog.QUOTE_REQUEST_PATH).toBe('/quote');
     expect(catalog.findPlan('quote')).toBeNull();
+    expect(catalog.requiresQuote({ dogCount: 4 })).toBe(true);
+    expect(catalog.requiresQuote({ dogCount: 2, unusualYard: true })).toBe(true);
+    expect(catalog.requiresQuote({ dogCount: 2 })).toBe(false);
+    expect(catalog.PILOT_FLOOR_CENTS['single-dog-monthly']).toBe(7900);
   });
 
   it('resolves the plan names signup and older code send', () => {
@@ -164,7 +168,7 @@ describe('/pricing page', () => {
     expect(html).not.toContain('3+');
     // 4+ dogs get a quote link, not a checkout button
     expect(html).toContain('4+ dogs?');
-    expect(html).toContain('href="/contact?subject=Quote%20request%3A%204%2B%20dogs"');
+    expect(html).toContain('href="/quote"');
     expect(html).not.toContain('Loading Plans');
   });
 
