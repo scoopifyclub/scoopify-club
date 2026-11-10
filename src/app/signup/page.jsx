@@ -1,6 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { signIn } from 'next-auth/react';
 
@@ -307,6 +308,18 @@ function SignupForm({ onUncoveredZip }) {
 
       <p className="text-sm text-gray-600">
         After creating your account you'll review your order and pay securely on Stripe's checkout page.
+      </p>
+
+      <p className="text-sm text-gray-600">
+        By creating an account, you agree to our{' '}
+        <Link href="/terms" className="font-medium text-[color:var(--brand-leaf)] hover:text-[color:var(--brand-leaf-deep)] underline-offset-2 hover:underline">
+          Terms of Service
+        </Link>{' '}
+        and{' '}
+        <Link href="/privacy" className="font-medium text-[color:var(--brand-leaf)] hover:text-[color:var(--brand-leaf-deep)] underline-offset-2 hover:underline">
+          Privacy Policy
+        </Link>
+        .
       </p>
 
       <Button type="submit" className="w-full py-6 text-lg font-semibold bg-blue-600 hover:bg-blue-700" disabled={loading}>
