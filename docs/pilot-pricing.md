@@ -13,7 +13,13 @@ Provisional pilot pricing set on 2026-11-09. It is not final until 30+ completed
 
 New subscribers prepay one month plus the catch-up cleanup at signup. There is no two-month upfront charge. Any yard that needs more than the starting price is handled by quote or admin approval, never in checkout.
 
-Market-based pricing, promotions and an admin price editor are separate, later work.
+Market-based pricing, promotions, and job quotes are managed in admin:
+
+- `Market` / `MarketPrice` overlays by ZIP (new checkouts only; live subscriptions keep their Stripe Price)
+- `Promotion` codes (`PERCENT`, `FIXED`, `FREE_CATCHUP`) applied at Checkout
+- `Quote` requests for 4+ dogs or unusual yards — admin must approve a profitable amount before Checkout
+
+Admin UI: `/admin/dashboard/pricing`. APIs under `/api/admin/pricing/**` and `/api/admin/quotes/**` (all `requireAdmin`). Public quote form: `/quote`.
 
 ## Stripe Prices to create
 

@@ -89,10 +89,12 @@ export default function AdminDashboardLayout({ children }) {
             // If we're at the root dashboard, set overview as active
             if (pathname === '/admin/dashboard') {
                 setActiveTab('overview');
-            } else if (currentPath && ['overview', 'customers', 'employees', 'services', 'payments', 'financials', 'reports', 'settings'].includes(currentPath)) {
+            } else if (currentPath && ['overview', 'customers', 'employees', 'services', 'payments', 'financials', 'pricing', 'reports', 'settings'].includes(currentPath)) {
                 setActiveTab(currentPath);
             } else if (pathname?.includes('/admin/dashboard/financials')) {
                 setActiveTab('financials');
+            } else if (pathname?.includes('/admin/dashboard/pricing')) {
+                setActiveTab('pricing');
             }
 
             // Verify admin authentication
@@ -184,6 +186,7 @@ export default function AdminDashboardLayout({ children }) {
         { id: 'services', label: 'Services', icon: <Calendar className="h-5 w-5"/>, href: '/admin/dashboard/services' },
         { id: 'payments', label: 'Payments', icon: <CircleDollarSign className="h-5 w-5"/>, href: '/admin/dashboard/payments' },
         { id: 'financials', label: 'Financials', icon: <Wallet className="h-5 w-5"/>, href: '/admin/dashboard/financials' },
+        { id: 'pricing', label: 'Pricing', icon: <CircleDollarSign className="h-5 w-5"/>, href: '/admin/dashboard/pricing' },
         { id: 'automation', label: 'Automation', icon: <RefreshCw className="h-5 w-5"/>, href: '/admin/dashboard/automation' },
         { id: 'reports', label: 'Reports', icon: <FileText className="h-5 w-5"/>, href: '/admin/dashboard/reports' },
         { id: 'settings', label: 'Settings', icon: <Settings className="h-5 w-5"/>, href: '/admin/dashboard/settings' },

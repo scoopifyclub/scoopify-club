@@ -142,6 +142,7 @@ model Customer {
   feedback          CustomerFeedback[] @relation("CustomerToFeedback")
   services          Service[]          @relation("ServiceToCustomer")
   subscriptions     Subscription[]     @relation("CustomerToSubscription")
+  quotes            Quote[]            @relation("CustomerToQuotes")
 
   @@index([subscriptionId])
 }
@@ -784,6 +785,99 @@ model SystemLog {
   createdAt DateTime @default(now())
 
   @@index([type])
+  @@index([createdAt])
+}
+
+// Geographic pricing overlay. ZIP sets map a customer address to market
+// amounts without mutating live ServicePlan / Stripe subscription prices.
+model Market {
+  id          String        @id @default(uuid())
+  name        String
+  slug        String        @unique
+  zipCodes    String[]
+  active      Boolean       @default(true)
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  prices      MarketPrice[]
+
+  @@index([active])
+}
+
+model MarketPrice {
+  id            String    @id @default(uuid())
+  marketId      String
+  planCode      String
+  amountCents   Int
+  stripePriceId String?
+  effectiveFrom DateTime  @default(now())
+  effectiveTo   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  market        Market    @relation(fields: [marketId], references: [id], onDelete: Cascade)
+
+  @@unique([marketId, planCode, effectiveFrom])
+  @@index([planCode])
+  @@index([marketId, planCode])
+}
+
+// Marketing promotions (separate from ReferralCode partner codes).
+model Promotion {
+  id             String    @id @default(uuid())
+  code           String    @unique
+  name           String
+  description    String?
+  type           String
+  amount         Int
+  planCodes      String[]
+  marketIds      String[]
+  startsAt       DateTime?
+  endsAt         DateTime?
+  maxRedemptions Int?
+  redemptionCount Int      @default(0)
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([active])
+  @@index([code])
+}
+
+// Unusual / 4+ dog jobs. Never auto-charged; admin must approve an amount
+// before Checkout. Client-supplied amounts are rejected.
+model Quote {
+  id                  String    @id @default(uuid())
+  status              String    @default("PENDING_ADMIN")
+  contactName         String?
+  contactEmail        String
+  contactPhone        String?
+  customerId          String?
+  dogCount            Int
+  zipCode             String?
+  addressLine         String?
+  city                String?
+  state               String?
+  kind                String    @default("ONE_TIME")
+  unusualYard         Boolean   @default(false)
+  unusualAccess       Boolean   @default(false)
+  remoteAddress       Boolean   @default(false)
+  notes               String?
+  proposedAmountCents Int?
+  stripePriceId       String?
+  planCode            String?
+  approvedBy          String?
+  approvedAt          DateTime?
+  rejectedReason      String?
+  expiresAt           DateTime?
+  convertedAt         DateTime?
+  checkoutSessionId   String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  customer            Customer? @relation("CustomerToQuotes", fields: [customerId], references: [id])
+
+  @@index([status])
+  @@index([contactEmail])
+  @@index([customerId])
   @@index([createdAt])
 }
 
