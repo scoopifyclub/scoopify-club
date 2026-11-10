@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
+import { isCurrentSessionVersion } from '@/lib/jwt-utils';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -77,6 +78,7 @@ export async function GET(request) {
         firstName: true,
         lastName: true,
         role: true,
+        password: true,
       }
     });
     
@@ -87,9 +89,17 @@ export async function GET(request) {
         { status: 404 }
       );
     }
-    
+
+    if (!(await isCurrentSessionVersion(user, decoded.sv))) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Session is no longer valid' },
+        { status: 401 }
+      );
+    }
+
+    const { password: _password, ...safeUser } = user;
     const response = NextResponse.json({
-      user: user
+      user: safeUser
     });
     
     // Add CORS headers for admin dashboard

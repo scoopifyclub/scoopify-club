@@ -143,10 +143,13 @@ export function EmployeeServiceCard({
       {showChecklist && (
         <div className="mt-6 space-y-4">
           <ServiceChecklist
-            checklist={service.checklist}
-            onComplete={(checklistData) => {
-              setShowChecklist(false);
-              setShowPhotoUpload(true);
+            serviceId={service.id}
+            initialChecklist={service.checklist}
+            onComplete={(complete) => {
+              if (complete) {
+                setShowChecklist(false);
+                setShowPhotoUpload(true);
+              }
             }}
           />
         </div>
@@ -156,12 +159,10 @@ export function EmployeeServiceCard({
         <div className="mt-6 space-y-4">
           <ServicePhotoUpload
             serviceId={service.id}
-            onComplete={(photoData) => {
+            type="AFTER"
+            onUploadComplete={() => {
               setShowPhotoUpload(false);
-              handleComplete({
-                checklist: service.checklist,
-                photos: photoData,
-              });
+              handleComplete({ checklist: service.checklist });
             }}
           />
         </div>

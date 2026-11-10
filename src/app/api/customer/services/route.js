@@ -2,8 +2,12 @@ import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
 import { validateUserToken } from '@/lib/jwt-utils';
 import { cookies } from 'next/headers';
+import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
+import { getRequestToken } from '@/lib/job-claims';
+import { perVisitEarnings } from '@/lib/recurring-services';
+import { useServiceCredit } from '@/lib/service-credits';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -183,20 +187,21 @@ const createServiceSchema = z.object({
     longitude: z.number().optional(),
     address: z.string().optional(),
 });
+class NoCreditError extends Error {}
+
 export async function POST(request) {
-    var _a;
     try {
         // Apply rate limiting
-        const rateLimitResult = await rateLimit(request);
+        const rateLimitResult = await rateLimit.limit(request);
         if (rateLimitResult) {
             return rateLimitResult;
         }
-        const cookieStore = await cookies();
-        const accessToken = (_a = cookieStore.get('accessToken')) === null || _a === void 0 ? void 0 : _a.value;
-        if (!accessToken) {
+        const accessToken = await getRequestToken(request);
+        const decoded = accessToken ? await validateUserToken(accessToken, 'CUSTOMER') : null;
+        if (!decoded?.userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const { userId } = await validateUserToken(accessToken, 'CUSTOMER');
+        const { userId } = decoded;
         const customer = await prisma.customer.findFirst({
             where: { userId },
             select: { 
@@ -221,8 +226,18 @@ export async function POST(request) {
         }
         const body = await request.json();
         const validatedData = createServiceSchema.parse(body);
+        const plan = await prisma.servicePlan.findUnique({
+            where: { id: validatedData.servicePlanId },
+            select: { price: true, type: true }
+        });
+        if (!plan) {
+            return NextResponse.json({ error: 'Service plan not found' }, { status: 400 });
+        }
+        const now = new Date();
         // Create the service with enhanced data
         const serviceData = {
+            potentialEarnings: perVisitEarnings(plan),
+            updatedAt: now,
             customerId: customer.id,
             scheduledDate: new Date(validatedData.scheduledDate),
             servicePlanId: validatedData.servicePlanId,
@@ -247,11 +262,10 @@ export async function POST(request) {
             };
         }
 
-        // Use a transaction to create service and deduct credit atomically
+        // Create the visit and use its credit atomically; completion will not use another.
         const result = await prisma.$transaction(async (tx) => {
-            // Create the service
             const service = await tx.service.create({
-                data: serviceData,
+                data: { id: randomUUID(), ...serviceData },
                 include: {
                     servicePlan: {
                         select: {
@@ -264,20 +278,25 @@ export async function POST(request) {
                 }
             });
             
-            // Deduct one credit from customer
-            await tx.customer.update({
-                where: { id: customer.id },
-                data: { serviceCredits: customer.serviceCredits - 1 }
-            });
-            
-            return service;
+            const credit = await useServiceCredit(tx, { serviceId: service.id, customerId: customer.id, now });
+            if (credit !== 'USED') {
+                throw new NoCreditError();
+            }
+            return { ...service, creditUsedAt: now };
+        }).catch((error) => {
+            if (error instanceof NoCreditError) return null;
+            throw error;
         });
+        if (!result) {
+            return NextResponse.json({ error: 'No service credits available. Please check your subscription.' }, { status: 400 });
+        }
         
         const service = result;
 
         // If this is a recurring service, create additional scheduled services
         if (validatedData.isRecurring) {
-            // For now, just create one additional service 1 week later
+            // For now, just create one additional service 1 week later; its
+            // credit is used when it is completed.
             // In a full implementation, this would create a subscription
             const nextWeek = new Date(validatedData.scheduledDate);
             nextWeek.setDate(nextWeek.getDate() + 7);
@@ -285,6 +304,7 @@ export async function POST(request) {
             await prisma.service.create({
                 data: {
                     ...serviceData,
+                    id: randomUUID(),
                     scheduledDate: nextWeek,
                     notes: `${serviceData.notes || ''} (Recurring service)`.trim()
                 }

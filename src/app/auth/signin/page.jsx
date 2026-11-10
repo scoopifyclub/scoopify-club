@@ -143,7 +143,7 @@ export default function SignIn() {
                     <div className="flex items-center justify-between">
                         <button
                             type="button"
-                            onClick={() => router.push('/auth/forgot-password')}
+                            onClick={() => router.push('/reset-password')}
                             className="text-sm font-medium text-primary hover:text-primary/80"
                         >
                             Forgot your password?

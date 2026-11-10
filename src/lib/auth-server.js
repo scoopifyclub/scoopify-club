@@ -2,7 +2,7 @@ import { compare } from 'bcryptjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createUserToken, createRefreshToken, validateUserToken } from './jwt-utils';
+import { createUserToken, createRefreshToken, validateUserToken, isCurrentSessionVersion } from './jwt-utils';
 
 export async function signJWT(payload) {
   return await createUserToken(payload);
@@ -27,10 +27,14 @@ export async function getSession() {
       email: true,
       name: true,
       role: true,
+      password: true,
     },
   });
 
-  return user;
+  if (!user || !(await isCurrentSessionVersion(user, payload.sv))) return null;
+
+  const { password: _password, ...safeUser } = user;
+  return safeUser;
 }
 
 export async function authenticateUser(email, password) {
@@ -51,6 +55,7 @@ export async function authenticateUser(email, password) {
     id: user.id,
     email: user.email,
     role: user.role,
+    password: user.password,
   });
 
   return { user, token };

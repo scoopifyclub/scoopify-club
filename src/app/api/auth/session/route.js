@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { validateUserToken } from '@/lib/jwt-utils';
+import { validateUserToken, isCurrentSessionVersion } from '@/lib/jwt-utils';
 import { prisma } from '@/lib/prisma';
 
 export async function GET(request) {
@@ -45,6 +45,10 @@ export async function GET(request) {
 
         if (!user) {
             return NextResponse.json({ error: 'User not found' }, { status: 404 });
+        }
+
+        if (!(await isCurrentSessionVersion(user, userData.sv))) {
+            return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
 
         // Return user data with role-specific information

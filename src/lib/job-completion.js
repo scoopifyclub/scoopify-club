@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma as defaultDb } from '@/lib/prisma';
 import { JobClaimError, jobClaimErrorResponse, requireScooper } from '@/lib/job-claims';
 import { buildFinancialRecord } from '@/lib/job-financials';
+import { useServiceCredit } from '@/lib/service-credits';
 import { toPhotoView } from '@/lib/service-photos';
 
 export const REQUIRED_PHOTOS = { BEFORE: 4, AFTER: 4 };
@@ -14,6 +15,7 @@ export const EMAIL_PHOTO_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
 const CHECKLIST_ALIASES = {
   yardCleaned: 'allWasteRemoved',
   wasteRemoved: 'allWasteRemoved',
+  wasteDisposed: 'allWasteRemoved',
   gateClosedOnExit: 'gateClosed',
   gatesClosed: 'gateClosed',
   gatesSecured: 'gateClosed',
@@ -138,7 +140,8 @@ export async function sendCompletionEmail({ serviceId, db = defaultDb, now = new
  * transaction the status moves IN_PROGRESS -> COMPLETED with a conditional
  * update, so only one request can complete a job; that request records the
  * checklist, the job's JobFinancialRecord and the matching Earning (both
- * unique per job) and later sends the customer email. Repeating the call returns the existing completion with
+ * unique per job), uses the visit's service credit unless booking already
+ * did, and later sends the customer email. Repeating the call returns the existing completion with
  * alreadyCompleted: true and changes nothing. COMPLETED is not an active
  * status, so the scooper can claim their next job right away.
  */
@@ -184,6 +187,7 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
   const financial = buildFinancialRecord({ service, completedAt: now });
   const scooperNotes = typeof notes === 'string' && notes.trim() ? notes.trim().slice(0, 2000) : undefined;
   let completedNow = false;
+  let creditResult = null;
 
   await db.$transaction(async (tx) => {
     const { count } = await tx.service.updateMany({
@@ -222,17 +226,7 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
     }
     await tx.employee.update({ where: { id: employeeId }, data: { completedJobs: { increment: 1 }, updatedAt: now } });
 
-    // Each completed visit uses one of the customer's service credits, never below zero.
-    const { count: debited } = await tx.customer.updateMany({
-      where: { id: service.customerId, serviceCredits: { gt: 0 } },
-      data: { serviceCredits: { decrement: 1 }, updatedAt: now },
-    });
-    if (debited) {
-      await tx.customer.updateMany({
-        where: { id: service.customerId, serviceCredits: 0, creditsDepletedAt: null },
-        data: { creditsDepletedAt: now },
-      });
-    }
+    creditResult = await useServiceCredit(tx, { serviceId, customerId: service.customerId, now });
   }, { maxWait: 10000, timeout: 15000 });
 
   if (!completedNow) {
@@ -243,6 +237,12 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
     throw new JobClaimError(409, 'JOB_STATE_CHANGED', 'This job changed before it could be completed. Refresh and try again.');
   }
 
+  if (creditResult === 'NO_CREDIT') {
+    await logSystemEvent(db, 'SERVICE_CREDIT_UNAVAILABLE', `Service ${serviceId} completed with no service credit left`, {
+      serviceId,
+      customerId: service.customerId,
+    });
+  }
   if (!financial) {
     await logSystemEvent(db, 'EARNING_AMOUNT_MISSING', `No financial record for service ${serviceId}: plan has no price`, {
       serviceId,
@@ -289,7 +289,7 @@ export async function handleCompleteRequest(request, serviceId, body = undefined
 }
 
 /** Saves checklist progress for the assigned scooper before completion. */
-export async function saveChecklist({ serviceId, employeeId, checklist, now = new Date(), db = defaultDb }) {
+export async function saveChecklist({ serviceId, employeeId, checklist, notes, now = new Date(), db = defaultDb }) {
   const service = await db.service.findUnique({ where: { id: serviceId }, select: { employeeId: true, status: true } });
   if (!service) throw new JobClaimError(404, 'JOB_NOT_FOUND', 'Job not found');
   if (service.employeeId !== employeeId) throw new JobClaimError(403, 'NOT_ASSIGNED', 'This job is not assigned to you');
@@ -297,10 +297,11 @@ export async function saveChecklist({ serviceId, employeeId, checklist, now = ne
     throw new JobClaimError(409, 'JOB_NOT_ACTIVE', 'The checklist can only be changed while the job is in progress');
   }
   const items = normalizeChecklist(checklist);
+  const scooperNotes = typeof notes === 'string' ? notes.trim().slice(0, 2000) : undefined;
   return db.serviceChecklist.upsert({
     where: { serviceId },
-    create: { id: randomUUID(), serviceId, items, updatedAt: now },
-    update: { items, updatedAt: now },
+    create: { id: randomUUID(), serviceId, items, notes: scooperNotes || null, updatedAt: now },
+    update: { items, updatedAt: now, ...(scooperNotes !== undefined && { notes: scooperNotes || null }) },
   });
 }
 

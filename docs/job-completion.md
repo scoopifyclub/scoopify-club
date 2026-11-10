@@ -50,6 +50,21 @@ Two ways to upload:
   with `POST /api/services/<id>/checklist`). At least 4 `BEFORE` and 4 `AFTER`
   photos are stored in S3. Missing items return 400 `CHECKLIST_INCOMPLETE` or
   `PHOTOS_REQUIRED` with what is missing.
+## Service credits
+
+Each visit uses at most one of the customer's service credits. `Service.creditUsedAt`
+marks that the credit was taken:
+
+- **One-off booking** (`POST /api/customer/services`): uses the credit when the
+  visit is created. Completing that visit does not use another.
+- **Scheduled / recurring visits** (no credit at booking): uses the credit when
+  the visit is completed.
+- Completing a visit with no credits left still completes; a
+  `SERVICE_CREDIT_UNAVAILABLE` SystemLog row is written and credits stay at zero.
+
+`useServiceCredit()` in `src/lib/service-credits.js` is the only place that
+decrements `Customer.serviceCredits` for a visit.
+
 - **What happens.** In one transaction: status `COMPLETED`,
   `workflowStatus = COMPLETED`, `completedDate`, `checklistCompleted`, the photo
   ids, the checklist (scooper notes go to `ServiceChecklist.notes`; the

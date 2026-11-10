@@ -10,6 +10,43 @@ export const CLAIM_WINDOW_MS = CLAIM_WINDOW_MINUTES * 60 * 1000;
 export const ACTIVE_JOB_STATUSES = ['PENDING', 'IN_PROGRESS'];
 export const ARRIVAL_RADIUS_MILES = 0.25;
 
+export const BUSINESS_TIME_ZONE = 'America/Denver';
+export const JOB_VIEW_OPEN_HOUR = 8;
+export const JOB_VIEW_CLOSE_HOUR = 19;
+
+function zonedParts(date, timeZone) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    })
+      .formatToParts(date)
+      .map((p) => [p.type, Number(p.value)])
+  );
+  return parts;
+}
+
+/**
+ * The daily window (8:00 AM to 7:00 PM America/Denver) in which scoopers can
+ * browse jobs, independent of the server's time zone. opensAt/closesAt are
+ * the UTC instants of today's (Denver date) window edges.
+ */
+export function getJobViewingWindow(now = new Date(), timeZone = BUSINESS_TIME_ZONE) {
+  const p = zonedParts(now, timeZone);
+  const wallAsUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  const offsetMs = wallAsUtc - Math.floor(now.getTime() / 1000) * 1000;
+  const at = (hour) => new Date(Date.UTC(p.year, p.month - 1, p.day, hour) - offsetMs);
+  const opensAt = at(JOB_VIEW_OPEN_HOUR);
+  const closesAt = at(JOB_VIEW_CLOSE_HOUR);
+  return { isOpen: now >= opensAt && now <= closesAt, opensAt, closesAt, timeZone };
+}
+
 export class JobClaimError extends Error {
   constructor(status, code, message, details = undefined) {
     super(message);
