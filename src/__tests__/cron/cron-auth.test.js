@@ -95,15 +95,37 @@ describe('scheduler wiring', () => {
 
   it('schedules the scheduling jobs in vercel.json', () => {
     const schedules = Object.fromEntries(vercel.crons.map((c) => [c.path, c.schedule]));
-    expect(schedules['/api/cron/release-expired-claims']).toBe('*/5 * * * *');
     expect(schedules['/api/cron/create-weekly-services']).toBeDefined();
+    // open-job-pool also runs the daily claim release.
     expect(schedules['/api/cron/open-job-pool']).toBeDefined();
+  });
+
+  // Vercel Hobby rejects the deployment if any cron runs more than once a day.
+  it.each(vercel.crons.map((c) => [c.path, c.schedule]))('%s (%s) fits the Vercel Hobby limits', (_path, schedule) => {
+    const [minute, hour, ...rest] = schedule.split(/\s+/);
+    expect(rest).toHaveLength(3);
+    expect(minute).toMatch(/^\d{1,2}$/);
+    expect(hour).toMatch(/^\d{1,2}$/);
+  });
+
+  it('stays within the Vercel Hobby job count', () => {
+    expect(vercel.crons.length).toBeLessThanOrEqual(100);
   });
 
   it.each(vercel.crons.map((c) => c.path))('%s exists and handles GET (Vercel Cron uses GET)', (cronPath) => {
     const name = cronPath.replace('/api/cron/', '');
     expect(cronRoutes).toContain(name);
     expect(typeof require(`@/app/api/cron/${name}/route`).GET).toBe('function');
+  });
+
+  it('runs the optional claim-release workflow every 15 minutes, opt-in, with Bearer auth', () => {
+    const release = fs.readFileSync(path.join(ROOT, '.github/workflows/claim-release.yml'), 'utf8');
+    expect(release).toContain("cron: '*/15 * * * *'");
+    expect(release).toContain("vars.ENABLE_CLAIM_RELEASE_CRON == 'true'");
+    expect(release).toContain('/api/cron/release-expired-claims');
+    expect(release).toContain('Authorization: Bearer ${CRON_SECRET}');
+    expect(release).toContain('actions/workflows/claim-release.yml/enable');
+    expect(release).not.toMatch(/\?secret=/);
   });
 
   it('keeps the GitHub workflow manual-only, with Bearer auth to existing routes', () => {
