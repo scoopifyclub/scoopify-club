@@ -38,6 +38,7 @@
     "test:ci": "jest --ci && playwright test --ci",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:logs": "jest src/__tests__/server-log.test.js --runInBand",
     "test:app": "node scripts/test-app.js",
     "test:setup": "node scripts/setup-test-db.js",
     "test:db:create": "node scripts/create-test-db.js",
@@ -87,7 +88,9 @@
     "prisma:safe-deploy": "npm run prisma:check-migrations && npm run prisma:test-migrate && prisma migrate deploy",
     "prepare:deployment": "node scripts/prepare-deployment.js",
     "deploy:production": "node scripts/deploy-production.js",
-    "setup:production": "node scripts/setup-production.js"
+    "setup:production": "node scripts/setup-production.js",
+    "logs:export": "node scripts/export-logs.js",
+    "logs:tail": "node scripts/tail-vercel-logs.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.802.0",
