@@ -4,23 +4,24 @@
 // plan's env var (`priceEnv`). `displayAmount` is only shown when Stripe cannot
 // be reached; the server replaces it with the Stripe Price's unit_amount.
 //
-// Business decisions still PENDING (owner: Matthew). Until decided, the
-// related plans carry `displayAmount: null` and a `pendingDecision` note, and
-// are only sellable once a Stripe Price ID is configured for them:
-//   - One-time cleanup prices: code had $25/$35/$45 (API, seed) and
-//     $75/$90/$120 (pricing and signup UI).
-//   - Initial cleanup fee: code had $30 (signup charge), $32 (API, seed),
-//     $69 at 50% off (payment page) and $89 (dashboard copy).
-//   - Upfront rule for new subscriptions: two months upfront vs first month
-//     plus the initial cleanup. See UPFRONT_POLICY.
+// Provisional pilot pricing set by Matthew on 2026-11-09, not final until 30+
+// completed cleanings (docs/pilot-pricing.md lists the Stripe Prices to create):
+//   - Weekly club: $79 / $89 / $99 per month for 1 / 2 / 3 dogs.
+//   - One-time cleanup: from $79 / $99 / $119 for 1 / 2 / 3 dogs.
+//   - Initial catch-up cleanup on a new subscription: from $49.
+//   - New subscribers prepay one month plus the catch-up (UPFRONT_POLICY).
+//   - 4+ dogs get a quote instead of checkout (QUOTE_MIN_DOGS).
+// "From" amounts are the Stripe Price charged at checkout; larger or
+// neglected yards are adjusted by quote, never in checkout.
 //
 // This module is safe to import from client components: it holds no secrets,
 // and the env lookups only resolve on the server.
 
-export const PENDING_ONE_TIME_PRICE =
-    'One-time cleanup price not decided (code had $25/$35/$45 vs $75/$90/$120). Set the Stripe Price ID once decided.';
-export const PENDING_INITIAL_CLEANUP_FEE =
-    'Initial cleanup fee not decided (code had $30, $32, $34.50 and $89). Set the Stripe Price ID once decided.';
+export const PRICING_NOTE = 'Provisional pilot pricing (2026-11-09)';
+
+// Dog counts at or above this are quoted by a person, not sold online.
+export const QUOTE_MIN_DOGS = 4;
+export const QUOTE_REQUEST_PATH = '/contact?subject=' + encodeURIComponent('Quote request: 4+ dogs');
 
 const MONTHLY_FEATURES = (dogs) => ['Weekly service', dogs, '4 services per month'];
 const ONE_TIME_FEATURES = (dogs) => ['One-time cleanup', dogs, 'No subscription required'];
@@ -34,7 +35,7 @@ export const PLANS = [
         interval: 'month',
         numberOfDogs: 1,
         serviceCount: 4,
-        displayAmount: 55,
+        displayAmount: 79,
         priceEnv: 'STRIPE_MONTHLY_1_DOG_PRICE_ID',
         legacyPriceEnvs: ['STRIPE_SINGLE_DOG_PRICE_ID'],
         aliases: ['weekly-1', 'weekly-1-dog', 'single_dog'],
@@ -49,7 +50,7 @@ export const PLANS = [
         interval: 'month',
         numberOfDogs: 2,
         serviceCount: 4,
-        displayAmount: 70,
+        displayAmount: 89,
         priceEnv: 'STRIPE_MONTHLY_2_DOGS_PRICE_ID',
         legacyPriceEnvs: ['STRIPE_TWO_DOGS_PRICE_ID'],
         aliases: ['weekly-2', 'weekly-2-dogs', 'two_dogs'],
@@ -58,17 +59,17 @@ export const PLANS = [
     },
     {
         id: 'three-plus-dogs-monthly',
-        name: 'Three+ Dogs',
-        description: 'Weekly service for 3 or more dogs',
+        name: 'Three Dogs',
+        description: 'Weekly service for 3 dogs',
         kind: 'subscription',
         interval: 'month',
-        numberOfDogs: '3+',
+        numberOfDogs: 3,
         serviceCount: 4,
-        displayAmount: 100,
+        displayAmount: 99,
         priceEnv: 'STRIPE_MONTHLY_3_PLUS_DOGS_PRICE_ID',
         legacyPriceEnvs: ['STRIPE_THREE_PLUS_DOGS_PRICE_ID'],
         aliases: ['weekly-3', 'weekly-3-plus-dogs', 'three_plus_dogs'],
-        features: MONTHLY_FEATURES('3+ dogs'),
+        features: MONTHLY_FEATURES('3 dogs'),
         popular: false,
     },
     {
@@ -79,8 +80,8 @@ export const PLANS = [
         interval: 'one-time',
         numberOfDogs: 1,
         serviceCount: 1,
-        displayAmount: null,
-        pendingDecision: PENDING_ONE_TIME_PRICE,
+        displayAmount: 79,
+        startingAt: true,
         priceEnv: 'STRIPE_ONETIME_1_DOG_PRICE_ID',
         legacyPriceEnvs: ['STRIPE_ONE_TIME_SINGLE_DOG_PRICE_ID'],
         aliases: ['one-time-1', 'one-time-1-dog', 'one_time_single_dog'],
@@ -95,8 +96,8 @@ export const PLANS = [
         interval: 'one-time',
         numberOfDogs: 2,
         serviceCount: 1,
-        displayAmount: null,
-        pendingDecision: PENDING_ONE_TIME_PRICE,
+        displayAmount: 99,
+        startingAt: true,
         priceEnv: 'STRIPE_ONETIME_2_DOGS_PRICE_ID',
         legacyPriceEnvs: ['STRIPE_ONE_TIME_TWO_DOGS_PRICE_ID'],
         aliases: ['one-time-2', 'one-time-2-dogs', 'one_time_two_dogs'],
@@ -105,48 +106,43 @@ export const PLANS = [
     },
     {
         id: 'one-time-three-plus-dogs',
-        name: 'One-Time Cleanup (3+ Dogs)',
-        description: 'Single cleanup for 3 or more dogs',
+        name: 'One-Time Cleanup (3 Dogs)',
+        description: 'Single cleanup for 3 dogs',
         kind: 'one_time',
         interval: 'one-time',
-        numberOfDogs: '3+',
+        numberOfDogs: 3,
         serviceCount: 1,
-        displayAmount: null,
-        pendingDecision: PENDING_ONE_TIME_PRICE,
+        displayAmount: 119,
+        startingAt: true,
         priceEnv: 'STRIPE_ONETIME_3_PLUS_DOGS_PRICE_ID',
         legacyPriceEnvs: ['STRIPE_ONE_TIME_THREE_PLUS_DOGS_PRICE_ID'],
         aliases: ['one-time-3', 'one-time-3-plus-dogs', 'one_time_three_plus_dogs'],
-        features: ONE_TIME_FEATURES('3+ dogs'),
+        features: ONE_TIME_FEATURES('3 dogs'),
         popular: false,
     },
 ];
 
 export const INITIAL_CLEANUP = {
     id: 'initial-cleanup',
-    name: 'Initial Cleanup',
-    description: 'One-time initial cleanup for new subscriptions',
+    name: 'Initial Catch-Up Cleanup',
+    description: 'One-time catch-up cleanup before weekly service starts',
     kind: 'one_time',
     interval: 'one-time',
     serviceCount: 1,
-    displayAmount: null,
-    pendingDecision: PENDING_INITIAL_CLEANUP_FEE,
+    displayAmount: 49,
+    startingAt: true,
     priceEnv: 'STRIPE_INITIAL_CLEANUP_PRICE_ID',
     legacyPriceEnvs: [],
     aliases: ['initial_cleanup'],
-    features: ['Initial cleanup', 'One-time fee'],
-    // PENDING: the amount /api/auth/signup charged before this catalog existed.
-    // Used only while STRIPE_INITIAL_CLEANUP_PRICE_ID is unset, so signup keeps
-    // its current behavior until Matthew decides the fee.
-    legacySignupChargeCents: 3000,
+    features: ['Initial catch-up cleanup', 'One-time fee'],
+    // Charged as an inline price only while STRIPE_INITIAL_CLEANUP_PRICE_ID is unset.
+    fallbackChargeCents: 4900,
 };
 
-// PENDING (Matthew): how much a new subscriber pays upfront. Checkout charges
-// only the plan's Stripe Price until this is set; no cleanup line item and no
-// second month is added.
-//   null                    -> plan price only (current behavior)
-//   'TWO_MONTHS'            -> two months upfront
-//   'FIRST_MONTH_PLUS_CLEANUP' -> first month + INITIAL_CLEANUP price
-export const UPFRONT_POLICY = null;
+// What a new subscriber pays at signup checkout: the first month (the
+// subscription's first invoice) plus the INITIAL_CLEANUP catch-up. There is no
+// two-month upfront charge.
+export const UPFRONT_POLICY = 'FIRST_MONTH_PLUS_CATCH_UP';
 
 export const ALL_CATALOG_ITEMS = [...PLANS, INITIAL_CLEANUP];
 

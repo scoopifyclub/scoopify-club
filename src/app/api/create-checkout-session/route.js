@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { rateLimit } from '@/lib/auth-rate-limit';
 import { calculateTaxes } from '@/lib/tax-calculator';
-import { resolvePurchasablePlan } from '@/lib/pricing.server';
+import { getInitialCleanupLineItem, resolvePurchasablePlan } from '@/lib/pricing.server';
 import { validateUserToken } from '@/lib/jwt-utils';
 import prisma from '@/lib/prisma';
 
@@ -44,7 +44,10 @@ export async function POST(request) {
             }, { status: 429 });
         }
 
-        const { planId, priceId: requestedPriceId, serviceType, customerType, subtotal } = await request.json();
+        const {
+            planId, priceId: requestedPriceId, serviceType, customerType, subtotal,
+            includeInitialCleanup, startDate, attemptId, cancelPath,
+        } = await request.json();
 
         if (!planId && !requestedPriceId) {
             return NextResponse.json({
@@ -65,6 +68,28 @@ export async function POST(request) {
         const { item: plan, priceId } = purchasable;
         const isOneTime = plan.kind !== 'subscription';
         const buyer = await findSignedInCustomer(request);
+
+        if (!isOneTime && buyer) {
+            const liveSubscription = await prisma.subscription.findFirst({
+                where: { customerId: buyer.customerId, status: { in: ['ACTIVE', 'SUSPENDED'] } },
+                select: { id: true },
+            });
+            if (liveSubscription) {
+                return NextResponse.json({
+                    error: 'You already have an active subscription',
+                    code: 'already_subscribed'
+                }, { status: 409 });
+            }
+        }
+
+        // Signup checkout: first-visit date and the initial cleanup fee are
+        // only accepted for a signed-in customer.
+        const firstVisitDate = buyer && /^\d{4}-\d{2}-\d{2}$/.test(startDate || '') ? startDate : '';
+        const cleanupLineItem = buyer && !isOneTime && includeInitialCleanup ? getInitialCleanupLineItem() : null;
+        const safeCancelPath = typeof cancelPath === 'string' && cancelPath.startsWith('/signup/payment') ? cancelPath : '/pricing';
+        const idempotencyKey = typeof attemptId === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(attemptId)
+            ? `checkout-${buyer?.customerId || 'anon'}-${plan.id}-${attemptId}`
+            : undefined;
 
         // Calculate taxes if subtotal is provided
         let taxAmount = 0;
@@ -93,6 +118,7 @@ export async function POST(request) {
                     price: priceId,
                     quantity: 1,
                 },
+                ...(cleanupLineItem ? [cleanupLineItem] : []),
                 // Add tax line item if taxes were calculated
                 ...(taxAmount > 0 ? [{
                     price_data: {
@@ -108,7 +134,7 @@ export async function POST(request) {
             ],
             mode: isOneTime ? 'payment' : 'subscription',
             success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${origin}/pricing`,
+            cancel_url: `${origin}${safeCancelPath}`,
             ...(buyer?.stripeCustomerId
                 ? { customer: buyer.stripeCustomerId }
                 : buyer?.email ? { customer_email: buyer.email } : {}),
@@ -119,6 +145,7 @@ export async function POST(request) {
             metadata: {
                 planId: plan.id,
                 customerId: buyer?.customerId || '',
+                startDate: firstVisitDate,
                 isOneTime: isOneTime ? 'true' : 'false',
                 subtotal: subtotal ? subtotal.toString() : '',
                 taxAmount: taxAmount.toString(),
@@ -127,7 +154,7 @@ export async function POST(request) {
                 customerType: customerType || '',
                 location: 'Peyton, Colorado'
             }
-        });
+        }, idempotencyKey ? { idempotencyKey } : undefined);
         return NextResponse.json({ sessionId: session.id, url: session.url });
     }
     catch (error) {

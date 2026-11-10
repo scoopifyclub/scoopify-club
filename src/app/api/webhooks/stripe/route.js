@@ -4,6 +4,9 @@ import { stripe } from '@/lib/stripe';
 import {
     CUSTOMER_PAYMENT_INTENT_TYPES,
     RetryableWebhookError,
+    ensureInitialService,
+    ensureServicePlan,
+    recordChargeRefund,
     recordInvoicePayment,
     recordPaymentIntent,
     resolveCustomer,
@@ -49,9 +52,10 @@ async function handleCheckoutSession(tx, session, { stripeClient, paid }) {
         throw new RetryableWebhookError(`No Customer for checkout session ${session.id}`);
     }
 
+    let servicePlanId = null;
     if (session.mode === 'subscription' && session.subscription) {
-        await syncSubscription(tx, stripeClient, session.subscription, customer.id);
-        return;
+        const subscription = await syncSubscription(tx, stripeClient, session.subscription, customer.id);
+        servicePlanId = subscription.planId;
     }
 
     // Async payment methods complete later via async_payment_succeeded.
@@ -63,6 +67,15 @@ async function handleCheckoutSession(tx, session, { stripeClient, paid }) {
             customer: session.customer,
             metadata: session.metadata || {},
         }, { paid, customerId: customer.id, type: 'ONE_TIME_PAYMENT' });
+    }
+
+    // Signup checkouts carry the requested first visit date.
+    const scheduledDate = session.metadata?.startDate ? new Date(session.metadata.startDate) : null;
+    if (paid && session.payment_status === 'paid' && scheduledDate && !Number.isNaN(scheduledDate.getTime())) {
+        if (!servicePlanId) {
+            servicePlanId = (await ensureServicePlan(tx, { planId: session.metadata?.planId })).id;
+        }
+        await ensureInitialService(tx, { sessionId: session.id, customerId: customer.id, servicePlanId, scheduledDate });
     }
 }
 
@@ -95,6 +108,7 @@ const EVENT_HANDLERS = {
     'invoice.payment_failed': (tx, object, ctx) => handleInvoice(tx, object, { ...ctx, paid: false }),
     'payment_intent.succeeded': (tx, object) => handlePaymentIntent(tx, object, { paid: true }),
     'payment_intent.payment_failed': (tx, object) => handlePaymentIntent(tx, object, { paid: false }),
+    'charge.refunded': (tx, object) => recordChargeRefund(tx, object),
 };
 
 export async function POST(request) {
