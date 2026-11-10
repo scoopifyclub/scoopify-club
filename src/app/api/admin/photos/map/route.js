@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
+import { toPhotoView } from '@/lib/service-photos';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -21,7 +22,7 @@ export async function GET(request) {
             );
         }
 
-        const photos = await prisma.photo.findMany({
+        const photos = await prisma.servicePhoto.findMany({
             where: {
                 createdAt: {
                     gte: new Date(startDate),
@@ -30,10 +31,12 @@ export async function GET(request) {
             },
             include: {
                 service: {
-                    include: {
+                    select: {
+                        location: { select: { latitude: true, longitude: true } },
                         customer: {
-                            include: {
+                            select: {
                                 address: true,
+                                user: { select: { firstName: true, lastName: true } },
                             },
                         },
                     },
@@ -41,14 +44,12 @@ export async function GET(request) {
             },
         });
 
-        const mapData = photos.map((photo) => ({
-            id: photo.id,
-            url: photo.url,
-            createdAt: photo.createdAt,
+        const mapData = await Promise.all(photos.map(async (photo) => ({
+            ...(await toPhotoView(photo)),
             address: photo.service?.customer?.address,
-            customerName: photo.service?.customer?.name,
-            serviceId: photo.serviceId,
-        }));
+            location: photo.service?.location ?? null,
+            customerName: [photo.service?.customer?.user?.firstName, photo.service?.customer?.user?.lastName].filter(Boolean).join(' ') || null,
+        })));
 
         return NextResponse.json(mapData);
     } catch (error) {

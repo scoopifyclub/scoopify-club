@@ -43,6 +43,21 @@ const createTransporter = async () => {
     return createTransport(config);
 };
 
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function displayName(user, fallback) {
+    const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ') || user?.name;
+    return name || fallback;
+}
+
+function photoGallery(photos = [], type, title) {
+    const matching = photos.filter((photo) => photo.type === type);
+    if (matching.length === 0) return '';
+    return `
+                        <h4 style="color: #92400e; margin: 16px 0 8px;">${title}</h4>
+                        <div>${matching.map((photo) => `<a href="${escapeHtml(photo.url)}"><img src="${escapeHtml(photo.url)}" alt="${title}" width="160" style="width: 160px; max-width: 45%; margin: 4px; border-radius: 6px;"></a>`).join('')}</div>`;
+}
+
 // Email templates for service notifications
 const emailTemplates = {
     // Service Status Notifications
@@ -148,15 +163,20 @@ const emailTemplates = {
                 </div>
                 
                 <div style="padding: 30px;">
-                    <p style="font-size: 18px; color: #333;">Hi <strong>${data.customerName}</strong>,</p>
-                    <p style="font-size: 16px; color: #555;">Great news! Your service with <strong>${data.employeeName}</strong> has been completed successfully.</p>
+                    <p style="font-size: 18px; color: #333;">Hi <strong>${escapeHtml(data.customerName)}</strong>,</p>
+                    <p style="font-size: 16px; color: #555;">Great news! Your service with <strong>${escapeHtml(data.employeeName)}</strong> has been completed successfully.</p>
                     
                     <div style="background-color: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 20px; margin: 20px 0;">
                         <h3 style="color: #0c4a6e; margin-top: 0;">Service Details</h3>
-                        <p style="margin: 8px 0;"><strong>Service:</strong> ${data.servicePlanName}</p>
-                        <p style="margin: 8px 0;"><strong>Date:</strong> ${data.serviceDate}</p>
-                        <p style="margin: 8px 0;"><strong>Scooper:</strong> ${data.employeeName}</p>
+                        <p style="margin: 8px 0;"><strong>Service:</strong> ${escapeHtml(data.servicePlanName)}</p>
+                        <p style="margin: 8px 0;"><strong>Date:</strong> ${escapeHtml(data.serviceDate)}</p>
+                        <p style="margin: 8px 0;"><strong>Scooper:</strong> ${escapeHtml(data.employeeName)}</p>
                     </div>
+                    ${data.photos && data.photos.length ? `
+                    <div style="background-color: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                        <h3 style="color: #92400e; margin-top: 0;">📸 Your service photos</h3>${photoGallery(data.photos, 'AFTER', 'After')}${photoGallery(data.photos, 'BEFORE', 'Before')}
+                        <p style="color: #92400e; font-size: 13px; margin: 12px 0 0;">Photo links in this email expire after ${escapeHtml(data.photoLinkDays || 7)} days. You can always see them in your dashboard.</p>
+                    </div>` : ''}
                     
                     <div style="background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0;">
                         <h3 style="color: #065f46; margin-top: 0;">⭐ Rate Your Experience</h3>
@@ -166,7 +186,7 @@ const emailTemplates = {
                     
                     <div style="background-color: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 20px; margin: 20px 0;">
                         <h3 style="color: #991b1b; margin-top: 0;">💝 Show Your Appreciation</h3>
-                        <p style="color: #991b1b; margin: 8px 0;">If you're happy with the service, consider leaving a tip for ${data.employeeName}!</p>
+                        <p style="color: #991b1b; margin: 8px 0;">If you're happy with the service, consider leaving a tip for ${escapeHtml(data.employeeName)}!</p>
                         <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/services" style="display: inline-block; background-color: #ef4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">Leave a Tip</a>
                     </div>
                     
@@ -331,15 +351,28 @@ const emailTemplates = {
     }
 };
 
-// Main email sending function
+export function isEmailConfigured() {
+    return Boolean(process.env.SMTP_PASSWORD);
+}
+
+// Main email sending function. Also accepts a single { to, template, data } object.
 export async function sendEmail(to, template, data = {}) {
+    if (to && typeof to === 'object' && !Array.isArray(to)) {
+        ({ to, template, data = {} } = to);
+    }
+    const emailTemplate = emailTemplates[template];
+    if (!emailTemplate) {
+        throw new Error(`Email template '${template}' not found`);
+    }
+    if (!to) {
+        return { success: false, skipped: true, reason: 'NO_RECIPIENT' };
+    }
+    if (!isEmailConfigured()) {
+        console.warn(`SMTP_PASSWORD is not set; skipping '${template}' email`);
+        return { success: false, skipped: true, reason: 'EMAIL_NOT_CONFIGURED' };
+    }
     try {
         const transporter = await createTransporter();
-        const emailTemplate = emailTemplates[template];
-        
-        if (!emailTemplate) {
-            throw new Error(`Email template '${template}' not found`);
-        }
 
         // Replace template variables in subject
         let subject = emailTemplate.subject;
@@ -505,14 +538,19 @@ export async function sendScooperArrivedEmail(service, scooper) {
     }
 }
 
-export async function sendServiceCompletedEmail(service, scooper) {
+/**
+ * @param {object} [options]
+ * @param {{url: string, type: string}[]} [options.photos] - signed photo URLs to show in the email
+ */
+export async function sendServiceCompletedEmail(service, scooper, { photos = [] } = {}) {
     try {
         const data = {
-            customerName: service.customer.user.name,
-            employeeName: scooper.user.name,
-            servicePlanName: service.servicePlan.name,
-            serviceDate: new Date(service.completedDate).toLocaleDateString(),
-            serviceId: service.id
+            customerName: displayName(service.customer?.user, 'there'),
+            employeeName: displayName(scooper?.user, 'your scooper'),
+            servicePlanName: service.servicePlan?.name || 'Yard service',
+            serviceDate: new Date(service.completedDate || Date.now()).toLocaleDateString('en-US', { timeZone: 'America/Denver' }),
+            serviceId: service.id,
+            photos: photos.filter((photo) => photo?.url)
         };
 
         return await sendEmail({

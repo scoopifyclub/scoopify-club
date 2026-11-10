@@ -10,7 +10,7 @@ How scoopers claim, hold and check in to jobs. The logic lives in
 | Unclaimed | `SCHEDULED` | null | `workflowStatus = AVAILABLE` |
 | Claimed | `PENDING` | set | `workflowStatus = CLAIMED`, `claimedAt`, `arrivalDeadline = claimedAt + 45 min` |
 | Checked in | `IN_PROGRESS` | set | `workflowStatus = ARRIVED`, `arrivedAt` |
-| Done | `COMPLETED` | set | |
+| Done | `COMPLETED` | set | `completedDate`; see `docs/job-completion.md` |
 
 A claim that is not checked in by `arrivalDeadline` is released back to
 Unclaimed and a `JOB_CLAIM_EXPIRED` row is written to `SystemLog`.

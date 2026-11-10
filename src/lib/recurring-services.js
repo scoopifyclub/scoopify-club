@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 import { prisma as defaultDb } from '@/lib/prisma';
-import { calculateMonthlyServicePayment } from '@/lib/payment-calculator';
+import { scooperEarningDollars } from '@/lib/job-financials';
 import {
   addDays,
   dateColumnToString,
@@ -24,9 +24,7 @@ export const DEFAULT_HORIZON_DAYS = 7;
 export const MAX_HORIZON_DAYS = 35;
 
 export function perVisitEarnings(servicePlan) {
-  const price = Number(servicePlan?.price);
-  if (!Number.isFinite(price) || price <= 0) return null;
-  return calculateMonthlyServicePayment(price).scooperPaymentPerService;
+  return scooperEarningDollars(servicePlan);
 }
 
 /**

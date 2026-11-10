@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
+import { toPhotoView } from '@/lib/service-photos';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -32,7 +33,8 @@ export async function GET(request) {
                     include: {
                         user: {
                             select: {
-                                name: true
+                                firstName: true,
+                                lastName: true
                             }
                         },
                         address: true
@@ -42,7 +44,8 @@ export async function GET(request) {
                     include: {
                         user: {
                             select: {
-                                name: true
+                                firstName: true,
+                                lastName: true
                             }
                         }
                     }
@@ -58,36 +61,26 @@ export async function GET(request) {
                 scheduledDate: 'asc'
             }
         });
-        const formattedServices = services.map(service => ({
+        const fullName = (user) => [user?.firstName, user?.lastName].filter(Boolean).join(' ') || null;
+        const earnings = await prisma.earning.findMany({ where: { serviceId: { in: services.map(s => s.id) } } });
+        const earningByService = new Map(earnings.map(e => [e.serviceId, e]));
+        const formattedServices = await Promise.all(services.map(async (service) => ({
             id: service.id,
             scheduledFor: service.scheduledDate,
+            completedDate: service.completedDate,
             customer: {
-                name: service.customer.user.name,
-                address: service.customer.address.street
+                name: fullName(service.customer.user),
+                address: service.customer.address?.street ?? null
             },
             employee: service.employee ? {
-                name: service.employee.user.name
+                id: service.employee.id,
+                name: fullName(service.employee.user)
             } : undefined,
-            photos: service.photos.map(photo => ({
-                id: photo.id,
-                url: photo.url,
-                type: photo.type,
-                createdAt: photo.createdAt
-            })),
-            checklist: service.checklist || {
-                gatesClosed: false,
-                gatesLocked: false,
-                gatesSecured: false,
-                gatesChecked: false,
-                gatesVerified: false,
-                gatesConfirmed: false,
-                gatesInspected: false,
-                gatesValidated: false,
-                gatesApproved: false,
-                gatesCompleted: false
-            }
-        }));
-        return NextResponse.json({ services: formattedServices });
+            photos: await Promise.all(service.photos.map(photo => toPhotoView(photo))),
+            checklist: service.checklist,
+            earning: earningByService.get(service.id) ?? null
+        })));
+        return NextResponse.json({ services: formattedServices }, { headers: { 'Cache-Control': 'private, no-store' } });
     }
     catch (error) {
         console.error('Error fetching service photos:', error);

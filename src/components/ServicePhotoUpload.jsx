@@ -5,37 +5,40 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ImageIcon, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { uploadJobPhoto, JobApiError } from '@/lib/job-api-client';
 
-export function ServicePhotoUpload({ serviceId, onUploadComplete }) {
+/**
+ * Before/after photo picker for an in-progress job. Photos up to 4 MB go
+ * through the API; larger ones (up to 10 MB) go straight to S3.
+ */
+export function ServicePhotoUpload({ serviceId, type = 'AFTER', onUploadComplete, existingCount = 0, required = 4 }) {
   const [previews, setPreviews] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const label = type === 'BEFORE' ? 'Before' : type === 'AFTER' ? 'After' : 'Service';
 
-  const handleFileSelect = async (e) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleFileSelect = (e) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    setPreviews((prev) => [
+      ...prev,
+      ...files.map((file, i) => ({
+        id: `preview-${Date.now()}-${i}-${file.name}`,
+        file,
+        url: URL.createObjectURL(file),
+        type,
+      })),
+    ]);
+  };
 
-    const newPreviews = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const reader = new FileReader();
-      
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          newPreviews.push({
-            id: `preview-${Date.now()}-${i}`,
-            url: e.target.result,
-            type: 'AFTER'
-          });
-          
-          if (newPreviews.length === files.length) {
-            setPreviews(prev => [...prev, ...newPreviews]);
-          }
-        }
-      };
-      
-      reader.readAsDataURL(file);
-    }
+  const removePreview = (id) => {
+    setPreviews((prev) => {
+      const next = prev.filter((p) => p.id !== id);
+      const removed = prev.find((p) => p.id === id);
+      if (removed?.url) URL.revokeObjectURL(removed.url);
+      return next;
+    });
   };
 
   const handleUpload = async () => {
@@ -43,65 +46,35 @@ export function ServicePhotoUpload({ serviceId, onUploadComplete }) {
       toast.error('Please add at least one photo');
       return;
     }
-
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      previews.forEach((preview, index) => {
-        // Convert base64 to blob
-        const base64Data = preview.url.split(',')[1];
-        const byteCharacters = atob(base64Data);
-        const byteArrays = [];
-        
-        for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-          const slice = byteCharacters.slice(offset, offset + 512);
-          const byteNumbers = new Array(slice.length);
-          
-          for (let i = 0; i < slice.length; i++) {
-            byteNumbers[i] = slice.charCodeAt(i);
-          }
-          
-          const byteArray = new Uint8Array(byteNumbers);
-          byteArrays.push(byteArray);
-        }
-        
-        const blob = new Blob(byteArrays, { type: 'image/jpeg' });
-        formData.append(`photos`, blob, `photo-${index}.jpg`);
-      });
-
-      const response = await fetch(`/api/employee/services/${id}/photos`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to upload photos');
+      for (const preview of previews) {
+        await uploadJobPhoto(serviceId, preview.file, type);
       }
-
-      toast.success('Photos uploaded successfully');
+      toast.success(`${label} photos uploaded`);
+      previews.forEach((p) => p.url && URL.revokeObjectURL(p.url));
       setPreviews([]);
-      onUploadComplete();
+      onUploadComplete?.();
     } catch (error) {
       console.error('Error uploading photos:', error);
-      toast.error('Failed to upload photos');
+      toast.error(error instanceof JobApiError ? error.message : 'Failed to upload photos');
     } finally {
       setIsUploading(false);
     }
-  };
-
-  const removePreview = (id) => {
-    setPreviews(prev => prev.filter(p => p.id !== id));
   };
 
   return (
     <Card>
       <CardContent className="p-4">
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Upload Service Photos</h3>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h3 className="text-lg font-semibold">Upload {label} Photos</h3>
+              <p className="text-sm text-gray-500">
+                {existingCount} of {required} uploaded
+                {previews.length > 0 ? ` · ${previews.length} ready` : ''}
+              </p>
+            </div>
             <Button
               variant="outline"
               onClick={() => fileInputRef.current?.click()}
@@ -114,7 +87,7 @@ export function ServicePhotoUpload({ serviceId, onUploadComplete }) {
               type="file"
               ref={fileInputRef}
               onChange={handleFileSelect}
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
               multiple
               className="hidden"
             />
@@ -126,10 +99,11 @@ export function ServicePhotoUpload({ serviceId, onUploadComplete }) {
                 <div key={preview.id} className="relative group">
                   <img
                     src={preview.url}
-                    alt="Service photo preview"
+                    alt={`${label} photo preview`}
                     className="w-full h-32 object-cover rounded-lg"
                   />
                   <button
+                    type="button"
                     onClick={() => removePreview(preview.id)}
                     className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                   >
@@ -142,10 +116,7 @@ export function ServicePhotoUpload({ serviceId, onUploadComplete }) {
 
           {previews.length > 0 && (
             <div className="flex justify-end">
-              <Button
-                onClick={handleUpload}
-                disabled={isUploading}
-              >
+              <Button onClick={handleUpload} disabled={isUploading}>
                 {isUploading ? 'Uploading...' : 'Upload Photos'}
               </Button>
             </div>
