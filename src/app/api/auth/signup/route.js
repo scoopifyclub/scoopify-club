@@ -16,18 +16,17 @@ import { validatePassword } from '@/lib/password';
 import { v4 as uuidv4 } from 'uuid';
 import { createUserToken } from '@/lib/jwt-utils';
 import { cookies } from 'next/headers';
-import Stripe from 'stripe';
+import { stripe as stripeInstance } from '@/lib/stripe';
 import { edgeRateLimit } from '@/lib/edge-rate-limit';
 import crypto from 'crypto';
+import { INITIAL_CLEANUP, findPlan, getConfiguredPriceId } from '@/lib/pricing-catalog';
 
 // Force Node.js runtime for bcryptjs, crypto, and Prisma
 export const runtime = 'nodejs';
 
 const SELF_SIGNUP_ROLES = ['CUSTOMER', 'EMPLOYEE'];
 
-const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: '2023-10-16',
-});
+
 export async function POST(request) {
     try {
         // Get client IP for rate limiting
@@ -40,7 +39,7 @@ export async function POST(request) {
         }
 
         const body = await request.json();
-        const { email, firstName, lastName, password, deviceFingerprint, role = 'CUSTOMER', address, phone, gateCode, serviceDay, startDate, isOneTimeService, paymentMethodId, referralCode, serviceType, travelDistance, coveredZips } = body;
+        const { email, firstName, lastName, password, deviceFingerprint, role = 'CUSTOMER', address, phone, gateCode, serviceDay, startDate, referralCode, serviceType, travelDistance, coveredZips } = body;
         // Privileged roles (ADMIN, etc.) are never self-assignable
         if (!SELF_SIGNUP_ROLES.includes(role)) {
             return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
@@ -83,12 +82,22 @@ export async function POST(request) {
         let stripeCustomer = null;
         let referrerId = null;
         let newReferralCode = null;
+        let signupPlan = null;
+        let signupPriceId = null;
+        let nextStep = null;
 
         // Only create Stripe customer and handle referrals for customer signups
         if (role === 'CUSTOMER') {
             // Check if the customer's ZIP code is covered by any active scooper using proximity
             if (!address?.zipCode) {
                 return NextResponse.json({ error: 'ZIP code is required for customers' }, { status: 400 });
+            }
+            // Resolve the plan before anything is charged
+            signupPlan = findPlan(serviceType);
+            signupPriceId = signupPlan && signupPlan.id !== INITIAL_CLEANUP.id ? getConfiguredPriceId(signupPlan) : null;
+            if (!signupPriceId) {
+                console.error(`Signup plan unavailable: serviceType=${serviceType}`);
+                return NextResponse.json({ error: 'Selected plan is not available. Please choose another plan.' }, { status: 400 });
             }
             
             // Get all active coverage areas and check proximity
@@ -111,18 +120,22 @@ export async function POST(request) {
                     error: `Sorry, we do not currently service your area. ${coverageResult.reason || 'No active scoopers within range.'}` 
                 }, { status: 400 });
             }
-            // Create Stripe customer
-            stripeCustomer = await stripeInstance.customers.create({
+            if (!stripeInstance) {
+                console.error('Signup: STRIPE_SECRET_KEY is not set');
+                return NextResponse.json({ error: 'Payments are not available right now. Please try again later.' }, { status: 503 });
+            }
+            // Create Stripe customer. The key makes a double-submitted signup
+            // reuse one Stripe customer; it covers the exact same details only.
+            const customerParams = {
                 email,
                 name: `${firstName} ${lastName}`,
                 phone,
-                payment_method: paymentMethodId,
-                invoice_settings: {
-                    default_payment_method: paymentMethodId,
-                },
                 metadata: {
                     deviceFingerprint
                 }
+            };
+            stripeCustomer = await stripeInstance.customers.create(customerParams, {
+                idempotencyKey: `signup-customer-${crypto.createHash('sha256').update(JSON.stringify(customerParams)).digest('hex').slice(0, 40)}`,
             });
 
             // Find referrer if referral code provided
@@ -223,6 +236,10 @@ export async function POST(request) {
             
             console.log('Database transaction completed successfully');
         } catch (transactionError) {
+            if (transactionError?.code === 'P2002') {
+                // A concurrent submit of the same signup won the race
+                return NextResponse.json({ error: 'User with this email already exists' }, { status: 409 });
+            }
             console.error('Database transaction failed:', transactionError);
             throw new Error(`Database transaction failed: ${transactionError.message}`);
         }
@@ -279,138 +296,13 @@ export async function POST(request) {
                 }
             }
 
-            // Handle customer-specific operations (setup fee, subscription, etc.)
-            // Create and charge for first-time setup fee - $30
-            const setupFeeAmount = 3000; // $30.00 in cents
-            const setupFeePaymentIntent = await stripeInstance.paymentIntents.create({
-                amount: setupFeeAmount,
-                currency: 'usd',
-                customer: stripeCustomer.id,
-                payment_method: paymentMethodId,
-                description: 'Initial Cleanup Fee',
-                metadata: {
-                    customerId: customer.id,
-                    userId: user.id,
-                    type: 'SETUP_FEE'
-                },
-                confirm: true,
-            });
-            // Create subscription or one-time service
-            let subscription = null;
-            if (!isOneTimeService) {
-                // Determine the appropriate Stripe price ID based on the plan
-                let priceId;
-                if (serviceType === 'weekly-1-dog') {
-                    priceId = process.env.STRIPE_MONTHLY_1_DOG_PRICE_ID;
-                } else if (serviceType === 'weekly-2-dogs') {
-                    priceId = process.env.STRIPE_MONTHLY_2_DOGS_PRICE_ID;
-                } else if (serviceType === 'weekly-3-plus-dogs') {
-                    priceId = process.env.STRIPE_MONTHLY_3_PLUS_DOGS_PRICE_ID;
-                } else if (serviceType === 'one-time-1-dog') {
-                    priceId = process.env.STRIPE_ONETIME_1_DOG_PRICE_ID;
-                } else if (serviceType === 'one-time-2-dogs') {
-                    priceId = process.env.STRIPE_ONETIME_2_DOGS_PRICE_ID;
-                } else if (serviceType === 'one-time-3-plus-dogs') {
-                    priceId = process.env.STRIPE_ONETIME_3_PLUS_DOGS_PRICE_ID;
-                }
-
-                // Find the corresponding ServicePlan in the database
-                const servicePlan = await prisma.servicePlan.findFirst({
-                    where: {
-                        OR: [
-                            { name: serviceType },
-                            { code: serviceType },
-                            { stripePriceId: priceId }
-                        ],
-                        isActive: true
-                    }
-                });
-
-                if (!servicePlan) {
-                    console.error(`ServicePlan not found for serviceType: ${serviceType}, priceId: ${priceId}`);
-                    return NextResponse.json({ 
-                        error: 'Service plan not found. Please contact support.' 
-                    }, { status: 400 });
-                }
-
-                // Create subscription
-                const stripeSubscription = await stripeInstance.subscriptions.create({
-                    customer: stripeCustomer.id,
-                    items: [{ price: priceId }],
-                    default_payment_method: paymentMethodId,
-                    metadata: {
-                        customerId: customer.id,
-                        userId: user.id,
-                    },
-                });
-                // Save subscription to DB
-                subscription = await prisma.subscription.create({
-                    data: {
-                        customerId: customer.id,
-                        status: stripeSubscription.status,
-                        planId: servicePlan.id, // Use the actual ServicePlan ID
-                        startDate: new Date(),
-                        nextBillingDate: new Date(stripeSubscription.current_period_end * 1000)
-                    },
-                });
-                // Schedule first service based on preferred day
-                await prisma.service.create({
-                    data: {
-                        id: crypto.randomUUID(),
-                        customerId: customer.id,
-                        scheduledDate: new Date(startDate),
-                        status: 'SCHEDULED',
-                        servicePlanId: servicePlan.id // Use the actual ServicePlan ID
-                    },
-                });
-            }
-            else {
-                // Handle one-time service
-                const oneTimeAmount = serviceType === 'one-time-basic' ? 5000 : 7500; // $50 or $75
-                const paymentIntent = await stripeInstance.paymentIntents.create({
-                    amount: oneTimeAmount,
-                    currency: 'usd',
-                    customer: stripeCustomer.id,
-                    payment_method: paymentMethodId,
-                    description: serviceType === 'one-time-basic' ? 'Basic One-Time Service' : 'Premium One-Time Service',
-                    metadata: {
-                        customerId: customer.id,
-                        userId: user.id,
-                        type: 'ONE_TIME'
-                    },
-                    confirm: true,
-                });
-
-                // Find the corresponding ServicePlan for one-time service
-                const oneTimeServicePlan = await prisma.servicePlan.findFirst({
-                    where: {
-                        OR: [
-                            { name: serviceType },
-                            { code: serviceType },
-                            { type: 'ONE_TIME' }
-                        ],
-                        isActive: true
-                    }
-                });
-
-                if (!oneTimeServicePlan) {
-                    console.error(`One-time ServicePlan not found for serviceType: ${serviceType}`);
-                    return NextResponse.json({ 
-                        error: 'One-time service plan not found. Please contact support.' 
-                    }, { status: 400 });
-                }
-
-                // Create one-time service
-                await prisma.service.create({
-                    data: {
-                        id: crypto.randomUUID(),
-                        customerId: customer.id,
-                        scheduledDate: new Date(startDate),
-                        status: 'SCHEDULED',
-                        servicePlanId: oneTimeServicePlan.id // Use the actual ServicePlan ID
-                    },
-                });
-            }
+            // No charge here: /signup/payment sends the customer to Stripe
+            // Checkout, and the Stripe webhook records the subscription, the
+            // payment and the first visit.
+            const paymentParams = new URLSearchParams({ plan: signupPlan.id });
+            if (startDate) paymentParams.set('start', startDate);
+            if (serviceDay) paymentParams.set('day', serviceDay);
+            nextStep = `/signup/payment?${paymentParams.toString()}`;
         }
 
         // Create JWT token for authentication
@@ -431,6 +323,17 @@ export async function POST(request) {
             secure: process.env.NODE_ENV === 'production',
             maxAge: 60 * 60 * 24, // 1 day
         });
+        // Customer pages and checkout read accessToken; lax so the session
+        // survives the redirect back from Stripe Checkout.
+        cookieStore.set({
+            name: 'accessToken',
+            value: token,
+            httpOnly: true,
+            path: '/',
+            sameSite: 'lax',
+            secure: process.env.NODE_ENV === 'production',
+            maxAge: 60 * 60 * 24,
+        });
 
         // Remove sensitive data before sending response
         const {
@@ -447,6 +350,7 @@ export async function POST(request) {
             customer,
             employee,
             token,
+            next: nextStep,
         }, { status: 201 });
 
         // Add rate limit headers if available

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/api-auth';
 import prisma from '@/lib/prisma';
 import { calculateReferralEarnings } from '@/lib/payment-calculator';
+import { PLANS } from '@/lib/pricing-catalog';
 
 // Force Node.js runtime for PDF generation
 export const runtime = 'nodejs';
@@ -146,7 +147,7 @@ SPECIAL OFFER:
 Use referral code: ${referralCode}
 Get $25 off your first service!
 
-Services start at $55/month
+Services start at $${PLANS[0].displayAmount}/month
 • Weekly cleaning
 • Professional service
 • Fully insured
