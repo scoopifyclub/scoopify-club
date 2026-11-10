@@ -14,7 +14,7 @@ export default function ServicesPage() {
                 Our Services
               </h1>
               <p className="mt-6 text-xl text-neutral-600">
-                Professional dog waste removal with weekly service, photo verification, and hassle-free billing
+                Recurring weekly dog waste removal for Peyton &amp; Falcon, with catch-up cleanups, photo verification, and simple monthly billing.
               </p>
             </div>
           </div>
@@ -66,20 +66,20 @@ export default function ServicesPage() {
             <div className="grid grid-cols-1 gap-12 lg:grid-cols-2 items-center">
               <div className="space-y-8">
                 <h2 className="text-3xl font-bold tracking-tight">
-                  Premium Dog Waste Removal
+                  Recurring Scoop &amp; Catch-Up Cleanups
                 </h2>
                 <p className="text-lg text-neutral-600">
-                  Subscribe to our weekly service and never worry about dog waste cleanup again. We visit your property on your chosen day each week, removing all waste and providing verification of service.
+                  Club members get a recurring weekly scoop on their chosen day. New yards that need a reset start with a one-time catch-up cleanup, then settle into the regular schedule.
                 </p>
                 <ul className="space-y-4">
                   {[
-            'Consistent weekly service on your chosen day',
+            'Recurring weekly scoop on your chosen day',
+            'Optional catch-up cleanup before weekly service begins',
             'Complete property inspection and thorough cleanup',
             'Photo verification of completed service',
             'Email confirmation after each visit',
-            'Environmentally responsible waste disposal',
-            'Simple monthly billing for all services',
-            'No contracts - pause or cancel anytime',
+            'Simple monthly billing for club plans',
+            'No long contracts — pause or cancel anytime',
         ].map((feature) => (<li key={feature} className="flex items-start gap-3">
                       <div className="flex-shrink-0 w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center">
                         <Check className="h-4 w-4 text-primary"/>
@@ -151,7 +151,7 @@ export default function ServicesPage() {
                   Ready for Hassle-Free Waste Removal?
                 </h2>
                 <p className="text-xl text-white/90 mb-8">
-                  Join hundreds of satisfied customers who enjoy our weekly subscription service for a cleaner, more enjoyable yard.
+                  Join the local pilot in Peyton &amp; Falcon — weekly scoop service for a cleaner, more usable yard.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Link href="/pricing">

@@ -5,58 +5,55 @@ export const viewport = {
     themeColor: '#10b981',
 };
 
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://scoopifyclub.com';
+const defaultTitle = 'Scoopify Club | Dog Waste Removal in Peyton & Falcon, CO';
+const defaultDescription =
+    'Weekly dog waste removal and catch-up cleanups for Peyton, Falcon, and nearby Colorado Springs. Recurring scoop service so your yard stays usable.';
+
 export const metadata = {
     title: {
-        default: "Scoopify Club - Professional Dog Waste Removal Service",
-        template: "%s | Scoopify Club"
+        default: defaultTitle,
+        template: '%s | Scoopify Club',
     },
-    description: "Professional dog waste removal service in Colorado. Keep your yard clean and enjoy more time with your pets. Serving Denver, Boulder, Aurora, and surrounding areas.",
+    description: defaultDescription,
     keywords: [
-        "dog waste removal",
-        "poop scooping service",
-        "yard cleaning",
-        "pet waste removal",
-        "Colorado",
-        "Denver",
-        "Boulder",
-        "Aurora",
-        "professional cleaning",
-        "residential cleaning"
+        'dog waste removal',
+        'pet waste removal',
+        'poop scooping service',
+        'Peyton CO',
+        'Falcon CO',
+        'Colorado Springs',
     ],
-    authors: [{ name: "Scoopify Club" }],
-    creator: "Scoopify Club",
-    publisher: "Scoopify Club",
+    authors: [{ name: 'Scoopify Club' }],
+    creator: 'Scoopify Club',
+    publisher: 'Scoopify Club',
     formatDetection: {
         email: false,
         address: false,
         telephone: false,
     },
-    metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://scoopifyclub.com'),
-    alternates: {
-        canonical: '/',
-    },
+    metadataBase: new URL(siteUrl),
     openGraph: {
         type: 'website',
         locale: 'en_US',
-        url: process.env.NEXT_PUBLIC_APP_URL || 'https://scoopifyclub.com',
-        title: 'Scoopify Club - Professional Dog Waste Removal Service',
-        description: 'Professional dog waste removal service in Colorado. Keep your yard clean and enjoy more time with your pets.',
+        url: siteUrl,
+        title: defaultTitle,
+        description: defaultDescription,
         siteName: 'Scoopify Club',
         images: [
             {
-                url: '/images/og-image.jpg',
+                url: '/images/dogs-backyard.jpg',
                 width: 1200,
                 height: 630,
-                alt: 'Scoopify Club - Professional Dog Waste Removal',
+                alt: 'Clean backyard for dogs — Scoopify Club service in Peyton and Falcon, Colorado',
             },
         ],
     },
     twitter: {
         card: 'summary_large_image',
-        title: 'Scoopify Club - Professional Dog Waste Removal Service',
-        description: 'Professional dog waste removal service in Colorado. Keep your yard clean and enjoy more time with your pets.',
-        images: ['/images/twitter-image.jpg'],
-        creator: '@scoopifyclub',
+        title: defaultTitle,
+        description: defaultDescription,
+        images: ['/images/dogs-backyard.jpg'],
     },
     robots: {
         index: true,
@@ -87,6 +84,39 @@ export const metadata = {
     },
 };
 
+const localBusinessJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'LocalBusiness',
+    name: 'Scoopify Club',
+    description: defaultDescription,
+    url: siteUrl,
+    email: 'services@scoopify.club',
+    image: `${siteUrl}/images/dogs-backyard.jpg`,
+    address: {
+        '@type': 'PostalAddress',
+        streetAddress: '7535 Gallard Heights',
+        addressLocality: 'Peyton',
+        addressRegion: 'CO',
+        postalCode: '80831',
+        addressCountry: 'US',
+    },
+    areaServed: [
+        { '@type': 'City', name: 'Peyton', containedInPlace: { '@type': 'State', name: 'Colorado' } },
+        { '@type': 'City', name: 'Falcon', containedInPlace: { '@type': 'State', name: 'Colorado' } },
+        { '@type': 'City', name: 'Colorado Springs', containedInPlace: { '@type': 'State', name: 'Colorado' } },
+    ],
+    makesOffer: {
+        '@type': 'Offer',
+        itemOffered: {
+            '@type': 'Service',
+            name: 'Dog waste removal',
+            description: 'Recurring weekly scoop service and one-time catch-up cleanups for residential yards.',
+            serviceType: 'Pet waste removal',
+            areaServed: ['Peyton, CO', 'Falcon, CO', 'Colorado Springs, CO'],
+        },
+    },
+};
+
 import { Outfit, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -110,6 +140,10 @@ const plusJakarta = Plus_Jakarta_Sans({
 export default function RootLayout({ children }) {
     return (<html lang="en" suppressHydrationWarning className={`${outfit.variable} ${plusJakarta.variable}`}>
       <body className="font-body antialiased">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessJsonLd) }}
+        />
         <Providers>
           <div className="relative min-h-screen flex flex-col">
             <Navbar />

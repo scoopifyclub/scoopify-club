@@ -8,8 +8,21 @@ import CheckoutButton from './CheckoutButton';
 export const revalidate = 300;
 
 export const metadata = {
-    title: 'Pricing | Scoopify Club',
-    description: 'Weekly dog waste removal plans and one-time cleanups.',
+    title: 'Pricing',
+    description:
+        'Weekly dog waste removal plans and one-time catch-up cleanups for Peyton, Falcon, and nearby Colorado Springs. Simple monthly pricing for recurring scoop service.',
+    alternates: { canonical: '/pricing' },
+    openGraph: {
+        title: 'Pricing | Scoopify Club',
+        description:
+            'Weekly dog waste removal plans and one-time catch-up cleanups for Peyton, Falcon, and nearby Colorado Springs.',
+        url: '/pricing',
+    },
+    twitter: {
+        title: 'Pricing | Scoopify Club',
+        description:
+            'Weekly dog waste removal plans and one-time catch-up cleanups for Peyton, Falcon, and nearby Colorado Springs.',
+    },
 };
 
 function formatPrice(amount) {
@@ -57,7 +70,11 @@ export default async function PricingPage() {
 
     return (<main className="min-h-screen py-16 px-4">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-12">Choose Your Plan</h1>
+        <h1 className="text-4xl font-bold text-center mb-4">Choose Your Plan</h1>
+        <p className="text-center text-accent-600 max-w-2xl mx-auto mb-12">
+          Recurring weekly scoop service for Peyton &amp; Falcon households, plus one-time
+          catch-up cleanups when a yard needs a fresh start before the club schedule begins.
+        </p>
 
         <div className="mb-16">
           <h2 className="text-2xl font-semibold text-center mb-8">Monthly Subscription Plans</h2>

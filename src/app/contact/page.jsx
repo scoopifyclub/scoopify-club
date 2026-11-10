@@ -58,7 +58,7 @@ export default function ContactPage() {
             Contact Us
           </h1>
           <p className="mt-4 text-lg text-gray-600">
-            Have questions? We'd love to hear from you.
+            Questions about weekly scoop service or a catch-up cleanup in Peyton &amp; Falcon? We&apos;d love to hear from you.
           </p>
         </div>
 
@@ -114,7 +114,8 @@ export default function ContactPage() {
                   <div className="ml-4">
                     <h3 className="text-lg font-medium text-gray-900">Address</h3>
                     <p className="mt-1 text-gray-600">
-                      Peyton, Colorado
+                      7535 Gallard Heights<br />
+                      Peyton, CO 80831
                     </p>
                   </div>
                 </div>

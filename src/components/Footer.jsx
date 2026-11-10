@@ -65,8 +65,8 @@ const contactInfo = [
     },
     {
         icon: MapPin,
-        text: 'Peyton, Colorado',
-        href: 'https://maps.google.com',
+        text: '7535 Gallard Heights, Peyton, CO 80831',
+        href: 'https://maps.google.com/?q=7535+Gallard+Heights,+Peyton,+CO+80831',
     },
 ];
 
@@ -108,7 +108,8 @@ export default function Footer() {
             </Link>))}
         </div>
         <p className="mt-10 text-center text-xs leading-5 text-[color:var(--brand-ink-muted)]">
-          &copy; {new Date().getFullYear()} Scoopify Club. All rights reserved. Pilot: Peyton &amp; Falcon, CO.
+          &copy; {new Date().getFullYear()} Scoopify Club. All rights reserved.
+          {' '}Pilot: Peyton &amp; Falcon, CO · 7535 Gallard Heights, Peyton, CO 80831
         </p>
       </div>
     </footer>);
