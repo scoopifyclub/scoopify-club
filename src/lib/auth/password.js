@@ -1,3 +1,5 @@
+import { hash } from 'bcryptjs';
+
 export function validatePassword(password) {
     const errors = [];
     // Minimum length
@@ -43,6 +45,5 @@ export function validatePassword(password) {
 }
 
 export async function hashPassword(password) {
-  // Replace with real hash logic if needed
-  return password;
+  return hash(password, 12);
 }

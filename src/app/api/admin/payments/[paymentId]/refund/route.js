@@ -4,6 +4,7 @@ import { stripe } from '@/lib/stripe';
 import { logPaymentEvent } from '@/lib/payment-audit';
 import { logger } from '@/lib/logger';
 import { requireAdmin } from '@/lib/admin-auth';
+import { mapRefundStatus } from '@/lib/stripe-billing';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -15,7 +16,7 @@ export async function POST(request, { params }) {
         if (!auth.ok) return auth.response;
         const user = auth.user;
 
-        const { paymentId } = params;
+        const { paymentId } = await params;
         if (!paymentId) {
             return NextResponse.json(
                 { error: 'Payment ID is required' },
@@ -60,21 +61,69 @@ export async function POST(request, { params }) {
             );
         }
 
+        if (payment.refundStatus === 'COMPLETED' || payment.refundStatus === 'PENDING') {
+            return NextResponse.json(
+                { error: 'This payment already has a refund' },
+                { status: 409 }
+            );
+        }
+
+        if (!payment.stripePaymentIntentId) {
+            return NextResponse.json(
+                { error: 'Only Stripe payments can be refunded here' },
+                { status: 400 }
+            );
+        }
+
+        if (!stripe) {
+            return NextResponse.json(
+                { error: 'Stripe is not configured' },
+                { status: 500 }
+            );
+        }
+
+        // Full refund. The key makes a retried or double-clicked request
+        // return the same Stripe refund instead of refunding twice.
+        let refund;
+        try {
+            refund = await stripe.refunds.create({
+                payment_intent: payment.stripePaymentIntentId,
+                reason: mapRefundReason(reason),
+                metadata: { paymentId, refundedBy: user.id, reason },
+            }, { idempotencyKey: `admin-refund-${paymentId}` });
+        }
+        catch (stripeError) {
+            logger.error('Stripe refund failed:', stripeError);
+            await prisma.payment.update({
+                where: { id: paymentId },
+                data: { refundStatus: 'FAILED', refundReason: reason, updatedAt: new Date() },
+            });
+            return NextResponse.json(
+                { error: stripeError.message || 'Stripe refund failed' },
+                { status: 502 }
+            );
+        }
+
+        const refundStatus = mapRefundStatus(refund.status);
         const updatedPayment = await prisma.payment.update({
             where: { id: paymentId },
             data: {
-                status: 'REFUNDED',
-                refundReason: reason,
+                refundStatus,
+                refundedAmount: refund.amount / 100,
                 refundedAt: new Date(),
+                refundedBy: user.id,
+                refundReason: reason,
+                refundTransactionId: refund.id,
+                updatedAt: new Date(),
             },
         });
 
-        // Update service status if needed
-        if (payment.service) {
+        if (payment.service && refundStatus !== 'FAILED') {
             await prisma.service.update({
                 where: { id: payment.service.id },
                 data: {
                     paymentStatus: 'REFUNDED',
+                    updatedAt: new Date(),
                 },
             });
         }

@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,6 +14,11 @@ export default function ContactPage() {
         subject: '',
         message: '',
     });
+    // Links such as the 4+ dogs "Request a quote" button prefill the subject.
+    useEffect(() => {
+        const subject = new URLSearchParams(window.location.search).get('subject');
+        if (subject) setFormData((current) => ({ ...current, subject: subject.slice(0, 200) }));
+    }, []);
     const handleSubmit = async (e) => {
         e.preventDefault();
         

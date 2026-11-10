@@ -11,16 +11,20 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from 'sonner';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useStripe, useElements, } from '@stripe/react-stripe-js';
-// Initialize Stripe
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+import { PLANS, QUOTE_MIN_DOGS, QUOTE_REQUEST_PATH } from '@/lib/pricing-catalog';
+
+const QUOTE_OPTION = 'quote';
+
+function planOptionLabel(plan) {
+    const dogs = `${plan.numberOfDogs} Dog${plan.numberOfDogs > 1 ? 's' : ''}`;
+    return plan.kind === 'subscription'
+        ? `Weekly Service (${dogs}) - $${plan.displayAmount}/month`
+        : `One-Time Service (${dogs}) - from $${plan.displayAmount}`;
+}
 
 const SERVICE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 function SignupForm({ onUncoveredZip }) {
     const router = useRouter();
-    const stripe = useStripe();
-    const elements = useElements();
     const [loading, setLoading] = useState(false);
     const [isOneTime, setIsOneTime] = useState(false);
     const [formData, setFormData] = useState({
@@ -60,8 +64,13 @@ function SignupForm({ onUncoveredZip }) {
         return btoa(fingerprint).slice(0, 32); // Base64 encode and truncate
     };
 
+    const needsQuote = formData.serviceType === QUOTE_OPTION;
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (needsQuote) {
+            router.push(QUOTE_REQUEST_PATH);
+            return;
+        }
         setLoading(true);
 
         // Check zip code coverage BEFORE payment attempt
@@ -94,11 +103,6 @@ function SignupForm({ onUncoveredZip }) {
           return;
         }
 
-        if (!stripe || !elements) {
-            toast.error('Payment system not ready');
-            setLoading(false);
-            return;
-        }
         // Validate form
         if (formData.password !== formData.confirmPassword) {
             toast.error('Passwords do not match');
@@ -106,16 +110,6 @@ function SignupForm({ onUncoveredZip }) {
             return;
         }
         try {
-            // Create payment method
-            const { error: paymentError, paymentMethod } = await stripe.createPaymentMethod({
-                type: 'card',
-                card: elements.getElement(CardElement),
-            });
-            if (paymentError) {
-                toast.error(paymentError.message || 'Payment failed');
-                setLoading(false);
-                return;
-            }
             const response = await fetch('/api/auth/signup', {
                 method: 'POST',
                 headers: {
@@ -137,8 +131,6 @@ function SignupForm({ onUncoveredZip }) {
                     },
                     serviceDay: formData.serviceDay,
                     startDate: formData.startDate,
-                    isOneTimeService: isOneTime,
-                    paymentMethodId: paymentMethod.id,
                     referralCode: formData.referralCode,
                     serviceType: formData.serviceType,
                     deviceFingerprint: generateDeviceFingerprint()
@@ -154,13 +146,8 @@ function SignupForm({ onUncoveredZip }) {
                 throw new Error(data.error || 'Failed to create account');
             }
             const respData = await response.json();
-            toast.success('Account created successfully!');
-            // If the initial cleanup was bumped, add ?bumped=true to payment page
-            if (respData && respData.bumped) {
-              router.push('/signup/payment?bumped=true');
-            } else {
-              router.push('/signup/payment');
-            }
+            toast.success('Account created! Next, complete your payment.');
+            router.push(respData?.next || '/signup/payment');
         }
         catch (error) {
             toast.error(error instanceof Error ? error.message : 'Failed to create account');
@@ -252,7 +239,7 @@ function SignupForm({ onUncoveredZip }) {
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Service Type</Label>
-            <RadioGroup defaultValue="subscription" onValueChange={(value) => setIsOneTime(value === 'one-time')} className="flex flex-col space-y-2">
+            <RadioGroup defaultValue="subscription" onValueChange={(value) => { setIsOneTime(value === 'one-time'); handleChange('serviceType', ''); }} className="flex flex-col space-y-2">
               <div className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-50">
                 <RadioGroupItem value="subscription" id="subscription"/>
                 <Label htmlFor="subscription" className="cursor-pointer">Subscription Service</Label>
@@ -271,17 +258,17 @@ function SignupForm({ onUncoveredZip }) {
                 <SelectValue placeholder="Select a plan"/>
               </SelectTrigger>
               <SelectContent>
-                {isOneTime ? (<>
-                    <SelectItem value="one-time-1">One-Time Service (1 Dog) - $75</SelectItem>
-                    <SelectItem value="one-time-2">One-Time Service (2 Dogs) - $90</SelectItem>
-                    <SelectItem value="one-time-3">One-Time Service (3+ Dogs) - $120</SelectItem>
-                  </>) : (<>
-                    <SelectItem value="weekly-1">Weekly Service (1 Dog) - $55/month</SelectItem>
-                    <SelectItem value="weekly-2">Weekly Service (2 Dogs) - $70/month</SelectItem>
-                    <SelectItem value="weekly-3">Weekly Service (3+ Dogs) - $100/month</SelectItem>
-                  </>)}
+                {/* Labels show catalog amounts; checkout charges the configured Stripe price */}
+                {PLANS.filter((plan) => (plan.kind === 'subscription') !== isOneTime).map((plan) => (<SelectItem key={plan.id} value={plan.id}>{planOptionLabel(plan)}</SelectItem>))}
+                <SelectItem value={QUOTE_OPTION}>{QUOTE_MIN_DOGS}+ Dogs - Request a quote</SelectItem>
               </SelectContent>
             </Select>
+            {needsQuote && (<p className="text-sm text-gray-600">
+                For {QUOTE_MIN_DOGS} or more dogs we quote your yard first. <a href={QUOTE_REQUEST_PATH} className="text-primary-600 underline">Request a quote</a> and we&apos;ll get back to you.
+              </p>)}
+            {isOneTime && formData.serviceType && !needsQuote && (<p className="text-sm text-gray-600">
+                Starting price; large or neglected yards may be quoted separately.
+              </p>)}
           </div>
 
           {!isOneTime && (<div className="space-y-2">
@@ -318,49 +305,9 @@ function SignupForm({ onUncoveredZip }) {
         />
       </div>
 
-      {/* Payment Information */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-gray-900">Payment Information</h3>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">Secured by</span>
-            <img src="https://stripe.com/img/v3/home/social.png" alt="Stripe" className="h-6 w-auto"/>
-          </div>
-        </div>
-        
-        <div className="p-6 border-2 border-gray-200 rounded-lg bg-white shadow-sm">
-          <div className="mb-4">
-            <p className="text-sm text-gray-600 mb-2">Enter your card details securely</p>
-            <div className="h-12 border rounded-md p-3 bg-gray-50">
-              <CardElement options={{
-            style: {
-                base: {
-                    fontSize: '16px',
-                    color: '#424770',
-                    '::placeholder': {
-                        color: '#aab7c4',
-                    },
-                    iconColor: '#666EE8',
-                },
-                invalid: {
-                    color: '#9e2146',
-                    iconColor: '#9e2146',
-                },
-            },
-            hidePostalCode: false,
-        }}/>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2 text-sm text-gray-500">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-            </svg>
-            <span>Your payment information is encrypted and secure</span>
-          </div>
-        </div>
-
-
-      </div>
+      <p className="text-sm text-gray-600">
+        After creating your account you'll review your order and pay securely on Stripe's checkout page.
+      </p>
 
       <Button type="submit" className="w-full py-6 text-lg font-semibold bg-blue-600 hover:bg-blue-700" disabled={loading}>
         {loading ? (<div className="flex items-center justify-center space-x-2">
@@ -368,8 +315,8 @@ function SignupForm({ onUncoveredZip }) {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span>Processing Payment...</span>
-          </div>) : ('Create Account & Pay Securely')}
+            <span>Creating your account...</span>
+          </div>) : needsQuote ? 'Request a Quote' : ('Create Account & Continue to Payment')}
       </Button>
     </form>);
 }
@@ -433,9 +380,7 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <Elements stripe={stripePromise}>
-                <SignupForm onUncoveredZip={setUncoveredZip} />
-              </Elements>
+              <SignupForm onUncoveredZip={setUncoveredZip} />
             </>
           )}
         </div>

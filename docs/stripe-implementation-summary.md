@@ -1,3 +1,5 @@
+> **Outdated (Aug 2025).** The prices and Price IDs below are no longer used. Current pricing and the Stripe Prices to create are in [pilot-pricing.md](pilot-pricing.md).
+
 # 🎉 Stripe Recurring Payment Implementation - COMPLETED!
 
 ## 🚀 **What We've Accomplished Today:**

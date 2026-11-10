@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { CustomerDashboardLayout } from '@/components/layouts/CustomerDashboardLayout';
 import { Calendar, CreditCard, CheckCircle, Clock, DollarSign, AlertCircle } from 'lucide-react';
+import { INITIAL_CLEANUP } from '@/lib/pricing-catalog';
 
 export default function SubscriptionPage() {
     const [loading, setLoading] = useState(true);
@@ -188,7 +189,7 @@ export default function SubscriptionPage() {
                             <div>
                                 <h3 className="font-semibold text-blue-800 mb-2">New Customer? Initial Cleanup Required</h3>
                                 <p className="text-blue-700 mb-3">
-                                    All new customers need an initial cleanup service ($89) to prepare their yard for weekly maintenance. 
+                                    All new customers need an initial catch-up cleanup (from ${INITIAL_CLEANUP.displayAmount}) to prepare their yard for weekly maintenance. 
                                     This initial cleanup gives you 1 service credit, plus your monthly plan gives you 4 additional credits.
                                 </p>
                                 <div className="bg-white p-3 rounded-lg border border-blue-200">
@@ -306,7 +307,7 @@ export default function SubscriptionPage() {
                                     <CreditCard className="w-6 h-6 text-blue-600" />
                                 </div>
                                 <h3 className="font-semibold mb-2">1. Initial Setup</h3>
-                                <p className="text-gray-600">Pay $89 for initial cleanup (gives 1 credit) + monthly plan fee (gives 4 credits)</p>
+                                <p className="text-gray-600">Pay the first month (gives 4 credits) + the initial catch-up cleanup, from ${INITIAL_CLEANUP.displayAmount} (gives 1 credit)</p>
                             </Card>
                             
                             <Card className="p-6 text-center">
