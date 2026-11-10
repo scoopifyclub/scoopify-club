@@ -99,14 +99,21 @@ export async function POST(req) {
         return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 });
     }
 }
-export async function GET(req) {
+export async function GET() {
     try {
-        const session = await getServerSession(authOptions);
-        if (!(session === null || session === void 0 ? void 0 : session.user)) {
+        const cookieStore = await cookies();
+        const accessToken = cookieStore.get('accessToken')?.value;
+        if (!accessToken) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const user = await validateUser(accessToken);
+        if (!user?.userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const customer = await prisma.customer.findUnique({
-            where: { userId: userId },
+            where: { userId: user.userId },
             include: {
                 subscription: true,
                 payments: {
@@ -128,18 +135,24 @@ export async function GET(req) {
         return NextResponse.json({ error: 'Failed to fetch subscription' }, { status: 500 });
     }
 }
-export async function DELETE(req) {
-    var _a;
+export async function DELETE() {
     try {
-        const session = await getServerSession(authOptions);
-        if (!(session === null || session === void 0 ? void 0 : session.user)) {
+        const cookieStore = await cookies();
+        const accessToken = cookieStore.get('accessToken')?.value;
+        if (!accessToken) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
+
+        const user = await validateUser(accessToken);
+        if (!user?.userId) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const customer = await prisma.customer.findUnique({
-            where: { userId: userId },
+            where: { userId: user.userId },
             include: { subscription: true }
         });
-        if (!((_a = customer === null || customer === void 0 ? void 0 : customer.subscription) === null || _a === void 0 ? void 0 : _a.stripeSubscriptionId)) {
+        if (!customer?.subscription?.stripeSubscriptionId) {
             return NextResponse.json({ error: 'No active subscription found' }, { status: 404 });
         }
         // Cancel subscription in Stripe
