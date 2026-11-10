@@ -3,11 +3,17 @@
 Admin access requires all of the following, checked server-side on every
 privileged request by `requireAdmin()` in `src/lib/admin-auth.js`:
 
-1. A valid JWT (`accessToken` cookie, `token` cookie, or `Authorization: Bearer`).
+1. A valid JWT from the unified session cookie (`accessToken`) or
+   `Authorization: Bearer`. A legacy `token` cookie is still accepted as a
+   read fallback until browsers re-sign-in.
 2. The user's **current database row** has `role = 'ADMIN'`.
 3. The user's email is listed in the `ADMIN_EMAILS` environment variable.
 4. The token's `sv` claim matches an HMAC of the user's current id, email,
    role, password hash and `ADMIN_SESSION_EPOCH`.
+
+Admin login writes the same `accessToken` (+ `refreshToken`) cookies as
+customer and scooper sign-in. There is no separate `adminToken` cookie.
+Token reading goes through `getRequestAuthToken()` in `src/lib/auth-cookies.js`.
 
 `src/middleware.js` also blocks `/admin/*` and `/api/admin/*` at the edge
 (JWT with role `ADMIN` and an `sv` claim), and `src/app/admin/layout.jsx`
