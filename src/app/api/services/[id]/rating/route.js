@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyToken } from '@/lib/api-auth';
-import { cookies } from 'next/headers';
 import { emitServiceUpdate } from '@/lib/socket';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 
 export async function POST(request, { params }) {
     try {
-        const token = cookies().get('token')?.value;
+        const token = await getRequestAuthToken(request);
         const user = await verifyToken(token);
 
         if (!user) {

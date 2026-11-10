@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/api-auth';
-import { cookies } from 'next/headers';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
 
-export async function GET() {
+export async function GET(request) {
     try {
-        const cookieStore = cookies();
-        const token = cookieStore.get('token')?.value;
+        const token = await getRequestAuthToken(request);
 
         if (!token) {
             return NextResponse.json({ 
@@ -23,12 +22,9 @@ export async function GET() {
             }, { status: 401 });
         }
 
-        // Remove sensitive information
-        const { password, ...user } = decoded;
-
         return NextResponse.json({ 
             success: true, 
-            user 
+            user: decoded
         });
     } catch (error) {
         console.error('Verify token error:', error);
@@ -37,4 +33,4 @@ export async function GET() {
             error: 'Token verification failed' 
         }, { status: 401 });
     }
-} 
+}

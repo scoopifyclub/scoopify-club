@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { validateUserToken } from '@/lib/jwt-utils';
 import { requireAdmin } from '@/lib/admin-auth';
 import { requireScooper, getAssignedJob, jobClaimErrorResponse } from '@/lib/job-claims';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -10,9 +11,7 @@ export const runtime = 'nodejs';
 const SAFE_USER_SELECT = { select: { id: true, firstName: true, lastName: true, email: true } };
 
 async function getTokenRole(req) {
-    const header = req.headers.get('authorization');
-    const bearer = header?.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : null;
-    const token = bearer || req.cookies?.get('accessToken')?.value || req.cookies?.get('token')?.value;
+    const token = await getRequestAuthToken(req);
     const decoded = token ? await validateUserToken(token) : null;
     return decoded ? { userId: decoded.userId, role: decoded.role } : null;
 }

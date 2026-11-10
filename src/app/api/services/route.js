@@ -1,16 +1,15 @@
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
-import { cookies } from 'next/headers';
 import { sendServiceNotificationEmail } from '@/lib/email-service';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
 export async function POST(request) {
     try {
-        const cookieStore = cookies();
-        const token = cookieStore.get('token')?.value;
+        const token = await getRequestAuthToken(request);
 
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -87,8 +86,7 @@ export async function POST(request) {
 
 export async function GET(request) {
     try {
-        const cookieStore = cookies();
-        const token = cookieStore.get('token')?.value;
+        const token = await getRequestAuthToken(request);
 
         if (!token) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

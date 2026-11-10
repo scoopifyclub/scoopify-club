@@ -5,11 +5,12 @@ import { calculateTaxes } from '@/lib/tax-calculator';
 import { getInitialCleanupLineItem, resolvePurchasablePlan } from '@/lib/pricing.server';
 import { validateUserToken } from '@/lib/jwt-utils';
 import prisma from '@/lib/prisma';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
 
 // Lets the webhook link the purchase to an existing Customer. Anonymous
 // checkout still works; the webhook then matches on the buyer's email.
 async function findSignedInCustomer(request) {
-    const token = request.cookies?.get('accessToken')?.value || request.cookies?.get('token')?.value;
+    const token = await getRequestAuthToken(request);
     if (!token) return null;
     try {
         const user = await validateUserToken(token, 'CUSTOMER');
