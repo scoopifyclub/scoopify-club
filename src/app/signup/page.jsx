@@ -272,9 +272,10 @@ function SignupForm({ onUncoveredZip }) {
               </SelectTrigger>
               <SelectContent>
                 {isOneTime ? (<>
-                    <SelectItem value="one-time-1">One-Time Service (1 Dog) - $75</SelectItem>
-                    <SelectItem value="one-time-2">One-Time Service (2 Dogs) - $90</SelectItem>
-                    <SelectItem value="one-time-3">One-Time Service (3+ Dogs) - $120</SelectItem>
+                    {/* One-time prices are pending; the charged amount is the configured Stripe price */}
+                    <SelectItem value="one-time-1">One-Time Service (1 Dog)</SelectItem>
+                    <SelectItem value="one-time-2">One-Time Service (2 Dogs)</SelectItem>
+                    <SelectItem value="one-time-3">One-Time Service (3+ Dogs)</SelectItem>
                   </>) : (<>
                     <SelectItem value="weekly-1">Weekly Service (1 Dog) - $55/month</SelectItem>
                     <SelectItem value="weekly-2">Weekly Service (2 Dogs) - $70/month</SelectItem>

@@ -8,13 +8,8 @@ const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
 let stripe = null;
 
 // Server-side only code
-if (typeof window === 'undefined') {
-  const secretKey = stripeSecretKey;
-
-  if (!secretKey) {
-      throw new Error('STRIPE_SECRET_KEY is required. Please set it in your environment variables.');
-  }
-  stripe = new Stripe(secretKey, {
+if (typeof window === 'undefined' && stripeSecretKey) {
+  stripe = new Stripe(stripeSecretKey, {
     apiVersion: '2023-10-16',
   });
 }

@@ -19,6 +19,8 @@ import { cookies } from 'next/headers';
 import Stripe from 'stripe';
 import { edgeRateLimit } from '@/lib/edge-rate-limit';
 import crypto from 'crypto';
+import { INITIAL_CLEANUP, findPlan, getConfiguredPriceId } from '@/lib/pricing-catalog';
+import { ensureServicePlan, upsertSubscriptionFromStripe } from '@/lib/stripe-billing';
 
 // Force Node.js runtime for bcryptjs, crypto, and Prisma
 export const runtime = 'nodejs';
@@ -83,12 +85,21 @@ export async function POST(request) {
         let stripeCustomer = null;
         let referrerId = null;
         let newReferralCode = null;
+        let signupPlan = null;
+        let signupPriceId = null;
 
         // Only create Stripe customer and handle referrals for customer signups
         if (role === 'CUSTOMER') {
             // Check if the customer's ZIP code is covered by any active scooper using proximity
             if (!address?.zipCode) {
                 return NextResponse.json({ error: 'ZIP code is required for customers' }, { status: 400 });
+            }
+            // Resolve the plan before anything is charged
+            signupPlan = findPlan(serviceType);
+            signupPriceId = signupPlan && signupPlan.id !== INITIAL_CLEANUP.id ? getConfiguredPriceId(signupPlan) : null;
+            if (!signupPriceId) {
+                console.error(`Signup plan unavailable: serviceType=${serviceType}`);
+                return NextResponse.json({ error: 'Selected plan is not available. Please choose another plan.' }, { status: 400 });
             }
             
             // Get all active coverage areas and check proximity
@@ -280,8 +291,12 @@ export async function POST(request) {
             }
 
             // Handle customer-specific operations (setup fee, subscription, etc.)
-            // Create and charge for first-time setup fee - $30
-            const setupFeeAmount = 3000; // $30.00 in cents
+            // Initial cleanup fee: the configured Stripe price, else the legacy
+            // amount (PENDING decision, see INITIAL_CLEANUP in pricing-catalog).
+            const cleanupPriceId = getConfiguredPriceId(INITIAL_CLEANUP);
+            const setupFeeAmount = cleanupPriceId
+                ? (await stripeInstance.prices.retrieve(cleanupPriceId)).unit_amount
+                : INITIAL_CLEANUP.legacySignupChargeCents;
             const setupFeePaymentIntent = await stripeInstance.paymentIntents.create({
                 amount: setupFeeAmount,
                 currency: 'usd',
@@ -297,41 +312,9 @@ export async function POST(request) {
             });
             // Create subscription or one-time service
             let subscription = null;
-            if (!isOneTimeService) {
-                // Determine the appropriate Stripe price ID based on the plan
-                let priceId;
-                if (serviceType === 'weekly-1-dog') {
-                    priceId = process.env.STRIPE_MONTHLY_1_DOG_PRICE_ID;
-                } else if (serviceType === 'weekly-2-dogs') {
-                    priceId = process.env.STRIPE_MONTHLY_2_DOGS_PRICE_ID;
-                } else if (serviceType === 'weekly-3-plus-dogs') {
-                    priceId = process.env.STRIPE_MONTHLY_3_PLUS_DOGS_PRICE_ID;
-                } else if (serviceType === 'one-time-1-dog') {
-                    priceId = process.env.STRIPE_ONETIME_1_DOG_PRICE_ID;
-                } else if (serviceType === 'one-time-2-dogs') {
-                    priceId = process.env.STRIPE_ONETIME_2_DOGS_PRICE_ID;
-                } else if (serviceType === 'one-time-3-plus-dogs') {
-                    priceId = process.env.STRIPE_ONETIME_3_PLUS_DOGS_PRICE_ID;
-                }
-
-                // Find the corresponding ServicePlan in the database
-                const servicePlan = await prisma.servicePlan.findFirst({
-                    where: {
-                        OR: [
-                            { name: serviceType },
-                            { code: serviceType },
-                            { stripePriceId: priceId }
-                        ],
-                        isActive: true
-                    }
-                });
-
-                if (!servicePlan) {
-                    console.error(`ServicePlan not found for serviceType: ${serviceType}, priceId: ${priceId}`);
-                    return NextResponse.json({ 
-                        error: 'Service plan not found. Please contact support.' 
-                    }, { status: 400 });
-                }
+            if (signupPlan.kind === 'subscription') {
+                const priceId = signupPriceId;
+                const servicePlan = await ensureServicePlan(prisma, { priceId, planId: signupPlan.id });
 
                 // Create subscription
                 const stripeSubscription = await stripeInstance.subscriptions.create({
@@ -341,18 +324,12 @@ export async function POST(request) {
                     metadata: {
                         customerId: customer.id,
                         userId: user.id,
+                        planId: signupPlan.id,
                     },
                 });
-                // Save subscription to DB
-                subscription = await prisma.subscription.create({
-                    data: {
-                        customerId: customer.id,
-                        status: stripeSubscription.status,
-                        planId: servicePlan.id, // Use the actual ServicePlan ID
-                        startDate: new Date(),
-                        nextBillingDate: new Date(stripeSubscription.current_period_end * 1000)
-                    },
-                });
+                // Same upsert as the webhook, so whichever runs first wins and
+                // the other updates the same row.
+                subscription = await upsertSubscriptionFromStripe(prisma, stripeSubscription, { customerId: customer.id });
                 // Schedule first service based on preferred day
                 await prisma.service.create({
                     data: {
@@ -365,40 +342,28 @@ export async function POST(request) {
                 });
             }
             else {
-                // Handle one-time service
-                const oneTimeAmount = serviceType === 'one-time-basic' ? 5000 : 7500; // $50 or $75
+                // Handle one-time service: charge the configured Stripe price
+                const oneTimePrice = await stripeInstance.prices.retrieve(signupPriceId);
                 const paymentIntent = await stripeInstance.paymentIntents.create({
-                    amount: oneTimeAmount,
+                    amount: oneTimePrice.unit_amount,
                     currency: 'usd',
                     customer: stripeCustomer.id,
                     payment_method: paymentMethodId,
-                    description: serviceType === 'one-time-basic' ? 'Basic One-Time Service' : 'Premium One-Time Service',
+                    description: signupPlan.name,
                     metadata: {
                         customerId: customer.id,
                         userId: user.id,
+                        planId: signupPlan.id,
                         type: 'ONE_TIME'
                     },
                     confirm: true,
                 });
 
-                // Find the corresponding ServicePlan for one-time service
-                const oneTimeServicePlan = await prisma.servicePlan.findFirst({
-                    where: {
-                        OR: [
-                            { name: serviceType },
-                            { code: serviceType },
-                            { type: 'ONE_TIME' }
-                        ],
-                        isActive: true
-                    }
+                const oneTimeServicePlan = await ensureServicePlan(prisma, {
+                    priceId: signupPriceId,
+                    planId: signupPlan.id,
+                    amount: oneTimePrice.unit_amount / 100,
                 });
-
-                if (!oneTimeServicePlan) {
-                    console.error(`One-time ServicePlan not found for serviceType: ${serviceType}`);
-                    return NextResponse.json({ 
-                        error: 'One-time service plan not found. Please contact support.' 
-                    }, { status: 400 });
-                }
 
                 // Create one-time service
                 await prisma.service.create({
