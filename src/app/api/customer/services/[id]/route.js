@@ -27,7 +27,7 @@ export async function GET(request, { params }) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         const { userId } = await validateUser(token, 'CUSTOMER');
-        const { id } = await params;
+        const { id: serviceId } = await params;
         // Get the service with all related data
         const service = await prisma.service.findUnique({
             where: { id: serviceId },
@@ -100,7 +100,7 @@ export async function POST(request, { params }) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         const { userId } = await validateUser(token, 'CUSTOMER');
-        const { id } = await params;
+        const { id: serviceId } = await params;
         const { rating, comment } = await request.json();
         // Validate feedback data
         if (!rating || rating < 1 || rating > 5) {

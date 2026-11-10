@@ -1,9 +1,11 @@
+import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import prisma from "@/lib/prisma";
 import { verifyToken } from '@/lib/api-auth';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
+
 
 export async function POST(request, { params }) {
     var _a;
@@ -17,7 +19,7 @@ export async function POST(request, { params }) {
         if (!decoded || decoded.role !== 'CUSTOMER') {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
-        const { id } = await params;
+        const { id: serviceId } = await params;
         // Get the service and verify ownership
         const service = await prisma.service.findUnique({
             where: { id: serviceId },
@@ -29,7 +31,7 @@ export async function POST(request, { params }) {
         if (!service) {
             return NextResponse.json({ error: 'Service not found' }, { status: 404 });
         }
-        if (service.customer.userId !== decoded.id) {
+        if (service.customer.userId !== decoded.userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
         // Check if service can be cancelled (only scheduled services)
@@ -56,9 +58,11 @@ export async function POST(request, { params }) {
             // Create a service delay record
             await tx.serviceDelay.create({
                 data: {
+                    id: randomUUID(),
                     serviceId: service.id,
                     reason: 'Customer requested to cancel service',
-                    reportedById: decoded.id
+                    type: 'CUSTOMER_CANCEL',
+                    reportedById: decoded.userId
                 }
             });
             return updatedService;
