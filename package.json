@@ -26,10 +26,7 @@
     "test": "jest",
     "test:jest": "jest",
     "test:security": "jest src/__tests__/admin-access.test.js",
-<<<<<<< HEAD
     "test:payments": "jest src/__tests__/payments-",
-=======
->>>>>>> origin/main
     "test:claims": "jest src/__tests__/job-claims.db.test.js --runInBand",
     "test:cron": "jest src/__tests__/cron --runInBand",
     "test:e2e": "playwright test",
