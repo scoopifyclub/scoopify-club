@@ -21,7 +21,51 @@ export const PRICING_NOTE = 'Provisional pilot pricing (2026-11-09)';
 
 // Dog counts at or above this are quoted by a person, not sold online.
 export const QUOTE_MIN_DOGS = 4;
-export const QUOTE_REQUEST_PATH = '/contact?subject=' + encodeURIComponent('Quote request: 4+ dogs');
+export const QUOTE_REQUEST_PATH = '/quote';
+
+// Pilot floors in cents. Market overrides and quote approvals must stay at or
+// above these unless an admin explicitly acknowledges an unprofitable price.
+export const PILOT_FLOOR_CENTS = Object.freeze({
+    'single-dog-monthly': 7900,
+    'two-dogs-monthly': 8900,
+    'three-plus-dogs-monthly': 9900,
+    'one-time-single-dog': 7900,
+    'one-time-two-dogs': 9900,
+    'one-time-three-plus-dogs': 11900,
+    'initial-cleanup': 4900,
+});
+
+export const PROMOTION_TYPES = Object.freeze({
+    PERCENT: 'PERCENT',
+    FIXED: 'FIXED',
+    FREE_CATCHUP: 'FREE_CATCHUP',
+});
+
+export const QUOTE_STATUSES = Object.freeze({
+    PENDING_ADMIN: 'PENDING_ADMIN',
+    APPROVED: 'APPROVED',
+    REJECTED: 'REJECTED',
+    CONVERTED: 'CONVERTED',
+    EXPIRED: 'EXPIRED',
+});
+
+export const QUOTE_KINDS = Object.freeze({
+    ONE_TIME: 'ONE_TIME',
+    SUBSCRIPTION: 'SUBSCRIPTION',
+});
+
+/** True when a yard must go through quote / admin approval instead of catalog checkout. */
+export function requiresQuote({ dogCount, unusualYard, unusualAccess, remoteAddress } = {}) {
+    const dogs = Number(dogCount);
+    if (Number.isFinite(dogs) && dogs >= QUOTE_MIN_DOGS) return true;
+    return Boolean(unusualYard || unusualAccess || remoteAddress);
+}
+
+/** Pilot floor in cents for a catalog plan code, or null when unknown. */
+export function pilotFloorCents(planCode) {
+    if (!planCode) return null;
+    return PILOT_FLOOR_CENTS[planCode] ?? null;
+}
 
 const MONTHLY_FEATURES = (dogs) => ['Weekly service', dogs, '4 services per month'];
 const ONE_TIME_FEATURES = (dogs) => ['One-time cleanup', dogs, 'No subscription required'];
