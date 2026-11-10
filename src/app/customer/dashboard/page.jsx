@@ -406,23 +406,26 @@ export default function CustomerDashboard() {
             }
         }
     };
-    const handlePauseService = async (serviceId) => {
+    // Pause is a billing change; schema has no PAUSED status — use Stripe portal.
+    const handlePauseService = async (_serviceId) => {
         try {
-            const response = await fetch(`/api/customer/services/${id}/pause`, {
+            const response = await fetch('/api/stripe/portal', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
             });
-            if (!response.ok) {
-                throw new Error('Failed to pause service');
+            if (response.ok) {
+                const { url } = await response.json();
+                toast.info('Opening Stripe to pause or manage your subscription');
+                window.open(url, '_blank');
+            } else {
+                const error = await response.json();
+                toast.error(error.error || 'Failed to open billing portal');
             }
-            const updatedService = await response.json();
-            setServices(services.map(s => s.id === serviceId ? updatedService : s));
-            toast.success('Service paused successfully');
         }
         catch (error) {
-            toast.error('Failed to pause service');
+            console.error('Error opening billing portal for pause:', error);
+            toast.error('Failed to open billing portal');
         }
     };
     const handleCancelService = async (serviceId) => {

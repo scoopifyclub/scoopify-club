@@ -1,25 +1,72 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getUserFromToken } from '@/lib/api-auth';
+import { stripe } from '@/lib/stripe';
 import { addDays, isBefore, startOfDay } from 'date-fns';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
+/**
+ * B4: ServiceStatus has no PAUSED value, and pause/resume used to write
+ * nonexistent Service fields + servicePause/serviceResume models (500s).
+ * Billing pause/resume goes through Stripe Customer Portal instead.
+ */
+async function redirectBillingToPortal(customer, action) {
+  if (!customer.stripeCustomerId) {
+    return NextResponse.json(
+      {
+        error: 'No Stripe customer found. Please set up a payment method first.',
+        usePortal: true,
+      },
+      { status: 400 }
+    );
+  }
+
+  if (!stripe) {
+    return NextResponse.json(
+      {
+        error: 'Billing portal is temporarily unavailable',
+        usePortal: true,
+      },
+      { status: 503 }
+    );
+  }
+
+  const returnBase =
+    process.env.NEXT_PUBLIC_APP_URL || 'https://www.scoopify.club';
+  const session = await stripe.billingPortal.sessions.create({
+    customer: customer.stripeCustomerId,
+    return_url: `${returnBase}/customer/dashboard?tab=billing`,
+  });
+
+  return NextResponse.json({
+    success: true,
+    usePortal: true,
+    action,
+    url: session.url,
+    message:
+      action === 'pause'
+        ? 'Pause or manage your subscription in the Stripe Customer Portal.'
+        : 'Resume or manage your subscription in the Stripe Customer Portal.',
+  });
+}
 
 export async function PUT(request, { params }) {
-  const { userId } = getUserFromToken(request);
+  const auth = await getUserFromToken(request);
+  const userId = auth?.userId;
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
     const { action, newDate, reason } = await request.json();
-    const serviceId = params.id;
+    const { id: serviceId } = await params;
 
     // Get customer
     const customer = await prisma.customer.findUnique({
-      where: { userId }
+      where: { userId },
+      select: { id: true, stripeCustomerId: true },
     });
 
     if (!customer) {
@@ -30,49 +77,57 @@ export async function PUT(request, { params }) {
     const service = await prisma.service.findFirst({
       where: {
         id: serviceId,
-        customerId: customer.id
+        customerId: customer.id,
       },
       include: {
         employee: true,
-        servicePlan: true
-      }
+        servicePlan: true,
+      },
     });
 
     if (!service) {
       return NextResponse.json({ error: 'Service not found' }, { status: 404 });
     }
 
+    // Pause/resume are subscription billing actions — do not touch Service.status
+    // (schema has no PAUSED). Hand off to Stripe Customer Portal.
+    if (action === 'pause' || action === 'resume') {
+      return await redirectBillingToPortal(customer, action);
+    }
+
     // Check if service can be modified
     if (!canModifyService(service)) {
-      return NextResponse.json({ 
-        error: 'Service cannot be modified at this time' 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: 'Service cannot be modified at this time',
+        },
+        { status: 400 }
+      );
     }
 
     switch (action) {
       case 'cancel':
         return await cancelService(service, reason);
-      
+
       case 'reschedule':
         if (!newDate) {
-          return NextResponse.json({ 
-            error: 'New date is required for rescheduling' 
-          }, { status: 400 });
+          return NextResponse.json(
+            {
+              error: 'New date is required for rescheduling',
+            },
+            { status: 400 }
+          );
         }
         return await rescheduleService(service, newDate, reason);
-      
-      case 'pause':
-        return await pauseService(service, reason);
-      
-      case 'resume':
-        return await resumeService(service);
-      
-      default:
-        return NextResponse.json({ 
-          error: 'Invalid action' 
-        }, { status: 400 });
-    }
 
+      default:
+        return NextResponse.json(
+          {
+            error: 'Invalid action',
+          },
+          { status: 400 }
+        );
+    }
   } catch (error) {
     console.error('Error managing service:', error);
     return NextResponse.json(
@@ -85,23 +140,24 @@ export async function PUT(request, { params }) {
 function canModifyService(service) {
   const now = new Date();
   const serviceDate = new Date(service.scheduledDate);
-  
+
   // Can't modify if service is already completed or cancelled
   if (['COMPLETED', 'CANCELLED'].includes(service.status)) {
     return false;
   }
-  
+
   // Can't modify if service is in progress
   if (service.status === 'IN_PROGRESS') {
     return false;
   }
-  
+
   // Can't modify if service is less than 24 hours away
-  const hoursUntilService = (serviceDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const hoursUntilService =
+    (serviceDate.getTime() - now.getTime()) / (1000 * 60 * 60);
   if (hoursUntilService < 24) {
     return false;
   }
-  
+
   return true;
 }
 
@@ -113,16 +169,16 @@ async function cancelService(service, reason) {
       data: {
         status: 'CANCELLED',
         cancellationReason: reason,
-        cancelledAt: new Date()
+        cancelledAt: new Date(),
       },
       include: {
         customer: {
           include: {
-            user: true
-          }
+            user: true,
+          },
         },
-        employee: true
-      }
+        employee: true,
+      },
     });
 
     // If service was assigned to an employee, notify them
@@ -136,8 +192,8 @@ async function cancelService(service, reason) {
         serviceId: service.id,
         customerId: service.customerId,
         reason: reason || 'Customer requested cancellation',
-        cancelledAt: new Date()
-      }
+        cancelledAt: new Date(),
+      },
     });
 
     // Send cancellation confirmation to customer
@@ -146,9 +202,8 @@ async function cancelService(service, reason) {
     return NextResponse.json({
       success: true,
       message: 'Service cancelled successfully',
-      service: updatedService
+      service: updatedService,
     });
-
   } catch (error) {
     console.error('Error cancelling service:', error);
     throw error;
@@ -162,9 +217,12 @@ async function rescheduleService(service, newDate, reason) {
 
     // Validate new date
     if (isBefore(requestedDate, startOfDay(now))) {
-      return NextResponse.json({ 
-        error: 'Cannot reschedule to a past date' 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: 'Cannot reschedule to a past date',
+        },
+        { status: 400 }
+      );
     }
 
     // Check if new date is available (no conflicts)
@@ -173,21 +231,24 @@ async function rescheduleService(service, newDate, reason) {
         customerId: service.customerId,
         scheduledDate: {
           gte: startOfDay(requestedDate),
-          lt: addDays(startOfDay(requestedDate), 1)
+          lt: addDays(startOfDay(requestedDate), 1),
         },
         status: {
-          in: ['SCHEDULED', 'ASSIGNED']
+          in: ['SCHEDULED', 'PENDING'],
         },
         id: {
-          not: service.id
-        }
-      }
+          not: service.id,
+        },
+      },
     });
 
     if (conflictingService) {
-      return NextResponse.json({ 
-        error: 'You already have a service scheduled on this date' 
-      }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: 'You already have a service scheduled on this date',
+        },
+        { status: 400 }
+      );
     }
 
     // Update service
@@ -196,16 +257,16 @@ async function rescheduleService(service, newDate, reason) {
       data: {
         scheduledDate: requestedDate,
         rescheduleReason: reason,
-        rescheduledAt: new Date()
+        rescheduledAt: new Date(),
       },
       include: {
         customer: {
           include: {
-            user: true
-          }
+            user: true,
+          },
         },
-        employee: true
-      }
+        employee: true,
+      },
     });
 
     // If service was assigned to an employee, notify them
@@ -221,8 +282,8 @@ async function rescheduleService(service, newDate, reason) {
         originalDate: service.scheduledDate,
         newDate: requestedDate,
         reason: reason || 'Customer requested reschedule',
-        rescheduledAt: new Date()
-      }
+        rescheduledAt: new Date(),
+      },
     });
 
     // Send reschedule confirmation to customer
@@ -231,91 +292,10 @@ async function rescheduleService(service, newDate, reason) {
     return NextResponse.json({
       success: true,
       message: 'Service rescheduled successfully',
-      service: updatedService
+      service: updatedService,
     });
-
   } catch (error) {
     console.error('Error rescheduling service:', error);
-    throw error;
-  }
-}
-
-async function pauseService(service, reason) {
-  try {
-    // Only subscription services can be paused
-    if (!service.subscriptionId) {
-      return NextResponse.json({ 
-        error: 'Only subscription services can be paused' 
-      }, { status: 400 });
-    }
-
-    // Update service status
-    const updatedService = await prisma.service.update({
-      where: { id: service.id },
-      data: {
-        status: 'PAUSED',
-        pauseReason: reason,
-        pausedAt: new Date()
-      }
-    });
-
-    // Create pause record
-    await prisma.servicePause.create({
-      data: {
-        serviceId: service.id,
-        customerId: service.customerId,
-        reason: reason || 'Customer requested pause',
-        pausedAt: new Date()
-      }
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Service paused successfully',
-      service: updatedService
-    });
-
-  } catch (error) {
-    console.error('Error pausing service:', error);
-    throw error;
-  }
-}
-
-async function resumeService(service) {
-  try {
-    // Only paused services can be resumed
-    if (service.status !== 'PAUSED') {
-      return NextResponse.json({ 
-        error: 'Service is not paused' 
-      }, { status: 400 });
-    }
-
-    // Update service status
-    const updatedService = await prisma.service.update({
-      where: { id: service.id },
-      data: {
-        status: 'SCHEDULED',
-        resumedAt: new Date()
-      }
-    });
-
-    // Create resume record
-    await prisma.serviceResume.create({
-      data: {
-        serviceId: service.id,
-        customerId: service.customerId,
-        resumedAt: new Date()
-      }
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Service resumed successfully',
-      service: updatedService
-    });
-
-  } catch (error) {
-    console.error('Error resuming service:', error);
     throw error;
   }
 }
@@ -332,9 +312,9 @@ async function notifyEmployeeOfCancellation(employee, service) {
         message: `Service for ${service.customer.user.name} has been cancelled`,
         metadata: {
           serviceId: service.id,
-          customerName: service.customer.user.name
-        }
-      }
+          customerName: service.customer.user.name,
+        },
+      },
     });
   } catch (error) {
     console.error('Error notifying employee of cancellation:', error);
@@ -352,9 +332,9 @@ async function notifyEmployeeOfReschedule(employee, service, newDate) {
         metadata: {
           serviceId: service.id,
           customerName: service.customer.user.name,
-          newDate: newDate.toISOString()
-        }
-      }
+          newDate: newDate.toISOString(),
+        },
+      },
     });
   } catch (error) {
     console.error('Error notifying employee of reschedule:', error);
@@ -364,7 +344,9 @@ async function notifyEmployeeOfReschedule(employee, service, newDate) {
 async function sendCancellationConfirmation(service) {
   try {
     // This would integrate with your email service
-    console.log(`Sending cancellation confirmation to ${service.customer.user.email}`);
+    console.log(
+      `Sending cancellation confirmation to ${service.customer.user.email}`
+    );
   } catch (error) {
     console.error('Error sending cancellation confirmation:', error);
   }
@@ -373,8 +355,10 @@ async function sendCancellationConfirmation(service) {
 async function sendRescheduleConfirmation(service) {
   try {
     // This would integrate with your email service
-    console.log(`Sending reschedule confirmation to ${service.customer.user.email}`);
+    console.log(
+      `Sending reschedule confirmation to ${service.customer.user.email}`
+    );
   } catch (error) {
     console.error('Error sending reschedule confirmation:', error);
   }
-} 
+}
