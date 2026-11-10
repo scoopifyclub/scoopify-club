@@ -1,36 +1,48 @@
 'use client';
-import { Poppins } from 'next/font/google';
-const poppins = Poppins({
-    weight: ['400', '600'],
-    subsets: ['latin'],
-    variable: '--font-poppins',
-});
-export function Logo() {
-    return (<div className="flex items-center gap-3">
-      {/* Logo Icon */}
-      <div className="relative w-12 h-12">
-        {/* Main bag shape - more Shopify-like */}
-        <div className="absolute inset-0 bg-primary-600 rounded-lg transform rotate-12">
-          {/* Bag handle */}
-          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-4 h-2 bg-primary-600 rounded-full"/>
-          {/* Dog ear - more subtle */}
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary-600 rounded-full"/>
-          {/* S letter - more prominent */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-white font-bold text-2xl tracking-tight">S</span>
-          </div>
-          {/* Paw prints - more subtle */}
-          <div className="absolute bottom-1 right-1 flex gap-1">
-            <div className="w-1.5 h-1.5 bg-white/80 rounded-full"/>
-            <div className="w-1.5 h-1.5 bg-white/80 rounded-full"/>
-          </div>
-        </div>
-      </div>
-      
-      {/* Text - more Shopify-like */}
-      <div className={`${poppins.variable} font-sans`}>
-        <span className="text-3xl font-semibold text-foreground tracking-tight">Scoopify</span>
-        <span className="text-xl font-normal text-accent-500 ml-1.5 tracking-tight">Club</span>
-      </div>
-    </div>);
+
+import Link from 'next/link';
+
+/**
+ * Scoopify Club brand lockup — bag + paw mark with wordmark.
+ * @param {{ size?: 'sm' | 'md' | 'lg'; href?: string | null; className?: string; showWordmark?: boolean }} props
+ */
+export function Logo({ size = 'md', href = '/', className = '', showWordmark = true }) {
+  const sizes = {
+    sm: { mark: 28, text: 'text-lg' },
+    md: { mark: 36, text: 'text-xl md:text-2xl' },
+    lg: { mark: 56, text: 'text-5xl md:text-6xl' },
+  };
+  const s = sizes[size] || sizes.md;
+
+  const lockup = (
+    <span className={`inline-flex items-center gap-2.5 ${className}`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/scoopify-mark.svg"
+        alt=""
+        width={s.mark}
+        height={s.mark}
+        className="brand-mark-bob shrink-0"
+        decoding="async"
+      />
+      {showWordmark && (
+        <span className={`font-display font-semibold tracking-tight leading-none text-[color:var(--brand-ink)] ${s.text}`}>
+          Scoopify
+          <span className="font-medium text-[color:var(--brand-leaf)]"> Club</span>
+        </span>
+      )}
+    </span>
+  );
+
+  if (href === null) {
+    return lockup;
+  }
+
+  return (
+    <Link href={href} className="inline-flex items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 rounded-md" aria-label="Scoopify Club home">
+      {lockup}
+    </Link>
+  );
 }
+
+export default Logo;

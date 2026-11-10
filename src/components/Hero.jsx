@@ -1,62 +1,52 @@
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { Check } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { Logo } from '@/components/Logo';
 
 /**
- * Hero component for the landing page
+ * Shared marketing hero — brand-first composition for landing surfaces.
  * @returns {JSX.Element} The rendered component
  */
 export function Hero() {
-    return (<section className="relative overflow-hidden bg-gradient-to-br from-brand-primary/10 via-white to-brand-primary/5">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-neutral-900 sm:text-5xl md:text-6xl">
-            Professional Dog Waste Removal Service
-          </h1>
-          <p className="mt-6 text-lg text-neutral-600 max-w-3xl mx-auto">
-            Keep your yard clean and safe with our reliable weekly service. No more worrying about pet waste - we handle it all!
-          </p>
-          <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg" className="bg-brand-primary hover:bg-brand-primary-dark">
-              <Link href="/signup">Get Started</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="/pricing">View Pricing</Link>
-            </Button>
+    return (
+      <section className="relative isolate min-h-[70vh] overflow-hidden hero-atmosphere">
+        <div className="absolute inset-0" aria-hidden="true">
+          <div className="absolute inset-0 overflow-hidden">
+            <Image
+              src="/images/dogs-backyard.jpg"
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-[center_35%] hero-visual-plane opacity-[0.42]"
+            />
           </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--brand-surface)] via-[color:var(--brand-surface)]/88 to-[color:var(--brand-surface)]/35" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--brand-mist)]/80 via-transparent to-[color:var(--brand-sky)]/25" />
         </div>
 
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="flex items-center space-x-4">
-            <div className="flex-shrink-0">
-              <Check className="h-6 w-6 text-brand-primary"/>
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex min-h-[70vh] items-center py-16">
+          <div className="max-w-2xl">
+            <div className="hero-reveal hero-reveal-delay-1 mb-8">
+              <Logo size="lg" href={null} />
             </div>
-            <div>
-              <h3 className="text-lg font-semibold">Professional Service</h3>
-              <p className="text-neutral-600">Trained experts handle everything</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex-shrink-0">
-              <Check className="h-6 w-6 text-brand-primary"/>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold">Regular Cleanups</h3>
-              <p className="text-neutral-600">Weekly service to keep your yard clean</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex-shrink-0">
-              <Check className="h-6 w-6 text-brand-primary"/>
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold">Peace of Mind</h3>
-              <p className="text-neutral-600">Reliable service you can count on</p>
+            <h1 className="hero-reveal hero-reveal-delay-2 font-display text-3xl sm:text-4xl font-semibold tracking-tight text-[color:var(--brand-ink)]">
+              Yard clean. Life easy.
+            </h1>
+            <p className="hero-reveal hero-reveal-delay-3 mt-5 max-w-xl text-lg text-[color:var(--brand-ink-muted)]">
+              Weekly dog waste removal for Peyton &amp; Falcon, Colorado.
+            </p>
+            <div className="hero-reveal hero-reveal-delay-4 mt-9 flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <Link href="/signup" className="brand-cta-primary inline-flex items-center justify-center font-semibold px-6 py-3.5 rounded-xl">
+                Join the Club
+              </Link>
+              <Link href="/pricing" className="brand-cta-secondary inline-flex items-center justify-center font-semibold px-6 py-3.5 rounded-xl">
+                See pricing
+              </Link>
             </div>
           </div>
         </div>
-      </div>
-    </section>);
+      </section>
+    );
 }

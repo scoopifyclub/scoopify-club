@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Scoopify Club mark">
+  <path
+    d="M16.5 20.5c0-1.4 1.1-2.5 2.5-2.5h26c1.4 0 2.5 1.1 2.5 2.5v30c0 2.5-2 4.5-4.5 4.5h-22c-2.5 0-4.5-2-4.5-4.5v-30z"
+    fill="currentColor"
+  />
+  <path
+    d="M24 18c0-4.4 3.6-8 8-8s8 3.6 8 8"
+    stroke="currentColor"
+    stroke-width="3.2"
+    stroke-linecap="round"
+    fill="none"
+    opacity="0.85"
+  />
+  <ellipse cx="32" cy="40.5" rx="6.2" ry="5.2" fill="#fff"/>
+  <circle cx="24.8" cy="33.2" r="2.35" fill="#fff"/>
+  <circle cx="29.2" cy="30.4" r="2.55" fill="#fff"/>
+  <circle cx="34.8" cy="30.4" r="2.55" fill="#fff"/>
+  <circle cx="39.2" cy="33.2" r="2.35" fill="#fff"/>
+</svg>

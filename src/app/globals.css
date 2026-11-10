@@ -34,6 +34,18 @@
     --brand-primary: 142 191 71;    /* #8EBF47 - Scoopify Green */
     --brand-primary-light: 162 201 101;  /* #A2C965 */
     --brand-primary-dark: 122 171 41;   /* #7AAB29 */
+
+    /* Marketing brand system — meadow + daylight (not purple / cream-terracotta) */
+    --brand-leaf: #6F9A34;
+    --brand-leaf-bright: #8EBF47;
+    --brand-leaf-deep: #56742B;
+    --brand-ink: #1F2A1A;
+    --brand-ink-muted: #4A5744;
+    --brand-mist: #EEF5E6;
+    --brand-surface: #F7FAF3;
+    --brand-line: #D7E4C7;
+    --brand-sky: #D9E8F2;
+    --brand-sun: #F3E7C4;
     
     /* Accent Colors */
     --accent-secondary: 233 196 106;    /* #E9C46A - Warm accent */
@@ -59,7 +71,8 @@
     --info: 59 130 246;
     
     /* Typography */
-    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-sans: var(--font-body), "Plus Jakarta Sans", ui-sans-serif, sans-serif;
+    --font-display-family: var(--font-display), Outfit, ui-sans-serif, sans-serif;
     
     /* Spacing */
     --spacing-xs: 0.25rem;
@@ -133,7 +146,7 @@
   }
   
   h1 {
-    @apply text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl text-neutral-900;
+    @apply tracking-tight text-neutral-900;
   }
   
   h2 {
@@ -260,6 +273,35 @@
   }
 }
 
+@keyframes brandReveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes heroKenBurns {
+  from {
+    transform: scale(1.08) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1) translate3d(0, -1.5%, 0);
+  }
+}
+
+@keyframes markBob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
 .animate-float {
   animation: float 6s ease-in-out infinite;
 }
@@ -274,6 +316,85 @@
 
 .animate-scale {
   animation: scale 0.3s ease-out forwards;
+}
+
+.font-display {
+  font-family: var(--font-display-family);
+}
+
+.font-body {
+  font-family: var(--font-sans);
+}
+
+.brand-cta-primary {
+  background: var(--brand-leaf);
+  color: #fff;
+}
+
+.brand-cta-primary:hover {
+  background: var(--brand-leaf-deep);
+}
+
+.brand-cta-secondary {
+  background: transparent;
+  color: var(--brand-ink);
+  border: 1.5px solid color-mix(in srgb, var(--brand-ink) 22%, transparent);
+}
+
+.brand-cta-secondary:hover {
+  border-color: var(--brand-leaf);
+  color: var(--brand-leaf-deep);
+  background: color-mix(in srgb, var(--brand-mist) 70%, white);
+}
+
+.brand-mark-bob {
+  animation: markBob 4.5s ease-in-out infinite;
+}
+
+.hero-atmosphere {
+  background:
+    radial-gradient(120% 80% at 12% 18%, color-mix(in srgb, var(--brand-sun) 55%, transparent) 0%, transparent 55%),
+    radial-gradient(90% 70% at 88% 12%, color-mix(in srgb, var(--brand-sky) 70%, transparent) 0%, transparent 50%),
+    linear-gradient(160deg, var(--brand-mist) 0%, var(--brand-surface) 45%, #e7f0dc 100%);
+}
+
+.hero-visual-plane {
+  animation: heroKenBurns 18s ease-out forwards;
+}
+
+.hero-reveal {
+  opacity: 0;
+  animation: brandReveal 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.hero-reveal-delay-1 {
+  animation-delay: 0.12s;
+}
+
+.hero-reveal-delay-2 {
+  animation-delay: 0.28s;
+}
+
+.hero-reveal-delay-3 {
+  animation-delay: 0.44s;
+}
+
+.hero-reveal-delay-4 {
+  animation-delay: 0.58s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-mark-bob,
+  .hero-visual-plane,
+  .hero-reveal,
+  .hero-reveal-delay-1,
+  .hero-reveal-delay-2,
+  .hero-reveal-delay-3,
+  .hero-reveal-delay-4 {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
 
 /* Modern Transitions */

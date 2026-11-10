@@ -2,15 +2,14 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPaw, faCircleInfo, faBroom, faCalendar, faStar, faCircleCheck, faTags, faMobileScreen, faCamera, faThumbsUp } from '@fortawesome/free-solid-svg-icons';
+import { faBroom, faCalendar, faStar, faCircleCheck, faTags, faMobileScreen, faCamera, faThumbsUp } from '@fortawesome/free-solid-svg-icons';
+import { Logo } from '@/components/Logo';
 
-// Safe icon component that handles errors gracefully
 const SafeIcon = ({ icon, className, ...props }) => {
     try {
         return <FontAwesomeIcon icon={icon} className={className} {...props} />;
     } catch (error) {
         console.warn('FontAwesome icon error:', error);
-        // Fallback to a simple span if icon fails
         return <span className={`inline-block w-4 h-4 ${className || ''}`} {...props}>•</span>;
     }
 };
@@ -20,104 +19,103 @@ const SafeIcon = ({ icon, className, ...props }) => {
  * @returns {JSX.Element} The rendered component
  */
 export default function Home() {
-    return (<div className="min-h-screen bg-white">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden py-20">
-        <div className="container mx-auto px-4">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-8">
-              <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-neutral-900">
-                Professional Dog Waste Removal
-                <span className="text-primary block">Made Simple</span>
-              </h1>
-              <p className="text-xl text-neutral-600 leading-relaxed">
-                We keep your yard clean so you can enjoy more time with your pets.
-                Join the club and experience hassle-free pet waste clean up.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <Link href="/signup" className="inline-flex items-center justify-center bg-primary text-white font-semibold px-6 py-3 rounded-lg hover:bg-primary-dark transition-colors duration-200">
-                  <SafeIcon icon={faPaw} className="mr-2 h-4 w-4"/>
-                  Join the Club
-                </Link>
-                <Link href="/services" className="inline-flex items-center justify-center bg-white text-primary border-2 border-primary font-semibold px-6 py-3 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200">
-                  <SafeIcon icon={faCircleInfo} className="mr-2 h-4 w-4"/>
-                  Learn More
-                </Link>
-                <Link href="/auth/scooper-signup" className="inline-flex items-center justify-center border-2 border-primary text-primary font-semibold px-6 py-3 rounded-lg hover:bg-primary hover:text-white transition-colors duration-200">
-                  <SafeIcon icon={faBroom} className="mr-2 h-4 w-4"/>
-                  Become a Scooper
-                </Link>
-              </div>
+    return (<div className="min-h-screen bg-[color:var(--brand-surface)]">
+      {/* First viewport — one composition: brand, headline, sentence, CTAs, full-bleed visual */}
+      <section className="relative isolate min-h-[calc(100dvh-4.25rem)] overflow-hidden hero-atmosphere">
+        <div className="absolute inset-0" aria-hidden="true">
+          <div className="absolute inset-0 overflow-hidden">
+            <Image
+              src="/images/dogs-backyard.jpg"
+              alt=""
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover object-[center_35%] hero-visual-plane opacity-[0.58]"
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[color:var(--brand-surface)] via-[color:var(--brand-surface)]/78 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[color:var(--brand-mist)]/70 via-transparent to-[color:var(--brand-sky)]/30" />
+          <div
+            className="absolute inset-0 opacity-[0.18] mix-blend-multiply"
+            style={{
+              backgroundImage:
+                'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%236F9A34\' fill-opacity=\'0.35\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")',
+            }}
+          />
+        </div>
+
+        <div className="relative container mx-auto px-4 flex min-h-[calc(100dvh-4.25rem)] items-center py-16 md:py-20">
+          <div className="max-w-2xl">
+            <div className="hero-reveal hero-reveal-delay-1 mb-8 md:mb-10">
+              <Logo size="lg" href={null} />
             </div>
-            <div className="relative h-[500px] rounded-2xl overflow-hidden shadow-2xl">
-              <Image 
-                src="https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg" 
-                alt="Happy dogs playing in a clean backyard" 
-                fill 
-                className="object-cover" 
-                priority 
-                onError={(e) => {
-                  const target = e.target;
-                  target.src = "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1";
-                }}
-              />
+
+            <h1 className="hero-reveal hero-reveal-delay-2 font-display text-2xl sm:text-3xl md:text-[2.15rem] font-medium tracking-tight text-[color:var(--brand-ink)] leading-[1.2]">
+              Yard clean. Life easy.
+            </h1>
+
+            <p className="hero-reveal hero-reveal-delay-3 mt-5 max-w-xl text-base md:text-lg text-[color:var(--brand-ink-muted)] leading-relaxed">
+              Weekly dog waste removal for Peyton &amp; Falcon, Colorado — so you can enjoy the yard again.
+            </p>
+
+            <div className="hero-reveal hero-reveal-delay-4 mt-9 flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <Link
+                href="/signup"
+                className="brand-cta-primary inline-flex items-center justify-center font-semibold px-6 py-3.5 rounded-xl text-base transition-transform duration-200 hover:-translate-y-0.5"
+              >
+                Join the Club
+              </Link>
+              <Link
+                href="/pricing"
+                className="brand-cta-secondary inline-flex items-center justify-center font-semibold px-6 py-3.5 rounded-xl text-base transition-transform duration-200 hover:-translate-y-0.5"
+              >
+                See pricing
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* Features Section */}
-      <section className="py-20 bg-neutral-50">
+      <section className="py-20 bg-[color:var(--brand-surface)]">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-4xl font-bold mb-6 text-neutral-900">
+          <div className="max-w-3xl mb-16">
+            <h2 className="font-display text-3xl md:text-4xl font-semibold mb-4 text-[color:var(--brand-ink)]">
               Why Choose Scoopify Club?
             </h2>
-            <p className="text-xl text-neutral-600">
-              Our app-powered waste removal service takes the hassle out of maintaining a clean yard for your pets, with real-time tracking and complete control over your service schedule.
+            <p className="text-lg text-[color:var(--brand-ink-muted)]">
+              App-powered waste removal with real-time updates and full control over your schedule.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow duration-200">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <SafeIcon icon={faBroom} className="w-6 h-6 text-primary"/>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold mb-2 text-neutral-900">Professional Service</h3>
-                  <p className="text-neutral-600">Never wonder if your yard has been cleaned - receive email updates and view completion photos directly in your customer dashboard.</p>
-                </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-[color:var(--brand-mist)] flex items-center justify-center">
+                <SafeIcon icon={faBroom} className="w-5 h-5 text-[color:var(--brand-leaf)]"/>
+              </div>
+              <div>
+                <h3 className="font-display text-xl font-semibold mb-2 text-[color:var(--brand-ink)]">Professional Service</h3>
+                <p className="text-[color:var(--brand-ink-muted)]">Email updates and completion photos in your dashboard after every visit.</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow duration-200">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <SafeIcon icon={faCalendar} className="w-6 h-6 text-primary"/>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold mb-2 text-neutral-900">Flexible Scheduling</h3>
-                  <p className="text-neutral-600">Select your preferred service day and manage your entire schedule through your personalized dashboard - complete control at your fingertips.</p>
-                </div>
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-[color:var(--brand-mist)] flex items-center justify-center">
+                <SafeIcon icon={faCalendar} className="w-5 h-5 text-[color:var(--brand-leaf)]"/>
+              </div>
+              <div>
+                <h3 className="font-display text-xl font-semibold mb-2 text-[color:var(--brand-ink)]">Flexible Scheduling</h3>
+                <p className="text-[color:var(--brand-ink-muted)]">Pick your service day and manage the calendar from your account.</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow duration-200">
-              <div className="flex items-start gap-4">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <SafeIcon icon={faMobileScreen} className="w-6 h-6 text-primary"/>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold mb-2 text-neutral-900">Mobile App</h3>
-                  <p className="text-neutral-600">Manage your service schedule, view photos, and communicate with your scooper all from your mobile device.</p>
-                </div>
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-[color:var(--brand-mist)] flex items-center justify-center">
+                <SafeIcon icon={faMobileScreen} className="w-5 h-5 text-[color:var(--brand-leaf)]"/>
+              </div>
+              <div>
+                <h3 className="font-display text-xl font-semibold mb-2 text-[color:var(--brand-ink)]">Mobile App</h3>
+                <p className="text-[color:var(--brand-ink-muted)]">Schedule, photos, and scooper updates from your phone.</p>
               </div>
             </div>
           </div>
@@ -127,142 +125,82 @@ export default function Home() {
       {/* Modern Features Section */}
       <section className="py-20 bg-white">
         <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            <h2 className="text-4xl font-bold mb-6 text-neutral-900">
+          <div className="max-w-3xl mb-16">
+            <h2 className="font-display text-3xl md:text-4xl font-semibold mb-4 text-[color:var(--brand-ink)]">
               Smart Pet Waste Management
             </h2>
-            <p className="text-xl text-neutral-600">
-              Our innovative app-powered platform provides a modern solution to pet waste removal.
+            <p className="text-lg text-[color:var(--brand-ink-muted)]">
+              A modern platform built for busy dog households in Colorado.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-neutral-50 rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow duration-200">
-              <div className="flex flex-col items-center text-center gap-4">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-2">
-                  <FontAwesomeIcon icon={faMobileScreen} className="w-8 h-8 text-primary"/>
-                </div>
-                <h3 className="text-xl font-semibold text-neutral-900">Digital Dashboard</h3>
-                <p className="text-neutral-600">Manage your services, view your cleaning history, and control your schedule all from one easy-to-use dashboard.</p>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+            <div>
+              <SafeIcon icon={faMobileScreen} className="w-7 h-7 text-[color:var(--brand-leaf)] mb-4"/>
+              <h3 className="font-display text-xl font-semibold text-[color:var(--brand-ink)] mb-2">Digital Dashboard</h3>
+              <p className="text-[color:var(--brand-ink-muted)]">Services, history, and schedule in one place.</p>
             </div>
-
-            <div className="bg-neutral-50 rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow duration-200">
-              <div className="flex flex-col items-center text-center gap-4">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-2">
-                  <FontAwesomeIcon icon={faCamera} className="w-8 h-8 text-primary"/>
-                </div>
-                <h3 className="text-xl font-semibold text-neutral-900">Photo Verification</h3>
-                <p className="text-neutral-600">Every service is documented with before and after photos, so you can see the results without stepping outside.</p>
-              </div>
+            <div>
+              <SafeIcon icon={faCamera} className="w-7 h-7 text-[color:var(--brand-leaf)] mb-4"/>
+              <h3 className="font-display text-xl font-semibold text-[color:var(--brand-ink)] mb-2">Photo Verification</h3>
+              <p className="text-[color:var(--brand-ink-muted)]">Before and after photos after every cleanup.</p>
             </div>
-
-            <div className="bg-neutral-50 rounded-xl p-6 shadow-md hover:shadow-lg transition-shadow duration-200">
-              <div className="flex flex-col items-center text-center gap-4">
-                <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-2">
-                  <FontAwesomeIcon icon={faThumbsUp} className="w-8 h-8 text-primary"/>
-                </div>
-                <h3 className="text-xl font-semibold text-neutral-900">Satisfaction Tracking</h3>
-                <p className="text-neutral-600">Rate each service and provide feedback directly through your dashboard to ensure continued quality.</p>
-              </div>
+            <div>
+              <SafeIcon icon={faThumbsUp} className="w-7 h-7 text-[color:var(--brand-leaf)] mb-4"/>
+              <h3 className="font-display text-xl font-semibold text-[color:var(--brand-ink)] mb-2">Satisfaction Tracking</h3>
+              <p className="text-[color:var(--brand-ink-muted)]">Rate each visit so quality stays consistent.</p>
             </div>
           </div>
         </div>
       </section>
 
       {/* Testimonial Section */}
-      <section className="py-20 bg-neutral-50">
+      <section className="py-20 bg-[color:var(--brand-mist)]/60">
         <div className="container mx-auto px-4">
-          <div className="max-w-5xl mx-auto">
-            <div className="grid md:grid-cols-2 gap-12 items-center">
-              <div className="relative h-[400px] rounded-2xl overflow-hidden shadow-xl">
-                <Image 
-                  src="https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg" 
-                  alt="Golden retriever relaxing in pristine backyard" 
-                  fill 
-                  className="object-cover"
-                  onError={(e) => {
-                    const target = e.target;
-                    target.src = "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1";
-                  }}
-                />
+          <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+            <div className="relative h-[360px] md:h-[420px] overflow-hidden rounded-2xl">
+              <Image
+                src="/images/golden-retriever.jpg"
+                alt="Golden retriever relaxing in a clean backyard"
+                fill
+                className="object-cover"
+                sizes="(max-width: 768px) 100vw, 50vw"
+              />
+            </div>
+            <div className="space-y-5">
+              <div className="flex gap-1">
+                {[...Array(5)].map((_, i) => (<FontAwesomeIcon key={i} icon={faStar} className="h-5 w-5 text-[color:var(--brand-leaf)]"/>))}
               </div>
-              <div className="space-y-6">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, i) => (<FontAwesomeIcon key={i} icon={faStar} className="h-5 w-5 text-yellow-500"/>))}
-                </div>
-                <blockquote className="text-2xl font-medium text-neutral-700 italic">
-                  "Since using Scoopify Club, our backyard has become a clean, safe haven for our family and pets. The photo updates after each service give us complete peace of mind!"
-                </blockquote>
-                <div className="font-semibold text-neutral-900">
-                  Jessica L. • Dog parent to Max & Bella
-                </div>
-                <p className="text-neutral-600">
-                  Weekly service subscriber for 8 months
-                </p>
+              <blockquote className="font-display text-2xl font-medium text-[color:var(--brand-ink)] leading-snug">
+                &ldquo;Since using Scoopify Club, our backyard has become a clean, safe haven for our family and pets. The photo updates after each service give us complete peace of mind!&rdquo;
+              </blockquote>
+              <div className="font-semibold text-[color:var(--brand-ink)]">
+                Jessica L. · Dog parent to Max &amp; Bella
               </div>
+              <p className="text-[color:var(--brand-ink-muted)]">
+                Weekly service subscriber
+              </p>
             </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-br from-primary to-primary-dark">
+      <section className="py-20 bg-[color:var(--brand-leaf)]">
         <div className="container mx-auto px-4">
-          <div className="mb-12 flex justify-center">
-            <div className="grid grid-cols-3 gap-4 max-w-3xl">
-              <div className="relative h-32 rounded-lg overflow-hidden">
-                <Image 
-                  src="https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg" 
-                  alt="Dog playing in clean backyard" 
-                  fill 
-                  className="object-cover"
-                  onError={(e) => {
-                    const target = e.target;
-                    target.src = "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1";
-                  }}
-                />
-              </div>
-              <div className="relative h-32 rounded-lg overflow-hidden">
-                <Image 
-                  src="https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg" 
-                  alt="Manicured backyard perfect for pets" 
-                  fill 
-                  className="object-cover"
-                  onError={(e) => {
-                    const target = e.target;
-                    target.src = "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1";
-                  }}
-                />
-              </div>
-              <div className="relative h-32 rounded-lg overflow-hidden">
-                <Image 
-                  src="https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg" 
-                  alt="Beautiful pet-friendly yard" 
-                  fill 
-                  className="object-cover"
-                  onError={(e) => {
-                    const target = e.target;
-                    target.src = "https://images.pexels.com/photos/1108099/pexels-photo-1108099.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=1";
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="max-w-4xl mx-auto text-center text-white">
-            <h2 className="text-4xl font-bold mb-6">
-              Ready for a Cleaner Yard?
+          <div className="max-w-3xl mx-auto text-center text-white">
+            <h2 className="font-display text-3xl md:text-4xl font-semibold mb-5">
+              Ready for a cleaner yard?
             </h2>
-            <p className="text-xl text-white/90 mb-10">
-              Join Scoopify Club today and enjoy a clean, pet waste-free yard with full visibility and control through our innovative app. Spend less time cleaning and more time enjoying your outdoor space with your pets.
+            <p className="text-lg text-white/90 mb-10">
+              Join Scoopify Club and spend less time scooping — more time outside with your dogs.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/signup" className="inline-flex items-center justify-center bg-white text-primary font-semibold px-6 py-3 rounded-lg hover:bg-neutral-100 transition-colors duration-200 shadow-lg">
+              <Link href="/signup" className="inline-flex items-center justify-center bg-white text-[color:var(--brand-leaf-deep)] font-semibold px-6 py-3.5 rounded-xl hover:bg-[color:var(--brand-mist)] transition-colors duration-200">
                 <FontAwesomeIcon icon={faCircleCheck} className="mr-2 h-4 w-4"/>
-                Get Started Now
+                Get Started
               </Link>
-              <Link href="/pricing" className="inline-flex items-center text-white font-semibold hover:text-white/80 transition-colors duration-200 group">
+              <Link href="/pricing" className="inline-flex items-center text-white font-semibold hover:text-white/85 transition-colors duration-200 group">
                 <FontAwesomeIcon icon={faTags} className="mr-2 h-4 w-4"/>
                 View Pricing
                 <span className="ml-2 group-hover:translate-x-1 transition-transform duration-200">→</span>
