@@ -35,6 +35,8 @@ Unclaimed and a `JOB_CLAIM_EXPIRED` row is written to `SystemLog`.
   only to the assigned scooper while the job is claimed or in progress: in the
   claim and check-in responses, `GET /api/employee/services/<id>/access` and
   `GET /api/services/<id>`. Each reveal writes a `GATE_CODE_REVEALED` SystemLog row.
+- **Viewing hours.** `GET /api/employee/available-services` is open 8:00 AM to
+  7:00 PM America/Denver (`getJobViewingWindow`), whatever the server's time zone.
 - **Check-in.** Only the assigned scooper, before the deadline. When the job has
   a `Location`, the request must include `latitude`/`longitude` within 0.25 miles.
 

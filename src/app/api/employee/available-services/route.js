@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
-import { requireScooper, releaseExpiredClaims, ACTIVE_JOB_STATUSES, UNCLAIMED_JOB_CUSTOMER_SELECT, toUnclaimedCustomerView } from '@/lib/job-claims';
+import { requireScooper, releaseExpiredClaims, getJobViewingWindow, ACTIVE_JOB_STATUSES, UNCLAIMED_JOB_CUSTOMER_SELECT, toUnclaimedCustomerView } from '@/lib/job-claims';
 import { calculateDistance } from '@/lib/geolocation';
-import { setHours, startOfDay, endOfDay, isAfter, isBefore } from 'date-fns';
 
 export const runtime = 'nodejs';
 
@@ -33,15 +32,15 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
         }
 
-        // Check if current time is between 8am and 7pm
+        // Jobs can be viewed between 8am and 7pm Mountain time
         const now = new Date();
-        const today = new Date();
-        const eightAM = setHours(startOfDay(today), 8);
-        const sevenPM = setHours(startOfDay(today), 19);
-        
-        if (isBefore(now, eightAM) || isAfter(now, sevenPM)) {
+        const viewingWindow = getJobViewingWindow(now);
+
+        if (!viewingWindow.isOpen) {
             return NextResponse.json({ 
-                error: 'Services can only be viewed between 8:00 AM and 7:00 PM' 
+                error: 'Services can only be viewed between 8:00 AM and 7:00 PM Mountain Time',
+                unlockTime: viewingWindow.opensAt.toISOString(),
+                timeZone: viewingWindow.timeZone
             }, { status: 400 });
         }
 
@@ -170,7 +169,7 @@ export async function GET(request) {
                 estimatedEarnings: service.servicePlan?.price || 0
             })),
             message: `Found ${closestJobs.length} available jobs${employeeLatitude && employeeLongitude ? ' (sorted by distance)' : ''}`,
-            unlockTime: eightAM.toISOString(),
+            unlockTime: viewingWindow.opensAt.toISOString(),
             currentTime: now.toISOString(),
             employeeLocation: employeeLatitude && employeeLongitude ? {
                 latitude: employeeLatitude,
