@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createUserToken } from '@/lib/jwt-utils';
+import { createUserToken, createRefreshToken } from '@/lib/jwt-utils';
 import { sendVerificationEmail } from '@/lib/email-service';
+import { setSessionCookies } from '@/lib/auth-cookies';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -55,15 +56,15 @@ export async function POST(request) {
       }
     });
 
-    // Generate JWT token
-    const jwtToken = await createUserToken({
+    const tokenUser = {
       id: user.id,
       email: user.email,
       role: user.role,
       password: user.password,
-    });
+    };
+    const accessToken = await createUserToken(tokenUser);
+    const refreshToken = await createRefreshToken(tokenUser);
 
-    // Set authentication cookies
     const response = NextResponse.json({
       success: true,
       message: 'Email verified successfully',
@@ -76,22 +77,11 @@ export async function POST(request) {
       }
     });
 
-    // Set secure cookies
-    response.cookies.set('accessToken', jwtToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/',
-      maxAge: 15 * 60 // 15 minutes
-    });
-
-    response.cookies.set('refreshToken', jwtToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      path: '/api/auth/refresh',
-      maxAge: 7 * 24 * 60 * 60 // 7 days
-    });
+    setSessionCookies(
+      response,
+      { accessToken, refreshToken },
+      { sameSite: 'strict' }
+    );
 
     return response;
 

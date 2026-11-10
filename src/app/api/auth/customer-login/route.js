@@ -12,7 +12,8 @@ var __rest = (this && this.__rest) || function (s, e) {
 import { NextResponse } from 'next/server';
 import { compare } from 'bcryptjs';
 import prisma from "@/lib/prisma";
-import { verifyToken, generateTokens } from '@/lib/api-auth';
+import { generateTokens } from '@/lib/api-auth';
+import { setSessionCookies } from '@/lib/auth-cookies';
 
 // Force Node.js runtime for bcryptjs and Prisma
 export const runtime = 'nodejs';
@@ -71,21 +72,11 @@ export async function POST(request) {
             accessToken: accessToken,
             refreshToken: refreshToken
         });
-        // Set cookies with consistent settings
-        response.cookies.set('accessToken', accessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60, // 7 days
-        });
-        response.cookies.set('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60, // 7 days
-        });
+        setSessionCookies(
+            response,
+            { accessToken, refreshToken },
+            { accessMaxAge: 7 * 24 * 60 * 60, sameSite: 'lax' }
+        );
         // Set device fingerprint cookie if we have one
         if (user.deviceFingerprint) {
             response.cookies.set('fingerprint', user.deviceFingerprint, {
@@ -96,9 +87,6 @@ export async function POST(request) {
                 maxAge: 7 * 24 * 60 * 60, // 7 days
             });
         }
-        // Also set non-httpOnly cookies for client JS access
-        response.headers.append('Set-Cookie', `accessToken_client=${accessToken}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
-        response.headers.append('Set-Cookie', `refreshToken_client=${refreshToken}; Path=/; Max-Age=${7 * 24 * 60 * 60}; SameSite=Lax`);
         return response;
     }
     catch (error) {

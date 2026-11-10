@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { authenticateUser } from '@/lib/api-auth';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
+import { setSessionCookiesOnStore } from '@/lib/auth-cookies';
 
 // Validation function for login request
 function validateLoginData(data) {
@@ -43,26 +44,12 @@ export async function POST(request) {
 
         const { user, accessToken, refreshToken } = await authenticateUser(data.email, data.password);
 
-        // Set secure cookies with proper expiration times
         const cookieStore = await cookies();
-        
-        // Set access token with short expiration (15 minutes)
-        cookieStore.set('accessToken', accessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            path: '/',
-            maxAge: 15 * 60 // 15 minutes
-        });
-        
-        // Set refresh token with longer expiration (7 days)
-        cookieStore.set('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60 // 7 days
-        });
+        setSessionCookiesOnStore(
+            cookieStore,
+            { accessToken, refreshToken },
+            { sameSite: 'strict' }
+        );
 
         console.log('✅ Login cookies set successfully for user:', user.email, 'role:', user.role);
 
