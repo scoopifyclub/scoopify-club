@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Loader2, HomeIcon, UsersIcon, BuildingIcon, CircleDollarSign, Settings, RefreshCw, LogOut, Calendar, FileText } from 'lucide-react';
+import { Loader2, HomeIcon, UsersIcon, BuildingIcon, CircleDollarSign, Settings, RefreshCw, LogOut, Calendar, FileText, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 
@@ -89,8 +89,12 @@ export default function AdminDashboardLayout({ children }) {
             // If we're at the root dashboard, set overview as active
             if (pathname === '/admin/dashboard') {
                 setActiveTab('overview');
-            } else if (currentPath && ['overview', 'customers', 'employees', 'services', 'payments', 'reports', 'settings'].includes(currentPath)) {
+            } else if (currentPath && ['overview', 'customers', 'employees', 'services', 'payments', 'financials', 'pricing', 'reports', 'settings'].includes(currentPath)) {
                 setActiveTab(currentPath);
+            } else if (pathname?.includes('/admin/dashboard/financials')) {
+                setActiveTab('financials');
+            } else if (pathname?.includes('/admin/dashboard/pricing')) {
+                setActiveTab('pricing');
             }
 
             // Verify admin authentication
@@ -181,6 +185,7 @@ export default function AdminDashboardLayout({ children }) {
         { id: 'employees', label: 'Employees', icon: <BuildingIcon className="h-5 w-5"/>, href: '/admin/dashboard/employees' },
         { id: 'services', label: 'Services', icon: <Calendar className="h-5 w-5"/>, href: '/admin/dashboard/services' },
         { id: 'payments', label: 'Payments', icon: <CircleDollarSign className="h-5 w-5"/>, href: '/admin/dashboard/payments' },
+        { id: 'financials', label: 'Financials', icon: <Wallet className="h-5 w-5"/>, href: '/admin/dashboard/financials' },
         { id: 'pricing', label: 'Pricing', icon: <CircleDollarSign className="h-5 w-5"/>, href: '/admin/dashboard/pricing' },
         { id: 'automation', label: 'Automation', icon: <RefreshCw className="h-5 w-5"/>, href: '/admin/dashboard/automation' },
         { id: 'reports', label: 'Reports', icon: <FileText className="h-5 w-5"/>, href: '/admin/dashboard/reports' },
