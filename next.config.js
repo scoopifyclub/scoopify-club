@@ -1,3 +1,15 @@
+// Stripe.js (Elements, Checkout redirect, 3DS frames) and Google Maps load
+// from these hosts; without them the browser blocks payment and address UI.
+export const contentSecurityPolicy = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://*.js.stripe.com https://maps.googleapis.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data:",
+  "connect-src 'self' https:",
+  "frame-src 'self' https://js.stripe.com https://*.js.stripe.com https://hooks.stripe.com https://checkout.stripe.com",
+].join('; ');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Security headers
@@ -28,7 +40,7 @@ const nextConfig = {
           },
           {
             key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:;",
+            value: contentSecurityPolicy,
           },
         ],
       },

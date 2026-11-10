@@ -1,34 +1,24 @@
-import { loadStripe } from '@stripe/stripe-js';
+// Server-only Stripe module. Client components must use '@/lib/stripe-client'.
+// Importing this file must never throw: Next imports route modules while
+// collecting page data at build time, and missing keys would fail the build.
 import Stripe from 'stripe';
-// Initialize Stripe with your publishable key
-const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-// For development, provide a fallback to prevent build errors
 const isDev = process.env.NODE_ENV === 'development';
 const isNonSecureMode = process.env.NEXT_PUBLIC_NON_SECURE_MODE === 'true';
 // Forward export for convenience
 export * from './stripe-subscriptions';
-const publishableKey = stripePublishableKey;
-const secretKey = stripeSecretKey;
-
-if (!publishableKey || !secretKey) {
-    throw new Error('Stripe keys are required. Please set STRIPE_PUBLISHABLE_KEY and STRIPE_SECRET_KEY environment variables.');
+if (typeof window !== 'undefined') {
+    console.error("'@/lib/stripe' is server-only; import '@/lib/stripe-client' in client components");
 }
-// Only check for server-side keys on the server
-if (typeof window === 'undefined') {
-    if (!stripeSecretKey) {
-        throw new Error('STRIPE_SECRET_KEY is required on the server side');
-    }
+else if (!stripeSecretKey) {
+    console.warn('STRIPE_SECRET_KEY is not set; server-side Stripe calls are disabled');
 }
 // Warn if running in non-secure mode
 if (isNonSecureMode && isDev) {
     console.warn('⚠️ Running in non-secure mode. Stripe operations may not work correctly.');
     console.warn('⚠️ For proper Stripe functionality, please set up SSL certificates.');
 }
-// Development fallbacks for Stripe keys
-// This is used client-side - safe to use publishable key
-export const stripePromise = loadStripe(publishableKey);
-// Price IDs for services - these are safe to use client-side as they're just identifiers
+// Legacy placeholders; real price IDs live in '@/lib/pricing-catalog'.
 export const STRIPE_PRICE_IDS = {
     MONTHLY_SUBSCRIPTION: process.env.NEXT_PUBLIC_STRIPE_MONTHLY_PRICE_ID || 'price_monthly',
     ONE_TIME_CLEANUP: process.env.NEXT_PUBLIC_STRIPE_CLEANUP_PRICE_ID || 'price_cleanup',
@@ -43,13 +33,18 @@ export const STRIPE_WEBHOOK_EVENTS = {
 };
 // Initialize Stripe only on the server side
 let stripe = null;
-// Server-side only code
-if (typeof window === 'undefined') {
-    const secretKey = stripeSecretKey || 'sk_test_placeholder';
-    stripe = new Stripe(secretKey, {
+if (typeof window === 'undefined' && stripeSecretKey) {
+    stripe = new Stripe(stripeSecretKey, {
         apiVersion: '2023-10-16',
         typescript: true,
     });
+}
+// For callers that cannot proceed without Stripe (e.g. the webhook).
+export function requireStripe() {
+    if (!stripe) {
+        throw new Error('Stripe is not configured: STRIPE_SECRET_KEY is missing');
+    }
+    return stripe;
 }
 // Create a Stripe customer - server side only function
 const createStripeCustomer = async (email, name, phone) => {

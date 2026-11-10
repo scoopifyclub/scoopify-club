@@ -2,6 +2,30 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { rateLimit } from '@/lib/auth-rate-limit';
 import { calculateTaxes } from '@/lib/tax-calculator';
+import { resolvePurchasablePlan } from '@/lib/pricing.server';
+import { validateUserToken } from '@/lib/jwt-utils';
+import prisma from '@/lib/prisma';
+
+// Lets the webhook link the purchase to an existing Customer. Anonymous
+// checkout still works; the webhook then matches on the buyer's email.
+async function findSignedInCustomer(request) {
+    const token = request.cookies?.get('accessToken')?.value || request.cookies?.get('token')?.value;
+    if (!token) return null;
+    try {
+        const user = await validateUserToken(token, 'CUSTOMER');
+        if (!user?.userId) return null;
+        const customer = await prisma.customer.findUnique({
+            where: { userId: user.userId },
+            select: { id: true, stripeCustomerId: true },
+        });
+        if (!customer) return null;
+        return { customerId: customer.id, stripeCustomerId: customer.stripeCustomerId, email: user.email };
+    }
+    catch (error) {
+        console.error('Could not resolve signed-in customer for checkout:', error.message);
+        return null;
+    }
+}
 
 export async function POST(request) {
     if (typeof window !== 'undefined') {
@@ -20,39 +44,27 @@ export async function POST(request) {
             }, { status: 429 });
         }
 
-        const { priceId, isOneTime, customerId, serviceType, customerType, subtotal } = await request.json();
+        const { planId, priceId: requestedPriceId, serviceType, customerType, subtotal } = await request.json();
 
-        // Validate the price ID
-        if (!priceId) {
+        if (!planId && !requestedPriceId) {
             return NextResponse.json({
-                error: 'Price ID is required',
+                error: 'Plan is required',
                 code: 'missing_price_id'
             }, { status: 400 });
         }
 
-        // Validate price ID format
-        if (!priceId.startsWith('price_')) {
-            return NextResponse.json({ 
-                error: 'Invalid price ID format',
-                code: 'invalid_price_format'
+        // Only catalog plans with a configured Stripe price can be bought, and
+        // the catalog (not the client) decides one-time vs subscription.
+        const purchasable = resolvePurchasablePlan({ planId, priceId: requestedPriceId });
+        if (!purchasable) {
+            return NextResponse.json({
+                error: 'This plan is not available',
+                code: 'invalid_price'
             }, { status: 400 });
         }
-
-        // Validate customer ID if provided
-        if (customerId && !customerId.startsWith('cus_')) {
-            return NextResponse.json({ 
-                error: 'Invalid customer ID format',
-                code: 'invalid_customer_format'
-            }, { status: 400 });
-        }
-
-        // Validate boolean flag
-        if (typeof isOneTime !== 'boolean') {
-            return NextResponse.json({ 
-                error: 'Invalid payment type',
-                code: 'invalid_payment_type'
-            }, { status: 400 });
-        }
+        const { item: plan, priceId } = purchasable;
+        const isOneTime = plan.kind !== 'subscription';
+        const buyer = await findSignedInCustomer(request);
 
         // Calculate taxes if subtotal is provided
         let taxAmount = 0;
@@ -95,9 +107,18 @@ export async function POST(request) {
                 }] : [])
             ],
             mode: isOneTime ? 'payment' : 'subscription',
-            success_url: `${origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${origin}/checkout/cancel`,
+            success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${origin}/pricing`,
+            ...(buyer?.stripeCustomerId
+                ? { customer: buyer.stripeCustomerId }
+                : buyer?.email ? { customer_email: buyer.email } : {}),
+            ...(buyer ? { client_reference_id: buyer.customerId } : {}),
+            ...(isOneTime
+                ? { payment_intent_data: { metadata: { planId: plan.id, customerId: buyer?.customerId || '', type: 'ONE_TIME_PAYMENT' } } }
+                : { subscription_data: { metadata: { planId: plan.id, customerId: buyer?.customerId || '' } } }),
             metadata: {
+                planId: plan.id,
+                customerId: buyer?.customerId || '',
                 isOneTime: isOneTime ? 'true' : 'false',
                 subtotal: subtotal ? subtotal.toString() : '',
                 taxAmount: taxAmount.toString(),
@@ -107,7 +128,7 @@ export async function POST(request) {
                 location: 'Peyton, Colorado'
             }
         });
-        return NextResponse.json({ sessionId: session.id });
+        return NextResponse.json({ sessionId: session.id, url: session.url });
     }
     catch (error) {
         console.error('Error creating checkout session:', error);

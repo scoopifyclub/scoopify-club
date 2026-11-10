@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import { stripePromise } from '@/lib/stripe';
+import { getStripe } from '@/lib/stripe-client';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -78,7 +78,7 @@ export function Pricing() {
             }
 
             const { sessionId } = await response.json();
-            const stripe = await stripePromise;
+            const stripe = await getStripe();
             
             if (!stripe) {
                 throw new Error('Stripe failed to initialize');
