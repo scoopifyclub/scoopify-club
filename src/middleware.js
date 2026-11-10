@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { validateUserToken } from '@/lib/jwt-utils'
 import { applySecurityMiddleware } from '@/middleware/security'
+import { getRequestAuthToken, clearSessionCookies } from '@/lib/auth-cookies'
 
 // Helper function for conditional logging
 const log = (message, data = null) => {
@@ -44,8 +45,7 @@ function denyAdmin(request, status, reason) {
   }
 
   if (status === 401) {
-    response.cookies.delete('accessToken')
-    response.cookies.delete('token')
+    clearSessionCookies(response)
   }
   return response
 }
@@ -54,11 +54,7 @@ function denyAdmin(request, status, reason) {
 // every privileged route handler also calls requireAdmin() (src/lib/admin-auth.js),
 // which re-checks the role, the ADMIN_EMAILS allowlist and the session version.
 async function gateAdmin(request) {
-  const token =
-    request.cookies.get('accessToken')?.value ||
-    request.cookies.get('token')?.value ||
-    request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ||
-    null
+  const token = await getRequestAuthToken(request)
 
   if (!token) {
     return denyAdmin(request, 401, 'no session')

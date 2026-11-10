@@ -6,6 +6,7 @@ import { validatePassword } from '@/lib/password';
 import { sendPasswordResetEmail } from '@/lib/email-service';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 import { edgeRateLimit } from '@/lib/edge-rate-limit';
+import { clearSessionCookies } from '@/lib/auth-cookies';
 
 export const RESET_TOKEN_TTL_MS = 60 * 60 * 1000;
 // A new link is not emailed while one issued less than this long ago is still valid
@@ -17,7 +18,6 @@ export const GENERIC_REQUEST_MESSAGE =
 export const INVALID_TOKEN_MESSAGE = 'This password reset link is invalid or has expired.';
 
 const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
-const AUTH_COOKIES = ['accessToken', 'refreshToken', 'token', 'adminToken', 'accessToken_client', 'refreshToken_client'];
 
 /**
  * Only this SHA-256 digest is stored in User.resetToken; the raw token exists
@@ -170,9 +170,7 @@ export function resetResultResponse(result) {
     success: true,
     message: 'Your password has been reset. Please sign in with your new password.',
   });
-  for (const name of AUTH_COOKIES) {
-    response.cookies.delete(name);
-  }
+  clearSessionCookies(response);
   return response;
 }
 

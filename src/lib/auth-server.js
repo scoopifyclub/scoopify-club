@@ -1,8 +1,8 @@
 import { compare } from 'bcryptjs';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createUserToken, createRefreshToken, validateUserToken, isCurrentSessionVersion } from './jwt-utils';
+import { getRequestAuthToken } from './auth-cookies';
 
 export async function signJWT(payload) {
   return await createUserToken(payload);
@@ -12,9 +12,12 @@ export async function verifyJWT(token) {
   return await validateUserToken(token);
 }
 
-export async function getSession() {
-  const cookieStore = cookies();
-  const token = cookieStore.get('token')?.value;
+/**
+ * Current signed-in user from the unified accessToken session cookie
+ * (or Authorization Bearer). Returns null when missing or revoked.
+ */
+export async function getSession(request) {
+  const token = await getRequestAuthToken(request);
   if (!token) return null;
 
   const payload = await validateUserToken(token);
@@ -62,7 +65,7 @@ export async function authenticateUser(email, password) {
 }
 
 export async function requireAuth(request) {
-  const user = await getSession();
+  const user = await getSession(request);
   if (!user) {
     return NextResponse.json(
       { error: 'Unauthorized' },
@@ -72,8 +75,8 @@ export async function requireAuth(request) {
   return user;
 }
 
-export async function requireRole(role) {
-  const user = await getSession();
+export async function requireRole(role, request) {
+  const user = await getSession(request);
   if (!user) {
     return NextResponse.json(
       { error: 'Unauthorized' },
@@ -107,7 +110,7 @@ export async function refreshToken(token) {
   }
 
   const newToken = await signJWT({
-    id: payload.id,
+    id: payload.userId || payload.id,
     email: payload.email,
     role: payload.role,
   });
@@ -133,4 +136,4 @@ export const authOptions = {
       return session;
     },
   },
-}; 
+};
