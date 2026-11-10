@@ -185,6 +185,9 @@ model Employee {
   stripeConnectAccountId String?             @unique
   approvedAt             DateTime?
   approvedBy             String?
+  stripePayoutsEnabled   Boolean             @default(false)
+  stripeDetailsSubmitted Boolean             @default(false)
+  stripeAccountUpdatedAt DateTime?
   conversations          Conversation[]      @relation("EmployeeToConversations")
   serviceAreas           CoverageArea[]      @relation("EmployeeToServiceAreas")
   user                   User                @relation("UserToEmployee", fields: [userId], references: [id])
@@ -274,8 +277,12 @@ model Payout {
   weekStart     DateTime?
   weekEnd       DateTime?
   isSameDay     Boolean   @default(false)
+  stripeTransferId String? @unique
   employee      Employee  @relation("EmployeeToPayouts", fields: [employeeId], references: [id])
+  financialRecords JobFinancialRecord[] @relation("PayoutToFinancialRecords")
+  adjustments   PayoutAdjustment[] @relation("PayoutToAdjustments")
 
+  @@unique([employeeId, weekStart])
   @@index([employeeId])
   @@index([status])
   @@index([requestedAt])
@@ -586,7 +593,10 @@ model ServiceMessage {
 /// scooperEarningCents - referralExpenseCents - stripeFeeCents. Change amounts
 /// only through adjustFinancialRecord (src/lib/job-financials.js), which
 /// appends to `adjustments`. payoutStatus, stripeTransferId and paidAt belong
-/// to the payouts worker. See docs/job-completion.md.
+/// to the payouts worker (src/lib/scooper-payouts.js, docs/scooper-payouts.md):
+/// payoutStatus is PENDING, HELD, PROCESSING, PAID or VOID, and one weekly
+/// Stripe transfer (stripeTransferId) can cover several records.
+/// See docs/job-completion.md.
 model JobFinancialRecord {
   id                        String    @id
   serviceId                 String    @unique
@@ -607,15 +617,69 @@ model JobFinancialRecord {
   completedAt               DateTime
   serviceDurationSeconds    Int?
   payoutStatus              String    @default("PENDING")
-  stripeTransferId          String?   @unique
+  stripeTransferId          String?
   paidAt                    DateTime?
+  payoutId                  String?
+  holdReason                String?
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime
   service                   Service   @relation("ServiceToFinancialRecord", fields: [serviceId], references: [id])
+  payout                    Payout?   @relation("PayoutToFinancialRecords", fields: [payoutId], references: [id])
 
   @@index([employeeId, payoutStatus])
+  @@index([stripeTransferId])
+  @@index([payoutId])
   @@index([customerId])
   @@index([completedAt])
+}
+
+/// Money taken back from (negative) or added to a scooper's next payout. A
+/// clawback is written when a job that was already paid is refunded or loses
+/// a dispute; paid records cannot be adjusted (see adjustFinancialRecord).
+model PayoutAdjustment {
+  id          String    @id @default(uuid())
+  /// Idempotency key, e.g. clawback:<serviceId>
+  key         String    @unique
+  employeeId  String
+  serviceId   String?
+  amountCents Int
+  reason      String
+  /// PENDING, PROCESSING or PAID (netted into a payout)
+  status      String    @default("PENDING")
+  payoutId    String?
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  payout      Payout?   @relation("PayoutToAdjustments", fields: [payoutId], references: [id])
+
+  @@index([employeeId, status])
+  @@index([payoutId])
+}
+
+/// Keeps scooper pay from being sent while customer money is at risk.
+/// A hold on a service covers that service; a hold with only a customer
+/// covers every unpaid job for that customer's services.
+model PayoutHold {
+  id             String    @id @default(uuid())
+  /// DISPUTE or REFUND
+  reason         String
+  /// OPEN holds pay; RELEASED lets it be paid; RESOLVED means an admin or a
+  /// full service refund voided the covered jobs.
+  status         String    @default("OPEN")
+  customerId     String?
+  serviceId      String?
+  stripeObjectId String    @unique
+  stripeChargeId String?
+  amount         Float?
+  note           String?
+  resolvedAt     DateTime?
+  resolvedBy     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status])
+  @@index([customerId])
+  @@index([serviceId])
 }
 
 model ServicePhoto {
