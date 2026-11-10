@@ -1,116 +1,46 @@
-name: Automated Business Operations
+name: Run cron job manually
+
+# Scheduled runs come from Vercel Cron (vercel.json); see docs/cron-jobs.md.
+# This workflow has no schedule on purpose: GitHub auto-disables scheduled
+# workflows after 60 days without repository activity, which silently stopped
+# the old schedule. Use it to run a job on demand (Actions > Run workflow).
+#
+# Repository secrets:
+#   VERCEL_URL   production origin, e.g. https://www.scoopify.club
+#   CRON_SECRET  same value as CRON_SECRET in Vercel production
 
 on:
-  schedule:
-    # Weekly Services - Every Monday at 6:00 AM UTC
-    - cron: '0 6 * * 1'
-    # Employee Payouts - Every Friday at 9:00 AM UTC
-    - cron: '0 9 * * 5'
-    # Employee Recruitment - Every Monday at 10:00 AM UTC
-    - cron: '0 10 * * 1'
-    # Customer Acquisition - Every Tuesday at 11:00 AM UTC
-    - cron: '0 11 * * 2'
-    # Business Intelligence - Every Monday at 12:00 PM UTC
-    - cron: '0 12 * * 1'
   workflow_dispatch:
     inputs:
-      job_type:
-        description: 'Type of job to run'
+      job:
+        description: 'Cron route to call'
         required: true
-        default: 'weekly-services'
+        default: 'create-weekly-services'
         type: choice
         options:
-        - weekly-services
-        - employee-payouts
-        - employee-recruitment
-        - customer-acquisition
-        - business-intelligence
+          - create-weekly-services
+          - release-expired-claims
+          - open-job-pool
+          - process-employee-payouts
+
+permissions: {}
 
 jobs:
-  weekly-services:
-    if: github.event.schedule == '0 6 * * 1' || github.event.inputs.job_type == 'weekly-services'
+  run:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Create Weekly Services
+      - name: POST /api/cron/${{ inputs.job }}
+        env:
+          APP_URL: ${{ secrets.VERCEL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          JOB: ${{ inputs.job }}
         run: |
-          echo "🔄 Creating weekly services..."
-          curl -X POST ${{ secrets.VERCEL_URL }}/api/cron/create-weekly-services \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            --max-time 300
-          echo "✅ Weekly services creation completed"
-
-  employee-payouts:
-    if: github.event.schedule == '0 9 * * 5' || github.event.inputs.job_type == 'employee-payouts'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Process Employee Payouts
-        run: |
-          echo "💰 Processing employee payouts..."
-          curl -X POST ${{ secrets.VERCEL_URL }}/api/cron/process-employee-payouts \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            --max-time 300
-          echo "✅ Employee payouts processed"
-
-  employee-recruitment:
-    if: github.event.schedule == '0 10 * * 1' || github.event.inputs.job_type == 'employee-recruitment'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Automated Employee Recruitment
-        run: |
-          echo "👥 Running automated employee recruitment..."
-          curl -X POST ${{ secrets.VERCEL_URL }}/api/cron/automated-employee-recruitment \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            --max-time 300
-          echo "✅ Employee recruitment completed"
-
-  customer-acquisition:
-    if: github.event.schedule == '0 11 * * 2' || github.event.inputs.job_type == 'customer-acquisition'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Automated Customer Acquisition
-        run: |
-          echo "🎯 Running automated customer acquisition..."
-          curl -X POST ${{ secrets.VERCEL_URL }}/api/cron/automated-customer-acquisition \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            --max-time 300
-          echo "✅ Customer acquisition completed"
-
-  business-intelligence:
-    if: github.event.schedule == '0 12 * * 1' || github.event.inputs.job_type == 'business-intelligence'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Business Intelligence
-        run: |
-          echo "📊 Generating business intelligence report..."
-          curl -X POST ${{ secrets.VERCEL_URL }}/api/cron/business-intelligence \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            --max-time 300
-          echo "✅ Business intelligence report generated"
-
-  notify-success:
-    needs: [weekly-services, employee-payouts, employee-recruitment, customer-acquisition, business-intelligence]
-    if: always() && (needs.weekly-services.result == 'success' || needs.employee-payouts.result == 'success' || needs.employee-recruitment.result == 'success' || needs.customer-acquisition.result == 'success' || needs.business-intelligence.result == 'success')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Success
-        run: |
-          echo "🎉 Automated business operations completed successfully!"
-          echo "📅 Job executed at: $(date)"
-          echo "🔗 Vercel URL: ${{ secrets.VERCEL_URL }}"
-
-  notify-failure:
-    needs: [weekly-services, employee-payouts, employee-recruitment, customer-acquisition, business-intelligence]
-    if: always() && (needs.weekly-services.result == 'failure' || needs.employee-payouts.result == 'failure' || needs.employee-recruitment.result == 'failure' || needs.customer-acquisition.result == 'failure' || needs.business-intelligence.result == 'failure')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Notify Failure
-        run: |
-          echo "❌ Some automated business operations failed!"
-          echo "📅 Job executed at: $(date)"
-          echo "🔗 Vercel URL: ${{ secrets.VERCEL_URL }}"
-          echo "📋 Check the logs above for details" 
+          if [ -z "$APP_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "::error::Set the VERCEL_URL and CRON_SECRET repository secrets"
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            -X POST "${APP_URL%/}/api/cron/${JOB}" \
+            -H "Authorization: Bearer ${CRON_SECRET}"
+          echo

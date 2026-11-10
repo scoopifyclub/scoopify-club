@@ -141,7 +141,7 @@ The system includes an automated cron job that processes monthly referral paymen
 3. **Implementation**
    - Located in `src/app/api/cron/process-referrals/route.ts`
    - Uses the `processMonthlyReferralPayments` function from `src/lib/payment.ts`
-   - Secured by environment variable `CRON_API_KEY`
+   - Secured by `Authorization: Bearer $CRON_SECRET` (see `docs/cron-jobs.md`)
 
 ### Setting Up the Cron Job
 
@@ -150,14 +150,14 @@ To set up the monthly cron job:
 1. **On Vercel**
    ```bash
    curl -X POST https://your-domain.com/api/cron/process-referrals \
-     -H "x-api-key: YOUR_CRON_API_KEY"
+     -H "Authorization: Bearer $CRON_SECRET"
    ```
 
 2. **Using crontab (Linux/Unix)**
    ```bash
    # Run on the 1st of every month at 9 AM
    0 9 1 * * curl -X POST https://your-domain.com/api/cron/process-referrals \
-     -H "x-api-key: YOUR_CRON_API_KEY"
+     -H "Authorization: Bearer $CRON_SECRET"
    ```
 
 ## Referral Management
