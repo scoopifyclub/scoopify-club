@@ -28,7 +28,7 @@
     "test:security": "jest src/__tests__/admin-access.test.js",
     "test:claims": "jest src/__tests__/job-claims.db.test.js --runInBand",
     "test:cron": "jest src/__tests__/cron --runInBand",
-    "test:completion": "jest src/__tests__/job-completion --runInBand",
+    "test:completion": "jest src/__tests__/job-completion src/__tests__/job-api-client.unit.test.js --runInBand",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:debug": "playwright test --debug",

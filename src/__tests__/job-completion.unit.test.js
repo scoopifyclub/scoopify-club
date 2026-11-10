@@ -33,6 +33,7 @@ describe('checklist', () => {
   test('accepts objects, arrays of names, item arrays and JSON, with aliases', () => {
     expect(missingChecklistItems(normalizeChecklist({ allWasteRemoved: true, gateClosed: true }))).toEqual([]);
     expect(missingChecklistItems(normalizeChecklist(['yardCleaned', 'gateClosedOnExit']))).toEqual([]);
+    expect(missingChecklistItems(normalizeChecklist({ wasteDisposed: true, gateClosed: true }))).toEqual([]);
     expect(missingChecklistItems(normalizeChecklist([{ id: 'allWasteRemoved', completed: true }, { id: 'gateClosed', completed: false }]))).toEqual(['gateClosed']);
     expect(missingChecklistItems(normalizeChecklist('{"allWasteRemoved":true,"gateClosed":"yes"}'))).toEqual(['gateClosed']);
     expect(missingChecklistItems(normalizeChecklist(undefined))).toEqual(['allWasteRemoved', 'gateClosed']);

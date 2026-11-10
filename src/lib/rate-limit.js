@@ -24,9 +24,11 @@ export const rateLimit = {
                     resetTime
                 },
                 create: {
+                    id: `rl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                     key,
                     count: 1,
-                    resetTime
+                    resetTime,
+                    updatedAt: new Date()
                 }
             });
             // Check if limit exceeded

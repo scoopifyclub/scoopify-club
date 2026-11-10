@@ -17,6 +17,7 @@ export async function POST(request, { params }) {
             serviceId: id,
             employeeId: auth.employee.id,
             checklist: body?.checklist ?? body?.items ?? body,
+            notes: body?.notes,
         });
         return NextResponse.json(checklist);
     }

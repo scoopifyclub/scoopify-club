@@ -125,6 +125,7 @@ describeDb('job photos and completion (real Postgres)', () => {
       evidence: require('@/app/api/admin/services/[id]/completion/route'),
       adminPhotos: require('@/app/api/admin/photos/route'),
       share: require('@/app/api/photos/share/route'),
+      customerServices: require('@/app/api/customer/services/route'),
     };
   }, 120000);
 
@@ -134,7 +135,7 @@ describeDb('job photos and completion (real Postgres)', () => {
 
   beforeEach(async () => {
     await prisma.$executeRawUnsafe(
-      'TRUNCATE "JobFinancialRecord", "ServicePhoto", "ServiceChecklist", "Earning", "Location", "Service", "CoverageArea", "Address", "Customer", "Employee", "User", "ServicePlan", "SystemLog", "Notification" CASCADE'
+      'TRUNCATE "JobFinancialRecord", "ServicePhoto", "ServiceChecklist", "Earning", "Location", "Service", "CoverageArea", "Address", "Customer", "Employee", "User", "ServicePlan", "Subscription", "SystemLog", "Notification", "RateLimit" CASCADE'
     );
     mockS3Objects.clear();
     mockS3Calls.length = 0;
@@ -675,6 +676,93 @@ describeDb('job photos and completion (real Postgres)', () => {
       await expect(adjustFinancialRecord({ serviceId: service.id, changes: { retainedContributionCents: 1 }, reason: 'x' })).rejects.toThrow();
       await prisma.jobFinancialRecord.update({ where: { serviceId: service.id }, data: { stripeTransferId: 'tr_123', payoutStatus: 'PAID' } });
       await expect(adjustFinancialRecord({ serviceId: service.id, changes: { scooperEarningCents: 1500 }, reason: 'x' })).rejects.toThrow('paid out');
+    });
+
+    describe('service credits: one per visit', () => {
+      async function subscribedCustomer(serviceCredits) {
+        const owner = await createCustomer({ serviceCredits });
+        const plan = await prisma.servicePlan.create({
+          data: { id: id('plan'), name: 'Weekly', price: 79, duration: 30, type: 'MONTHLY', updatedAt: new Date() },
+        });
+        const subscription = await prisma.subscription.create({
+          data: { id: id('sub'), customerId: owner.customer.id, planId: plan.id, startDate: new Date(), updatedAt: new Date() },
+        });
+        await prisma.customer.update({ where: { id: owner.customer.id }, data: { subscriptionId: subscription.id } });
+        return { owner, plan };
+      }
+
+      const book = (owner, plan, extra = {}) =>
+        routes.customerServices.POST(
+          req('/api/customer/services', {
+            method: 'POST',
+            token: owner.token,
+            body: { scheduledDate: new Date(Date.now() + 60 * 60 * 1000).toISOString(), servicePlanId: plan.id, ...extra },
+          })
+        );
+      const credits = async (owner) => (await prisma.customer.findUnique({ where: { id: owner.customer.id } })).serviceCredits;
+
+      async function claimCheckInAndComplete(serviceId) {
+        const scooper = await createScooper();
+        expect((await routes.claim.POST(req(`/api/employee/services/${serviceId}/claim`, { method: 'POST', bearer: scooper.token }), params({ id: serviceId }))).status).toBe(200);
+        expect((await routes.arrive.POST(req(`/api/employee/services/${serviceId}/arrive`, { method: 'POST', bearer: scooper.token, body: {} }), params({ id: serviceId }))).status).toBe(200);
+        await uploadRequiredPhotos(serviceId, scooper);
+        expect((await complete(serviceId, scooper)).status).toBe(200);
+        expect((await complete(serviceId, scooper)).status).toBe(200);
+        return scooper;
+      }
+
+      test('a one-off booking uses its credit at booking and not again at completion', async () => {
+        const { owner, plan } = await subscribedCustomer(2);
+        const res = await book(owner, plan);
+        expect(res.status).toBe(201);
+        const booked = await res.json();
+        expect(await credits(owner)).toBe(1);
+        expect((await prisma.service.findUnique({ where: { id: booked.id } })).creditUsedAt).not.toBeNull();
+        expect(booked.potentialEarnings).toBe(EXPECTED_EARNING);
+
+        await claimCheckInAndComplete(booked.id);
+        expect(await credits(owner)).toBe(1);
+        expect((await prisma.service.findUnique({ where: { id: booked.id } })).status).toBe('COMPLETED');
+      });
+
+      test('a visit not paid for at booking uses one credit at completion, once', async () => {
+        const { owner, plan } = await subscribedCustomer(2);
+        const res = await book(owner, plan, { isRecurring: true });
+        expect(res.status).toBe(201);
+        expect(await credits(owner)).toBe(1);
+        const followUp = await prisma.service.findFirst({ where: { customerId: owner.customer.id, creditUsedAt: null } });
+        expect(followUp).not.toBeNull();
+
+        await claimCheckInAndComplete(followUp.id);
+        expect(await credits(owner)).toBe(0);
+        expect((await prisma.service.findUnique({ where: { id: followUp.id } })).creditUsedAt).not.toBeNull();
+        expect((await prisma.customer.findUnique({ where: { id: owner.customer.id } })).creditsDepletedAt).not.toBeNull();
+      });
+
+      test('booking without credits is refused and creates nothing', async () => {
+        const { owner, plan } = await subscribedCustomer(0);
+        expect((await book(owner, plan)).status).toBe(400);
+        expect(await prisma.service.count({ where: { customerId: owner.customer.id } })).toBe(0);
+        expect(await credits(owner)).toBe(0);
+      });
+
+      test('two bookings racing for the last credit: one succeeds, nothing goes negative', async () => {
+        const { owner, plan } = await subscribedCustomer(1);
+        const statuses = (await Promise.all([book(owner, plan), book(owner, plan)])).map((r) => r.status).sort();
+        expect(statuses).toEqual([201, 400]);
+        expect(await credits(owner)).toBe(0);
+        expect(await prisma.service.count({ where: { customerId: owner.customer.id } })).toBe(1);
+      });
+
+      test('completing with no credit left still completes and is logged', async () => {
+        const owner = await createCustomer({ serviceCredits: 0 });
+        const { scooper, service } = await activeJob(owner);
+        await uploadRequiredPhotos(service.id, scooper);
+        expect((await complete(service.id, scooper)).status).toBe(200);
+        expect(await credits(owner)).toBe(0);
+        expect((await prisma.service.findUnique({ where: { id: service.id } })).creditUsedAt).toBeNull();
+        expect(await prisma.systemLog.count({ where: { type: 'SERVICE_CREDIT_UNAVAILABLE' } })).toBe(1);
+      });
     });
 
     test('an email failure does not undo the completion and is logged', async () => {

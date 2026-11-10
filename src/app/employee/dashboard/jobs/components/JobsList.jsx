@@ -88,11 +88,8 @@ export default function JobsList({ user }) {
                 throw new Error(errorData.message || 'Failed to claim job');
             }
 
-            toast.success('Job claimed successfully! Check your schedule for details.');
-            // Refresh the jobs list
-            await fetchAvailableJobs(userLocation?.latitude, userLocation?.longitude);
-            // Redirect to schedule page after successful claim
-            router.push('/employee/dashboard/schedule');
+            toast.success('Job claimed successfully!');
+            router.push(`/employee/services/${jobId}`);
         } catch (err) {
             toast.error(err.message || 'Failed to claim job. Please try again.');
             console.error('Error claiming job:', err);

@@ -488,6 +488,8 @@ model Service {
   customerId         String
   scheduledDate      DateTime
   completedDate      DateTime?
+  /// Set when this visit used a customer service credit (booking or completion); a visit uses at most one.
+  creditUsedAt       DateTime?
   servicePlanId      String
   employeeId         String?
   serviceAreaId      String?
