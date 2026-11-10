@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
 import bcrypt from 'bcryptjs';
-import { createUserToken } from '@/lib/jwt-utils';
-import { cookies } from 'next/headers';
+import { createUserToken, createRefreshToken } from '@/lib/jwt-utils';
 import { AuthRateLimiter } from '@/lib/auth-rate-limit';
 import { isAllowlistedAdminEmail } from '@/lib/admin-auth';
+import { setSessionCookies } from '@/lib/auth-cookies';
 
 // Force Node.js runtime for bcryptjs, Prisma, and other Node.js APIs
 export const runtime = 'nodejs';
@@ -79,15 +79,15 @@ export async function POST(request) {
 
         console.log('✅ Admin authentication successful');
 
-        // Generate JWT token
-        const token = await createUserToken({
+        const tokenUser = {
             id: user.id,
             email: user.email,
             role: user.role,
             password: user.password,
-        });
+        };
+        const accessToken = await createUserToken(tokenUser);
+        const refreshToken = await createRefreshToken(tokenUser);
 
-        // Create response first
         const response = NextResponse.json({
             user: {
                 id: user.id,
@@ -98,22 +98,11 @@ export async function POST(request) {
             redirectTo: '/admin/dashboard'
         });
 
-        // Set secure cookies with proper expiration times
-        response.cookies.set('accessToken', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            path: '/',
-            maxAge: 15 * 60 // 15 minutes
-        });
-
-        response.cookies.set('refreshToken', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60 // 7 days
-        });
+        setSessionCookies(
+            response,
+            { accessToken, refreshToken },
+            { sameSite: 'strict' }
+        );
 
         // Add rate limit headers to successful response
         if (rateLimitResult?.headers) {

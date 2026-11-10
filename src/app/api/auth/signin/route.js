@@ -1,6 +1,7 @@
 import { authenticateUser } from '@/lib/api-auth';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { setSessionCookiesOnStore } from '@/lib/auth-cookies';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -28,24 +29,7 @@ export async function POST(request) {
     const { user, accessToken, refreshToken } = authResult;
 
     const cookieStore = await cookies();
-    const accessCookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 15 * 60, // 15 minutes
-    };
-    
-    const refreshCookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-    };
-
-    // Set both cookies for compatibility
-    cookieStore.set('token', accessToken, accessCookieOptions);
-    cookieStore.set('accessToken', accessToken, accessCookieOptions);
-    cookieStore.set('refreshToken', refreshToken, refreshCookieOptions);
+    setSessionCookiesOnStore(cookieStore, { accessToken, refreshToken }, { sameSite: 'lax' });
 
     return NextResponse.json({
       id: user.id,

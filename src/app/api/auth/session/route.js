@@ -1,28 +1,21 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import { validateUserToken, isCurrentSessionVersion } from '@/lib/jwt-utils';
 import { prisma } from '@/lib/prisma';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
 
 export async function GET(request) {
     try {
-        const cookieStore = await cookies();
-        
-        // Try to get token from various cookie names
-        const token = cookieStore.get('accessToken')?.value || 
-                     cookieStore.get('token')?.value || 
-                     cookieStore.get('accessToken_client')?.value;
+        const token = await getRequestAuthToken(request);
 
         if (!token) {
             return NextResponse.json({ error: 'No token found' }, { status: 401 });
         }
 
-        // Validate the token
         const userData = await validateUserToken(token);
         if (!userData) {
             return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
 
-        // Get user with role and related data
         const user = await prisma.user.findUnique({
             where: { id: userData.userId },
             include: {
@@ -51,7 +44,6 @@ export async function GET(request) {
             return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
         }
 
-        // Return user data with role-specific information
         return NextResponse.json({
             user: {
                 id: user.id,
@@ -72,26 +64,6 @@ export async function GET(request) {
     }
 }
 
-// Helper function to parse cookies
-function parseCookies(cookieHeader) {
-    const cookies = {};
-    if (!cookieHeader) return cookies;
-    
-    cookieHeader.split(';').forEach(cookie => {
-        const [name, ...rest] = cookie.split('=');
-        if (name) {
-            const cookieName = name.trim();
-            const cookieValue = rest.join('=').trim();
-            if (cookieValue) {
-                cookies[cookieName] = cookieValue;
-            }
-        }
-    });
-    
-    return cookies;
-}
-
-// Also handle OPTIONS request for CORS
 export async function OPTIONS() {
     return new NextResponse(null, {
         status: 204,

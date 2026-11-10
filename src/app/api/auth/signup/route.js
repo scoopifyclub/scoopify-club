@@ -14,12 +14,13 @@ import { hash } from 'bcryptjs';
 import prisma from "@/lib/prisma";
 import { validatePassword } from '@/lib/password';
 import { v4 as uuidv4 } from 'uuid';
-import { createUserToken } from '@/lib/jwt-utils';
+import { createUserToken, createRefreshToken } from '@/lib/jwt-utils';
 import { cookies } from 'next/headers';
 import { stripe as stripeInstance } from '@/lib/stripe';
 import { edgeRateLimit } from '@/lib/edge-rate-limit';
 import crypto from 'crypto';
 import { INITIAL_CLEANUP, findPlan, getConfiguredPriceId } from '@/lib/pricing-catalog';
+import { setSessionCookiesOnStore } from '@/lib/auth-cookies';
 
 // Force Node.js runtime for bcryptjs, crypto, and Prisma
 export const runtime = 'nodejs';
@@ -305,35 +306,22 @@ export async function POST(request) {
             nextStep = `/signup/payment?${paymentParams.toString()}`;
         }
 
-        // Create JWT token for authentication
-        const token = await createUserToken({ 
-            id: user.id, 
+        const tokenUser = {
+            id: user.id,
             email: user.email,
             role: user.role,
-            password: user.password
-        });
+            password: user.password,
+        };
+        const token = await createUserToken(tokenUser);
+        const refreshToken = await createRefreshToken(tokenUser);
 
-        // Set cookie
+        // Unified accessToken (+ refresh). Lax so checkout survives Stripe redirect.
         const cookieStore = await cookies();
-        cookieStore.set({
-            name: 'token',
-            value: token,
-            httpOnly: true,
-            path: '/',
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24, // 1 day
-        });
-        // Customer pages and checkout read accessToken; lax so the session
-        // survives the redirect back from Stripe Checkout.
-        cookieStore.set({
-            name: 'accessToken',
-            value: token,
-            httpOnly: true,
-            path: '/',
-            sameSite: 'lax',
-            secure: process.env.NODE_ENV === 'production',
-            maxAge: 60 * 60 * 24,
-        });
+        setSessionCookiesOnStore(
+            cookieStore,
+            { accessToken: token, refreshToken },
+            { accessMaxAge: 60 * 60 * 24, sameSite: 'lax' }
+        );
 
         // Remove sensitive data before sending response
         const {

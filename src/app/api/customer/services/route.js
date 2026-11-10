@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
 import { validateUserToken } from '@/lib/jwt-utils';
-import { cookies } from 'next/headers';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
-import { getRequestToken } from '@/lib/job-claims';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
 import { perVisitEarnings } from '@/lib/recurring-services';
 import { useServiceCredit } from '@/lib/service-credits';
 
@@ -15,17 +14,8 @@ export const runtime = 'nodejs';
 
 // Helper function to get token and validate
 async function getTokenAndValidate(request, role = 'CUSTOMER') {
-    // Try header first
-    let token = request.headers.get('authorization')?.split(' ')[1];
-    
-    // If no token in header, try cookies
-    if (!token) {
-        const cookieStore = await cookies();
-        token = cookieStore.get('accessToken')?.value || 
-                cookieStore.get('token')?.value || 
-                cookieStore.get('accessToken_client')?.value;
-    }
-    
+    const token = await getRequestAuthToken(request);
+
     // Still no token
     if (!token) {
         console.log('No token found in request headers or cookies');
@@ -196,7 +186,7 @@ export async function POST(request) {
         if (rateLimitResult) {
             return rateLimitResult;
         }
-        const accessToken = await getRequestToken(request);
+        const accessToken = await getRequestAuthToken(request);
         const decoded = accessToken ? await validateUserToken(accessToken, 'CUSTOMER') : null;
         if (!decoded?.userId) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

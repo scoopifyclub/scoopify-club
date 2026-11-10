@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { withDatabase } from './prisma';
 import { validateUserToken, createUserToken, createRefreshToken, isCurrentSessionVersion } from './jwt-utils';
+import { getRequestAuthToken } from './auth-cookies';
 import { compare } from 'bcryptjs';
 
 // Helper function for conditional logging
@@ -31,7 +32,7 @@ export async function signToken(payload) {
 
 export async function getAuthUser(request) {
   try {
-    const token = request.headers.get('Authorization')?.split(' ')[1];
+    const token = await getRequestAuthToken(request);
     if (!token) {
       return null;
     }
@@ -52,7 +53,7 @@ export async function getAuthUserFromCookies(request) {
     try {
         log('Getting auth user from cookies...');
         
-        const token = await getTokenFromCookies(request);
+        const token = await getRequestAuthToken(request);
         log('Token from cookies:', token ? 'found' : 'not found');
         
         if (!token) {
@@ -70,7 +71,8 @@ export async function getAuthUserFromCookies(request) {
 
         log('Looking up user with ID:', decoded.userId);
         
-        const user = await prisma.user.findUnique({
+        const user = await withDatabase((prisma) =>
+          prisma.user.findUnique({
             where: { id: decoded.userId },
             select: {
                 id: true,
@@ -82,7 +84,8 @@ export async function getAuthUserFromCookies(request) {
                 createdAt: true,
                 updatedAt: true
             }
-        });
+          })
+        );
 
         log('User found:', user ? `${user.email} (${user.role})` : 'not found');
         
@@ -178,24 +181,7 @@ export async function requireRole(requestOrRole, roleParam = null) {
       role = roleParam;
     }
 
-    let token;
-    
-    if (request) {
-      // Use Authorization header if request is provided
-      token = request.headers.get('Authorization')?.split(' ')[1];
-    } else {
-      // Use cookies if no request provided
-      const { cookies } = await import('next/headers');
-      const cookieStore = await cookies();
-      
-      // Try different cookie names based on the role
-      if (role === 'ADMIN') {
-        token = cookieStore.get('adminToken')?.value;
-      } else {
-        token = cookieStore.get('token')?.value || cookieStore.get('accessToken')?.value;
-      }
-    }
-
+    const token = await getRequestAuthToken(request);
     if (!token) {
       return null;
     }

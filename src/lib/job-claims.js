@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma as defaultDb } from '@/lib/prisma';
 import { validateUserToken } from '@/lib/jwt-utils';
 import { localDateString, localTimeOfDay, zonedTimeToUtc } from '@/lib/business-time';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
+
+export { getRequestAuthToken as getRequestToken } from '@/lib/auth-cookies';
+const getRequestToken = getRequestAuthToken;
 
 export const CLAIM_WINDOW_MINUTES = 45;
 export const CLAIM_WINDOW_MS = CLAIM_WINDOW_MINUTES * 60 * 1000;
@@ -70,24 +74,6 @@ export function jobClaimErrorResponse(error, fallbackMessage = 'Request failed')
 
 export function isApprovedScooper(employee) {
   return Boolean(employee && employee.status === 'ACTIVE' && employee.approvedAt);
-}
-
-export async function getRequestToken(request) {
-  const header = request?.headers?.get?.('authorization');
-  if (header && header.toLowerCase().startsWith('bearer ')) {
-    const bearer = header.slice(7).trim();
-    if (bearer && bearer !== 'null' && bearer !== 'undefined') return bearer;
-  }
-  let cookieStore = request?.cookies;
-  if (!cookieStore?.get) {
-    try {
-      const { cookies } = await import('next/headers');
-      cookieStore = await cookies();
-    } catch {
-      return null;
-    }
-  }
-  return cookieStore.get('accessToken')?.value || cookieStore.get('token')?.value || null;
 }
 
 /**

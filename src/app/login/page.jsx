@@ -27,16 +27,26 @@ export default function LoginPage() {
     const [hasStaleCookie, setHasStaleCookie] = useState(false);
 
     useEffect(() => {
-        // Check for stale cookies
+        // Check for stale legacy cookies left from older sign-in paths
         const cookies = document.cookie.split(';').map(c => c.trim());
-        const hasToken = cookies.some(c => c.startsWith('token='));
+        const hasLegacyToken = cookies.some(c => c.startsWith('token='));
         const hasAdminToken = cookies.some(c => c.startsWith('adminToken='));
-        setHasStaleCookie(hasToken || hasAdminToken);
+        const hasClientCopy = cookies.some(c => c.startsWith('accessToken_client='));
+        setHasStaleCookie(hasLegacyToken || hasAdminToken || hasClientCopy);
     }, []);
 
     const handleClearCookies = () => {
-        document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        document.cookie = 'adminToken=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+        for (const name of [
+            'token',
+            'adminToken',
+            'accessToken',
+            'refreshToken',
+            'accessToken_client',
+            'refreshToken_client',
+            'fingerprint',
+        ]) {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        }
         window.location.reload();
     };
 

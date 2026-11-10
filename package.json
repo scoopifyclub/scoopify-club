@@ -25,7 +25,7 @@
     "lint": "next lint",
     "test": "jest",
     "test:jest": "jest",
-    "test:security": "jest src/__tests__/admin-access.test.js src/__tests__/password-reset.test.js",
+    "test:security": "jest src/__tests__/admin-access.test.js src/__tests__/password-reset.test.js src/__tests__/auth-cookies.test.js",
     "test:payments": "jest src/__tests__/payments-",
     "test:claims": "jest src/__tests__/job-claims.db.test.js --runInBand",
     "test:cron": "jest src/__tests__/cron --runInBand",

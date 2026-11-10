@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { verifyToken, refreshToken } from '@/lib/api-auth';
+import { refreshToken } from '@/lib/api-auth';
 import { edgeRateLimit } from '@/lib/edge-rate-limit';
+import { setSessionCookies, clearSessionCookies } from '@/lib/auth-cookies';
 
 export async function POST(request) {
     try {
@@ -46,21 +47,9 @@ export async function POST(request) {
             { status: 200 }
         );
 
-        // Set new auth cookies
-        response.cookies.set('accessToken', accessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 15 * 60 // 15 minutes
-        });
-
-        response.cookies.set('refreshToken', newRefreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            path: '/',
-            maxAge: 7 * 24 * 60 * 60 // 7 days
+        setSessionCookies(response, {
+            accessToken,
+            refreshToken: newRefreshToken,
         });
 
         // Add rate limit headers if available

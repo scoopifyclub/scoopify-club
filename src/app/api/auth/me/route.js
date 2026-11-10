@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/api-auth';
-import { cookies } from 'next/headers';
 import { prisma } from '@/lib/prisma';
 import { isCurrentSessionVersion } from '@/lib/jwt-utils';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -10,44 +10,9 @@ export const runtime = 'nodejs';
 export async function GET(request) {
   try {
     console.log('🔍 /api/auth/me called');
-    
-    const cookieStore = await cookies();
-    
-    // Log all available cookies for debugging
-    const allCookies = cookieStore.getAll();
-    console.log('🍪 All cookies found:', allCookies.map(c => `${c.name}=${c.value ? 'present' : 'missing'}`));
-    
-    // Try to get token from cookies (priority order: accessToken, refreshToken)
-    let token = null;
-    let tokenSource = '';
-    
-    // Check for accessToken
-    const accessTokenCookie = cookieStore.get('accessToken');
-    if (accessTokenCookie?.value) {
-      token = accessTokenCookie.value;
-      tokenSource = 'accessToken';
-    }
-    
-    // Fallback to refreshToken if accessToken not found
-    if (!token) {
-      const refreshTokenCookie = cookieStore.get('refreshToken');
-      if (refreshTokenCookie?.value) {
-        token = refreshTokenCookie.value;
-        tokenSource = 'refreshToken';
-      }
-    }
-    
-    // Also check Authorization header as fallback
-    if (!token) {
-      const authHeader = request.headers.get('Authorization');
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        token = authHeader.substring(7);
-        tokenSource = 'Authorization header';
-      }
-    }
 
-    console.log('📋 Token found from:', tokenSource, 'exists:', !!token);
-    
+    const token = await getRequestAuthToken(request);
+
     if (!token) {
       console.log('❌ No authentication token found in cookies or headers');
       return NextResponse.json(
@@ -56,9 +21,8 @@ export async function GET(request) {
       );
     }
 
-    // Verify the token
     const decoded = await verifyToken(token);
-    
+
     if (!decoded) {
       console.log('❌ Token verification failed');
       return NextResponse.json(
@@ -68,8 +32,7 @@ export async function GET(request) {
     }
 
     console.log('✅ User authenticated:', decoded);
-    
-    // Fetch full user data from database
+
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId },
       select: {
@@ -81,7 +44,7 @@ export async function GET(request) {
         password: true,
       }
     });
-    
+
     if (!user) {
       console.log('❌ User not found in database');
       return NextResponse.json(
@@ -101,13 +64,12 @@ export async function GET(request) {
     const response = NextResponse.json({
       user: safeUser
     });
-    
-    // Add CORS headers for admin dashboard
+
     response.headers.set('Access-Control-Allow-Credentials', 'true');
     response.headers.set('Access-Control-Allow-Origin', request.headers.get('origin') || '*');
-    
+
     return response;
-    
+
   } catch (error) {
     console.error('❌ Auth me error:', error);
     return NextResponse.json(
@@ -115,4 +77,4 @@ export async function GET(request) {
       { status: 500 }
     );
   }
-} 
+}

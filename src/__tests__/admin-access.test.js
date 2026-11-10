@@ -236,6 +236,11 @@ describe('verified admin', () => {
     expect(loginRes.status).toBe(200);
     const token = loginRes.cookies.get('accessToken')?.value;
     expect(token).toBeTruthy();
+    // Unified session cookie: accessToken only (no adminToken / legacy token)
+    expect(loginRes.cookies.get('adminToken')).toBeUndefined();
+    expect(loginRes.cookies.get('token')).toBeUndefined();
+    expect(loginRes.cookies.get('refreshToken')?.value).toBeTruthy();
+    expect(loginRes.cookies.get('refreshToken')?.value).not.toBe(token);
 
     const page = await middleware(request('/admin/dashboard', { token }));
     expect(page.status).toBe(200);
@@ -254,6 +259,13 @@ describe('verified admin', () => {
     mockRequestScope.headers = new Headers({ 'x-admin-pathname': '/admin/dashboard' });
     mockRequestScope.cookies = new Map([['accessToken', token]]);
     await expect(AdminLayout({ children: 'dashboard' })).resolves.toBe('dashboard');
+  });
+
+  test('requireAdmin accepts the same accessToken cookie used by customer/scooper paths', async () => {
+    const token = await createUserToken(admin);
+    const auth = await requireAdmin(request('/api/admin/verify', { token, cookie: 'accessToken' }));
+    expect(auth.ok).toBe(true);
+    expect(auth.user.email).toBe(ADMIN_EMAIL);
   });
 
   test('ADMIN account outside ADMIN_EMAILS cannot sign in', async () => {

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { validateUserToken, computeAdminSessionVersion } from '@/lib/jwt-utils';
+import { getRequestAuthToken } from '@/lib/auth-cookies';
 
 /**
  * Verified admin emails, from the comma-separated ADMIN_EMAILS env var.
@@ -19,26 +20,6 @@ export function getAdminEmailAllowlist() {
 export function isAllowlistedAdminEmail(email) {
   if (!email) return false;
   return getAdminEmailAllowlist().includes(email.trim().toLowerCase());
-}
-
-function getBearerToken(request) {
-  const header = request?.headers?.get?.('authorization');
-  if (header && header.toLowerCase().startsWith('bearer ')) {
-    return header.slice(7).trim() || null;
-  }
-  return null;
-}
-
-async function getRequestToken(request) {
-  const bearer = getBearerToken(request);
-  if (bearer) return bearer;
-
-  let cookieStore = request?.cookies;
-  if (!cookieStore?.get) {
-    const { cookies } = await import('next/headers');
-    cookieStore = await cookies();
-  }
-  return cookieStore.get('accessToken')?.value || cookieStore.get('token')?.value || null;
 }
 
 function sameSessionVersion(expected, actual) {
@@ -69,7 +50,7 @@ function deny(status, error) {
 export async function requireAdmin(request) {
   let token;
   try {
-    token = await getRequestToken(request);
+    token = await getRequestAuthToken(request);
   } catch {
     token = null;
   }

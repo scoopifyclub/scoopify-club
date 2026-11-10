@@ -3,13 +3,34 @@
 ## Overview
 The authentication system provides secure user authentication and session management for the ScoopifyClub application. It uses JWT tokens for stateless authentication and includes features like rate limiting, token refresh, and role-based access control.
 
+## Unified session cookie
+
+Customer, scooper, and admin sign-in all write the same httpOnly cookies:
+
+| Cookie | Purpose |
+|---|---|
+| `accessToken` | Session JWT (`type: 'user'`) used by every verifier |
+| `refreshToken` | Refresh JWT (`type: 'refresh'`) for `/api/auth/refresh` only |
+
+Readers go through `getRequestAuthToken()` in `src/lib/auth-cookies.js`
+(Bearer header, then `accessToken`, then a short-lived legacy `token`
+fallback). Role gates stay separate on top of that shared reader:
+
+- Admin APIs / pages: `requireAdmin()` (`src/lib/admin-auth.js`)
+- Scooper job APIs: `requireScooper()` (`src/lib/job-claims.js`)
+- Cron: `requireCronOrAdmin()` / `hasValidCronSecret()` — cron never uses
+  session cookies; it requires `Authorization: Bearer $CRON_SECRET`
+
+There is no `adminToken` cookie. Non-httpOnly `*_client` copies are no
+longer written.
+
 ## Security Features
 
 ### Token-based Authentication
-- **Access Tokens**: Short-lived (15 minutes) JWT tokens containing user identity and role
-- **Refresh Tokens**: Long-lived (7 days) tokens used to obtain new access tokens
-- **Secure Storage**: Refresh tokens are stored in the database, access tokens in memory
-- **Token Invalidation**: Automatic invalidation on logout and password changes
+- **Access Tokens**: Short-lived JWT tokens containing `userId`, `email`, `role`, `type: 'user'`, and session version `sv`
+- **Refresh Tokens**: Longer-lived tokens with `type: 'refresh'` used only to obtain new access tokens
+- **Secure Storage**: Both cookies are httpOnly; logout and password reset clear the full auth cookie set
+- **Token Invalidation**: Password/role changes and `ADMIN_SESSION_EPOCH` bumps invalidate outstanding sessions via `sv`
 
 ### Rate Limiting
 - Prevents brute force attacks

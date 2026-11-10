@@ -1,4 +1,10 @@
 import { cookies } from 'next/headers';
+import {
+  getRequestAuthToken,
+  setSessionCookies,
+  clearSessionCookies,
+  ACCESS_TOKEN_COOKIE,
+} from '@/lib/auth-cookies';
 
 /**
  * Safely get cookies with proper async handling
@@ -43,24 +49,12 @@ export async function getCookie(request, name) {
 }
 
 /**
- * Get authentication token from cookies safely
+ * Get the session access token (Bearer or accessToken cookie).
  * @param {Request} request - The request object
  * @returns {Promise<string|null>} - Token value or null
  */
 export async function getAuthToken(request) {
-  try {
-    const cookieStore = await getCookies(request);
-    
-    // Try different token cookie names in order of preference
-    const token = cookieStore.get('accessToken')?.value ||
-                  cookieStore.get('token')?.value ||
-                  cookieStore.get('refreshToken')?.value;
-    
-    return token || null;
-  } catch (error) {
-    console.error('Error getting auth token:', error);
-    return null;
-  }
+  return getRequestAuthToken(request);
 }
 
 /**
@@ -98,3 +92,10 @@ export function deleteCookie(response, name) {
     console.error(`Error deleting cookie ${name}:`, error);
   }
 }
+
+export {
+  getRequestAuthToken,
+  setSessionCookies,
+  clearSessionCookies,
+  ACCESS_TOKEN_COOKIE,
+};
