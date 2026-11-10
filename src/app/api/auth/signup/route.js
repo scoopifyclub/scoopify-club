@@ -26,6 +26,7 @@ export const runtime = 'nodejs';
 
 const SELF_SIGNUP_ROLES = ['CUSTOMER', 'EMPLOYEE'];
 
+
 export async function POST(request) {
     try {
         // Get client IP for rate limiting

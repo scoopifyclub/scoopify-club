@@ -1,34 +1,17 @@
 import { NextResponse } from 'next/server';
+import { requireCronOrAdmin } from '@/lib/cron-auth';
 import prisma from "@/lib/prisma";
 import { stripe } from '@/lib/stripe';
 import { logger } from '@/lib/logger';
 import { withErrorHandler, ApiError, ErrorCode } from '@/lib/error-handler';
-import { getEnv } from '@/lib/env-validator';
 // Export runtime config for Next.js 15+
 export const runtime = 'nodejs';
-// Verify the CRON request is authentic
+// Verify the CRON request is authentic (Bearer CRON_SECRET or a verified admin)
 async function verifyCronRequest(request) {
-    // Verify the request is from Vercel
-    const authHeader = request.headers.get('authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        logger.warn('CRON job called without proper authorization header');
+    const auth = await requireCronOrAdmin(request);
+    if (!auth.ok) {
+        logger.warn('CRON job called without a valid CRON_SECRET or admin session');
         throw new ApiError('Unauthorized', ErrorCode.UNAUTHORIZED);
-    }
-    // Split the header and verify the token
-    const token = authHeader.split(' ')[1];
-    try {
-        // Get environment variables through our validator
-        const env = getEnv();
-        if (token !== env.CRON_SECRET) {
-            logger.warn('CRON job called with invalid token');
-            throw new ApiError('Invalid token', ErrorCode.UNAUTHORIZED);
-        }
-    }
-    catch (error) {
-        if (error instanceof ApiError)
-            throw error;
-        logger.error('Error verifying CRON token:', error);
-        throw new ApiError('Error verifying authorization', ErrorCode.UNAUTHORIZED);
     }
 }
 // This function is triggered by a cron job to retry failed payments

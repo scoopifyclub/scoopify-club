@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { verifyToken } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
-import { cookies } from 'next/headers';
+import { requireScooper, releaseExpiredClaims, UNCLAIMED_JOB_CUSTOMER_SELECT, toUnclaimedCustomerView } from '@/lib/job-claims';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -9,22 +8,15 @@ export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        const cookieStore = cookies();
-        const token = cookieStore.get('token')?.value;
+        const auth = await requireScooper(request);
+        if (!auth.ok) return auth.response;
 
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const decoded = await verifyToken(token);
-        if (!decoded || decoded.role !== 'EMPLOYEE') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        await releaseExpiredClaims();
 
         // Get employee's service areas
         const employee = await prisma.employee.findUnique({
-            where: { userId: decoded.id },
-            include: { serviceAreas: true }
+            where: { id: auth.employee.id },
+            include: { serviceAreas: { where: { active: true } } }
         });
 
         if (!employee) {
@@ -36,23 +28,16 @@ export async function GET(request) {
             where: {
                 status: 'SCHEDULED',
                 employeeId: null,
-                serviceArea: {
-                    zipCode: {
-                        in: employee.serviceAreas.map(area => area.zipCode)
+                customer: {
+                    address: {
+                        zipCode: {
+                            in: employee.serviceAreas.map(area => area.zipCode)
+                        }
                     }
                 }
             },
             include: {
-                customer: {
-                    include: {
-                        user: {
-                            select: {
-                                name: true
-                            }
-                        },
-                        address: true
-                    }
-                },
+                customer: UNCLAIMED_JOB_CUSTOMER_SELECT,
                 servicePlan: true
             },
             orderBy: {
@@ -65,8 +50,8 @@ export async function GET(request) {
             jobs: availableJobs.map(job => ({
                 id: job.id,
                 scheduledDate: job.scheduledDate,
-                customerName: job.customer.user.name,
-                address: job.customer.address,
+                customerName: toUnclaimedCustomerView(job.customer).name,
+                address: toUnclaimedCustomerView(job.customer).address,
                 servicePlan: job.servicePlan.name,
                 potentialEarnings: job.potentialEarnings
             }))

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
-import { validateUser } from '@/lib/api-auth';
-import { cookies } from 'next/headers';
 import prisma from "@/lib/prisma";
+import { requireScooper, releaseExpiredClaims, UNCLAIMED_JOB_CUSTOMER_SELECT, toUnclaimedCustomerView } from '@/lib/job-claims';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -9,26 +8,16 @@ export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        // Get access token from cookies - only within request context
-        const cookieStore = cookies();
-        const accessToken = cookieStore.get('accessToken')?.value;
+        const auth = await requireScooper(request);
+        if (!auth.ok) return auth.response;
 
-        if (!accessToken) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        // Validate the token and check role
-        const { userId, role } = await validateUser(accessToken);
-        
-        if (!userId || role !== 'EMPLOYEE') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        await releaseExpiredClaims();
 
         // Get employee details to check service areas
         const employee = await prisma.employee.findUnique({
-            where: { userId: userId },
+            where: { id: auth.employee.id },
             include: {
-                serviceAreas: true
+                serviceAreas: { where: { active: true } }
             }
         });
 
@@ -49,23 +38,16 @@ export async function GET(request) {
                 scheduledDate: {
                     gte: date, // Only future services
                 },
-                serviceArea: {
-                    zipCode: {
-                        in: employee.serviceAreas.map(area => area.zipCode)
+                customer: {
+                    address: {
+                        zipCode: {
+                            in: employee.serviceAreas.map(area => area.zipCode)
+                        }
                     }
                 }
             },
             include: {
-                customer: {
-                    include: {
-                        address: true,
-                        user: {
-                            select: {
-                                name: true
-                            }
-                        }
-                    }
-                },
+                customer: UNCLAIMED_JOB_CUSTOMER_SELECT,
                 servicePlan: true
             },
             orderBy: [
@@ -84,9 +66,11 @@ export async function GET(request) {
                 scheduledDate: {
                     gte: date,
                 },
-                serviceArea: {
-                    zipCode: {
-                        in: employee.serviceAreas.map(area => area.zipCode)
+                customer: {
+                    address: {
+                        zipCode: {
+                            in: employee.serviceAreas.map(area => area.zipCode)
+                        }
                     }
                 }
             }
@@ -97,18 +81,12 @@ export async function GET(request) {
             id: service.id,
             scheduledDate: service.scheduledDate,
             potentialEarnings: service.potentialEarnings,
-            customerName: service.customer.user.name,
-            address: {
-                street: service.customer.address?.street,
-                city: service.customer.address?.city,
-                state: service.customer.address?.state,
-                zipCode: service.customer.address?.zipCode
-            },
+            customerName: toUnclaimedCustomerView(service.customer).name,
+            address: toUnclaimedCustomerView(service.customer).address,
             servicePlan: {
                 name: service.servicePlan.name,
                 duration: service.servicePlan.duration
-            },
-            gateCode: service.customer.gateCode
+            }
         }));
 
         return NextResponse.json({

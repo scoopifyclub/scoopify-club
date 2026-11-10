@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from "@/lib/prisma";
-import { validateUserToken } from '@/lib/jwt-utils';
-import { cookies } from 'next/headers';
+import { requireScooper, releaseExpiredClaims, ACTIVE_JOB_STATUSES, UNCLAIMED_JOB_CUSTOMER_SELECT, toUnclaimedCustomerView } from '@/lib/job-claims';
 import { calculateDistance } from '@/lib/geolocation';
 import { setHours, startOfDay, endOfDay, isAfter, isBefore } from 'date-fns';
 
@@ -9,31 +8,23 @@ export const runtime = 'nodejs';
 
 export async function GET(request) {
     try {
-        // Get and validate token
-        const cookieStore = await cookies();
-        const token = cookieStore.get('accessToken')?.value;
-        
-        if (!token) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+        const auth = await requireScooper(request);
+        if (!auth.ok) return auth.response;
 
-        const { userId } = await validateUserToken(token, 'EMPLOYEE');
-        
-        // Get the employee with their service areas and current services
-        const employee = await prisma.employee.findFirst({
-            where: { userId },
+        await releaseExpiredClaims();
+
+        // Get the employee with their service areas and current active job
+        const employee = await prisma.employee.findUnique({
+            where: { id: auth.employee.id },
             include: {
-                serviceAreas: true,
+                serviceAreas: { where: { active: true } },
                 services: {
                     where: {
-                        scheduledDate: {
-                            gte: startOfDay(new Date()),
-                            lt: endOfDay(new Date())
-                        },
                         status: {
-                            in: ['PENDING', 'IN_PROGRESS']
+                            in: ACTIVE_JOB_STATUSES
                         }
-                    }
+                    },
+                    select: { id: true }
                 }
             }
         });
@@ -107,16 +98,7 @@ export async function GET(request) {
                 }
             },
             include: {
-                customer: {
-                    include: {
-                        user: {
-                            select: {
-                                name: true
-                            }
-                        },
-                        address: true
-                    }
-                },
+                customer: UNCLAIMED_JOB_CUSTOMER_SELECT,
                 servicePlan: {
                     select: {
                         name: true,
@@ -167,9 +149,9 @@ export async function GET(request) {
             sortedServices = [...servicesWithDistance, ...servicesWithoutDistance];
         }
 
-        // Check employee's rating for queuing eligibility
+        // One active job per scooper: no queuing regardless of rating
         const employeeRating = employee.averageRating || 0;
-        const canQueueJobs = employeeRating >= 4.5;
+        const canQueueJobs = false;
         const hasActiveService = employee.services.length > 0;
 
         // Limit to closest 15 jobs
@@ -179,15 +161,8 @@ export async function GET(request) {
         const response = {
             services: closestJobs.map(service => ({
                 id: service.id,
-                customerName: service.customer.user?.name || 'Unknown Customer',
-                address: service.customer.address ? {
-                    street: service.customer.address.street,
-                    city: service.customer.address.city,
-                    state: service.customer.address.state,
-                    zipCode: service.customer.address.zipCode,
-                    latitude: service.customer.address.latitude,
-                    longitude: service.customer.address.longitude
-                } : null,
+                customerName: toUnclaimedCustomerView(service.customer).name,
+                address: toUnclaimedCustomerView(service.customer).address,
                 scheduledDate: service.scheduledDate,
                 servicePlan: service.servicePlan,
                 distance: service.distance,
@@ -210,9 +185,7 @@ export async function GET(request) {
         };
 
         // Add queuing information if applicable
-        if (hasActiveService && canQueueJobs) {
-            response.message += " - You can queue additional jobs (4.5+ star rating)";
-        } else if (hasActiveService && !canQueueJobs) {
+        if (hasActiveService) {
             response.message = "Complete your active service before claiming another job";
         }
 
