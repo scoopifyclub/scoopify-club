@@ -7,7 +7,8 @@ export const runtime = 'nodejs';
 
 
 export async function GET(request) {
-  const { userId } = getUserFromToken(request);
+  const auth = await getUserFromToken(request);
+  const userId = auth?.userId;
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -121,7 +122,8 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  const { userId } = getUserFromToken(request);
+  const auth = await getUserFromToken(request);
+  const userId = auth?.userId;
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -181,7 +183,8 @@ export async function POST(request) {
 }
 
 export async function PUT(request) {
-  const { userId } = getUserFromToken(request);
+  const auth = await getUserFromToken(request);
+  const userId = auth?.userId;
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
