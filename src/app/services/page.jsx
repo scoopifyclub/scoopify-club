@@ -14,7 +14,7 @@ export default function ServicesPage() {
                 Our Services
               </h1>
               <p className="mt-6 text-xl text-neutral-600">
-                Recurring weekly dog waste removal for Peyton &amp; Falcon, with catch-up cleanups, photo verification, and simple monthly billing.
+                Recurring weekly dog waste removal for Colorado Springs &amp; Falcon, with catch-up cleanups, photo verification, and simple monthly billing.
               </p>
             </div>
           </div>
@@ -151,7 +151,7 @@ export default function ServicesPage() {
                   Ready for Hassle-Free Waste Removal?
                 </h2>
                 <p className="text-xl text-white/90 mb-8">
-                  Join the local pilot in Peyton &amp; Falcon — weekly scoop service for a cleaner, more usable yard.
+                  Join the local pilot in Colorado Springs &amp; Falcon — weekly scoop service for a cleaner, more usable yard.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
                   <Link href="/pricing">

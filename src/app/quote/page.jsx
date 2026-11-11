@@ -66,7 +66,7 @@ export default function QuoteRequestPage() {
         </p>
         <h1 className="text-3xl font-semibold text-slate-900 mb-2">Request a quote</h1>
         <p className="text-slate-600 mb-8">
-          Serving Peyton, Falcon, and nearby Colorado Springs. {QUOTE_MIN_DOGS}+ dogs, large or
+          Serving Colorado Springs and Falcon, Colorado. {QUOTE_MIN_DOGS}+ dogs, large or
           neglected yards, unusual access, and remote addresses need a custom quote — including
           catch-up cleanups outside standard plans. An admin reviews every request.
         </p>

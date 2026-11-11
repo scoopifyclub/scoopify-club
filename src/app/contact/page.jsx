@@ -58,7 +58,7 @@ export default function ContactPage() {
             Contact Us
           </h1>
           <p className="mt-4 text-lg text-gray-600">
-            Questions about weekly scoop service or a catch-up cleanup in Peyton &amp; Falcon? We&apos;d love to hear from you.
+            Questions about weekly scoop service or a catch-up cleanup in Colorado Springs &amp; Falcon? We&apos;d love to hear from you.
           </p>
         </div>
 
@@ -112,10 +112,9 @@ export default function ContactPage() {
                 <div className="flex items-start">
                   <MapPin className="h-6 w-6 text-gray-400 mt-1"/>
                   <div className="ml-4">
-                    <h3 className="text-lg font-medium text-gray-900">Address</h3>
+                    <h3 className="text-lg font-medium text-gray-900">Service area</h3>
                     <p className="mt-1 text-gray-600">
-                      7535 Gallard Heights<br />
-                      Peyton, CO 80831
+                      Colorado Springs &amp; Falcon, CO
                     </p>
                   </div>
                 </div>

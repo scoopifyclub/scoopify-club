@@ -12,7 +12,7 @@ export default function AboutPage() {
               About Scoopify
             </h1>
             <p className="mt-6 text-xl text-neutral-600 max-w-3xl mx-auto">
-              We&apos;re making pet waste removal simple and reliable — starting with a local pilot in Peyton &amp; Falcon, Colorado.
+              We&apos;re making pet waste removal simple and reliable — starting with a local pilot in Colorado Springs &amp; Falcon, Colorado.
             </p>
           </div>
         </div>

@@ -55,7 +55,7 @@ export default function Home() {
             </h1>
 
             <p className="hero-reveal hero-reveal-delay-3 mt-5 max-w-xl text-base md:text-lg text-[color:var(--brand-ink-muted)] leading-relaxed">
-              Weekly dog waste removal for Peyton &amp; Falcon, Colorado — so you can enjoy the yard again.
+              Weekly dog waste removal for Colorado Springs &amp; Falcon, Colorado — so you can enjoy the yard again.
             </p>
 
             <div className="hero-reveal hero-reveal-delay-4 mt-9 flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -84,7 +84,7 @@ export default function Home() {
               Why Choose Scoopify Club?
             </h2>
             <p className="text-lg text-[color:var(--brand-ink-muted)]">
-              Recurring weekly scoop service for the Peyton &amp; Falcon pilot — with catch-up cleanups when a yard needs a reset first.
+              Recurring weekly scoop service for the Colorado Springs &amp; Falcon pilot — with catch-up cleanups when a yard needs a reset first.
             </p>
           </div>
 
@@ -130,7 +130,7 @@ export default function Home() {
               Smart Pet Waste Management
             </h2>
             <p className="text-lg text-[color:var(--brand-ink-muted)]">
-              Built for busy dog households in Peyton, Falcon, and nearby Colorado Springs.
+              Built for busy dog households in Colorado Springs and Falcon.
             </p>
           </div>
 
@@ -193,7 +193,7 @@ export default function Home() {
               Ready for a cleaner yard?
             </h2>
             <p className="text-lg text-white/90 mb-10">
-              Join the Peyton &amp; Falcon pilot — weekly scoop service so you spend less time cleaning and more time outside with your dogs.
+              Join the Colorado Springs &amp; Falcon pilot — weekly scoop service so you spend less time cleaning and more time outside with your dogs.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link href="/signup" className="inline-flex items-center justify-center bg-white text-[color:var(--brand-leaf-deep)] font-semibold px-6 py-3.5 rounded-xl hover:bg-[color:var(--brand-mist)] transition-colors duration-200">
