@@ -54,7 +54,7 @@ export default function LoginPage() {
     const searchParams = useSearchParams();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [debugInfo, setDebugInfo] = useState(null);
+    const [hasExistingSession, setHasExistingSession] = useState(false);
     const [formData, setFormData] = useState({
         email: '',
         password: '',
@@ -64,13 +64,11 @@ export default function LoginPage() {
         const isFromLogout = sessionStorage.getItem('justLoggedOut');
         if (isFromLogout) {
             sessionStorage.removeItem('justLoggedOut');
-            setDebugInfo('Just logged out, showing login form');
             return;
         }
-        // Check for existing session
+        // Quiet session probe — 401 with no cookie is normal on the login page.
         const checkSession = async () => {
             try {
-                console.log('Checking for existing session...');
                 const response = await fetch('/api/auth/session', {
                     method: 'GET',
                     credentials: 'include',
@@ -80,44 +78,29 @@ export default function LoginPage() {
                     },
                 });
 
-                console.log('Session check response status:', response.status);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    if (data.user) {
-                        console.log('Existing session found, showing dashboard button...');
-                        setDebugInfo('Session exists, click button to continue to dashboard');
-                        
-                        // Store the redirect path in session storage based on role
-                        const role = data.user.role?.toUpperCase();
-                        let redirectPath = '/dashboard';
-                        
-                        switch(role) {
-                            case 'ADMIN':
-                                redirectPath = '/admin/dashboard';
-                                break;
-                            case 'EMPLOYEE':
-                                redirectPath = '/employee/dashboard';
-                                break;
-                            case 'CUSTOMER':
-                            default:
-                                redirectPath = '/dashboard';
-                                break;
-                        }
-                        
-                        // Store the path but don't redirect automatically
-                        sessionStorage.setItem('dashboardRedirectPath', redirectPath);
-                    } else {
-                        setDebugInfo('Session exists but no user data found, showing login form');
-                    }
-                } else {
-                    const errorData = await response.json().catch(() => ({}));
-                    setDebugInfo(`Session check failed with status ${response.status}: ${errorData.error || 'Unknown error'}, showing login form`);
+                if (!response.ok) return;
+
+                const data = await response.json();
+                if (!data.user) return;
+
+                const role = data.user.role?.toUpperCase();
+                let redirectPath = '/dashboard';
+                switch (role) {
+                    case 'ADMIN':
+                        redirectPath = '/admin/dashboard';
+                        break;
+                    case 'EMPLOYEE':
+                        redirectPath = '/employee/dashboard';
+                        break;
+                    case 'CUSTOMER':
+                    default:
+                        redirectPath = '/dashboard';
+                        break;
                 }
-            } catch (error) {
-                console.error('Error checking session:', error);
-                setDebugInfo(`Error checking session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                sessionStorage.setItem('dashboardRedirectPath', redirectPath);
+                setHasExistingSession(true);
+            } catch {
+                // Ignore probe failures; user can still sign in.
             }
         };
         checkSession();
@@ -135,7 +118,6 @@ export default function LoginPage() {
         setError(null);
         
         try {
-            console.log('Submitting login form...');
             const response = await fetch('/api/auth/login', {
                 method: 'POST',
                 headers: {
@@ -213,10 +195,8 @@ export default function LoginPage() {
             setLoading(false);
         }
     };
-    // Add a continue to dashboard handler 
     const continueToDashboard = () => {
         const redirectPath = sessionStorage.getItem('dashboardRedirectPath') || '/customer/dashboard';
-        setDebugInfo(`Manually continuing to ${redirectPath}...`);
         window.location.href = redirectPath;
     };
     return (<div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-blue-50 to-white">
@@ -232,14 +212,8 @@ export default function LoginPage() {
               {error}
             </div>
           )}
-          
-          {debugInfo && (
-            <div className="bg-blue-50 text-blue-600 p-3 rounded-md text-sm">
-              Debug: {debugInfo}
-            </div>
-          )}
 
-          {debugInfo && debugInfo.includes('Session exists') && (
+          {hasExistingSession && (
             <div className="mt-4">
               <Button 
                 onClick={continueToDashboard}
