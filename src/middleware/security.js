@@ -90,12 +90,16 @@ export function corsMiddleware(request) {
 
 // Input sanitization middleware
 export function sanitizeMiddleware(request) {
-  // Sanitize request body for POST/PUT requests
+  // Reject unexpected bodies on mutating requests. Allow JSON APIs and
+  // multipart photo uploads (scooper completion uses multipart without AWS).
   if (['POST', 'PUT', 'PATCH'].includes(request.method)) {
-    // This would be implemented with a library like DOMPurify
-    // For now, we'll just validate content type
-    const contentType = request.headers.get('content-type');
-    if (contentType && !contentType.includes('application/json')) {
+    const contentType = (request.headers.get('content-type') || '').toLowerCase();
+    if (
+      contentType &&
+      !contentType.includes('application/json') &&
+      !contentType.includes('multipart/form-data') &&
+      !contentType.includes('application/x-www-form-urlencoded')
+    ) {
       return new NextResponse(
         JSON.stringify({ error: 'Invalid content type' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
