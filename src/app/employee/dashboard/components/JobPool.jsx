@@ -438,7 +438,7 @@ export default function JobPool({ employeeId }) {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => window.open(`/employee/dashboard/jobs/${job.id}`, '_blank')}
+                        onClick={() => router.push(`/employee/services/${job.id}`)}
                       >
                         <Eye className="h-4 w-4 mr-2" />
                         View Details
