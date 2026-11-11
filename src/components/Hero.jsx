@@ -35,7 +35,7 @@ export function Hero() {
               Yard clean. Life easy.
             </h1>
             <p className="hero-reveal hero-reveal-delay-3 mt-5 max-w-xl text-lg text-[color:var(--brand-ink-muted)]">
-              Weekly dog waste removal for Peyton &amp; Falcon, Colorado.
+              Weekly dog waste removal for Colorado Springs &amp; Falcon, Colorado.
             </p>
             <div className="hero-reveal hero-reveal-delay-4 mt-9 flex flex-col sm:flex-row gap-3 sm:gap-4">
               <Link href="/signup" className="brand-cta-primary inline-flex items-center justify-center font-semibold px-6 py-3.5 rounded-xl">

@@ -65,7 +65,7 @@ const contactInfo = [
     },
     {
         icon: MapPin,
-        text: 'Peyton / Falcon, CO',
+        text: 'Colorado Springs & Falcon, CO',
         href: '/contact',
     },
 ];
@@ -109,7 +109,7 @@ export default function Footer() {
         </div>
         <p className="mt-10 text-center text-xs leading-5 text-[color:var(--brand-ink-muted)]">
           &copy; {new Date().getFullYear()} Scoopify Club. All rights reserved.
-          {' '}Pilot: Peyton &amp; Falcon, CO · services@scoopify.club
+          {' '}Pilot: Colorado Springs &amp; Falcon, CO · services@scoopify.club
         </p>
       </div>
     </footer>);

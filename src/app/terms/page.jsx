@@ -32,8 +32,8 @@ export default function TermsPage() {
                         </h2>
                         <p className="mb-3">
                             Scoopify provides professional dog waste removal, including recurring weekly
-                            scoop visits and one-time catch-up cleanups. We are piloting locally from
-                            Peyton, Colorado, with service focused on Peyton, Falcon, and nearby areas.
+                            scoop visits and one-time catch-up cleanups. We are piloting locally in
+                            Colorado Springs and Falcon, Colorado.
                             Coverage is ZIP-based during the pilot and may change as we learn.
                         </p>
                         <p>
@@ -193,7 +193,7 @@ export default function TermsPage() {
                         <p>
                             Scoopify Club
                             <br />
-                            Peyton / Falcon, CO
+                            Colorado Springs &amp; Falcon, CO
                             <br />
                             services@scoopify.club
                         </p>
