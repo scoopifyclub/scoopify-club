@@ -174,8 +174,12 @@ const emailTemplates = {
                     </div>
                     ${data.photos && data.photos.length ? `
                     <div style="background-color: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                        <h3 style="color: #92400e; margin-top: 0;">📸 Your service photos</h3>${photoGallery(data.photos, 'AFTER', 'After')}${photoGallery(data.photos, 'BEFORE', 'Before')}
-                        <p style="color: #92400e; font-size: 13px; margin: 12px 0 0;">Photo links in this email expire after ${escapeHtml(data.photoLinkDays || 7)} days. You can always see them in your dashboard.</p>
+                        <h3 style="color: #92400e; margin-top: 0;">Your cleanup photo</h3>${photoGallery(data.photos, 'AFTER', 'After')}${photoGallery(data.photos, 'BEFORE', 'Before')}
+                        <p style="color: #92400e; font-size: 13px; margin: 12px 0 0;">${data.hasAttachments ? 'The cleanup photo is also attached to this email. ' : ''}Photo links expire after ${escapeHtml(data.photoLinkDays || 7)} days.</p>
+                    </div>` : data.hasAttachments ? `
+                    <div style="background-color: #fffbeb; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                        <h3 style="color: #92400e; margin-top: 0;">Your cleanup photo</h3>
+                        <p style="color: #92400e; margin: 8px 0;">The cleanup photo from your service is attached to this email.</p>
                     </div>` : ''}
                     
                     <div style="background-color: #ecfdf5; border: 1px solid #10b981; border-radius: 8px; padding: 20px; margin: 20px 0;">
@@ -188,12 +192,6 @@ const emailTemplates = {
                         <h3 style="color: #991b1b; margin-top: 0;">💝 Show Your Appreciation</h3>
                         <p style="color: #991b1b; margin: 8px 0;">If you're happy with the service, consider leaving a tip for ${escapeHtml(data.employeeName)}!</p>
                         <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/services" style="display: inline-block; background-color: #ef4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">Leave a Tip</a>
-                    </div>
-                    
-                    <div style="background-color: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                        <h3 style="color: #92400e; margin-top: 0;">📸 Photos Available</h3>
-                        <p style="color: #92400e; margin: 8px 0;">Before and after photos from your service are now available in your dashboard.</p>
-                        <a href="${process.env.NEXT_PUBLIC_APP_URL}/dashboard/services" style="display: inline-block; background-color: #f59e0b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Photos</a>
                     </div>
                     
                     <p style="font-size: 16px; color: #555;">Thank you for choosing ScoopifyClub! We appreciate your business.</p>
@@ -355,10 +353,12 @@ export function isEmailConfigured() {
     return Boolean(process.env.SMTP_PASSWORD);
 }
 
-// Main email sending function. Also accepts a single { to, template, data } object.
+// Main email sending function. Also accepts a single { to, template, data, attachments, cc } object.
 export async function sendEmail(to, template, data = {}) {
+    let attachments;
+    let cc;
     if (to && typeof to === 'object' && !Array.isArray(to)) {
-        ({ to, template, data = {} } = to);
+        ({ to, template, data = {}, attachments, cc } = to);
     }
     const emailTemplate = emailTemplates[template];
     if (!emailTemplate) {
@@ -387,6 +387,10 @@ export async function sendEmail(to, template, data = {}) {
             subject: subject,
             html: emailTemplate.html(data)
         };
+        if (cc) mailOptions.cc = cc;
+        if (Array.isArray(attachments) && attachments.length > 0) {
+            mailOptions.attachments = attachments;
+        }
 
         const result = await transporter.sendMail(mailOptions);
         console.log('Email sent successfully:', result.messageId);
@@ -540,9 +544,11 @@ export async function sendScooperArrivedEmail(service, scooper) {
 
 /**
  * @param {object} [options]
- * @param {{url: string, type: string}[]} [options.photos] - signed photo URLs to show in the email
+ * @param {{url: string, type: string}[]} [options.photos] - photo URLs to show in the email
+ * @param {object[]} [options.attachments] - nodemailer attachments (cleanup photo bytes)
+ * @param {string} [options.cc] - optional admin CC
  */
-export async function sendServiceCompletedEmail(service, scooper, { photos = [] } = {}) {
+export async function sendServiceCompletedEmail(service, scooper, { photos = [], attachments = [], cc } = {}) {
     try {
         const data = {
             customerName: displayName(service.customer?.user, 'there'),
@@ -550,13 +556,17 @@ export async function sendServiceCompletedEmail(service, scooper, { photos = [] 
             servicePlanName: service.servicePlan?.name || 'Yard service',
             serviceDate: new Date(service.completedDate || Date.now()).toLocaleDateString('en-US', { timeZone: 'America/Denver' }),
             serviceId: service.id,
-            photos: photos.filter((photo) => photo?.url)
+            photos: photos.filter((photo) => photo?.url),
+            hasAttachments: Array.isArray(attachments) && attachments.length > 0,
+            photoLinkDays: 7,
         };
 
         return await sendEmail({
             to: service.customer.user.email,
             template: 'service-completed',
-            data: data
+            data,
+            attachments,
+            cc,
         });
     } catch (error) {
         console.error('Error sending service completed email:', error);

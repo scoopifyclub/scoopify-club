@@ -6,8 +6,8 @@ process.env.JWT_SECRET = 'job-completion-unit-secret';
 const mockSendMail = jest.fn(async () => ({ messageId: 'test-message' }));
 jest.mock('nodemailer', () => ({ createTransport: () => ({ sendMail: mockSendMail }) }));
 
-const { sniffImageType, normalizePhotoType } = require('@/lib/service-photos');
-const { normalizeChecklist, missingChecklistItems } = require('@/lib/job-completion');
+const { sniffImageType, normalizePhotoType, isStoredPhoto, PHOTO_RETENTION_DAYS } = require('@/lib/service-photos');
+const { normalizeChecklist, missingChecklistItems, REQUIRED_PHOTOS } = require('@/lib/job-completion');
 const { allocateVisit, scooperEarningDollars } = require('@/lib/job-financials');
 const { sendEmail, sendServiceCompletedEmail } = require('@/lib/unified-email-service');
 
@@ -26,6 +26,14 @@ describe('photo validation', () => {
     expect(normalizePhotoType('POST_CLEAN')).toBe('AFTER');
     expect(normalizePhotoType('GATE')).toBe('OTHER');
     expect(() => normalizePhotoType('SELFIE')).toThrow('Photo type');
+  });
+
+  test('pilot completion requires one after photo; inline data URLs count as stored', () => {
+    expect(REQUIRED_PHOTOS).toEqual({ AFTER: 1 });
+    expect(PHOTO_RETENTION_DAYS).toBe(7);
+    expect(isStoredPhoto({ s3Key: 'services/x/after/a.jpg' })).toBe(true);
+    expect(isStoredPhoto({ url: 'data:image/jpeg;base64,abc' })).toBe(true);
+    expect(isStoredPhoto({ url: 'blob:http://x/1' })).toBe(false);
   });
 });
 
@@ -103,15 +111,22 @@ describe('completion email', () => {
   test('is sent to the customer with the photos and escaped names', async () => {
     process.env.SMTP_PASSWORD = 'test-password';
     try {
-      const result = await sendServiceCompletedEmail(service, scooper, { photos });
+      const result = await sendServiceCompletedEmail(service, scooper, {
+        photos,
+        attachments: [{ filename: 'cleanup-1.jpg', content: Buffer.from([0xff, 0xd8, 0xff]), contentType: 'image/jpeg' }],
+        cc: 'owner@scoopify.club',
+      });
       expect(result).toMatchObject({ success: true, messageId: 'test-message' });
       expect(mockSendMail).toHaveBeenCalledTimes(1);
-      const [{ to, html }] = mockSendMail.mock.calls[0];
+      const [{ to, html, attachments, cc }] = mockSendMail.mock.calls[0];
       expect(to).toBe('casey@example.com');
+      expect(cc).toBe('owner@scoopify.club');
+      expect(attachments).toHaveLength(1);
       expect(html).toContain('X-Amz-Signature=def&amp;X-Amz-Expires=604800');
       expect(html).toContain('X-Amz-Signature=abc');
       expect(html).toContain('Casey &lt;b&gt;C&lt;/b&gt;');
       expect(html).toContain('Sam Scooper');
+      expect(html).toContain('attached to this email');
     } finally {
       delete process.env.SMTP_PASSWORD;
     }

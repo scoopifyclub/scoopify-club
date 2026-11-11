@@ -11,6 +11,9 @@ export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 // go straight to S3 through a signed upload URL.
 export const MAX_PROXY_UPLOAD_BYTES = 4 * 1024 * 1024;
 export const MAX_PHOTOS_PER_SERVICE = 16;
+/** Pilot retention: hold evidence ~7 days, then the cleanup-photos cron purges it. */
+export const PHOTO_RETENTION_DAYS = 7;
+export const PHOTO_RETENTION_MS = PHOTO_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 export const PHOTO_CONTENT_TYPES = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -99,6 +102,16 @@ function photoKey(serviceId, type, contentType) {
   return `services/${serviceId}/${type.toLowerCase()}/${randomUUID()}.${PHOTO_CONTENT_TYPES[contentType]}`;
 }
 
+function photoExpiresAt(now = new Date()) {
+  return new Date(now.getTime() + PHOTO_RETENTION_MS);
+}
+
+/** A photo counts for completion when it is in S3 or stored inline (no-AWS pilot path). */
+export function isStoredPhoto(photo) {
+  if (photo?.s3Key) return true;
+  return typeof photo?.url === 'string' && photo.url.startsWith('data:image/');
+}
+
 /** The assigned scooper may add photos only while checked in to the job. */
 async function assertCanUpload(db, serviceId, employeeId) {
   const service = await db.service.findUnique({
@@ -119,17 +132,22 @@ async function assertCanUpload(db, serviceId, employeeId) {
   return service;
 }
 
-async function recordPhoto(db, { serviceId, employeeId, key, type, contentType, size, now }) {
+async function recordPhoto(db, { serviceId, employeeId, key = null, url, type, contentType, size, now }) {
+  const storedUrl = url || key;
+  if (!storedUrl) {
+    throw new JobClaimError(500, 'PHOTO_STORAGE_FAILED', 'Photo storage produced no URL');
+  }
   const photo = await db.servicePhoto.create({
     data: {
       id: randomUUID(),
-      url: key,
-      s3Key: key,
+      url: storedUrl,
+      s3Key: key || null,
       type,
       serviceId,
       contentType,
       sizeBytes: size,
       uploadedById: employeeId,
+      expiresAt: photoExpiresAt(now),
       createdAt: now,
       updatedAt: now,
     },
@@ -196,11 +214,27 @@ export async function uploadPhotoFile({ serviceId, employeeId, file, type, now =
   }
   const contentType = normalizeContentType(file.type);
   assertSize(file.size, MAX_PROXY_UPLOAD_BYTES);
-  assertStorage();
   await assertCanUpload(db, serviceId, employeeId);
   const body = Buffer.from(await file.arrayBuffer());
   const size = assertSize(body.length, MAX_PROXY_UPLOAD_BYTES);
   assertContentMatches(body, contentType);
+
+  // Pilot / dry-run: when AWS_* is unset, keep the image briefly as a data URL
+  // in Postgres (metadata + bytes) so completion and email still work without S3.
+  if (!storage.isStorageConfigured()) {
+    const dataUrl = `data:${contentType};base64,${body.toString('base64')}`;
+    return recordPhoto(db, {
+      serviceId,
+      employeeId,
+      key: null,
+      url: dataUrl,
+      type: photoType,
+      contentType,
+      size,
+      now,
+    });
+  }
+
   const key = photoKey(serviceId, photoType, contentType);
   await storage.putPrivateObject({ key, body, contentType });
   return recordPhoto(db, { serviceId, employeeId, key, type: photoType, contentType, size, now });
@@ -296,7 +330,7 @@ export async function deleteServicePhoto({ serviceId, photoId, employeeId = null
     }
   }
   await db.servicePhoto.delete({ where: { id: photoId } });
-  if (photo.s3Key) {
+  if (photo.s3Key && storage.isStorageConfigured()) {
     await storage.deleteFromS3(photo.s3Key).catch((err) => console.error('Failed to delete photo object', photo.s3Key, err));
   }
   return { deleted: true, id: photoId };

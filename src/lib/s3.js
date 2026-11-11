@@ -83,6 +83,15 @@ export async function readObjectPrefix(key, length = 32) {
   return Buffer.from(await res.Body.transformToByteArray());
 }
 
+/** Full object body for email attachments (pilot / small photos). */
+export async function getObjectBytes(key) {
+  const res = await getClient().send(new GetObjectCommand({ Bucket: getBucket(), Key: key }));
+  return {
+    body: Buffer.from(await res.Body.transformToByteArray()),
+    contentType: res.ContentType || null,
+  };
+}
+
 /**
  * Signed PUT for a direct browser upload. The browser must send exactly the
  * returned headers; they are part of the signature.

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireCronOrAdmin } from '@/lib/cron-auth';
 import prisma from "@/lib/prisma";
-import { deleteFromS3 } from "@/lib/s3";
+import { deleteFromS3, isStorageConfigured } from "@/lib/s3";
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -47,7 +47,8 @@ export async function POST(request) {
                     select: { id: true, s3Key: true }
                 });
                 for (const photo of expired) {
-                    if (photo.s3Key) await deleteFromS3(photo.s3Key);
+                    // Inline/data-URL photos have no s3Key; skip S3 when AWS_* is unset.
+                    if (photo.s3Key && isStorageConfigured()) await deleteFromS3(photo.s3Key);
                 }
                 const deletedPhotos = await prisma.servicePhoto.deleteMany({
                     where: { id: { in: expired.map(photo => photo.id) } }

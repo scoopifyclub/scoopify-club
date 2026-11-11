@@ -74,8 +74,9 @@ export async function checkInToJob(serviceId, { geolocation = globalThis.navigat
 }
 
 /**
- * Uploads one photo. Up to 4 MB goes through the API; larger photos (up to
- * 10 MB) go straight to S3 with a signed URL and are then confirmed.
+ * Uploads one photo. Up to 4 MB goes through the API (works without AWS).
+ * Larger photos (up to 10 MB) need a signed S3 URL; if storage is not
+ * configured the upload-url call returns STORAGE_NOT_CONFIGURED.
  */
 export async function uploadJobPhoto(serviceId, file, type, fetchImpl = fetch) {
   if (file.size > MAX_PHOTO_BYTES) {
@@ -89,11 +90,22 @@ export async function uploadJobPhoto(serviceId, file, type, fetchImpl = fetch) {
     return request(`/api/employee/services/${serviceId}/photos`, { method: 'POST', body: form }, fetchImpl);
   }
 
-  const grant = await request(
-    `/api/employee/services/${serviceId}/photos/upload-url`,
-    { method: 'POST', ...json({ type, contentType, size: file.size }) },
-    fetchImpl
-  );
+  let grant;
+  try {
+    grant = await request(
+      `/api/employee/services/${serviceId}/photos/upload-url`,
+      { method: 'POST', ...json({ type, contentType, size: file.size }) },
+      fetchImpl
+    );
+  } catch (error) {
+    if (error instanceof JobApiError && error.code === 'STORAGE_NOT_CONFIGURED') {
+      throw new JobApiError('This photo is over 4 MB and cloud storage is not configured. Use a smaller photo.', {
+        status: 503,
+        code: 'STORAGE_NOT_CONFIGURED',
+      });
+    }
+    throw error;
+  }
   // Cross-origin request to S3: no cookies.
   const put = await fetchImpl(grant.uploadUrl, { method: 'PUT', headers: grant.headers, body: file, credentials: 'omit' });
   if (!put.ok) {

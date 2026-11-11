@@ -8,28 +8,41 @@ import { toast } from 'sonner';
 import { uploadJobPhoto, JobApiError } from '@/lib/job-api-client';
 
 /**
- * Before/after photo picker for an in-progress job. Photos up to 4 MB go
- * through the API; larger ones (up to 10 MB) go straight to S3.
+ * Cleanup/after photo picker for an in-progress job. Photos up to 4 MB go
+ * through the API (works without AWS). Larger ones need a signed S3 URL.
  */
-export function ServicePhotoUpload({ serviceId, type = 'AFTER', onUploadComplete, existingCount = 0, required = 4 }) {
+export function ServicePhotoUpload({ serviceId, type = 'AFTER', onUploadComplete, existingCount = 0, required = 1 }) {
   const [previews, setPreviews] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
-  const label = type === 'BEFORE' ? 'Before' : type === 'AFTER' ? 'After' : 'Service';
+  const label = type === 'BEFORE' ? 'Before' : type === 'AFTER' ? 'Cleanup' : 'Service';
 
   const handleFileSelect = (e) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (files.length === 0) return;
-    setPreviews((prev) => [
-      ...prev,
-      ...files.map((file, i) => ({
-        id: `preview-${Date.now()}-${i}-${file.name}`,
-        file,
-        url: URL.createObjectURL(file),
-        type,
-      })),
-    ]);
+    // Pilot completion only needs one after photo; keep the latest selection.
+    const limited = required <= 1 ? files.slice(0, 1) : files;
+    setPreviews((prev) => {
+      if (required <= 1) {
+        prev.forEach((p) => p.url && URL.revokeObjectURL(p.url));
+        return limited.map((file, i) => ({
+          id: `preview-${Date.now()}-${i}-${file.name}`,
+          file,
+          url: URL.createObjectURL(file),
+          type,
+        }));
+      }
+      return [
+        ...prev,
+        ...limited.map((file, i) => ({
+          id: `preview-${Date.now()}-${i}-${file.name}`,
+          file,
+          url: URL.createObjectURL(file),
+          type,
+        })),
+      ];
+    });
   };
 
   const removePreview = (id) => {
@@ -69,7 +82,7 @@ export function ServicePhotoUpload({ serviceId, type = 'AFTER', onUploadComplete
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-2">
             <div>
-              <h3 className="text-lg font-semibold">Upload {label} Photos</h3>
+              <h3 className="text-lg font-semibold">Upload {label} photo{required === 1 ? '' : 's'}</h3>
               <p className="text-sm text-gray-500">
                 {existingCount} of {required} uploaded
                 {previews.length > 0 ? ` · ${previews.length} ready` : ''}
@@ -81,14 +94,14 @@ export function ServicePhotoUpload({ serviceId, type = 'AFTER', onUploadComplete
               disabled={isUploading}
             >
               <ImageIcon className="mr-2 h-4 w-4" />
-              Add Photos
+              {required === 1 ? 'Add photo' : 'Add Photos'}
             </Button>
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileSelect}
               accept="image/jpeg,image/png,image/webp,image/heic,image/heif,image/*"
-              multiple
+              multiple={required > 1}
               className="hidden"
             />
           </div>
@@ -99,7 +112,7 @@ export function ServicePhotoUpload({ serviceId, type = 'AFTER', onUploadComplete
                 <div key={preview.id} className="relative group">
                   <img
                     src={preview.url}
-                    alt={`${label} photo preview`}
+                    alt={`${label} preview`}
                     className="w-full h-32 object-cover rounded-lg"
                   />
                   <button
@@ -117,7 +130,7 @@ export function ServicePhotoUpload({ serviceId, type = 'AFTER', onUploadComplete
           {previews.length > 0 && (
             <div className="flex justify-end">
               <Button onClick={handleUpload} disabled={isUploading}>
-                {isUploading ? 'Uploading...' : 'Upload Photos'}
+                {isUploading ? 'Uploading...' : required === 1 ? 'Upload photo' : 'Upload Photos'}
               </Button>
             </div>
           )}

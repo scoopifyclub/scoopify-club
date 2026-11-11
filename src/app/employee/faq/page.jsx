@@ -4,7 +4,7 @@ import { ChevronDown, ChevronUp, Search } from 'lucide-react';
 const faqItems = [
     {
         question: "How do I upload service photos?",
-        answer: "After completing the service, click the 'Upload Photos' button. You'll need to take 4 corner photos before and after the service. Make sure all photos are clear and show the entire area."
+        answer: "After finishing the cleanup, upload one clear after photo of the yard. That photo is emailed to the customer and kept for about 7 days."
     },
     {
         question: "What should I do if the weather is bad?",

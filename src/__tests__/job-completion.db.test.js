@@ -261,9 +261,7 @@ describeDb('job photos and completion (real Postgres)', () => {
   }
 
   async function uploadRequiredPhotos(serviceId, scooper) {
-    for (const type of ['BEFORE', 'BEFORE', 'BEFORE', 'BEFORE', 'AFTER', 'AFTER', 'AFTER', 'AFTER']) {
-      expect((await upload(serviceId, scooper, { type })).status).toBe(201);
-    }
+    expect((await upload(serviceId, scooper, { type: 'AFTER' })).status).toBe(201);
   }
 
   const expectSignedUrl = (url, expiresSeconds) => {
@@ -458,25 +456,24 @@ describeDb('job photos and completion (real Postgres)', () => {
   });
 
   describe('completion', () => {
-    test('requires the checklist and 4 before + 4 after photos', async () => {
+    test('requires the checklist and one after/cleanup photo', async () => {
       const { scooper, service } = await activeJob();
 
       let res = await complete(service.id, scooper, { checklist: { allWasteRemoved: true } });
       expect(res.status).toBe(400);
       expect(await res.json()).toMatchObject({ code: 'CHECKLIST_INCOMPLETE', missingItems: ['gateClosed'] });
 
-      await upload(service.id, scooper, { type: 'BEFORE' });
       res = await complete(service.id, scooper);
       expect(res.status).toBe(400);
       expect(await res.json()).toMatchObject({
         code: 'PHOTOS_REQUIRED',
-        missingPhotos: [{ type: 'BEFORE', required: 4, uploaded: 1 }, { type: 'AFTER', required: 4, uploaded: 0 }],
+        missingPhotos: [{ type: 'AFTER', required: 1, uploaded: 0 }],
       });
 
       // A legacy row without a stored object does not count
       await prisma.servicePhoto.create({ data: { id: id('legacy'), url: 'blob:http://x/1', type: 'AFTER', serviceId: service.id, updatedAt: new Date() } });
       res = await complete(service.id, scooper);
-      expect((await res.json()).missingPhotos[1]).toEqual({ type: 'AFTER', required: 4, uploaded: 0 });
+      expect((await res.json()).missingPhotos[0]).toEqual({ type: 'AFTER', required: 1, uploaded: 0 });
 
       const row = await prisma.service.findUnique({ where: { id: service.id } });
       expect(row.status).toBe('IN_PROGRESS');
@@ -500,15 +497,15 @@ describeDb('job photos and completion (real Postgres)', () => {
         alreadyCompleted: false,
         earning: { amount: EXPECTED_EARNING, status: 'PENDING' },
         financialRecord: EXPECTED_RECORD,
-        photoCounts: { BEFORE: 4, AFTER: 4 },
+        photoCounts: { AFTER: 1 },
         email: { sent: true, outcome: 'sent' },
       });
 
       const row = await prisma.service.findUnique({ where: { id: service.id }, include: { checklist: true } });
       expect(row).toMatchObject({ status: 'COMPLETED', workflowStatus: 'COMPLETED', checklistCompleted: true, notes: 'Side gate' });
       expect(row.completedDate.getTime()).toBeGreaterThanOrEqual(before - 1000);
-      expect(row.beforePhotoIds).toHaveLength(4);
-      expect(row.afterPhotoIds).toHaveLength(4);
+      expect(row.beforePhotoIds || []).toHaveLength(0);
+      expect(row.afterPhotoIds).toHaveLength(1);
       expect(row.checklist).toMatchObject({ items: { allWasteRemoved: true, gateClosed: true }, notes: 'Two piles by the shed' });
       expect(row.checklist.completedAt).toBeInstanceOf(Date);
 
@@ -534,11 +531,14 @@ describeDb('job photos and completion (real Postgres)', () => {
       expect(await prisma.notification.count({ where: { userId: owner.user.id, type: 'SERVICE_COMPLETED' } })).toBe(1);
 
       expect(email.sendServiceCompletedEmail).toHaveBeenCalledTimes(1);
-      const [emailService, emailScooper, { photos }] = email.sendServiceCompletedEmail.mock.calls[0];
+      const [emailService, emailScooper, { photos, attachments }] = email.sendServiceCompletedEmail.mock.calls[0];
       expect(emailService.customer.user.email).toBe(owner.user.email);
       expect(emailScooper.user.firstName).toBe('Sam');
-      expect(photos).toHaveLength(8);
+      expect(photos).toHaveLength(1);
       photos.forEach((photo) => expectSignedUrl(photo.url, 7 * 24 * 60 * 60));
+      expect(attachments).toHaveLength(1);
+      expect(attachments[0].filename).toMatch(/^cleanup-1\./);
+      expect(await prisma.cleanupTask.count({ where: { taskType: 'PHOTO_CLEANUP', targetId: service.id, status: 'PENDING' } })).toBe(1);
       expect(await prisma.systemLog.count({ where: { type: 'SERVICE_COMPLETION_EMAIL' } })).toBe(1);
 
       // Repeat: same result, nothing new

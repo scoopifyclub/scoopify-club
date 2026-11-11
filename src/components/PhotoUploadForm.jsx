@@ -24,16 +24,16 @@ export default function PhotoUploadForm({ serviceId, onPhotosUploaded }) {
     const fileInputRef = useRef(null);
 
     const requiredPhotos = {
-        BEFORE: 4,
-        AFTER: 4,
-        GATE: 1
+        BEFORE: 0,
+        AFTER: 1,
+        GATE: 0
     };
 
     const getPhotoCount = (type) => photos[type].length;
     const getPhotoStatus = (type) => {
         const count = getPhotoCount(type);
         const required = requiredPhotos[type];
-        
+        if (required === 0) return count === 0 ? 'complete' : 'excess';
         if (count === 0) return 'missing';
         if (count < required) return 'incomplete';
         if (count === required) return 'complete';

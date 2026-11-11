@@ -4,12 +4,20 @@ import { prisma as defaultDb } from '@/lib/prisma';
 import { JobClaimError, jobClaimErrorResponse, requireScooper } from '@/lib/job-claims';
 import { buildFinancialRecord } from '@/lib/job-financials';
 import { useServiceCredit } from '@/lib/service-credits';
-import { toPhotoView } from '@/lib/service-photos';
+import {
+  toPhotoView,
+  isStoredPhoto,
+  PHOTO_CONTENT_TYPES,
+  PHOTO_RETENTION_DAYS,
+  PHOTO_RETENTION_MS,
+} from '@/lib/service-photos';
+import * as storage from '@/lib/s3';
 
-export const REQUIRED_PHOTOS = { BEFORE: 4, AFTER: 4 };
+// Pilot: one after/cleanup photo is enough. Before photos stay optional.
+export const REQUIRED_PHOTOS = { AFTER: 1 };
 export const REQUIRED_CHECKLIST_ITEMS = ['allWasteRemoved', 'gateClosed'];
 // Signed URLs in the customer email; SigV4 presigned URLs cannot outlive 7 days.
-export const EMAIL_PHOTO_URL_TTL_SECONDS = 7 * 24 * 60 * 60;
+export const EMAIL_PHOTO_URL_TTL_SECONDS = PHOTO_RETENTION_DAYS * 24 * 60 * 60;
 
 // Older completion screens use different names for the same checklist items.
 const CHECKLIST_ALIASES = {
@@ -96,8 +104,62 @@ export async function getCompletionSummary({ serviceId, db = defaultDb }) {
   };
 }
 
+function extensionForContentType(contentType) {
+  return PHOTO_CONTENT_TYPES[contentType] || 'jpg';
+}
+
+function dataUrlAttachment(photo, index) {
+  const match = String(photo.url || '').match(/^data:([^;]+);base64,(.+)$/);
+  if (!match) return null;
+  return {
+    filename: `cleanup-${index + 1}.${extensionForContentType(match[1])}`,
+    content: Buffer.from(match[2], 'base64'),
+    contentType: match[1],
+  };
+}
+
+async function s3Attachment(photo, index) {
+  if (!photo.s3Key || !storage.isStorageConfigured()) return null;
+  try {
+    const { body, contentType } = await storage.getObjectBytes(photo.s3Key);
+    const type = contentType || photo.contentType || 'image/jpeg';
+    return {
+      filename: `cleanup-${index + 1}.${extensionForContentType(type)}`,
+      content: body,
+      contentType: type,
+    };
+  } catch (error) {
+    console.warn('Failed to load photo for email attachment', photo.s3Key, error);
+    return null;
+  }
+}
+
+async function buildPhotoAttachments(photos) {
+  const attachments = [];
+  let index = 0;
+  for (const photo of photos) {
+    if (photo.type !== 'AFTER') continue;
+    const attachment = dataUrlAttachment(photo, index) || (await s3Attachment(photo, index));
+    if (attachment) {
+      attachments.push(attachment);
+      index += 1;
+    }
+  }
+  return attachments;
+}
+
+function adminNotificationEmail() {
+  if (process.env.ADMIN_EMAIL) return process.env.ADMIN_EMAIL.trim();
+  const list = String(process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return list[0] || null;
+}
+
 /**
- * Emails the customer that the job is done, with signed links to the photos.
+ * Emails the customer that the job is done, with the cleanup photo attached
+ * (and signed links when S3 is configured). Optionally CC's the admin.
  * Never throws: a missing SMTP configuration or a send failure is logged and
  * reported in the result.
  */
@@ -115,11 +177,17 @@ export async function sendCompletionEmail({ serviceId, db = defaultDb, now = new
         photos: { where: { type: { in: ['BEFORE', 'AFTER'] } }, orderBy: { createdAt: 'asc' } },
       },
     });
+    const stored = (service.photos || []).filter(isStoredPhoto);
     const photos = await Promise.all(
-      service.photos.map((photo) => toPhotoView(photo, { ttlSeconds: EMAIL_PHOTO_URL_TTL_SECONDS, now }))
+      stored.map((photo) => toPhotoView(photo, { ttlSeconds: EMAIL_PHOTO_URL_TTL_SECONDS, now }))
     );
+    const attachments = await buildPhotoAttachments(stored);
     const { sendServiceCompletedEmail } = await import('@/lib/unified-email-service');
-    result = await sendServiceCompletedEmail(service, service.employee, { photos });
+    result = await sendServiceCompletedEmail(service, service.employee, {
+      photos,
+      attachments,
+      cc: adminNotificationEmail() || undefined,
+    });
   } catch (error) {
     result = { success: false, error: error.message };
   }
@@ -154,7 +222,7 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
       servicePlanId: true,
       servicePlan: { select: { id: true, price: true, type: true } },
       subscription: { select: { servicePlan: { select: { id: true, price: true, type: true } } } },
-      photos: { where: { s3Key: { not: null } }, select: { id: true, type: true } },
+      photos: { select: { id: true, type: true, s3Key: true, url: true } },
     },
   });
   if (!service) throw new JobClaimError(404, 'JOB_NOT_FOUND', 'Job not found');
@@ -176,12 +244,15 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
   }
 
   const uploaded = { BEFORE: [], AFTER: [] };
-  for (const photo of service.photos) uploaded[photo.type]?.push(photo.id);
+  for (const photo of service.photos) {
+    if (!isStoredPhoto(photo)) continue;
+    uploaded[photo.type]?.push(photo.id);
+  }
   const missingPhotos = Object.entries(REQUIRED_PHOTOS)
     .filter(([type, required]) => uploaded[type].length < required)
     .map(([type, required]) => ({ type, required, uploaded: uploaded[type].length }));
   if (missingPhotos.length > 0) {
-    throw new JobClaimError(400, 'PHOTOS_REQUIRED', 'Upload the required before and after photos first', { missingPhotos });
+    throw new JobClaimError(400, 'PHOTOS_REQUIRED', 'Upload one after/cleanup photo first', { missingPhotos });
   }
 
   const financial = buildFinancialRecord({ service, completedAt: now });
@@ -226,6 +297,18 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
     }
     await tx.employee.update({ where: { id: employeeId }, data: { completedJobs: { increment: 1 }, updatedAt: now } });
 
+    // Hold photos ~7 days, then /api/cron/cleanup-photos purges them.
+    await tx.cleanupTask.create({
+      data: {
+        id: randomUUID(),
+        taskType: 'PHOTO_CLEANUP',
+        status: 'PENDING',
+        scheduledFor: new Date(now.getTime() + PHOTO_RETENTION_MS),
+        targetId: serviceId,
+        updatedAt: now,
+      },
+    });
+
     creditResult = await useServiceCredit(tx, { serviceId, customerId: service.customerId, now });
   }, { maxWait: 10000, timeout: 15000 });
 
@@ -258,7 +341,7 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
         userId: customer.userId,
         type: 'SERVICE_COMPLETED',
         title: 'Your service is complete',
-        message: 'Your scooper finished your service. Before and after photos are in your dashboard.',
+        message: 'Your scooper finished your service. A cleanup photo is in your email and dashboard.',
         metadata: { serviceId, completedAt: now },
       },
     });
