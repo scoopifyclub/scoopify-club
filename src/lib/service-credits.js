@@ -7,7 +7,8 @@
  * one. Returns 'USED', 'ALREADY_USED', or 'NO_CREDIT' (nothing changed).
  * Credits never go below zero.
  */
-export async function useServiceCredit(tx, { serviceId, customerId, now = new Date() }) {
+// Named consume* (not use*) so ESLint react-hooks does not treat this server helper as a React Hook.
+export async function consumeServiceCredit(tx, { serviceId, customerId, now = new Date() }) {
   const { count: marked } = await tx.service.updateMany({
     where: { id: serviceId, creditUsedAt: null },
     data: { creditUsedAt: now },

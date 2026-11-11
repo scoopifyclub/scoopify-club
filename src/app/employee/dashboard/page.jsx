@@ -2,29 +2,11 @@
 // Trigger new Vercel deployment - fix skeleton component
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMapMarkerAlt, faCalendarAlt, faDollarSign, faUsers } from '@fortawesome/free-solid-svg-icons';
-import PaymentInfoReminder from '@/components/PaymentInfoReminder';
-import { format } from 'date-fns';
 import JobPool from './components/JobPool';
-import { JobPoolSocket } from './components/JobPoolSocket';
 import { ServiceAreaManager } from './components/ServiceAreaManager';
-import { EarningsCalculator } from './components/EarningsCalculator';
-import { ServiceHistory } from './components/ServiceHistory';
-import { Notifications } from './components/Notifications';
-import { NotificationSettings } from './components/NotificationSettings';
-import NotificationsDropdown from '@/components/NotificationsDropdown';
-import ScooperRatings from '@/components/ScooperRatings';
-import InteractiveMap from '@/components/InteractiveMap';
-import MessagingSystem from '@/components/MessagingSystem';
-import PayoutRequest from '@/components/PayoutRequest';
-import EmployeeProfile from '@/components/EmployeeProfile';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { toast } from 'react-hot-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -229,246 +211,63 @@ export default function EmployeeDashboard() {
         );
     }
 
-    // Main dashboard content
+    // Main dashboard content — lean pilot: jobs first, no customer messaging/CRM
+    const displayName = user?.firstName || user?.name || 'Scooper';
     return (
-        <div className="p-6">
-            {/* Success banner */}
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
-                🎉 <strong>Dashboard is now working!</strong> All systems restored and functioning properly.
+        <div className="p-6 max-w-4xl mx-auto space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-bold">Welcome, {displayName}</h1>
+                    <p className="text-gray-600 mt-1">
+                        Claim a job, confirm arrival, upload one cleanup photo, complete. Customer email stays with admins.
+                    </p>
+                </div>
+                <Button onClick={() => router.push('/employee/dashboard/services')}>
+                    My claimed jobs
+                </Button>
             </div>
 
-            <div className="mb-6">
-                <NotificationSettings 
-                    onChange={(settings) => setDashboardData(prev => ({
-                        ...prev,
-                        notifications: { ...prev.notifications, settings }
-                    }))}
-                    settings={dashboardData?.notifications?.settings}
-                />
-                <Notifications 
-                    onUnreadCountChange={(count) => setDashboardData(prev => ({
-                        ...prev,
-                        notifications: { ...prev.notifications, unreadCount: count }
-                    }))}
-                    employeeId={user?.id}
-                    settings={dashboardData?.notifications?.settings}
-                    notifications={dashboardData?.notifications?.recent}
-                />
-            </div>
-
-            {/* Employee Profile Section */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">Profile & Payment Setup</h2>
-                <EmployeeProfile employeeId={user?.id} />
-            </div>
-
-            {/* Payout Request Section */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">Request Payout</h2>
-                <PayoutRequest employeeId={user?.id} />
-            </div>
-
-            {/* Interactive Map Section */}
-            <div className="mb-8">
-                <InteractiveMap employeeId={user?.id} />
-            </div>
-
-            {/* Messaging System Section */}
-            <div className="mb-8">
-                <MessagingSystem employeeId={user?.id} />
-            </div>
-
-            <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                Welcome back, {user?.name || 'Employee'}!
-                {dashboardData?.notifications?.unreadCount > 0 && (
-                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
-                        {dashboardData.notifications.unreadCount} unread
-                    </span>
-                )}
-            </h1>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <Card className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Total Services</p>
-                            <h3 className="text-2xl font-bold">{dashboardData?.stats?.totalServices || 0}</h3>
-                        </div>
-                        <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                            <FontAwesomeIcon icon={faCalendarAlt} className="h-6 w-6 text-blue-600" />
-                        </div>
+            <div>
+                <h2 className="text-xl font-semibold mb-4">Available Jobs</h2>
+                <div className="bg-white rounded-lg border shadow-sm">
+                    <div className="p-4 sm:p-6">
+                        <JobPool employeeId={user?.id} />
                     </div>
-                </Card>
-
-                <Card className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Completed Services</p>
-                            <h3 className="text-2xl font-bold">{dashboardData?.stats?.completedServices || 0}</h3>
-                        </div>
-                        <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                            <FontAwesomeIcon icon={faMapMarkerAlt} className="h-6 w-6 text-green-600" />
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Total Earnings</p>
-                            <h3 className="text-2xl font-bold">${(dashboardData?.stats?.earnings || 0).toFixed(2)}</h3>
-                        </div>
-                        <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                            <FontAwesomeIcon icon={faDollarSign} className="h-6 w-6 text-yellow-600" />
-                        </div>
-                    </div>
-                </Card>
-
-                <Card className="p-6">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">Customers Served</p>
-                            <h3 className="text-2xl font-bold">{dashboardData?.stats?.customerCount || 0}</h3>
-                        </div>
-                        <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                            <FontAwesomeIcon icon={faUsers} className="h-6 w-6 text-purple-600" />
-                        </div>
-                    </div>
-                </Card>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card className="p-6">
-                    <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-                    <div className="space-y-4">
-                        <Button
-                            onClick={() => router.push('/employee/dashboard/schedule')}
-                            className="w-full justify-start"
-                            variant="outline"
-                        >
-                            <FontAwesomeIcon icon={faCalendarAlt} className="mr-2 h-4 w-4" />
-                            View Schedule
-                        </Button>
-                        <Button
-                            onClick={() => router.push('/employee/dashboard/services')}
-                            className="w-full justify-start"
-                            variant="outline"
-                        >
-                            <FontAwesomeIcon icon={faMapMarkerAlt} className="mr-2 h-4 w-4" />
-                            Active Services
-                        </Button>
-                    </div>
-                </Card>
-
-                <Card className="p-6">
-                    <h3 className="text-lg font-semibold mb-4">Service Areas</h3>
+                    <h3 className="text-lg font-semibold mb-2">Coverage ZIPs</h3>
                     {dashboardData?.stats?.serviceAreas?.length > 0 ? (
                         <div className="space-y-2">
                             {dashboardData.stats.serviceAreas.map((area, index) => (
-                                <div key={area.id || index} className="bg-gray-50 p-3 rounded">
-                                    <strong>ZIP:</strong> {area.zipCode} 
-                                    <span className={`ml-2 px-2 py-1 rounded text-xs ${area.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                <div key={area.id || index} className="bg-gray-50 p-3 rounded text-sm">
+                                    <strong>ZIP:</strong> {area.zipCode}
+                                    <span className={`ml-2 px-2 py-0.5 rounded text-xs ${area.active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                         {area.active ? 'Active' : 'Inactive'}
                                     </span>
                                 </div>
                             ))}
                         </div>
                     ) : (
-                        <p className="text-gray-500">No service areas configured</p>
+                        <p className="text-gray-500 text-sm">No service areas configured yet.</p>
                     )}
+                </Card>
+                <Card className="p-6">
+                    <h3 className="text-lg font-semibold mb-2">Completed</h3>
+                    <p className="text-3xl font-bold">{dashboardData?.stats?.completedServices || 0}</p>
+                    <p className="text-sm text-gray-500 mt-1">Jobs finished</p>
                 </Card>
             </div>
 
-            {/* Job Pool Section */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">Available Jobs</h2>
+            <div>
+                <h2 className="text-xl font-semibold mb-4">Service area</h2>
                 <div className="bg-white rounded-lg border shadow-sm">
-                    <div className="p-6">
-                        <JobPool employeeId={user?.id} />
-                    </div>
-                </div>
-            </div>
-
-            {/* Service Area Management */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">Manage Service Areas</h2>
-                <div className="bg-white rounded-lg border shadow-sm">
-                    <div className="p-6">
+                    <div className="p-4 sm:p-6">
                         <ServiceAreaManager employeeId={user?.id} />
                     </div>
                 </div>
-            </div>
-
-            {/* Earnings Section */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">Earnings</h2>
-                <div className="bg-white rounded-lg border shadow-sm">
-                    <div className="p-6">
-                        <EarningsCalculator employeeId={user?.id} />
-                    </div>
-                </div>
-            </div>
-
-            {/* Ratings Section */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">Ratings</h2>
-                <div className="bg-white rounded-lg border shadow-sm">
-                    <div className="p-6">
-                        <ScooperRatings employeeId={user?.id} />
-                    </div>
-                </div>
-            </div>
-
-            {/* Service History Section */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">Service History</h2>
-                <div className="bg-white rounded-lg border shadow-sm">
-                    <div className="p-6">
-                        <ServiceHistory employeeId={user?.id} />
-                    </div>
-                </div>
-            </div>
-
-            {/* Upcoming Services */}
-            <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">Upcoming Services</h2>
-                <Card className="shadow-sm">
-                    <CardHeader>
-                        <CardTitle>Your Schedule</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <ScrollArea className="h-[400px] w-full">
-                            {dashboardData?.services?.length === 0 ? (
-                                <div className="text-center py-8">
-                                    <p className="text-gray-500">No upcoming services scheduled</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4 pr-4">
-                                    {dashboardData?.services?.map((service) => (
-                                        <div key={service.id} className="flex items-center space-x-4 p-4 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                                            <Avatar>
-                                                <AvatarImage src={service.customer?.avatar} />
-                                                <AvatarFallback>
-                                                    {service.customer?.name?.charAt(0) || 'C'}
-                                                </AvatarFallback>
-                                            </Avatar>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="font-medium truncate">{service.customer?.name}</p>
-                                                <p className="text-sm text-gray-500">
-                                                    {service.scheduledDate ? new Date(service.scheduledDate).toLocaleDateString() : 'Date TBD'}
-                                                </p>
-                                            </div>
-                                            <Button variant="outline" size="sm">
-                                                View Details
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </ScrollArea>
-                    </CardContent>
-                </Card>
             </div>
         </div>
     );

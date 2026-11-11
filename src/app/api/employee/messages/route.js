@@ -145,48 +145,31 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
-    // Create the message
-    const message = await prisma.chatMessage.create({
-      data: {
-        senderId: employee.userId,
-        receiverId,
-        content,
-        read: false
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
+    // Scoopers may only message admins — never customers.
+    const receiver = await prisma.user.findUnique({
+      where: { id: receiverId },
+      select: { id: true, role: true, email: true },
+    });
+    if (!receiver) {
+      return NextResponse.json({ error: 'Receiver not found' }, { status: 404 });
+    }
+    if (receiver.role !== 'ADMIN') {
+      return NextResponse.json(
+        {
+          error: 'Scoopers can only message Scoopify admins, not customers. Ask support if a customer needs an update.',
+          code: 'SCOOPER_CUSTOMER_MESSAGE_FORBIDDEN',
         },
-        receiver: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
-      }
-    });
+        { status: 403 }
+      );
+    }
 
-    // Create notification for the receiver
-    await prisma.notification.create({
-      data: {
-        userId: receiverId,
-        type: 'MESSAGE',
-        title: 'New Message',
-        message: `You have a new message from ${employee.user?.name || 'Employee'}`,
-        metadata: {
-          messageId: message.id,
-          senderId: employee.userId,
-          serviceId
-        }
-      }
-    });
-
-    return NextResponse.json(message);
+    return NextResponse.json(
+      {
+        error: 'Direct employee chat is not available yet. Email services@scoopify.club or use Help to reach admins.',
+        code: 'SCOOPER_CHAT_DISABLED',
+      },
+      { status: 501 }
+    );
 
   } catch (error) {
     console.error('Error sending message:', error);

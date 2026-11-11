@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { rateLimit } from '@/lib/rate-limit';
 import { getRequestAuthToken } from '@/lib/auth-cookies';
 import { perVisitEarnings } from '@/lib/recurring-services';
-import { useServiceCredit } from '@/lib/service-credits';
+import { consumeServiceCredit } from '@/lib/service-credits';
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
@@ -268,7 +268,7 @@ export async function POST(request) {
                 }
             });
             
-            const credit = await useServiceCredit(tx, { serviceId: service.id, customerId: customer.id, now });
+            const credit = await consumeServiceCredit(tx, { serviceId: service.id, customerId: customer.id, now });
             if (credit !== 'USED') {
                 throw new NoCreditError();
             }

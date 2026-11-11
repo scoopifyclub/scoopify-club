@@ -1,40 +1,32 @@
 'use client';
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-    Home, 
-    Calendar, 
-    Users, 
-    Settings, 
-    LogOut,
-    Map,
-    Bell,
-    MessageSquare,
-    DollarSign,
-    FileText,
+import {
+    Home,
     Briefcase,
+    Settings,
+    LogOut,
+    DollarSign,
+    HelpCircle,
     Menu,
-    X
+    X,
 } from 'lucide-react';
 
+// Pilot scooper nav: jobs only. Customer CRM / email stay admin-side.
 const menuItems = [
-    { href: '/employee/dashboard', label: 'Overview', icon: Home },
-    { href: '/employee/dashboard/schedule', label: 'Schedule', icon: Calendar },
-    { href: '/employee/dashboard/services', label: 'Services', icon: Briefcase },
-    { href: '/employee/dashboard/maps', label: 'Maps', icon: Map },
-    { href: '/employee/dashboard/customers', label: 'Customers', icon: Users },
-    { href: '/employee/dashboard/messages', label: 'Messages', icon: MessageSquare },
-    { href: '/employee/dashboard/notifications', label: 'Notifications', icon: Bell },
+    { href: '/employee/dashboard', label: 'Available Jobs', icon: Home },
+    { href: '/employee/dashboard/services', label: 'My Jobs', icon: Briefcase },
     { href: '/employee/dashboard/earnings', label: 'Earnings', icon: DollarSign },
-    { href: '/employee/dashboard/reports', label: 'Reports', icon: FileText },
+    { href: '/employee/faq', label: 'Help', icon: HelpCircle },
     { href: '/employee/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function DashboardLayout({ children }) {
     const router = useRouter();
+    const pathname = usePathname();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
     const handleLogout = async () => {
@@ -43,53 +35,59 @@ export default function DashboardLayout({ children }) {
                 method: 'POST',
                 credentials: 'include',
             });
-            
             if (response.ok) {
                 router.push('/auth/signin');
             }
         } catch (error) {
             console.error('Logout failed:', error);
-            // Redirect anyway
             router.push('/auth/signin');
         }
     };
 
     return (
         <div className="min-h-screen bg-gray-100">
-            {/* Mobile menu button */}
             <div className="lg:hidden fixed top-4 right-4 z-50">
                 <Button
                     variant="outline"
                     size="icon"
                     onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                    aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
                 >
                     {mobileMenuOpen ? <X /> : <Menu />}
                 </Button>
             </div>
 
-            {/* Sidebar */}
-            <aside className={`
+            <aside
+                className={`
                 fixed top-0 left-0 z-40 w-64 h-screen transition-transform
                 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
                 lg:translate-x-0
-            `}>
+            `}
+            >
                 <div className="h-full bg-white border-r">
                     <div className="flex flex-col h-full">
-                        {/* Logo */}
                         <div className="h-16 flex items-center px-6 border-b">
-                            <h1 className="text-xl font-bold">Employee Dashboard</h1>
+                            <h1 className="text-xl font-bold">Scooper</h1>
                         </div>
 
-                        {/* Navigation */}
                         <ScrollArea className="flex-1 px-3 py-4">
                             <nav className="space-y-1">
                                 {menuItems.map((item) => {
                                     const Icon = item.icon;
+                                    const active =
+                                        pathname === item.href ||
+                                        (item.href !== '/employee/dashboard' &&
+                                            pathname?.startsWith(item.href));
                                     return (
                                         <Link
                                             key={item.href}
                                             href={item.href}
-                                            className="flex items-center px-3 py-2 text-gray-600 rounded-lg hover:bg-gray-100 gap-3"
+                                            onClick={() => setMobileMenuOpen(false)}
+                                            className={`flex items-center px-3 py-2 rounded-lg gap-3 ${
+                                                active
+                                                    ? 'bg-gray-900 text-white'
+                                                    : 'text-gray-600 hover:bg-gray-100'
+                                            }`}
                                         >
                                             <Icon className="w-5 h-5" />
                                             {item.label}
@@ -99,16 +97,12 @@ export default function DashboardLayout({ children }) {
                             </nav>
                         </ScrollArea>
 
-                        {/* User section */}
                         <div className="p-4 border-t mt-auto">
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="flex-1">
-                                    <p className="font-medium">Employee</p>
-                                    <p className="text-sm text-gray-500">Logged in via cookies</p>
-                                </div>
-                            </div>
-                            <Button 
-                                variant="destructive" 
+                            <p className="text-xs text-gray-500 mb-3">
+                                Need help? Message Scoopify support from Help — not customers.
+                            </p>
+                            <Button
+                                variant="destructive"
                                 className="w-full flex items-center justify-center gap-2 py-2"
                                 onClick={handleLogout}
                             >
@@ -120,15 +114,8 @@ export default function DashboardLayout({ children }) {
                 </div>
             </aside>
 
-            {/* Main content */}
-            <main className={`
-                transition-all duration-200
-                lg:ml-64
-            `}>
-                {children}
-            </main>
+            <main className="transition-all duration-200 lg:ml-64">{children}</main>
 
-            {/* Mobile menu backdrop */}
             {mobileMenuOpen && (
                 <div
                     className="fixed inset-0 bg-black/50 lg:hidden z-30"

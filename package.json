@@ -6,7 +6,7 @@
   "type": "module",
   "deploymentTimestamp": "2025-01-06T17:40:00Z",
   "engines": {
-    "node": ">=20.x"
+    "node": "22.x"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

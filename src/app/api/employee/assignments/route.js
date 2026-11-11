@@ -1,49 +1,44 @@
 import { NextResponse } from 'next/server';
-import prisma from "@/lib/prisma";
-import { verifyAuth } from '@/lib/api-auth';
+import prisma from '@/lib/prisma';
+import { requireScooper } from '@/lib/job-claims';
 
-// Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
 
+/** Claimed / in-progress jobs for the signed-in scooper. */
 export async function GET(request) {
     try {
-        // Verify employee authentication
-        const auth = await verifyAuth(request);
-        if (!auth.success) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-        if (auth.session.role !== 'EMPLOYEE') {
-            return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
-        // Get employee's assignments
+        const auth = await requireScooper(request);
+        if (!auth.ok) return auth.response;
+
         const assignments = await prisma.service.findMany({
             where: {
-                employeeId: auth.session.employeeId,
+                employeeId: auth.employee.id,
                 status: {
-                    in: ['SCHEDULED', 'IN_PROGRESS']
-                }
+                    in: ['PENDING', 'SCHEDULED', 'IN_PROGRESS'],
+                },
             },
             orderBy: {
-                scheduledDate: 'asc'
+                scheduledDate: 'asc',
             },
             include: {
                 customer: {
                     include: {
                         user: {
                             select: {
-                                name: true,
-                                email: true
-                            }
+                                firstName: true,
+                                lastName: true,
+                                email: true,
+                            },
                         },
-                        address: true
-                    }
+                        address: true,
+                    },
                 },
-                servicePlan: true
-            }
+                servicePlan: true,
+            },
         });
+
         return NextResponse.json({ assignments });
-    }
-    catch (error) {
+    } catch (error) {
         console.error('Error fetching employee assignments:', error);
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }

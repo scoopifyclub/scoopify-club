@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { prisma as defaultDb } from '@/lib/prisma';
 import { JobClaimError, jobClaimErrorResponse, requireScooper } from '@/lib/job-claims';
 import { buildFinancialRecord } from '@/lib/job-financials';
-import { useServiceCredit } from '@/lib/service-credits';
+import { consumeServiceCredit } from '@/lib/service-credits';
 import {
   toPhotoView,
   isStoredPhoto,
@@ -309,7 +309,7 @@ export async function completeService({ serviceId, employeeId, checklist, notes,
       },
     });
 
-    creditResult = await useServiceCredit(tx, { serviceId, customerId: service.customerId, now });
+    creditResult = await consumeServiceCredit(tx, { serviceId, customerId: service.customerId, now });
   }, { maxWait: 10000, timeout: 15000 });
 
   if (!completedNow) {

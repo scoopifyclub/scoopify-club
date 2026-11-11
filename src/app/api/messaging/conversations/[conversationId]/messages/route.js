@@ -131,15 +131,34 @@ export async function POST(request, { params }) {
         // Check if user is part of this conversation
         const isCustomer = user.role === 'CUSTOMER' && conversation.customerId === user.customerId;
         const isEmployee = user.role === 'EMPLOYEE' && conversation.employeeId === user.employeeId;
+        const isAdmin = user.role === 'ADMIN';
         
-        if (!isCustomer && !isEmployee) {
+        if (!isCustomer && !isEmployee && !isAdmin) {
             return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+        }
+
+        // Scoopers must not message customers; customer↔admin and admin paths only.
+        if (isEmployee) {
+            return NextResponse.json(
+                {
+                    error: 'Scoopers cannot message customers. Contact Scoopify admin/support instead.',
+                    code: 'SCOOPER_CUSTOMER_MESSAGE_FORBIDDEN',
+                },
+                { status: 403 }
+            );
         }
 
         // Determine receiver ID
         let receiverId;
         if (isCustomer) {
-            receiverId = conversation.employee.userId;
+            // Prefer admin/support routing when no employee is assigned.
+            receiverId = conversation.employee?.userId;
+            if (!receiverId) {
+                return NextResponse.json(
+                    { error: 'No admin or scooper is assigned to this conversation yet.' },
+                    { status: 409 }
+                );
+            }
         } else {
             receiverId = conversation.customer.userId;
         }
