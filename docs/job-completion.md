@@ -68,7 +68,7 @@ marks that the credit was taken:
 - Completing a visit with no credits left still completes; a
   `SERVICE_CREDIT_UNAVAILABLE` SystemLog row is written and credits stay at zero.
 
-`useServiceCredit()` in `src/lib/service-credits.js` is the only place that
+`consumeServiceCredit()` in `src/lib/service-credits.js` is the only place that
 decrements `Customer.serviceCredits` for a visit.
 
 - **What happens.** In one transaction: status `COMPLETED`,
