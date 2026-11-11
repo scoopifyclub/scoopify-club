@@ -94,10 +94,8 @@ const localBusinessJsonLd = {
     image: `${siteUrl}/images/dogs-backyard.jpg`,
     address: {
         '@type': 'PostalAddress',
-        streetAddress: '7535 Gallard Heights',
         addressLocality: 'Peyton',
         addressRegion: 'CO',
-        postalCode: '80831',
         addressCountry: 'US',
     },
     areaServed: [

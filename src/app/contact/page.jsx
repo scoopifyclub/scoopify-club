@@ -112,10 +112,9 @@ export default function ContactPage() {
                 <div className="flex items-start">
                   <MapPin className="h-6 w-6 text-gray-400 mt-1"/>
                   <div className="ml-4">
-                    <h3 className="text-lg font-medium text-gray-900">Address</h3>
+                    <h3 className="text-lg font-medium text-gray-900">Service area</h3>
                     <p className="mt-1 text-gray-600">
-                      7535 Gallard Heights<br />
-                      Peyton, CO 80831
+                      Peyton / Falcon, CO
                     </p>
                   </div>
                 </div>

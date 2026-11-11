@@ -162,9 +162,9 @@ export default function PrivacyPage() {
                         <p>
                             Scoopify Club
                             <br />
-                            7535 Gallard Heights
+                            Peyton / Falcon, CO
                             <br />
-                            Peyton, CO 80831
+                            services@scoopify.club
                         </p>
                         <p className="mt-6">
                             Related:{' '}

@@ -1,7 +1,7 @@
 export const metadata = {
     title: 'Contact',
     description:
-        'Contact Scoopify Club about weekly dog waste removal in Peyton, Falcon, and nearby Colorado Springs. Office at 7535 Gallard Heights, Peyton, CO 80831.',
+        'Contact Scoopify Club about weekly dog waste removal in Peyton, Falcon, and nearby Colorado Springs. Email services@scoopify.club.',
     alternates: { canonical: '/contact' },
     openGraph: {
         title: 'Contact | Scoopify Club',
