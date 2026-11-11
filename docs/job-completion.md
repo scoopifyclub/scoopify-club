@@ -16,9 +16,15 @@ delegate to them. Claiming and check-in are in `docs/job-claiming.md`.
 - **Validation.** JPEG, PNG, WebP or HEIC only. The declared type must match the
   file's leading bytes (so a renamed text or SVG file is rejected with 415).
   Up to 10 MB per photo and 16 photos per job.
-- **Storage.** Private S3 objects under `services/<serviceId>/<type>/<uuid>.<ext>`,
+- **Storage.** Prefer private S3 objects under `services/<serviceId>/<type>/<uuid>.<ext>`,
   SSE-S3 encrypted, never with a public ACL. `ServicePhoto.s3Key` holds the key;
-  the API never returns it or a public URL.
+  the API never returns it or a public URL. When `AWS_*` is unset (pilot /
+  dry-run), multipart uploads (≤ 4 MB) are stored briefly as a `data:image/...`
+  URL on the `ServicePhoto` row instead — no S3 required. Signed direct uploads
+  still need S3 and return `STORAGE_NOT_CONFIGURED` without it.
+- **Retention.** New photos get `expiresAt` ~7 days out. Completing a job
+  schedules a `PHOTO_CLEANUP` `CleanupTask`; `/api/cron/cleanup-photos` deletes
+  expired rows (and S3 objects when configured).
 - **Viewing.** The assigned scooper, the job's customer and verified admins get
   signed GET URLs that expire after 5 minutes (`urlExpiresAt` in each photo).
   Everyone else gets 403, including other scoopers, other customers and a
@@ -47,9 +53,9 @@ Two ways to upload:
 
 - **Requirements.** The job is `IN_PROGRESS` (checked in). The checklist has
   `allWasteRemoved` and `gateClosed` checked (from the request or saved earlier
-  with `POST /api/services/<id>/checklist`). At least 4 `BEFORE` and 4 `AFTER`
-  photos are stored in S3. Missing items return 400 `CHECKLIST_INCOMPLETE` or
-  `PHOTOS_REQUIRED` with what is missing.
+  with `POST /api/services/<id>/checklist`). At least one stored `AFTER`
+  (cleanup) photo is required; before photos are optional. Missing items return
+  400 `CHECKLIST_INCOMPLETE` or `PHOTOS_REQUIRED` with what is missing.
 ## Service credits
 
 Each visit uses at most one of the customer's service credits. `Service.creditUsedAt`
@@ -77,12 +83,13 @@ decrements `Customer.serviceCredits` for a visit.
   and record nothing new; only the call that completed the job sends the email.
 - **Next job.** `COMPLETED` is not an active status, so the scooper's
   one-active-job slot is free immediately.
-- **Email.** Sent through the existing SMTP service (`src/lib/unified-email-service.js`)
-  with before/after photos as signed links valid for 7 days (the S3 maximum);
-  `GET /api/services/<id>/photos` always returns fresh links. When `SMTP_PASSWORD` is unset the email
-  is skipped, not failed. Every outcome (`sent`, `skipped`, `failed`) is written
-  to `SystemLog` as `SERVICE_COMPLETION_EMAIL`. A failed email does not undo the
-  completion.
+- **Email.** Sent through the existing SMTP path (`src/lib/unified-email-service.js`)
+  with the cleanup photo attached when bytes are available, plus signed links
+  when S3 is configured (valid up to 7 days). Optionally CC's `ADMIN_EMAIL` /
+  the first `ADMIN_EMAILS` entry. When `SMTP_PASSWORD` is unset the email is
+  skipped, not failed (dry-run safe). Every outcome (`sent`, `skipped`,
+  `failed`) is written to `SystemLog` as `SERVICE_COMPLETION_EMAIL`. A failed
+  email does not undo the completion.
 
 Routes that complete a job all use the same function:
 `/api/employee/services/<id>/complete`, `/api/services/<id>/complete`, and
@@ -139,7 +146,10 @@ scooper sees in the job feed matches what is recorded.
 
 ## Production setup
 
-**S3 bucket** (one bucket; `AWS_BUCKET_NAME` is the only bucket variable read;
+**S3 bucket** (optional for the pilot). Without `AWS_*`, scoopers can still
+upload one ≤ 4 MB cleanup photo through the API; it is stored briefly in the DB
+and emailed as an attachment. Direct/signed uploads and photos over 4 MB need
+the bucket below (`AWS_BUCKET_NAME` is the only bucket variable read;
 `AWS_S3_BUCKET` and `S3_BUCKET_NAME` are no longer used):
 
 1. Turn on all four Block Public Access settings for the bucket and keep Object

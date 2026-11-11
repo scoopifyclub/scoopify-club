@@ -81,10 +81,20 @@ describe('job-api-client', () => {
 
   test('formats completion errors with what is still missing', () => {
     expect(completionErrorMessage(new JobApiError('x', {
-      details: { code: 'PHOTOS_REQUIRED', missingPhotos: [{ type: 'BEFORE', required: 4, uploaded: 2 }] },
-    }))).toContain('2 before');
+      details: { code: 'PHOTOS_REQUIRED', missingPhotos: [{ type: 'AFTER', required: 1, uploaded: 0 }] },
+    }))).toContain('1 after');
     expect(completionErrorMessage(new JobApiError('x', {
       details: { code: 'CHECKLIST_INCOMPLETE', missingItems: ['gateClosed'] },
     }))).toContain('gateClosed');
+  });
+
+  test('large photos without storage explain the 4 MB limit', async () => {
+    const fetchImpl = async () => jsonResponse({ error: 'Photo storage is not configured', code: 'STORAGE_NOT_CONFIGURED' }, 503);
+    const file = new File([Buffer.alloc(MAX_PROXY_UPLOAD_BYTES + 1, 2)], 'big.jpg', { type: 'image/jpeg' });
+    Object.defineProperty(file, 'size', { value: MAX_PROXY_UPLOAD_BYTES + 1 });
+    await expect(uploadJobPhoto('svc-1', file, 'AFTER', fetchImpl)).rejects.toMatchObject({
+      code: 'STORAGE_NOT_CONFIGURED',
+      message: expect.stringContaining('4 MB'),
+    });
   });
 });

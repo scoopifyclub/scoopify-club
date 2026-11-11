@@ -108,9 +108,8 @@ export default function ServicePage() {
     return <div className="flex justify-center items-center min-h-screen">Service not found</div>;
   }
 
-  const beforeCount = photos.before.length;
   const afterCount = photos.after.length;
-  const photosReady = beforeCount >= 4 && afterCount >= 4;
+  const photosReady = afterCount >= 1;
   const canComplete = checklistComplete && photosReady && !busy;
 
   return (
@@ -158,17 +157,6 @@ export default function ServicePage() {
         {arrived && (
           <>
             <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-4">Before Photos</h2>
-              <ServicePhotoUpload
-                serviceId={serviceId}
-                type="BEFORE"
-                existingCount={beforeCount}
-                required={4}
-                onUploadComplete={refreshPhotos}
-              />
-            </div>
-
-            <div className="mb-6">
               <h2 className="text-xl font-semibold mb-4">Service Checklist</h2>
               <ServiceChecklist
                 serviceId={serviceId}
@@ -179,12 +167,12 @@ export default function ServicePage() {
 
             {checklistComplete && (
               <div className="mb-6">
-                <h2 className="text-xl font-semibold mb-4">After Photos</h2>
+                <h2 className="text-xl font-semibold mb-4">Cleanup photo</h2>
                 <ServicePhotoUpload
                   serviceId={serviceId}
                   type="AFTER"
                   existingCount={afterCount}
-                  required={4}
+                  required={1}
                   onUploadComplete={refreshPhotos}
                 />
               </div>
@@ -197,7 +185,7 @@ export default function ServicePage() {
               </Button>
               {!photosReady && (
                 <p className="mt-2 text-sm text-gray-500 text-center">
-                  Need 4 before and 4 after photos ({beforeCount}/4 before, {afterCount}/4 after)
+                  Need one after/cleanup photo ({afterCount}/1)
                 </p>
               )}
             </div>
