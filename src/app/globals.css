@@ -420,11 +420,6 @@
   @apply bg-neutral-300 rounded-full hover:bg-neutral-400;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
-} 
+/* Keep light-first body colors from the earlier @layer base block.
+   Do not re-apply text-foreground here — system dark mode would make
+   white text inherit into hardcoded bg-white checklist/cards. */ 

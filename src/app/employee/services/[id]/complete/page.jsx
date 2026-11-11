@@ -174,20 +174,20 @@ export default function CompleteServicePage() {
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h2 className="text-xl font-semibold mb-4">Checklist</h2>
+        <div className="bg-white p-6 rounded-lg shadow text-gray-900">
+          <h2 className="text-xl font-semibold mb-4 text-gray-900">Checklist</h2>
           <div className="space-y-4">
             <div className="flex items-center space-x-2">
               <Checkbox id="gateClosedOnEntry" checked={checklist.gateClosedOnEntry} onCheckedChange={() => handleChecklistChange('gateClosedOnEntry')} />
-              <Label htmlFor="gateClosedOnEntry">Gate was closed upon entry</Label>
+              <Label htmlFor="gateClosedOnEntry" className="text-gray-900">Gate was closed upon entry</Label>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox id="yardCleaned" checked={checklist.yardCleaned} onCheckedChange={() => handleChecklistChange('yardCleaned')} />
-              <Label htmlFor="yardCleaned">Yard was thoroughly cleaned</Label>
+              <Label htmlFor="yardCleaned" className="text-gray-900">Yard was thoroughly cleaned</Label>
             </div>
             <div className="flex items-center space-x-2">
               <Checkbox id="gateClosedOnExit" checked={checklist.gateClosedOnExit} onCheckedChange={() => handleChecklistChange('gateClosedOnExit')} />
-              <Label htmlFor="gateClosedOnExit">Gate was closed upon exit</Label>
+              <Label htmlFor="gateClosedOnExit" className="text-gray-900">Gate was closed upon exit</Label>
             </div>
           </div>
         </div>

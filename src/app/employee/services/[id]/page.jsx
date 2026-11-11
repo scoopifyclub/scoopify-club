@@ -102,10 +102,18 @@ export default function ServicePage() {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
+    return <div className="flex justify-center items-center min-h-screen text-gray-900">Loading...</div>;
   }
   if (!service) {
-    return <div className="flex justify-center items-center min-h-screen">Service not found</div>;
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen gap-4 px-4 text-center text-gray-900">
+        <p className="text-lg font-medium">This job isn’t open yet</p>
+        <p className="text-sm text-gray-600 max-w-md">
+          Claim it from the job pool first. After you claim it, details, arrival, checklist, and photo upload all live here.
+        </p>
+        <Button onClick={() => router.push('/employee/dashboard')}>Back to job pool</Button>
+      </div>
+    );
   }
 
   const afterCount = photos.after.length;
@@ -156,8 +164,8 @@ export default function ServicePage() {
 
         {arrived && (
           <>
-            <div className="mb-6">
-              <h2 className="text-xl font-semibold mb-4">Service Checklist</h2>
+            <div className="mb-6 text-gray-900">
+              <h2 className="text-xl font-semibold mb-4 text-gray-900">Service Checklist</h2>
               <ServiceChecklist
                 serviceId={serviceId}
                 initialChecklist={service.checklist}

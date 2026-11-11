@@ -65,7 +65,7 @@ export function ServiceChecklist({ serviceId, initialChecklist, onComplete }) {
         {checklist.map((item) => (
           <div
             key={item.id}
-            className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg"
+            className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg text-gray-900"
           >
             <button
               type="button"
@@ -73,13 +73,13 @@ export function ServiceChecklist({ serviceId, initialChecklist, onComplete }) {
               className={`w-6 h-6 rounded-full flex items-center justify-center ${
                 item.completed
                   ? 'bg-green-500 text-white'
-                  : 'bg-white border-2 border-gray-300'
+                  : 'bg-white border-2 border-gray-300 text-gray-400'
               }`}
             >
               {item.completed && <FontAwesomeIcon icon={['fas', 'check']} className="w-4 h-4" />}
             </button>
             <FontAwesomeIcon icon={['fas', item.icon]} className="w-5 h-5 text-gray-500" />
-            <span className="flex-1">{item.description}</span>
+            <span className="flex-1 text-gray-900">{item.description}</span>
           </div>
         ))}
       </div>

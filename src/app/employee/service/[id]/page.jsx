@@ -250,12 +250,12 @@ export default function ServicePage() {
 
         {preCleanPhotos.length >= 4 && status !== 'COMPLETED' && (
           <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-xl font-semibold mb-4">Service Checklist</h2>
-            <div className="space-y-4">
+            <h2 className="text-xl font-semibold mb-4 text-gray-900">Service Checklist</h2>
+            <div className="space-y-4 text-gray-900">
               {Object.entries(CHECKLIST_LABELS).map(([key, label]) => (
-                <label key={key} className="flex items-center space-x-3">
+                <label key={key} className="flex items-center space-x-3 text-gray-900">
                   <input type="checkbox" checked={checklist[key]} onChange={(e) => handleChecklistUpdate({ [key]: e.target.checked })} className="h-5 w-5 text-blue-600 rounded" />
-                  <span className="text-gray-700">{label}</span>
+                  <span className="text-gray-900">{label}</span>
                 </label>
               ))}
             </div>
