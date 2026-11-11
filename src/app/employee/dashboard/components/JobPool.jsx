@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +22,7 @@ import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function JobPool({ employeeId }) {
+  const router = useRouter();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filteredJobs, setFilteredJobs] = useState([]);
@@ -135,13 +137,11 @@ export default function JobPool({ employeeId }) {
         throw new Error(error.error || 'Failed to claim job');
       }
 
-      toast.success('Job claimed successfully!');
-      // Refresh the job list
-      fetchAvailableJobs();
+      toast.success('Job claimed — open it to confirm arrival and finish.');
+      router.push(`/employee/services/${jobId}`);
     } catch (error) {
       console.error('Error claiming job:', error);
       toast.error(error.message || 'Failed to claim job');
-    } finally {
       setClaimingJob(null);
     }
   };

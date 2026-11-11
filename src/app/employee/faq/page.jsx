@@ -12,7 +12,7 @@ const faqItems = [
     },
     {
         question: "How do I leave a message for a customer?",
-        answer: "Use the message feature in the service details page. You can leave notes about the service, report any issues, or provide special instructions for next time."
+        answer: "You don't message customers directly. Email services@scoopify.club (or use Help) and an admin will contact the customer. Scoopers only message Scoopify support."
     },
     {
         question: "What are the safety guidelines?",
@@ -28,7 +28,7 @@ const faqItems = [
     },
     {
         question: "What should I do if I can't access a property?",
-        answer: "If you can't access the property due to locked gates, aggressive animals, or other issues, leave a message for the customer and contact support immediately."
+        answer: "If you can't access the property due to locked gates, aggressive animals, or other issues, contact Scoopify support immediately (services@scoopify.club). Do not message the customer yourself."
     },
     {
         question: "How do I complete the service checklist?",
