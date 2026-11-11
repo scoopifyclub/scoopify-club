@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, MapPin, User, AlertCircle } from 'lucide-react';
 
 export default function SchedulePage() {
+    const router = useRouter();
     const [upcomingServices, setUpcomingServices] = useState([]);
     const [stats, setStats] = useState({});
     const [loading, setLoading] = useState(true);
@@ -214,10 +216,17 @@ export default function SchedulePage() {
                                         <p className="text-sm text-gray-500 mt-1">{service.service}</p>
                                     </div>
                                     <div className="flex gap-2">
-                                        <Button variant="outline" size="sm">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => router.push(`/employee/services/${service.id}`)}
+                                        >
                                             View Details
                                         </Button>
-                                        <Button size="sm">
+                                        <Button
+                                          size="sm"
+                                          onClick={() => router.push(`/employee/services/${service.id}`)}
+                                        >
                                             Start Service
                                         </Button>
                                     </div>

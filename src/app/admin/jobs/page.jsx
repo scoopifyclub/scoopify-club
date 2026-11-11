@@ -59,9 +59,12 @@ export default function JobsPage() {
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Jobs & Scheduling</h1>
-          <button onClick={() => router.push('/admin/jobs/new')} className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+          <button
+            onClick={() => router.push('/admin/dashboard/services')}
+            className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          >
             <PlusIcon className="h-5 w-5 mr-2"/>
-            Create New Job
+            Manage services
           </button>
         </div>
 
@@ -111,7 +114,10 @@ export default function JobsPage() {
                           <CalendarIcon className="h-5 w-5 mr-1"/>
                           {new Date(service.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>)}
-                      <button onClick={() => router.push(`/admin/jobs/${service.id}`)} className="text-blue-600 hover:text-blue-800">
+                      <button
+                        onClick={() => router.push(`/admin/dashboard/services/${service.id}`)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
                         View Details
                       </button>
                     </div>
