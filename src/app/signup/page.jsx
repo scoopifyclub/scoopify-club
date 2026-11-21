@@ -1,6 +1,6 @@
 'use client';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { signIn } from 'next-auth/react';
@@ -26,8 +26,10 @@ function planOptionLabel(plan) {
 const SERVICE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 function SignupForm({ onUncoveredZip }) {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const [preselectedPlan] = useState(() => PLANS.find((plan) => plan.id === searchParams.get('plan')) || null);
     const [loading, setLoading] = useState(false);
-    const [isOneTime, setIsOneTime] = useState(false);
+    const [isOneTime, setIsOneTime] = useState(preselectedPlan?.kind === 'one_time');
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
@@ -40,7 +42,7 @@ function SignupForm({ onUncoveredZip }) {
         state: '',
         zipCode: '',
         gateCode: '',
-        serviceType: '',
+        serviceType: preselectedPlan?.id || '',
         serviceDay: '',
         startDate: '',
         isOneTimeService: false,
@@ -240,7 +242,7 @@ function SignupForm({ onUncoveredZip }) {
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Service Type</Label>
-            <RadioGroup defaultValue="subscription" onValueChange={(value) => { setIsOneTime(value === 'one-time'); handleChange('serviceType', ''); }} className="flex flex-col space-y-2">
+            <RadioGroup value={isOneTime ? 'one-time' : 'subscription'} onValueChange={(value) => { setIsOneTime(value === 'one-time'); handleChange('serviceType', ''); }} className="flex flex-col space-y-2">
               <div className="flex items-center space-x-2 p-2 rounded-md hover:bg-gray-50">
                 <RadioGroupItem value="subscription" id="subscription"/>
                 <Label htmlFor="subscription" className="cursor-pointer">Subscription Service</Label>
@@ -393,7 +395,9 @@ export default function SignupPage() {
                 </div>
               </div>
 
-              <SignupForm onUncoveredZip={setUncoveredZip} />
+              <Suspense fallback={null}>
+                <SignupForm onUncoveredZip={setUncoveredZip} />
+              </Suspense>
             </>
           )}
         </div>

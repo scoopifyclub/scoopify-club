@@ -172,9 +172,20 @@ describe('/pricing page', () => {
     expect(html).not.toContain('Loading Plans');
   });
 
+  it('sends every plan CTA to signup with the plan preselected, never straight to Checkout', async () => {
+    const PricingPage = require('@/app/pricing/page').default;
+    const html = renderToStaticMarkup(await PricingPage());
+    for (const id of ['single-dog-monthly', 'two-dogs-monthly', 'three-plus-dogs-monthly']) {
+      expect(html).toContain(`href="/signup?plan=${id}"`);
+    }
+    const read = (p) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
+    expect(read('src/app/pricing/PlanSignupLink.jsx')).not.toContain('create-checkout-session');
+    expect(fs.existsSync(path.join(process.cwd(), 'src/app/pricing/CheckoutButton.jsx'))).toBe(false);
+  });
+
   it('does not import the server Stripe module into client code', () => {
     const read = (p) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
-    for (const file of ['src/app/pricing/CheckoutButton.jsx', 'src/components/Pricing.jsx', 'src/lib/stripe-client.js']) {
+    for (const file of ['src/app/pricing/PlanSignupLink.jsx', 'src/components/Pricing.jsx', 'src/lib/stripe-client.js']) {
       expect(read(file)).not.toMatch(/from ['"](@\/lib\/stripe|stripe)['"]/);
     }
     expect(read('src/app/pricing/page.jsx')).not.toMatch(/^'use client'/);
@@ -191,15 +202,41 @@ describe('/api/prices', () => {
 });
 
 describe('/api/create-checkout-session', () => {
-  const post = (body) => {
+  const { prisma } = require('@/lib/prisma');
+  let token;
+  beforeEach(async () => {
+    const { createUserToken } = require('@/lib/jwt-utils');
+    token = await createUserToken({ id: 'user_1', email: 'jane@example.com', role: 'CUSTOMER' });
+    prisma.customer.findUnique.mockResolvedValue({ id: 'cust_1', stripeCustomerId: 'cus_1' });
+    prisma.subscription = { findFirst: jest.fn(async () => null) };
+  });
+  afterEach(() => prisma.customer.findUnique.mockReset().mockResolvedValue(null));
+
+  const post = (body, { signedIn = true } = {}) => {
     const { POST } = require('@/app/api/create-checkout-session/route');
     const { NextRequest } = require('next/server');
+    const headers = { 'content-type': 'application/json', origin: 'https://www.scoopify.club' };
+    if (signedIn) headers.cookie = `accessToken=${token}`;
     return POST(new NextRequest('http://localhost/api/create-checkout-session', {
       method: 'POST',
-      body: JSON.stringify(body),
-      headers: { 'content-type': 'application/json', origin: 'https://www.scoopify.club' },
+      body: JSON.stringify({ startDate: '2026-12-01', ...body }),
+      headers,
     }));
   };
+
+  it('refuses plan checkout for anonymous visitors', async () => {
+    const res = await post({ planId: 'two-dogs-monthly' }, { signedIn: false });
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ code: 'auth_required' });
+    expect(mockStripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses plan checkout without a first-visit date', async () => {
+    const res = await post({ planId: 'two-dogs-monthly', startDate: '' });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'start_date_required' });
+    expect(mockStripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
 
   it('creates a subscription Checkout for a monthly plan id and returns its URL', async () => {
     const res = await post({ planId: 'two-dogs-monthly' });

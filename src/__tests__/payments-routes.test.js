@@ -190,13 +190,26 @@ describe('create-checkout-session for signup', () => {
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
   });
 
-  it('ignores signup extras from anonymous buyers and unsafe cancel paths', async () => {
+  it('refuses anonymous buyers before reaching Stripe', async () => {
+    const res = await checkoutRoute.POST(request('/api/create-checkout-session', { body: signupBody() }));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toMatchObject({ code: 'auth_required' });
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('refuses a signed-in buyer with no first-visit date', async () => {
+    const res = await checkoutRoute.POST(request('/api/create-checkout-session', { body: signupBody({ startDate: 'soon' }), token }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'start_date_required' });
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled();
+  });
+
+  it('ignores unsafe cancel paths and attempt ids', async () => {
     await checkoutRoute.POST(request('/api/create-checkout-session', {
       body: signupBody({ cancelPath: 'https://evil.example/phish', attemptId: 'bad id!' }),
+      token,
     }));
     const [params, options] = stripe.checkout.sessions.create.mock.calls[0];
-    expect(params.line_items).toEqual([{ price: 'price_monthly_1', quantity: 1 }]);
-    expect(params.metadata.startDate).toBe('');
     expect(params.cancel_url).toBe('http://localhost:3000/pricing');
     expect(options).toBeUndefined();
   });
