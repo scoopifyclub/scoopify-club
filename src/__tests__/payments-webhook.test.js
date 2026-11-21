@@ -132,7 +132,10 @@ jest.mock('@/lib/stripe', () => {
   };
 });
 
+jest.mock('@/lib/email-service', () => ({ sendEmail: jest.fn() }));
+
 const { POST } = require('@/app/api/webhooks/stripe/route');
+const { sendEmail } = require('@/lib/email-service');
 
 let eventCounter = 0;
 function makeEvent(type, object, id = `evt_${++eventCounter}`) {
@@ -212,6 +215,9 @@ beforeEach(() => {
   resetDb();
   mockStripeObjects.subscriptions = new Map([['sub_123', stripeSubscription()]]);
   mockStripeObjects.customers = new Map([['cus_123', { id: 'cus_123', email: 'jane@example.com' }]]);
+  sendEmail.mockReset();
+  sendEmail.mockResolvedValue({ success: true });
+  delete process.env.ADMIN_EMAIL;
   jest.spyOn(console, 'log').mockImplementation(() => {});
   jest.spyOn(console, 'warn').mockImplementation(() => {});
   jest.spyOn(console, 'error').mockImplementation(() => {});
@@ -576,5 +582,86 @@ describe('Stripe webhook: service visits', () => {
     mockStripeObjects.subscriptions.set('sub_123', stripeSubscription({ cancel_at_period_end: true, canceled_at: PERIOD_START + 5 }));
     await deliver(makeEvent('customer.subscription.updated', stripeSubscription({ cancel_at_period_end: true })));
     expect(mockDb.tables.service[0].status).toBe('SCHEDULED');
+  });
+});
+
+describe('Stripe webhook: admin paid-signup email', () => {
+  const signupEvents = () => [
+    makeEvent('checkout.session.completed', checkoutSession()),
+    makeEvent('customer.subscription.created', stripeSubscription()),
+    makeEvent('invoice.paid', invoice()),
+    makeEvent('invoice.payment_succeeded', invoice()),
+    makeEvent('customer.subscription.updated', stripeSubscription()),
+    makeEvent('checkout.session.completed', checkoutSession()), // redelivered with a new event id
+  ];
+
+  it('emails the admin once per signup, with escaped customer details', async () => {
+    seedCustomer();
+    Object.assign(mockDb.tables.user[0], { firstName: '<b>Jane</b>', lastName: 'Doe' });
+    for (const event of signupEvents()) {
+      expect((await deliver(event)).status).toBe(200);
+    }
+
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [to, template, data] = sendEmail.mock.calls[0];
+    expect(to).toBe('services@scoopify.club');
+    expect(template).toBe('custom');
+    expect(data.replyTo).toBe('jane@example.com');
+    expect(data.html).toContain('&lt;b&gt;Jane&lt;/b&gt; Doe');
+    expect(data.html).not.toContain('<b>Jane</b>');
+    expect(data.html).toContain('sub_123');
+    expect(data.html).toContain('$55.00');
+  });
+
+  it('uses ADMIN_EMAIL when set', async () => {
+    process.env.ADMIN_EMAIL = 'owner@scoopify.club';
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    await deliver(makeEvent('customer.subscription.created', stripeSubscription()));
+    expect(sendEmail.mock.calls[0][0]).toBe('owner@scoopify.club');
+  });
+
+  it('emails when an incomplete subscription later becomes active, and not for unpaid ones', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    mockStripeObjects.subscriptions.set('sub_123', stripeSubscription({ status: 'incomplete' }));
+    await deliver(makeEvent('customer.subscription.created', stripeSubscription({ status: 'incomplete' })));
+    expect(mockDb.tables.subscription[0].status).toBe('INACTIVE');
+    expect(sendEmail).not.toHaveBeenCalled();
+
+    mockStripeObjects.subscriptions.set('sub_123', stripeSubscription());
+    await deliver(makeEvent('customer.subscription.updated', stripeSubscription()));
+    await deliver(makeEvent('customer.subscription.updated', stripeSubscription()));
+    expect(mockDb.tables.subscription[0].status).toBe('ACTIVE');
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not email when a past-due subscription recovers', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    mockStripeObjects.subscriptions.set('sub_123', stripeSubscription({ status: 'past_due' }));
+    await deliver(makeEvent('customer.subscription.created', stripeSubscription({ status: 'past_due' })));
+    mockStripeObjects.subscriptions.set('sub_123', stripeSubscription());
+    await deliver(makeEvent('customer.subscription.updated', stripeSubscription()));
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it('a failed attempt sends nothing; the successful retry sends one email', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    const event = makeEvent('checkout.session.completed', checkoutSession({ metadata: { planId: 'single-dog-monthly', startDate: '2026-11-16' } }));
+    mockDb.failOn = 'service.create';
+    expect((await deliver(event)).status).toBe(500);
+    expect(sendEmail).not.toHaveBeenCalled();
+
+    mockDb.failOn = null;
+    expect((await deliver(event)).status).toBe(200);
+    expect((await deliver(event)).status).toBe(200); // duplicate event id
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('an email failure still acknowledges the event and keeps the data', async () => {
+    seedCustomer({ stripeCustomerId: 'cus_123' });
+    sendEmail.mockRejectedValue(new Error('smtp down'));
+    const res = await deliver(makeEvent('customer.subscription.created', stripeSubscription()));
+    expect(res.status).toBe(200);
+    expect(mockDb.tables.subscription).toHaveLength(1);
+    expect(mockDb.tables.stripeEvent).toHaveLength(1);
   });
 });

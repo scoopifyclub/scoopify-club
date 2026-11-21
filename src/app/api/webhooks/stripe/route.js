@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
+import { notifyAdminOfPaidSignup } from '@/lib/admin-notifications';
 import {
     CUSTOMER_PAYMENT_INTENT_TYPES,
     RetryableWebhookError,
     ensureInitialService,
     ensureServicePlan,
+    mapSubscriptionStatus,
     recordChargeRefund,
     recordInvoicePayment,
     recordPaymentIntent,
@@ -29,7 +31,7 @@ async function stripeCustomerEmail(stripeClient, stripeCustomerId) {
 }
 
 // Event payloads can arrive out of order; always persist the latest state.
-async function syncSubscription(tx, stripeClient, subscriptionOrId, customerId) {
+async function syncSubscription(tx, { stripeClient, paidSignups }, subscriptionOrId, customerId) {
     const subscription = await stripeClient.subscriptions.retrieve(idOf(subscriptionOrId));
     if (!customerId) {
         const customer = await resolveCustomer(tx, {
@@ -39,10 +41,33 @@ async function syncSubscription(tx, stripeClient, subscriptionOrId, customerId) 
         });
         customerId = customer?.id;
     }
-    return upsertSubscriptionFromStripe(tx, subscription, { customerId });
+
+    // A signup counts once: when its row is created active, or when this
+    // transaction wins the conditional INACTIVE -> ACTIVE update (incomplete
+    // payment that later succeeded). Every other event for it finds the row
+    // already ACTIVE, so retries and redeliveries do not notify again.
+    const previous = await tx.subscription.findUnique({ where: { stripeSubscriptionId: subscription.id } });
+    let activated = false;
+    if (previous?.status === 'INACTIVE' && mapSubscriptionStatus(subscription.status) === 'ACTIVE') {
+        const claim = await tx.subscription.updateMany({
+            where: { id: previous.id, status: 'INACTIVE' },
+            data: { status: 'ACTIVE' },
+        });
+        activated = claim.count === 1;
+    }
+    const row = await upsertSubscriptionFromStripe(tx, subscription, { customerId });
+    if (row.status === 'ACTIVE' && (!previous || activated)) {
+        paidSignups.push({
+            subscriptionId: row.id,
+            stripeSubscriptionId: subscription.id,
+            customerId: row.customerId,
+            planId: row.planId,
+        });
+    }
+    return row;
 }
 
-async function handleCheckoutSession(tx, session, { stripeClient, paid }) {
+async function handleCheckoutSession(tx, session, { paid, ...ctx }) {
     const customer = await resolveCustomer(tx, {
         stripeCustomerId: idOf(session.customer),
         customerId: session.client_reference_id || session.metadata?.customerId,
@@ -54,7 +79,7 @@ async function handleCheckoutSession(tx, session, { stripeClient, paid }) {
 
     let servicePlanId = null;
     if (session.mode === 'subscription' && session.subscription) {
-        const subscription = await syncSubscription(tx, stripeClient, session.subscription, customer.id);
+        const subscription = await syncSubscription(tx, ctx, session.subscription, customer.id);
         servicePlanId = subscription.planId;
     }
 
@@ -79,12 +104,12 @@ async function handleCheckoutSession(tx, session, { stripeClient, paid }) {
     }
 }
 
-async function handleInvoice(tx, invoice, { stripeClient, paid }) {
+async function handleInvoice(tx, invoice, { paid, ...ctx }) {
     const stripeSubscriptionId = idOf(invoice.subscription);
     if (stripeSubscriptionId) {
         const existing = await tx.subscription.findUnique({ where: { stripeSubscriptionId } });
         if (!existing) {
-            await syncSubscription(tx, stripeClient, stripeSubscriptionId);
+            await syncSubscription(tx, ctx, stripeSubscriptionId);
         }
     }
     await recordInvoicePayment(tx, invoice, { paid });
@@ -100,9 +125,9 @@ const EVENT_HANDLERS = {
     'checkout.session.completed': (tx, object, ctx) => handleCheckoutSession(tx, object, { ...ctx, paid: true }),
     'checkout.session.async_payment_succeeded': (tx, object, ctx) => handleCheckoutSession(tx, object, { ...ctx, paid: true }),
     'checkout.session.async_payment_failed': (tx, object, ctx) => handleCheckoutSession(tx, object, { ...ctx, paid: false }),
-    'customer.subscription.created': (tx, object, ctx) => syncSubscription(tx, ctx.stripeClient, object),
-    'customer.subscription.updated': (tx, object, ctx) => syncSubscription(tx, ctx.stripeClient, object),
-    'customer.subscription.deleted': (tx, object, ctx) => syncSubscription(tx, ctx.stripeClient, object),
+    'customer.subscription.created': (tx, object, ctx) => syncSubscription(tx, ctx, object),
+    'customer.subscription.updated': (tx, object, ctx) => syncSubscription(tx, ctx, object),
+    'customer.subscription.deleted': (tx, object, ctx) => syncSubscription(tx, ctx, object),
     'invoice.paid': (tx, object, ctx) => handleInvoice(tx, object, { ...ctx, paid: true }),
     'invoice.payment_succeeded': (tx, object, ctx) => handleInvoice(tx, object, { ...ctx, paid: true }),
     'invoice.payment_failed': (tx, object, ctx) => handleInvoice(tx, object, { ...ctx, paid: false }),
@@ -137,6 +162,7 @@ export async function POST(request) {
     }
 
     const objectId = event.data?.object?.id || null;
+    const paidSignups = [];
     try {
         if (await prisma.stripeEvent.findUnique({ where: { id: event.id } })) {
             return NextResponse.json({ received: true, duplicate: true });
@@ -145,7 +171,7 @@ export async function POST(request) {
         // not marked processed and Stripe's retry runs it again.
         await prisma.$transaction(async (tx) => {
             await tx.stripeEvent.create({ data: { id: event.id, type: event.type, objectId } });
-            await handler(tx, event.data.object, { stripeClient: stripe });
+            await handler(tx, event.data.object, { stripeClient: stripe, paidSignups });
         }, { maxWait: 10000, timeout: 30000 });
     }
     catch (error) {
@@ -156,6 +182,9 @@ export async function POST(request) {
         console[level](`[WEBHOOK] ${event.type} ${event.id} (${objectId}) failed; Stripe will retry:`, error.message);
         return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 });
     }
+
+    // Sent only after commit so a rolled-back attempt never emails.
+    await Promise.all(paidSignups.map((signup) => notifyAdminOfPaidSignup(signup, { db: prisma })));
 
     console.log(`[WEBHOOK] Processed ${event.type} ${event.id} (${objectId})`);
     return NextResponse.json({ received: true });

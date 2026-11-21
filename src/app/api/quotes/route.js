@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/auth-rate-limit';
 import { createQuoteRequest } from '@/lib/pricing-quotes';
+import { notifyAdminOfQuote } from '@/lib/admin-notifications';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,6 +27,7 @@ export async function POST(request) {
         { status: 400 },
       );
     }
+    await notifyAdminOfQuote(result.quote);
     return NextResponse.json({
       quoteId: result.quote.id,
       status: result.quote.status,

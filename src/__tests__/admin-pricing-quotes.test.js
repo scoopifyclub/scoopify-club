@@ -50,6 +50,7 @@ jest.mock('@/lib/stripe', () => ({
   },
 }));
 
+jest.mock('@/lib/email-service', () => ({ sendEmail: jest.fn(async () => ({ success: true })) }));
 jest.mock('@/lib/prisma', () => {
   const prisma = {
     market: {
@@ -166,6 +167,7 @@ jest.mock('@/lib/prisma', () => {
 
 const { requireAdmin } = require('@/lib/admin-auth');
 const { prisma } = require('@/lib/prisma');
+const { sendEmail } = require('@/lib/email-service');
 const { stripe } = require('@/lib/stripe');
 const {
   validateOverrideAmount,
@@ -389,6 +391,57 @@ describe('public quote + checkout', () => {
     const body = await res.json();
     expect(body.quoteId).toBeTruthy();
     expect(body.status).toBe(QUOTE_STATUSES.PENDING_ADMIN);
+  });
+
+  it('emails the admin an escaped summary of a new quote request', async () => {
+    delete process.env.ADMIN_EMAIL;
+    const res = await publicQuotesRoute.POST(req('/api/quotes', {
+      method: 'POST',
+      body: {
+        contactName: '<img src=x onerror=alert(1)>',
+        contactEmail: 'sam@example.com',
+        dogCount: 5,
+        zipCode: '80831',
+        notes: 'Gate <b>code</b> 1234',
+      },
+    }));
+    expect(res.status).toBe(201);
+    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const [to, template, data] = sendEmail.mock.calls[0];
+    expect(to).toBe('services@scoopify.club');
+    expect(template).toBe('custom');
+    expect(data.replyTo).toBe('sam@example.com');
+    expect(data.subject).toContain('5 dog(s)');
+    expect(data.html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(data.html).toContain('Gate &lt;b&gt;code&lt;/b&gt; 1234');
+    expect(data.html).not.toContain('<img');
+    expect(data.html).toContain((await res.json()).quoteId);
+  });
+
+  it('sends quote alerts to ADMIN_EMAIL and still succeeds when the email fails', async () => {
+    process.env.ADMIN_EMAIL = 'owner@scoopify.club';
+    sendEmail.mockRejectedValueOnce(new Error('smtp down'));
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const res = await publicQuotesRoute.POST(req('/api/quotes', {
+        method: 'POST',
+        body: { contactEmail: 'sam@example.com', dogCount: 4, zipCode: '80831' },
+      }));
+      expect(res.status).toBe(201);
+      expect(sendEmail.mock.calls[0][0]).toBe('owner@scoopify.club');
+    } finally {
+      delete process.env.ADMIN_EMAIL;
+      console.error.mockRestore();
+    }
+  });
+
+  it('does not email the admin for a rejected quote request', async () => {
+    const res = await publicQuotesRoute.POST(req('/api/quotes', {
+      method: 'POST',
+      body: { contactEmail: 'sam@example.com', dogCount: 1, zipCode: '80831' },
+    }));
+    expect(res.status).toBe(400);
+    expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it('creates Checkout only for an approved quote and ignores client amounts', async () => {
