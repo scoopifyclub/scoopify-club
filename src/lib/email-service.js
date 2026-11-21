@@ -75,12 +75,12 @@ const emailTemplates = {
                     <h3>What to expect:</h3>
                     <ul>
                         <li>Professional, reliable service</li>
-                        <li>Before and after photos</li>
+                        <li>An after photo of every cleanup</li>
                         <li>Easy online scheduling</li>
                         <li>Flexible payment options</li>
                     </ul>
                 </div>
-                <p>If you have any questions, feel free to contact us at support@scoopifyclub.com</p>
+                <p>If you have any questions, feel free to contact us at services@scoopify.club</p>
                 <p>Best regards,<br>The Scoopify Club Team</p>
             </div>
         `
@@ -231,7 +231,7 @@ const emailTemplates = {
                     <p style="font-size: 1.2em; font-weight: bold; color: #1d4ed8;">${data.referralCode}</p>
                     <p>Share this code with your customers to start earning commissions!</p>
                 </div>
-                <p>If you have any questions about the partnership program, contact us at partnerships@scoopifyclub.com</p>
+                <p>If you have any questions about the partnership program, contact us at services@scoopify.club</p>
                 <p>Best regards,<br>The Scoopify Club Partnership Team</p>
             </div>
         `
@@ -386,7 +386,7 @@ export async function sendBusinessSignupEmail({
                 <li><strong>Referral Code:</strong> <span style="font-size: 1.2em; color: #1d4ed8;">${code}</span></li>
             </ul>
             <p>Share your referral code with clients and start earning rewards!</p>
-            <p>If you have questions, reply to this email or contact support@scoopify.com.</p>
+            <p>If you have questions, reply to this email or contact services@scoopify.club.</p>
             <p>Best regards,<br>Scoopify Club Team</p>
         </div>
     `;
@@ -395,7 +395,7 @@ export async function sendBusinessSignupEmail({
 
 // Send admin notification
 export async function sendAdminNotification(subject, message) {
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@scoopifyclub.com';
+    const adminEmail = process.env.ADMIN_EMAIL || 'services@scoopify.club';
     return await sendEmail(adminEmail, 'custom', {
         subject,
         html: `

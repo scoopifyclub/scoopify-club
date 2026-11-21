@@ -36,7 +36,7 @@ Earn $4.55/month for every customer you refer who stays active!
 CONTACT:
 ${employee.user.firstName} ${employee.user.lastName}
 ${employee.user.email}
-scoopifyclub.com
+scoopify.club
 
 *Valid referral code required for discount
 *New customers only
@@ -65,7 +65,7 @@ REFERRAL BONUS:
 Earn $4.55/month for every customer you refer!
 
 Contact: ${employee.user.email}
-Website: scoopifyclub.com
+Website: scoopify.club
 
 *Limited time offer
 *New customers only
@@ -82,7 +82,7 @@ ${employee.user.firstName} ${employee.user.lastName}
 Referral Code: ${referralCode}
 
 Services: Weekly/Monthly cleaning
-Website: scoopifyclub.com
+Website: scoopify.club
 Email: ${employee.user.email}
 
 Use my referral code for $25 off!
@@ -112,7 +112,7 @@ Get $25 off your first service!
 Earn $4.55/month for every customer you refer!
 
 Contact: ${employee.user.email}
-Website: scoopifyclub.com
+Website: scoopify.club
 
 #DogWasteRemoval #ProfessionalCleaning #ReferralBonus #ResidualIncome
   `;

@@ -92,14 +92,16 @@ export default function CustomerReferralsPage() {
     };
 
     const shareReferral = async () => {
-        const shareText = `Join ScoopifyClub for pet waste removal services! Use my referral code: ${referralCode} to sign up. https://scoopifyclub.com/signup?ref=${referralCode}`;
+        const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.scoopify.club';
+        const shareUrl = `${siteUrl}/signup?ref=${referralCode}`;
+        const shareText = `Join Scoopify Club for dog waste removal in Colorado Springs & Falcon! Use my referral code: ${referralCode} to sign up. ${shareUrl}`;
 
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: 'Join ScoopifyClub',
+                    title: 'Join Scoopify Club',
                     text: shareText,
-                    url: `https://scoopifyclub.com/signup?ref=${referralCode}`
+                    url: shareUrl
                 });
             } catch (error) {
                 navigator.clipboard.writeText(shareText);

@@ -16,10 +16,10 @@ export async function GET(request) {
             // Get business settings (you can expand this based on your needs)
             const businessSettings = {
                 businessName: 'Scoopify Club',
-                businessEmail: 'admin@scoopify.club',
-                businessPhone: '(555) 123-4567',
-                businessAddress: '123 Business St, Anytown, CA 94568',
-                serviceArea: '50 miles',
+                businessEmail: 'services@scoopify.club',
+                businessPhone: '',
+                businessAddress: '',
+                serviceArea: 'Colorado Springs & Falcon, CO',
                 operatingHours: {
                     monday: '8:00 AM - 6:00 PM',
                     tuesday: '8:00 AM - 6:00 PM',

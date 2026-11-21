@@ -797,7 +797,7 @@ async function sendBusinessIntelligenceReport(results) {
 
     // Send email notification to admin
     await sendEmailNotification({
-      to: 'admin@scoopify.club',
+      to: process.env.ADMIN_EMAIL || 'services@scoopify.club',
       subject: 'Weekly Business Intelligence Report',
       template: 'business-intelligence-report',
       data: {

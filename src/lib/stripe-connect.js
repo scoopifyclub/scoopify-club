@@ -72,7 +72,7 @@ export async function ensureConnectAccount(employeeId, { db = defaultDb, stripe 
         last_name: employee.user?.lastName || undefined,
         email: employee.user?.email || undefined,
       },
-      business_profile: { url: 'https://scoopify.club', mcc: '7349', product_description: 'Pet waste removal contractor for Scoopify Club' },
+      business_profile: { url: 'https://www.scoopify.club', mcc: '7349', product_description: 'Pet waste removal contractor for Scoopify Club' },
       metadata: { employeeId: employee.id },
     },
     { idempotencyKey: `connect-account-${employee.id}` }

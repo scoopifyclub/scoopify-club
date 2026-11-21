@@ -95,8 +95,8 @@ const emailTemplates = {
                         <ol style="color: #555; line-height: 1.6;">
                             <li>${data.scooperName} will arrive at your scheduled time</li>
                             <li>You'll receive a notification when they arrive</li>
-                            <li>They'll complete the service and take before/after photos</li>
-                            <li>You'll get a completion notification with photos</li>
+                            <li>They'll complete the service and take an after photo</li>
+                            <li>You'll get a completion notification with the photo</li>
                         </ol>
                     </div>
                     
@@ -202,7 +202,7 @@ const emailTemplates = {
                 </div>
                 
                 <div style="background-color: #f8fafc; padding: 20px; text-align: center; border-top: 1px solid #e2e8f0;">
-                    <p style="color: #64748b; font-size: 14px; margin: 0;">Questions? Contact us at support@scoopify.club</p>
+                    <p style="color: #64748b; font-size: 14px; margin: 0;">Questions? Contact us at services@scoopify.club</p>
                 </div>
             </div>
         `

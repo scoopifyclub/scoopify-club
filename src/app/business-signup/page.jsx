@@ -53,7 +53,7 @@ export default function BusinessSignupPage() {
       <div className="max-w-xl mx-auto py-16">
         <h2 className="text-2xl font-bold mb-4">Signup Complete!</h2>
         <p className="mb-2">Thank you for signing up as a business partner. Your unique referral code and all details have been emailed to you.</p>
-        <p>If you have questions, contact support@scoopify.com.</p>
+        <p>If you have questions, contact services@scoopify.club.</p>
       </div>
     );
   }

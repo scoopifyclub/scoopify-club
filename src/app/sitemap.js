@@ -1,4 +1,4 @@
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://scoopifyclub.com';
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.scoopify.club';
 
 export default async function sitemap() {
     const lastModified = new Date();

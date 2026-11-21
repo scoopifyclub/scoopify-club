@@ -83,7 +83,7 @@ export async function GET(request, { params }) {
         doc
             .fontSize(10)
             .text('Thank you for being part of our referral program!', { align: 'center' })
-            .text('For any questions, please contact support@scoopifyclub.com', { align: 'center' });
+            .text('For any questions, please contact services@scoopify.club', { align: 'center' });
         // End the document
         doc.end();
         // Combine chunks into a single buffer
