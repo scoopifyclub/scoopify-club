@@ -10,6 +10,7 @@
   "crons": [
     { "path": "/api/cron/create-weekly-services", "schedule": "0 11 * * *" },
     { "path": "/api/cron/open-job-pool", "schedule": "0 12 * * *" },
+    { "path": "/api/cron/cleanup-photos", "schedule": "0 9 * * *" },
     { "path": "/api/cron/process-employee-payouts", "schedule": "0 16 * * 5" }
   ]
 }

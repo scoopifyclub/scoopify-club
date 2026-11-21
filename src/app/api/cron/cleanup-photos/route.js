@@ -5,15 +5,16 @@ import { deleteFromS3, isStorageConfigured } from "@/lib/s3";
 
 // Force Node.js runtime for Prisma and other Node.js APIs
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 /**
- * This API endpoint is designed to be called by a CRON job to clean up expired photos.
+ * Runs daily from Vercel Cron (see vercel.json) to clean up expired photos.
  * It will:
  * 1. Find all pending PHOTO_CLEANUP tasks that are due
  * 2. Delete the associated photos
  * 3. Mark the cleanup tasks as completed
  */
-export async function POST(request) {
+async function handle(request) {
     try {
         const auth = await requireCronOrAdmin(request);
         if (!auth.ok) return auth.response;
@@ -88,3 +89,6 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Failed to process photo cleanup job' }, { status: 500 });
     }
 }
+
+export const GET = handle;
+export const POST = handle;

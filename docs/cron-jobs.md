@@ -9,10 +9,11 @@ once a day, and Hobby fires it at some point within the scheduled hour.
 |---|---|---|---|
 | `/api/cron/create-weekly-services` | `0 11 * * *` | 4:00–4:59 MST / 5:00–5:59 MDT | Creates recurring visits for the next 7 days |
 | `/api/cron/open-job-pool` | `0 12 * * *` | 5:00–5:59 MST / 6:00–6:59 MDT | Releases expired claims, rolls overdue unclaimed visits onto today |
+| `/api/cron/cleanup-photos` | `0 9 * * *` | 2:00–2:59 MST / 3:00–3:59 MDT | Deletes job photos past their 7-day retention; see Photo cleanup below |
 | `/api/cron/process-employee-payouts` | `0 16 * * 5` | Fri 9:00–9:59 MST / 10:00–10:59 MDT | **Report only**; see Payouts below |
 
-Both daily jobs finish before the 7:00 visit start even at the end of their
-hour, and they don't depend on each other's order.
+The visit jobs finish before the 7:00 visit start even at the end of their
+hour, and none of the daily jobs depend on each other's order.
 
 ### Vercel Hobby limits (checked 2026-11-09)
 
@@ -20,7 +21,7 @@ From [Vercel's cron usage docs](https://vercel.com/docs/cron-jobs/usage-and-pric
 Hobby allows 100 cron jobs per project, each at most **once per day**, with
 per-hour precision (a `0 11 * * *` job runs between 11:00 and 11:59 UTC). A
 more frequent expression **fails the deployment**. Pro allows per-minute
-schedules. The job count is not a constraint here (3 of 100), so each route
+schedules. The job count is not a constraint here (4 of 100), so each route
 keeps its own entry instead of going through a dispatcher route.
 `npm run test:cron` fails if any entry in `vercel.json` would run more than
 once a day.
@@ -113,13 +114,23 @@ PENDING`, grouped by scooper with the amount owed. It returns
 money and does not change `Service`, `Earning` or `Payout` rows. Pay scoopers
 manually until real Stripe Connect transfers are built (backlog item 24).
 
+## Photo cleanup
+
+Completing a job creates a `PHOTO_CLEANUP` `CleanupTask` due 7 days later
+(`PHOTO_RETENTION_DAYS` in `src/lib/service-photos.js`), and every photo gets
+`expiresAt` = upload time + 7 days. `cleanup-photos` takes due pending tasks
+and deletes only that job's photos whose `expiresAt` has passed (S3 object
+first when there is one, then the row; inline data-URL photos are just rows).
+Each task ends `COMPLETED` or `FAILED` with a note. Photos with no
+`expiresAt` are never touched.
+
 ## Not scheduled
 
 These routes require the same auth but are not in `vercel.json`. They
 reference tables or fields that do not exist (see the schema mismatch list),
 or nobody has checked them yet:
 `automated-customer-acquisition`, `automated-employee-recruitment`,
-`business-intelligence`, `cleanup-photos`, `payment-reconciliation`,
+`business-intelligence`, `payment-reconciliation`,
 `payment-retry`, `process-referrals`, `retry-payments`,
 `send-customer-notifications`, `send-service-reminders`, `schedule-services`.
 
