@@ -475,8 +475,9 @@ export async function sendEmail(to, template, data = {}) {
         const mailOptions = {
             from: process.env.SMTP_USER || 'services@scoopify.club', // Use the new SMTP_USER
             to: to,
-            subject: emailTemplate.subject,
-            html: emailTemplate.html(data)
+            subject: typeof emailTemplate.subject === 'function' ? emailTemplate.subject(data) : emailTemplate.subject,
+            html: emailTemplate.html(data),
+            ...(data.replyTo ? { replyTo: data.replyTo } : {})
         };
 
         const result = await transporter.sendMail(mailOptions);

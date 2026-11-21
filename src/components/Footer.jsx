@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Facebook, Twitter, Instagram, Mail, Phone, MapPin } from 'lucide-react';
+import { Facebook, Twitter, Instagram, Mail, MapPin } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 
 /**
@@ -57,11 +57,6 @@ const contactInfo = [
         icon: Mail,
         text: 'services@scoopify.club',
         href: 'mailto:services@scoopify.club',
-    },
-    {
-        icon: Phone,
-        text: '(555) 123-4567',
-        href: 'tel:5551234567',
     },
     {
         icon: MapPin,
