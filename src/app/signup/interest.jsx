@@ -8,17 +8,28 @@ export default function InterestSplash({ zipCode }) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleInterest = async (e) => {
     e.preventDefault();
     setLoading(true);
-    await fetch('/api/customer/interest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name, zipCode })
-    });
-    setLoading(false);
-    setSubmitted(true);
+    setError('');
+    try {
+      const response = await fetch('/api/customer/interest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, name, zipCode })
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Something went wrong. Please try again.');
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (submitted) {
@@ -58,6 +69,7 @@ export default function InterestSplash({ zipCode }) {
           <Label htmlFor="email">Email</Label>
           <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
         </div>
+        {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? 'Submitting...' : 'Notify Me'}
         </Button>
