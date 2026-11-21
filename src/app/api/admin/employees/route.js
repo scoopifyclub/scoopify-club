@@ -15,7 +15,7 @@ export async function GET(request) {
         const employees = await withAdminDatabase(async (prisma) => {
             return await prisma.employee.findMany({
                 where: approval === 'pending'
-                    ? { approvedAt: null }
+                    ? { approvedAt: null, status: 'ACTIVE' }
                     : approval === 'approved'
                         ? { approvedAt: { not: null } }
                         : undefined,
@@ -34,6 +34,14 @@ export async function GET(request) {
                             id: true,
                             status: true,
                             scheduledDate: true,
+                        },
+                    },
+                    serviceAreas: {
+                        select: {
+                            id: true,
+                            zipCode: true,
+                            travelDistance: true,
+                            active: true,
                         },
                     },
                 },
