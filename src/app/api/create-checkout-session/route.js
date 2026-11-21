@@ -14,8 +14,8 @@ import { validateUserToken } from '@/lib/jwt-utils';
 import prisma from '@/lib/prisma';
 import { getRequestAuthToken } from '@/lib/auth-cookies';
 
-// Lets the webhook link the purchase to an existing Customer. Anonymous
-// checkout still works; the webhook then matches on the buyer's email.
+// Lets the webhook link the purchase to an existing Customer. Only approved
+// quotes can be paid anonymously (the webhook matches on the quote's email).
 async function findSignedInCustomer(request) {
     const token = await getRequestAuthToken(request);
     if (!token) return null;
@@ -172,6 +172,22 @@ export async function POST(request) {
             }, { status: 400 });
         }
 
+        // Plan checkout comes only from /signup/payment: without a Customer
+        // (account + covered ZIP) and a first-visit date the webhook can't
+        // schedule anything, so the buyer would pay for no visit.
+        if (!buyer) {
+            return NextResponse.json({
+                error: 'Create an account before checking out',
+                code: 'auth_required'
+            }, { status: 401 });
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate || '')) {
+            return NextResponse.json({
+                error: 'Choose a start date before checking out',
+                code: 'start_date_required'
+            }, { status: 400 });
+        }
+
         // Only catalog plans with a configured Stripe price can be bought, and
         // the catalog (not the client) decides one-time vs subscription. Optional
         // ZIP picks a market overlay Stripe Price without rewriting live subs.
@@ -189,7 +205,7 @@ export async function POST(request) {
         const amountCents = purchasable.amountCents
             ?? Math.round(Number(plan.displayAmount) * 100);
 
-        if (!isOneTime && buyer) {
+        if (!isOneTime) {
             const liveSubscription = await prisma.subscription.findFirst({
                 where: { customerId: buyer.customerId, status: { in: ['ACTIVE', 'SUSPENDED'] } },
                 select: { id: true },
@@ -212,10 +228,7 @@ export async function POST(request) {
             return NextResponse.json({ error: promo.error.error, code: promo.error.code || 'invalid_promo' }, { status: 400 });
         }
 
-        // Signup checkout: first-visit date and the initial cleanup fee are
-        // only accepted for a signed-in customer.
-        const firstVisitDate = buyer && /^\d{4}-\d{2}-\d{2}$/.test(startDate || '') ? startDate : '';
-        const wantsCleanup = buyer && !isOneTime && includeInitialCleanup && !promo.waiveCatchUp;
+        const wantsCleanup = !isOneTime && includeInitialCleanup && !promo.waiveCatchUp;
         const cleanupLineItem = wantsCleanup ? getInitialCleanupLineItem() : null;
         const safeCancelPath = typeof cancelPath === 'string' && cancelPath.startsWith('/signup/payment') ? cancelPath : '/pricing';
         const idempotencyKey = typeof attemptId === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(attemptId)
@@ -266,7 +279,7 @@ export async function POST(request) {
             metadata: {
                 planId: plan.id,
                 customerId: buyer?.customerId || '',
-                startDate: firstVisitDate,
+                startDate,
                 isOneTime: isOneTime ? 'true' : 'false',
                 subtotal: subtotal ? subtotal.toString() : '',
                 taxAmount: taxAmount.toString(),

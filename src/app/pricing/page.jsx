@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { CheckCircle2 } from 'lucide-react';
 import { getPricingPlans } from '@/lib/pricing.server';
 import { QUOTE_MIN_DOGS, QUOTE_REQUEST_PATH } from '@/lib/pricing-catalog';
-import CheckoutButton from './CheckoutButton';
+import PlanSignupLink from './PlanSignupLink';
 
 // Prices come from Stripe; re-check them every 5 minutes.
 export const revalidate = 300;
@@ -57,9 +57,9 @@ function PlanCard({ plan, ctaLabel, frequencyLabel }) {
             {feature}
           </li>))}
       </ul>
-      <CheckoutButton planId={plan.id} disabled={!purchasable} className={`w-full ${plan.popular ? 'bg-primary-600 hover:bg-primary-700' : ''}`}>
+      <PlanSignupLink planId={plan.id} disabled={!purchasable} className={`w-full ${plan.popular ? 'bg-primary-600 hover:bg-primary-700' : ''}`}>
         {purchasable ? ctaLabel : 'Not available yet'}
-      </CheckoutButton>
+      </PlanSignupLink>
     </div>);
 }
 
