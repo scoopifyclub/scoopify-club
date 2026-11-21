@@ -143,7 +143,7 @@ export default function Home() {
             <div>
               <SafeIcon icon={faCamera} className="w-7 h-7 text-[color:var(--brand-leaf)] mb-4"/>
               <h3 className="font-display text-xl font-semibold text-[color:var(--brand-ink)] mb-2">Photo Verification</h3>
-              <p className="text-[color:var(--brand-ink-muted)]">Before and after photos after every cleanup.</p>
+              <p className="text-[color:var(--brand-ink-muted)]">An after photo of your yard after every cleanup.</p>
             </div>
             <div>
               <SafeIcon icon={faThumbsUp} className="w-7 h-7 text-[color:var(--brand-leaf)] mb-4"/>

@@ -138,7 +138,7 @@ const IntegrationCapabilities = ({
         }
       ],
       documentation: {
-        baseUrl: 'https://api.scoopifyclub.com/v1',
+        baseUrl: 'https://www.scoopify.club/api',
         authentication: 'Bearer token',
         rateLimits: '1000 requests per hour',
         version: '1.0.0'

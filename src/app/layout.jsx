@@ -5,7 +5,7 @@ export const viewport = {
     themeColor: '#10b981',
 };
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://scoopifyclub.com';
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://www.scoopify.club';
 const defaultTitle = 'Scoopify Club | Dog Waste Removal in Colorado Springs & Falcon, CO';
 const defaultDescription =
     'Weekly dog waste removal and catch-up cleanups for Colorado Springs and Falcon, Colorado. Recurring scoop service so your yard stays usable.';

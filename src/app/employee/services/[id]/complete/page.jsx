@@ -169,7 +169,7 @@ export default function CompleteServicePage() {
               </Button>
             </label>
             <p className="mt-2 text-sm text-gray-500">
-              Photos up to 4 MB upload through the app. Larger photos need AWS storage configured.
+              Photos up to 4 MB upload through the app. If yours is larger, retake it at a lower resolution.
             </p>
           </div>
         </div>

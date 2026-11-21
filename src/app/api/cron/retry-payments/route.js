@@ -172,7 +172,7 @@ export const GET = withErrorHandler(async (request) => {
                                 );
 
                                 // Notify admin (you can customize the admin email)
-                                const adminEmail = process.env.ADMIN_EMAIL || 'admin@scoopifyclub.com';
+                                const adminEmail = process.env.ADMIN_EMAIL || 'services@scoopify.club';
                                 await sendEmail(
                                     adminEmail,
                                     'Subscription Payment Failure Alert',
